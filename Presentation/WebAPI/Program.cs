@@ -8,8 +8,8 @@ using UngDungMangXaHoi.Infrastructure.ExternalServices;
 using UngDungMangXaHoi.Application.Services;
 using UngDungMangXaHoi.Infrastructure.Services;
 using UngDungMangXaHoi.Application.UseCases.Users;
-using UngDungMangXaHoi.Application.UseCases.Posts;
-using UngDungMangXaHoi.Application.UseCases.Comments;
+// using UngDungMangXaHoi.Application.UseCases.Posts;
+// using UngDungMangXaHoi.Application.UseCases.Comments;
 using UngDungMangXaHoi.Domain.Interfaces;
 using DotNetEnv;
 
@@ -77,15 +77,13 @@ builder.Services.AddAuthorization();
 
 // Repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
-builder.Services.AddScoped<IPostRepository, PostRepository>();
-builder.Services.AddScoped<ICommentRepository, CommentRepository>();
-builder.Services.AddScoped<IFriendshipRepository, FriendshipRepository>();
+// Remove unused repositories for Post/Comment to focus on auth/profile features
 
 // Services
 builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddScoped<ITokenService>(provider => 
     new AuthService(secretKey, issuer, audience));
-builder.Services.AddScoped<INotificationService, NotificationService>();
+// Remove notification service if not required for current scope
 
 // External Services
 builder.Services.AddScoped<CloudinaryService>(provider =>
@@ -102,11 +100,7 @@ builder.Services.AddScoped<CloudinaryService>(provider =>
 builder.Services.AddScoped<RegisterUser>();
 builder.Services.AddScoped<LoginUser>();
 builder.Services.AddScoped<UpdateProfile>();
-builder.Services.AddScoped<CreatePost>();
-builder.Services.AddScoped<GetFeed>();
-builder.Services.AddScoped<DeletePost>();
-builder.Services.AddScoped<AddComment>();
-builder.Services.AddScoped<DeleteComment>();
+// Remove Post/Comment use cases registrations
 
 // CORS
 builder.Services.AddCors(options =>
