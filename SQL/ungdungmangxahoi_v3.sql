@@ -82,8 +82,26 @@ CREATE TABLE Posts (
     caption NVARCHAR(500),
     location NVARCHAR(255),
     privacy NVARCHAR(20) DEFAULT 'public', -- public, private, followers
+	is_visible BIT DEFAULT 1,  -- Thêm cho moderation (ẩn khi vi phạm)
     created_at DATETIME DEFAULT GETDATE()
 );
+
+-- Bảng PostMedia: Hỗ trợ nhiều ảnh/video (one-to-many với Posts)
+CREATE TABLE PostMedia (
+    media_id INT IDENTITY PRIMARY KEY,
+    post_id INT NOT NULL FOREIGN KEY REFERENCES Posts(post_id) ON DELETE CASCADE,
+    media_url NVARCHAR(500) NOT NULL,  -- Path/URL từ Azure Blob
+    media_type NVARCHAR(20) NOT NULL CHECK (media_type IN ('Image', 'Video')),  -- Phân biệt
+    media_order INT DEFAULT 0,  -- Thứ tự carousel
+    duration INT NULL,  -- Thời lượng giây (cho video)
+    created_at DATETIME DEFAULT GETDATE()
+);
+
+-- Ràng buộc: Tối đa 1 video/post
+CREATE UNIQUE INDEX UIX_PostMedia_OneVideo ON PostMedia (post_id) WHERE media_type = 'Video';
+
+-- Index cho PostMedia
+CREATE INDEX IX_PostMedia_PostId ON PostMedia (post_id);
 
 CREATE TABLE PostLikes (
     like_id INT IDENTITY PRIMARY KEY,
@@ -92,6 +110,10 @@ CREATE TABLE PostLikes (
     created_at DATETIME DEFAULT GETDATE(),
     UNIQUE(post_id, user_id)
 );
+
+-- Index cho PostLikes
+CREATE INDEX IX_PostLikes_PostId ON PostLikes (post_id);
+CREATE INDEX IX_PostLikes_UserId ON PostLikes (user_id);
 
 CREATE TABLE Comments (
     comment_id INT IDENTITY PRIMARY KEY,
