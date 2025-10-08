@@ -1,79 +1,41 @@
-using System;
 using System.Threading.Tasks;
 using UngDungMangXaHoi.Domain.Entities;
 using UngDungMangXaHoi.Domain.Interfaces;
 using UngDungMangXaHoi.Domain.ValueObjects;
-using UngDungMangXaHoi.Domain.DTOs;
 
 namespace UngDungMangXaHoi.Application.UseCases.Users
 {
     public class LoginUser
     {
-        private readonly IUserRepository _userRepository;
+        private readonly IAccountRepository _accountRepository;
         private readonly IPasswordHasher _passwordHasher;
         private readonly ITokenService _tokenService;
 
-        public LoginUser(IUserRepository userRepository, IPasswordHasher passwordHasher, ITokenService tokenService)
+        public LoginUser(IAccountRepository accountRepository, IPasswordHasher passwordHasher, ITokenService tokenService)
         {
-            _userRepository = userRepository;
+            _accountRepository = accountRepository;
             _passwordHasher = passwordHasher;
             _tokenService = tokenService;
         }
 
-        public async Task<LoginResultDto> ExecuteAsync(UserLoginDto userLoginDto)
+        public async Task<(string AccessToken, string RefreshToken)?> ExecuteAsync(string emailOrPhone, string password)
         {
-            // Validate input
-            if (string.IsNullOrWhiteSpace(userLoginDto.Email))
-                throw new ArgumentException("Email is required");
-
-            if (string.IsNullOrWhiteSpace(userLoginDto.Password))
-                throw new ArgumentException("Password is required");
-
-            // Get user by email
-            var email = new Email(userLoginDto.Email);
-            var user = await _userRepository.GetByEmailAsync(email);
-
-            if (user == null)
-                throw new UnauthorizedAccessException("Invalid email or password");
-
-            if (!user.IsActive)
-                throw new UnauthorizedAccessException("Account is deactivated");
-
-            // Verify password
-            if (!_passwordHasher.VerifyPassword(userLoginDto.Password, user.PasswordHash.Value))
-                throw new UnauthorizedAccessException("Invalid email or password");
-
-            // Generate token
-            var token = _tokenService.GenerateToken(user);
-
-            // Return result
-            return new LoginResultDto
+            Account? account = null;
+            if (emailOrPhone.Contains("@"))
             {
-                Token = token,
-                User = new UserDto
-                {
-                    Id = user.Id,
-                    UserName = user.UserName.Value,
-                    Email = user.Email.Value,
-                    FirstName = user.FirstName,
-                    LastName = user.LastName,
-                    DateOfBirth = user.DateOfBirth,
-                    ProfileImageUrl = user.ProfileImageUrl?.Value,
-                    CoverImageUrl = user.CoverImageUrl?.Value,
-                    Bio = user.Bio,
-                    CreatedAt = user.CreatedAt,
-                    IsActive = user.IsActive,
-                    FriendsCount = 0, // TODO: Calculate from friendship repository
-                    PostsCount = 0    // TODO: Calculate from post repository
-                }
-            };
+                account = await _accountRepository.GetByEmailAsync(new Email(emailOrPhone));
+            }
+            else
+            {
+                account = await _accountRepository.GetByPhoneAsync(new PhoneNumber(emailOrPhone));
+            }
+
+            if (account == null || !_passwordHasher.VerifyPassword(password, account.password_hash.Value))
+            {
+                return null;
+            }
+
+            return await _tokenService.GenerateTokensAsync(account);
         }
     }
-
-    public class LoginResultDto
-    {
-        public string Token { get; set; }
-        public UserDto User { get; set; }
-    }
 }
-

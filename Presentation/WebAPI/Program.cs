@@ -2,16 +2,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using DotNetEnv;
 using UngDungMangXaHoi.Infrastructure.Persistence;
 using UngDungMangXaHoi.Infrastructure.Repositories;
+using UngDungMangXaHoi.Infrastructure.Services;
 using UngDungMangXaHoi.Infrastructure.ExternalServices;
 using UngDungMangXaHoi.Application.Services;
-using UngDungMangXaHoi.Infrastructure.Services;
 using UngDungMangXaHoi.Application.UseCases.Users;
-// using UngDungMangXaHoi.Application.UseCases.Posts;
-// using UngDungMangXaHoi.Application.UseCases.Comments;
 using UngDungMangXaHoi.Domain.Interfaces;
-using DotNetEnv;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,39 +21,28 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Database: prefer appsettings ConnectionStrings:DefaultConnection, then env override, then composed
+// Database configuration
 var configuredConn = builder.Configuration.GetConnectionString("DefaultConnection");
-var envConn = Environment.GetEnvironmentVariable("CONNECTION_STRING");
-var sqlServer = Environment.GetEnvironmentVariable("SQLSERVER_HOST") ?? "MSI";
-var sqlUser = Environment.GetEnvironmentVariable("SQLSERVER_USER") ?? "sa";
-var sqlPass = Environment.GetEnvironmentVariable("SQLSERVER_PASSWORD") ?? "";
-var sqlDb = Environment.GetEnvironmentVariable("SQLSERVER_DATABASE") ?? "ungdungmangxahoi";
+var envConn = Environment.GetEnvironmentVariable("DB_HOST");
+var sqlServer = Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost";
+var sqlPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "1433";
+var sqlUser = Environment.GetEnvironmentVariable("DB_USER") ?? "sa";
+var sqlPass = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "123456789";
+var sqlDb = Environment.GetEnvironmentVariable("DB_NAME") ?? "ungdungmangxahoiv_2";
 var sqlTrust = Environment.GetEnvironmentVariable("SQLSERVER_TRUST_CERT") ?? "true";
 
 var connectionString = !string.IsNullOrWhiteSpace(configuredConn)
     ? configuredConn
     : !string.IsNullOrWhiteSpace(envConn)
         ? envConn
-        : $"Server={sqlServer};Database={sqlDb};User Id={sqlUser};Password={sqlPass};TrustServerCertificate={sqlTrust};";
+        : $"Server={sqlServer},{sqlPort};Database={sqlDb};User Id={sqlUser};Password={sqlPass};TrustServerCertificate={sqlTrust};";
 
 builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(connectionString));
 
-// JWT Authentication (support both Jwt and JwtSettings sections)
-var jwtSection = builder.Configuration.GetSection("Jwt");
-if (!jwtSection.Exists())
-{
-    jwtSection = builder.Configuration.GetSection("JwtSettings");
-}
-var secretKey = Environment.GetEnvironmentVariable("JWT_SECRET")
-                 ?? jwtSection["Key"]
-                 ?? jwtSection["SecretKey"]
-                 ?? "YourSuperSecretKeyThatIsAtLeast32CharactersLong!";
-var issuer = Environment.GetEnvironmentVariable("JWT_ISSUER")
-             ?? jwtSection["Issuer"]
-             ?? "UngDungMangXaHoi";
-var audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE")
-               ?? jwtSection["Audience"]
-               ?? "UngDungMangXaHoi";
+// JWT Authentication
+var jwtAccessSecret = Environment.GetEnvironmentVariable("JWT_ACCESS_SECRET") ?? "kkwefihewofjevwljflwljgjewjwjegljlwflwflew";
+var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER") ?? "UngDungMangXaHoi";
+var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? "UngDungMangXaHoi";
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -63,27 +50,31 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(secretKey)),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtAccessSecret)),
             ValidateIssuer = true,
-            ValidIssuer = issuer,
+            ValidIssuer = jwtIssuer,
             ValidateAudience = true,
-            ValidAudience = audience,
+            ValidAudience = jwtAudience,
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("UserOnly", policy => policy.RequireClaim("account_type", "User"));
+    options.AddPolicy("AdminOnly", policy => policy.RequireClaim("account_type", "Admin"));
+});
 
 // Repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
-// Remove unused repositories for Post/Comment to focus on auth/profile features
+builder.Services.AddScoped<IAccountRepository, AccountRepository>();
+builder.Services.AddScoped<IOTPRepository, OTPRepository>();
 
 // Services
 builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
-builder.Services.AddScoped<ITokenService>(provider => 
-    new AuthService(secretKey, issuer, audience));
-// Remove notification service if not required for current scope
+builder.Services.AddScoped<ITokenService, AuthService>();
+builder.Services.AddScoped<EmailService>();
 
 // External Services
 builder.Services.AddScoped<CloudinaryService>(provider =>
@@ -96,11 +87,21 @@ builder.Services.AddScoped<CloudinaryService>(provider =>
     );
 });
 
+// Email Service Configuration
+builder.Services.AddSingleton<IEmailService>(provider =>
+{
+    return new EmailService(
+        Environment.GetEnvironmentVariable("EMAIL_HOST") ?? "smtp.gmail.com",
+        int.Parse(Environment.GetEnvironmentVariable("EMAIL_PORT") ?? "587"),
+        Environment.GetEnvironmentVariable("EMAIL_USER") ?? "hoangzai2k403@gmail.com",
+        Environment.GetEnvironmentVariable("EMAIL_PASS") ?? "ijivnpzaqmhzbvms"
+    );
+});
+
 // Use Cases
 builder.Services.AddScoped<RegisterUser>();
 builder.Services.AddScoped<LoginUser>();
 builder.Services.AddScoped<UpdateProfile>();
-// Remove Post/Comment use cases registrations
 
 // CORS
 builder.Services.AddCors(options =>
@@ -128,7 +129,5 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-
-// Do not auto-create/migrate here to avoid altering existing schema
 
 app.Run();

@@ -11,7 +11,10 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
         }
 
         // DbSets
+        public DbSet<Account> Accounts { get; set; }
         public DbSet<User> Users { get; set; }
+        public DbSet<Admin> Admins { get; set; }
+        public DbSet<OTP> OTPs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -19,6 +22,7 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
 
             // Apply configurations
             modelBuilder.ApplyConfiguration(new UserConfiguration());
+            modelBuilder.ApplyConfiguration(new AccountConfiguration());
         }
     }
 }

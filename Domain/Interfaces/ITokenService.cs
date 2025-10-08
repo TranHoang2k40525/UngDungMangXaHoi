@@ -1,12 +1,11 @@
+using System.Threading.Tasks;
 using UngDungMangXaHoi.Domain.Entities;
 
 namespace UngDungMangXaHoi.Domain.Interfaces
 {
     public interface ITokenService
     {
-        string GenerateToken(User user);
-        bool ValidateToken(string token);
-        Guid? GetUserIdFromToken(string token);
+        Task<(string AccessToken, string RefreshToken)> GenerateTokensAsync(Account account);
+        Task<string> GenerateOtpAsync();
     }
 }
-

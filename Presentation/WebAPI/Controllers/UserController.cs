@@ -1,151 +1,49 @@
-using Microsoft.AspNetCore.Mvc;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
-using UngDungMangXaHoi.Application.UseCases.Users;
-using UngDungMangXaHoi.Domain.DTOs;
-using UngDungMangXaHoi.Application.Validators;
-using System.Security.Claims;
+using Microsoft.AspNetCore.Mvc;
+using UngDungMangXaHoi.Domain.Interfaces;
+using UngDungMangXaHoi.Domain.ValueObjects;
 
 namespace UngDungMangXaHoi.WebAPI.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/users")]
+    [Authorize(Policy = "UserOnly")]
     public class UserController : ControllerBase
     {
-        private readonly RegisterUser _registerUser;
-        private readonly LoginUser _loginUser;
-        private readonly UpdateProfile _updateProfile;
+        private readonly IUserRepository _userRepository;
 
-        public UserController(RegisterUser registerUser, LoginUser loginUser, UpdateProfile updateProfile)
+        public UserController(IUserRepository userRepository)
         {
-            _registerUser = registerUser;
-            _loginUser = loginUser;
-            _updateProfile = updateProfile;
-        }
-
-        [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] UserCreateDto userCreateDto)
-        {
-            try
-            {
-                // Validate input
-                var validationResult = UserValidator.ValidateUserCreate(userCreateDto);
-                if (!validationResult.IsValid)
-                {
-                    return BadRequest(new { message = validationResult.GetErrorMessage() });
-                }
-
-                var user = await _registerUser.ExecuteAsync(userCreateDto);
-                return CreatedAtAction(nameof(GetProfile), new { id = user.Id }, user);
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Conflict(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while registering the user" });
-            }
-        }
-
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] UserLoginDto userLoginDto)
-        {
-            try
-            {
-                // Validate input
-                var validationResult = UserValidator.ValidateUserLogin(userLoginDto);
-                if (!validationResult.IsValid)
-                {
-                    return BadRequest(new { message = validationResult.GetErrorMessage() });
-                }
-
-                var result = await _loginUser.ExecuteAsync(userLoginDto);
-                return Ok(result);
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                return Unauthorized(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while logging in" });
-            }
+            _userRepository = userRepository;
         }
 
         [HttpGet("profile")]
-        [Authorize]
         public async Task<IActionResult> GetProfile()
         {
-            try
+            var userIdClaim = User.FindFirst("sub")?.Value;
+            if (!int.TryParse(userIdClaim, out var userId))
             {
-                var userId = GetCurrentUserId();
-                if (userId == null)
-                {
-                    return Unauthorized(new { message = "Invalid token" });
-                }
+                return Unauthorized("Invalid token.");
+            }
 
-                // TODO: Implement GetProfile use case
-                return Ok(new { message = "Profile endpoint not implemented yet" });
-            }
-            catch (Exception ex)
+            var user = await _userRepository.GetByIdAsync(userId);
+            if (user == null)
             {
-                return StatusCode(500, new { message = "An error occurred while getting profile" });
+                return NotFound("User not found.");
             }
-        }
 
-        [HttpPut("profile")]
-        [Authorize]
-        public async Task<IActionResult> UpdateProfile([FromBody] UserUpdateDto userUpdateDto)
-        {
-            try
+            return Ok(new
             {
-                var userId = GetCurrentUserId();
-                if (userId == null)
-                {
-                    return Unauthorized(new { message = "Invalid token" });
-                }
-
-                // Validate input
-                var validationResult = UserValidator.ValidateUserUpdate(userUpdateDto);
-                if (!validationResult.IsValid)
-                {
-                    return BadRequest(new { message = validationResult.GetErrorMessage() });
-                }
-
-                var user = await _updateProfile.ExecuteAsync(userId.Value, userUpdateDto);
-                return Ok(user);
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { message = "An error occurred while updating profile" });
-            }
-        }
-
-        private Guid? GetCurrentUserId()
-        {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (userIdClaim != null && Guid.TryParse(userIdClaim.Value, out Guid userId))
-            {
-                return userId;
-            }
-            return null;
+                user.username,
+                user.full_name,
+                user.date_of_birth,
+                user.email,
+                user.phone,
+                user.gender,
+                user.avatar_url,
+                user.bio
+            });
         }
     }
 }
-

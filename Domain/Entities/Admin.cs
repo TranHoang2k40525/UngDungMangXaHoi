@@ -3,17 +3,9 @@ using UngDungMangXaHoi.Domain.ValueObjects;
 
 namespace UngDungMangXaHoi.Domain.Entities
 {
-    public enum Gender
+    public class Admin
     {
-        Nam,
-        Nữ,
-        Khác
-    }
-
-    public class User
-    {
-        public int user_id { get; set; }
-        public UserName username { get; set; }
+        public int admin_id { get; set; }
         public int account_id { get; set; }
         public string full_name { get; set; }
         public Gender gender { get; set; }
@@ -25,6 +17,7 @@ namespace UngDungMangXaHoi.Domain.Entities
         public string? hometown { get; set; }
         public string? job { get; set; }
         public string? website { get; set; }
+        public string admin_level { get; set; }
 
         public Account Account { get; set; }
     }

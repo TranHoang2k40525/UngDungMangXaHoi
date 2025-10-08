@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using UngDungMangXaHoi.Domain.Entities;
+using UngDungMangXaHoi.Domain.ValueObjects;
 
 namespace UngDungMangXaHoi.Infrastructure.Configurations
 {
@@ -8,88 +9,101 @@ namespace UngDungMangXaHoi.Infrastructure.Configurations
     {
         public void Configure(EntityTypeBuilder<User> builder)
         {
-            builder.HasKey(u => u.Id);
+            builder.HasKey(u => u.user_id);
 
-            builder.Property(u => u.UserName)
+            builder.Property(u => u.username)
                 .HasConversion(
                     v => v.Value,
-                    v => new Domain.ValueObjects.UserName(v))
-                .HasMaxLength(20)
-                .IsRequired();
-
-            builder.Property(u => u.Email)
-                .HasConversion(
-                    v => v.Value,
-                    v => new Domain.ValueObjects.Email(v))
-                .HasMaxLength(255)
-                .IsRequired();
-
-            builder.Property(u => u.PasswordHash)
-                .HasConversion(
-                    v => v.Value,
-                    v => new Domain.ValueObjects.PasswordHash(v))
-                .HasMaxLength(255)
-                .IsRequired();
-
-            builder.Property(u => u.FirstName)
+                    v => new UserName(v))
                 .HasMaxLength(50)
                 .IsRequired();
 
-            builder.Property(u => u.LastName)
-                .HasMaxLength(50)
+            builder.Property(u => u.full_name)
+                .HasMaxLength(100)
                 .IsRequired();
 
-            builder.Property(u => u.ProfileImageUrl)
-                .HasConversion(
-                    v => v != null ? v.Value : null,
-                    v => v != null ? new Domain.ValueObjects.ImageUrl(v) : null)
-                .HasMaxLength(500);
-
-            builder.Property(u => u.CoverImageUrl)
-                .HasConversion(
-                    v => v != null ? v.Value : null,
-                    v => v != null ? new Domain.ValueObjects.ImageUrl(v) : null)
-                .HasMaxLength(500);
-
-            builder.Property(u => u.Bio)
-                .HasMaxLength(500);
-
-            builder.Property(u => u.CreatedAt)
+            builder.Property(u => u.date_of_birth)
+                .HasColumnType("date")
                 .IsRequired();
 
-            builder.Property(u => u.UpdatedAt)
-                .IsRequired();
-
-            builder.Property(u => u.IsActive)
+            builder.Property(u => u.gender)
+                .HasMaxLength(10)
                 .IsRequired()
-                .HasDefaultValue(true);
+                .HasConversion(
+                    v => v.ToString(),
+                    v => (Gender)Enum.Parse(typeof(Gender), v));
+
+            builder.Property(u => u.avatar_url)
+                .HasConversion(
+                    v => v != null ? v.Value : null,
+                    v => v != null ? new ImageUrl(v) : null)
+                .HasMaxLength(255);
+
+            builder.Property(u => u.bio)
+                .HasMaxLength(255);
+
+            builder.Property(u => u.is_private)
+                .IsRequired()
+                .HasDefaultValue(false);
+
+            builder.HasOne(u => u.Account)
+                .WithOne(a => a.User)
+                .HasForeignKey<User>(u => u.account_id)
+                .OnDelete(DeleteBehavior.Cascade);
 
             // Indexes
-            builder.HasIndex(u => u.Email).IsUnique();
-            builder.HasIndex(u => u.UserName).IsUnique();
-            builder.HasIndex(u => u.CreatedAt);
+            builder.HasIndex(u => u.username).IsUnique();
+            builder.HasIndex(u => u.account_id).IsUnique();
+        }
+    }
 
-            // Relationships
-            builder.HasMany(u => u.Posts)
-                .WithOne(p => p.Author)
-                .HasForeignKey(p => p.AuthorId)
-                .OnDelete(DeleteBehavior.Cascade);
+    public class AccountConfiguration : IEntityTypeConfiguration<Account>
+    {
+        public void Configure(EntityTypeBuilder<Account> builder)
+        {
+            builder.HasKey(a => a.account_id);
 
-            builder.HasMany(u => u.Comments)
-                .WithOne(c => c.Author)
-                .HasForeignKey(c => c.AuthorId)
-                .OnDelete(DeleteBehavior.Cascade);
+            builder.Property(a => a.email)
+                .HasConversion(
+                    v => v != null ? v.Value : null,
+                    v => v != null ? new Email(v) : null)
+                .HasMaxLength(100);
 
-            builder.HasMany(u => u.SentFriendRequests)
-                .WithOne(f => f.Requester)
-                .HasForeignKey(f => f.RequesterId)
-                .OnDelete(DeleteBehavior.Restrict);
+            builder.Property(a => a.phone)
+                .HasConversion(
+                    v => v != null ? v.Value : null,
+                    v => v != null ? new PhoneNumber(v) : null)
+                .HasMaxLength(20);
 
-            builder.HasMany(u => u.ReceivedFriendRequests)
-                .WithOne(f => f.Addressee)
-                .HasForeignKey(f => f.AddresseeId)
-                .OnDelete(DeleteBehavior.Restrict);
+            builder.Property(a => a.password_hash)
+                .HasConversion(
+                    v => v.Value,
+                    v => new PasswordHash(v))
+                .HasMaxLength(255)
+                .IsRequired();
+
+            builder.Property(a => a.account_type)
+                .HasMaxLength(20)
+                .IsRequired()
+                .HasConversion(
+                    v => v.ToString(),
+                    v => (AccountType)Enum.Parse(typeof(AccountType), v));
+
+            builder.Property(a => a.status)
+                .HasMaxLength(20)
+                .IsRequired()
+                .HasDefaultValue("active");
+
+            builder.Property(a => a.created_at)
+                .IsRequired();
+
+            builder.Property(a => a.updated_at)
+                .IsRequired();
+
+            // Indexes
+            builder.HasIndex(a => a.email).IsUnique();
+            builder.HasIndex(a => a.phone).IsUnique();
+            builder.HasIndex(a => a.account_type);
         }
     }
 }
-

@@ -6,5 +6,3 @@ namespace UngDungMangXaHoi.Domain.Interfaces
         bool VerifyPassword(string password, string hashedPassword);
     }
 }
-
-

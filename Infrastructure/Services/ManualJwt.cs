@@ -2,6 +2,7 @@ using System;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using UngDungMangXaHoi.Domain.Entities;
 
 namespace UngDungMangXaHoi.Infrastructure.Services
 {
@@ -15,15 +16,42 @@ namespace UngDungMangXaHoi.Infrastructure.Services
                 .Replace('/', '_');
         }
 
-        public static string GenerateToken(object payloadObject, string secret, int expireSeconds)
+        public static string GenerateAccessToken(Account account, string secret, string issuer, string audience)
         {
             var header = new { alg = "HS256", typ = "JWT" };
-            var payloadJson = JsonSerializer.Serialize(payloadObject);
-            var headerJson = JsonSerializer.Serialize(header);
+            var payload = new
+            {
+                sub = account.account_id,
+                account_type = account.account_type.ToString(),
+                iss = issuer,
+                aud = audience,
+                exp = DateTimeOffset.UtcNow.AddMinutes(15).ToUnixTimeSeconds(),
+                iat = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+            };
 
+            var headerJson = JsonSerializer.Serialize(header);
+            var payloadJson = JsonSerializer.Serialize(payload);
             var encodedHeader = Base64UrlEncode(Encoding.UTF8.GetBytes(headerJson));
             var encodedPayload = Base64UrlEncode(Encoding.UTF8.GetBytes(payloadJson));
             var unsignedToken = $"{encodedHeader}.{encodedPayload}";
+
+            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
+            var signature = Base64UrlEncode(hmac.ComputeHash(Encoding.UTF8.GetBytes(unsignedToken)));
+            return $"{unsignedToken}.{signature}";
+        }
+
+        public static string GenerateRefreshToken(Account account, string secret)
+        {
+            var payload = new
+            {
+                sub = account.account_id,
+                exp = DateTimeOffset.UtcNow.AddDays(30).ToUnixTimeSeconds(),
+                iat = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+            };
+
+            var payloadJson = JsonSerializer.Serialize(payload);
+            var encodedPayload = Base64UrlEncode(Encoding.UTF8.GetBytes(payloadJson));
+            var unsignedToken = $".{encodedPayload}";
 
             using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
             var signature = Base64UrlEncode(hmac.ComputeHash(Encoding.UTF8.GetBytes(unsignedToken)));
@@ -42,5 +70,3 @@ namespace UngDungMangXaHoi.Infrastructure.Services
         }
     }
 }
-
-

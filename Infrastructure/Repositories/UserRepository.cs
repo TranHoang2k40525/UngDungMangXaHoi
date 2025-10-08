@@ -19,38 +19,41 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
             _context = context;
         }
 
-        public async Task<User?> GetByIdAsync(Guid id)
+        public async Task<User?> GetByIdAsync(int id)
         {
             return await _context.Users
-                .Include(u => u.Posts)
-                .Include(u => u.Comments)
-                .FirstOrDefaultAsync(u => u.Id == id);
+                .Include(u => u.Account)
+                .FirstOrDefaultAsync(u => u.user_id == id);
         }
 
         public async Task<User?> GetByEmailAsync(Email email)
         {
             return await _context.Users
-                .FirstOrDefaultAsync(u => u.Email.Value == email.Value);
+                .Include(u => u.Account)
+                .FirstOrDefaultAsync(u => u.Account.email.Value == email.Value);
         }
 
         public async Task<User?> GetByUserNameAsync(UserName userName)
         {
             return await _context.Users
-                .FirstOrDefaultAsync(u => u.UserName.Value == userName.Value);
+                .Include(u => u.Account)
+                .FirstOrDefaultAsync(u => u.username.Value == userName.Value);
         }
 
         public async Task<IEnumerable<User>> GetAllAsync()
         {
             return await _context.Users
-                .Where(u => u.IsActive)
-                .OrderBy(u => u.CreatedAt)
+                .Include(u => u.Account)
+                .Where(u => u.Account.status == "active")
+                .OrderBy(u => u.Account.created_at)
                 .ToListAsync();
         }
 
-        public async Task<IEnumerable<User>> GetUsersByIdsAsync(IEnumerable<Guid> userIds)
+        public async Task<IEnumerable<User>> GetUsersByIdsAsync(IEnumerable<int> userIds)
         {
             return await _context.Users
-                .Where(u => userIds.Contains(u.Id) && u.IsActive)
+                .Include(u => u.Account)
+                .Where(u => userIds.Contains(u.user_id) && u.Account.status == "active")
                 .ToListAsync();
         }
 
@@ -67,41 +70,43 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
             await _context.SaveChangesAsync();
         }
 
-        public async Task DeleteAsync(Guid id)
+        public async Task DeleteAsync(int id)
         {
-            var user = await _context.Users.FindAsync(id);
+            var user = await _context.Users
+                .Include(u => u.Account)
+                .FirstOrDefaultAsync(u => u.user_id == id);
             if (user != null)
             {
-                user.Deactivate();
+                user.Account.status = "deactivated";
                 await _context.SaveChangesAsync();
             }
         }
 
-        public async Task<bool> ExistsAsync(Guid id)
+        public async Task<bool> ExistsAsync(int id)
         {
-            return await _context.Users.AnyAsync(u => u.Id == id);
+            return await _context.Users.AnyAsync(u => u.user_id == id);
         }
 
         public async Task<bool> ExistsByEmailAsync(Email email)
         {
-            return await _context.Users.AnyAsync(u => u.Email.Value == email.Value);
+            return await _context.Accounts.AnyAsync(a => a.email.Value == email.Value);
         }
 
         public async Task<bool> ExistsByUserNameAsync(UserName userName)
         {
-            return await _context.Users.AnyAsync(u => u.UserName.Value == userName.Value);
+            return await _context.Users.AnyAsync(u => u.username.Value == userName.Value);
         }
 
         public async Task<IEnumerable<User>> SearchUsersAsync(string searchTerm, int pageNumber, int pageSize)
         {
             var query = _context.Users
-                .Where(u => u.IsActive && 
-                    (u.FirstName.Contains(searchTerm) || 
-                     u.LastName.Contains(searchTerm) || 
-                     u.UserName.Value.Contains(searchTerm)));
+                .Include(u => u.Account)
+                .Where(u => u.Account.status == "active" &&
+                    (u.full_name.Contains(searchTerm) ||
+                     u.username.Value.Contains(searchTerm)));
 
             return await query
-                .OrderBy(u => u.FirstName)
+                .OrderBy(u => u.full_name)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
@@ -109,8 +114,9 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
 
         public async Task<int> GetTotalUsersCountAsync()
         {
-            return await _context.Users.CountAsync(u => u.IsActive);
+            return await _context.Users
+                .Include(u => u.Account)
+                .CountAsync(u => u.Account.status == "active");
         }
     }
 }
-
