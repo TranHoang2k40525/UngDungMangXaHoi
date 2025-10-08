@@ -1,0 +1,29 @@
+## Build output
+**/bin/
+**/obj/
+
+## VS/IDE
+.vs/
+*.user
+*.suo
+*.cache
+*.log
+
+## Env files
+.env
+**/.env
+
+## Node/Frontend
+**/node_modules/
+**/dist/
+**/build/
+
+## Others
+*.sqlite
+*.db
+*.db-journal
+*.pfx
+*.snk
+*.key
+*.pem
+
