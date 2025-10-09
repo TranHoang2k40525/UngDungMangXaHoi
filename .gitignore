@@ -27,3 +27,6 @@
 *.key
 *.pem
 
+**/ios/
+**/android/
+**/*.xcodeproj/
