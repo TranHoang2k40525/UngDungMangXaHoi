@@ -6,6 +6,22 @@ const apiBase = 'http://localhost:5297/api/auth'; // ignored in mock
 function _read(key){ try{return JSON.parse(localStorage.getItem(key) || '{}');}catch{return{};} }
 function _write(key, v){ localStorage.setItem(key, JSON.stringify(v)); }
 
+/**
+ * Resolve a path inside the "pages" folder reliably for file:// and http.
+ * relFromPages: e.g. 'home/home.html' or 'auth/login.html'
+ */
+function resolveToPages(relFromPages){
+  const path = window.location.pathname.replace(/\\/g,'/');
+  const idx = path.indexOf('/pages/');
+  if(idx !== -1){
+    // already under pages/, keep same base up to /pages/
+    return path.substring(0, idx + '/pages/'.length) + relFromPages;
+  }
+  // not under pages/ (e.g. opened index.html at root) -> relative to current location
+  // prefer './pages/...' to work with file:// and http
+  return './pages/' + relFromPages;
+}
+
 async function postJson(url, body){
   if(USE_MOCK){
     // LOGIN
@@ -112,7 +128,8 @@ async function handleLogin(form, msgEl){
     const token = r.data?.accessToken || r.data?.access_token || 'mock-token';
     localStorage.setItem('accessToken', token);
     localStorage.setItem('currentUser', r.data.username || username);
-    window.location.href = 'home.html';
+    // redirect to dashboard/home (use resolveToPages)
+    window.location.href = resolveToPages('home/home.html');
   } else showMessage(msgEl, r.data?.message || 'Đăng nhập thất bại', true);
 }
 
@@ -128,7 +145,7 @@ async function handleRegister(form, msgEl){
     gender: Number(form.gender.value || 0)
   };
   const r = await postJson(`${apiBase}/register`, body);
-  if(r.ok) { showMessage(msgEl, 'Đăng ký thành công — (mock)'); setTimeout(()=>window.location.href='login.html',1200); }
+  if(r.ok) { showMessage(msgEl, 'Đăng ký thành công — (mock)'); setTimeout(()=>window.location.href = resolveToPages('auth/login.html'),1200); }
   else showMessage(msgEl, r.data?.message || 'Đăng ký thất bại', true);
 }
 
@@ -138,8 +155,12 @@ async function handleRequestOtp(form, msgEl){
   if(!email){ showMessage(msgEl, 'Nhập email', true); return; }
   const r = await postJson(`${apiBase}/request-otp`, { email, purpose: 'reset-password' });
   if(r.ok) {
-    showMessage(msgEl, 'OTP đã gửi (mock). Mã OTP: ' + (r.data?.otp || '')); 
-    setTimeout(()=>window.location.href='reset-password.html?email='+encodeURIComponent(email),2000);
+    showMessage(msgEl, 'OTP đã gửi (mock). Mã OTP: ' + (r.data?.otp || ''));
+    setTimeout(()=> {
+      // go to reset-password with email query
+      const tgt = resolveToPages('auth/reset-password.html') + '?email=' + encodeURIComponent(email);
+      window.location.href = tgt;
+    }, 1000);
   }
   else showMessage(msgEl, r.data?.message || 'Gửi OTP thất bại', true);
 }
@@ -151,7 +172,7 @@ async function handleResetPassword(form, msgEl){
   const password = form.password.value;
   if(!email || !otp || !password){ showMessage(msgEl, 'Điền đủ thông tin', true); return; }
   const r = await postJson(`${apiBase}/reset-password`, { email, otp, newPassword: password });
-  if(r.ok){ showMessage(msgEl, 'Đổi mật khẩu thành công (mock)'); setTimeout(()=>window.location.href='login.html',1200); }
+  if(r.ok){ showMessage(msgEl, 'Đổi mật khẩu thành công (mock)'); setTimeout(()=>window.location.href = resolveToPages('auth/login.html'),1200); }
   else showMessage(msgEl, r.data?.message || 'Đổi mật khẩu thất bại', true);
 }
 
@@ -159,5 +180,5 @@ async function handleResetPassword(form, msgEl){
 function logout(){
   localStorage.removeItem('accessToken');
   localStorage.removeItem('currentUser');
-  window.location.href = 'login.html';
-}
+  window.location.href = resolveToPages('auth/login.html');
+};
