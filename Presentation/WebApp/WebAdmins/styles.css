@@ -1,0 +1,157 @@
+:root {
+  --bg: #f4f7fb;
+  --card: #ffffff;
+  --muted: #6b7280;
+  --accent: #0b84ff;
+  --accent-2: #5bc0ff;
+  --shadow: 0 8px 24px rgba(16,24,40,0.06);
+  --radius: 12px;
+  --glass: rgba(255,255,255,0.6);
+}
+
+* { box-sizing: border-box; font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+
+body {
+  margin:0;
+  background:var(--bg);
+  color:#111827;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+/* Replace app-frame visual (remove blue border, full width layout) */
+.app-frame {
+  width: 100%;
+  max-width: none;           /* full width */
+  margin: 0;
+  padding: 0;                /* outer padding handled inside */
+  border: none;              /* remove blue border */
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Container that centers the layout and constrains content width */
+.app-layout {
+  display:flex;
+  min-height:100vh;
+  gap:20px;
+  padding:24px;
+  max-width:1200px;
+  margin:0 auto;             /* center the content on wide screens */
+  align-items:flex-start;
+}
+
+/* Shared card */
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/* Centered small forms */
+.container-center {
+  max-width:480px;
+  margin:42px auto;
+  padding:18px;
+}
+
+/* Form header */
+.logo {
+  text-align:center;
+  font-weight:700;
+  letter-spacing:6px;
+  margin-bottom:18px;
+  color:#0f172a;
+  font-size:20px;
+}
+
+/* Inputs */
+.form-control {
+  border-radius:10px;
+  height:44px;
+  border:1px solid #e6e9ee;
+  background:#fbfdff;
+  padding:10px 14px;
+  box-shadow:none;
+}
+.form-control:focus { outline:none; border-color:var(--accent); box-shadow:0 6px 20px rgba(11,132,255,0.08); }
+
+.form-note { font-size:0.9rem; color:var(--muted); margin-top:8px; }
+
+/* Buttons */
+.btn-primary {
+  background: linear-gradient(180deg,var(--accent),#0466d6);
+  border:none;
+  color:white;
+  height:44px;
+  border-radius:10px;
+  font-weight:600;
+  box-shadow:0 6px 18px rgba(11,132,255,0.14);
+}
+
+/* Login specific */
+.auth-wrap {
+  padding:28px;
+}
+
+/* Small link row */
+.helper-row { display:flex; justify-content:space-between; align-items:center; margin-top:12px; font-size:0.95rem; }
+
+/* Register sign-up grid */
+.signup-grid { display:grid; gap:10px; }
+
+/* Sidebar layout */
+/* make sidebar fixed so main content scrolls by mouse wheel */
+.sidebar {
+  width:260px;
+  background:var(--card);
+  border-radius:12px;
+  padding:18px;
+  box-shadow:var(--shadow);
+  height: calc(100vh - 48px);
+  position: sticky;
+  top: 24px;
+  align-self: flex-start;
+  overflow:auto;
+}
+
+/* nav-list scrolls if needed */
+.nav-list {
+  overflow:auto;
+  max-height: calc(100vh - 180px);
+}
+
+/* style nav items */
+.sidebar .brand { font-weight:700; margin-bottom:16px; color:var(--accent); }
+.nav-item { display:flex; gap:12px; align-items:center; padding:10px; border-radius:8px; color:#374151; cursor:pointer; margin-bottom:6px; }
+.nav-item.active { background: linear-gradient(90deg, rgba(11,132,255,0.06), rgba(91,192,255,0.03)); color:var(--accent); font-weight:600; border-left:4px solid var(--accent); padding-left:8px; }
+
+/* footer area at bottom */
+.sidebar-footer {
+  margin-top:12px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+}
+
+/* main content */
+.main {
+  flex:1;
+  min-height:100vh;
+}
+.kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
+.kpi { padding:18px; border-radius:10px; background:linear-gradient(180deg,#fff,#fbfdff); box-shadow:0 6px 18px rgba(16,24,40,0.04); }
+
+/* spacing helper */
+.mt-3 { margin-top:12px; }
+
+/* add small helpers for info lists and table spacing */
+.info-list li { margin:6px 0; color:var(--muted); }
+.table td, .table th { vertical-align:middle; padding:10px 12px; }
+
+/* Responsive */
+@media (max-width:900px){
+  .app-layout { padding:12px; flex-direction:column; }
+  .sidebar { width:100%; height:auto; position:relative; top:auto; max-height:none; }
+  .container-center { margin:18px 12px; }
+}
