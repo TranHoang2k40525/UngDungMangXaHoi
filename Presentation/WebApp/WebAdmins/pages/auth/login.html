@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Đăng nhập - Admin</title>
+  <link rel="stylesheet" href="../../styles.css">
+</head>
+<body>
+  <div class="container-center">
+    <div class="card auth">
+      <a class="back-arrow" href="../home/home.html" title="Quay lại">←</a>
+
+      <div class="logo">SNA67CS</div>
+
+      <form id="loginForm" onsubmit="event.preventDefault(); handleLogin(loginForm, msg)">
+        <input name="username" class="form-control" placeholder="Tên đăng nhập hoặc email" />
+        <div style="position:relative">
+          <input id="pwd" type="password" name="password" class="form-control" placeholder="Password" />
+          <button type="button" onclick="(function(){ const p=document.getElementById('pwd'); p.type = p.type==='password'?'text':'password'; })()" style="position:absolute;right:12px;top:8px;border:none;background:none;color:#9ca3af;">👁️</button>
+        </div>
+
+        <div class="auth-btn-wrap">
+          <button class="btn-primary" type="submit" style="width:320px;max-width:86%;">Log in</button>
+        </div>
+
+        <div class="auth-links">
+          <div>Don't have an account? <a href="register.html">Sign up</a></div>
+          <div style="margin-top:8px"><a href="forgot-password.html">Forgot password?</a></div>
+        </div>
+
+        <div id="msg" style="min-height:18px;margin-top:12px;color:var(--muted)"></div>
+      </form>
+    </div>
+  </div>
+
+  <script src="../../webadmins.js"></script>
+</body>
+</html>
