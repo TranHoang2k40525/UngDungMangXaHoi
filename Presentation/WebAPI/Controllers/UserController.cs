@@ -33,17 +33,17 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 return NotFound("User not found.");
             }
 
-            return Ok(new
-            {
-                user.username,
-                user.full_name,
-                user.date_of_birth,
-                user.email,
-                user.phone,
-                user.gender,
-                user.avatar_url,
-                user.bio
-            });
+            var response = new {
+                Username = user.username,
+                FullName = user.full_name,
+                Email = user.Account.email,
+                Phone = user.Account.phone,
+                Gender = user.gender,
+                AvatarUrl = user.avatar_url,
+                Bio = user.bio
+            };
+
+            return Ok(response);
         }
     }
 }

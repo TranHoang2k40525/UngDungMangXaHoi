@@ -2,6 +2,7 @@ using System.Threading.Tasks;
 using UngDungMangXaHoi.Domain.Entities;
 using UngDungMangXaHoi.Domain.Interfaces;
 using UngDungMangXaHoi.Domain.ValueObjects;
+using UngDungMangXaHoi.Application.Validators; // { changed code }
 
 namespace UngDungMangXaHoi.Application.UseCases.Users
 {

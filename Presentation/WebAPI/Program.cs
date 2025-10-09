@@ -74,7 +74,7 @@ builder.Services.AddScoped<IOTPRepository, OTPRepository>();
 // Services
 builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddScoped<ITokenService, AuthService>();
-builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped(sp => new UngDungMangXaHoi.Infrastructure.Services.EmailService(sp.GetRequiredService<IConfiguration>()));
 
 // External Services
 builder.Services.AddScoped<CloudinaryService>(provider =>
@@ -87,16 +87,7 @@ builder.Services.AddScoped<CloudinaryService>(provider =>
     );
 });
 
-// Email Service Configuration
-builder.Services.AddSingleton<IEmailService>(provider =>
-{
-    return new EmailService(
-        Environment.GetEnvironmentVariable("EMAIL_HOST") ?? "smtp.gmail.com",
-        int.Parse(Environment.GetEnvironmentVariable("EMAIL_PORT") ?? "587"),
-        Environment.GetEnvironmentVariable("EMAIL_USER") ?? "hoangzai2k403@gmail.com",
-        Environment.GetEnvironmentVariable("EMAIL_PASS") ?? "ijivnpzaqmhzbvms"
-    );
-});
+builder.Services.AddScoped<UngDungMangXaHoi.Domain.Interfaces.INotificationService, UngDungMangXaHoi.Infrastructure.Services.EmailService>();
 
 // Use Cases
 builder.Services.AddScoped<RegisterUser>();
