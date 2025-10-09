@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Sign Up</title>
+  <link rel="stylesheet" href="../../styles.css">
+</head>
+<body>
+  <div class="container-center">
+    <div class="card auth">
+      <a class="back-arrow" href="login.html" title="Quay lại">←</a>
+      <div class="logo">SIGN UP</div>
+
+      <form id="regForm" onsubmit="event.preventDefault(); handleRegister(regForm, msg)">
+        <input name="username" class="form-control" placeholder="Tên người dùng" />
+        <input name="fullName" class="form-control" placeholder="Họ và tên" />
+        <div class="form-row">
+          <input name="dateOfBirth" type="date" class="form-control" />
+          <select name="gender" class="form-control" style="height:46px;border-radius:10px">
+            <option value="0">Giới tính</option>
+            <option value="1">Male</option>
+            <option value="2">Female</option>
+          </select>
+        </div>
+        <input name="phone" class="form-control" placeholder="Số điện thoại" />
+        <input name="email" class="form-control" placeholder="Email" />
+        <input name="password" type="password" class="form-control" placeholder="Mật khẩu" />
+
+        <div class="auth-btn-wrap" style="margin-top:14px">
+          <button class="btn-primary" type="submit" style="width:100%;">Đăng ký</button>
+        </div>
+
+        <div id="msg" style="min-height:18px;margin-top:12px;color:var(--muted)"></div>
+      </form>
+    </div>
+  </div>
+
+  <script src="../../webadmins.js"></script>
+</body>
+</html>
