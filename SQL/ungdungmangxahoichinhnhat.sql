@@ -34,14 +34,14 @@ CREATE INDEX IX_Accounts_Phone ON Accounts(phone);
 -- Tạo bảng Users: Tách riêng thông tin profile cá nhân cho người dùng thường
 CREATE TABLE Users (
     user_id INT IDENTITY PRIMARY KEY,  -- ID tự tăng, khóa chính cho user
-    username NVARCHAR(50) UNIQUE NOT NULL,  -- Tên người dùng (có thể rỗng)
+    username NVARCHAR(50) UNIQUE NOT NULL,  -- Tên người dùng (duy nhất, bắt buộc)
     account_id INT NOT NULL FOREIGN KEY REFERENCES Accounts(account_id) ON DELETE CASCADE,  -- Liên kết với Accounts, xóa cascade (xóa account → xóa user)
     full_name NVARCHAR(100),  -- Tên đầy đủ (có thể rỗng)
     gender NVARCHAR(10) NULL CHECK (gender IN ('Nam', 'Nữ', 'Khác')),  -- Giới tính ('Nam', 'Nữ', 'Khác' hoặc NULL nếu không tiết lộ)
     bio NVARCHAR(255),  -- Tiểu sử/giới thiệu bản thân (có thể rỗng, tối đa 255 ký tự)
     avatar_url NVARCHAR(255),  -- URL ảnh đại diện (có thể rỗng, lưu từ Azure Blob)
     is_private BIT DEFAULT 0,  -- Cờ tài khoản riêng tư (0=public, 1=private)
-    date_of_birth DATE,  -- Ngày tháng năm sinh (có thể rỗng)
+    date_of_birth DATE,  -- Ngày tháng năm sinh 
     address NVARCHAR(255),  -- Địa chỉ hiện tại (có thể rỗng)
     hometown NVARCHAR(255),  -- Quê quán (có thể rỗng)
     job NVARCHAR(255),  -- Công việc/Nghề nghiệp (có thể rỗng)
