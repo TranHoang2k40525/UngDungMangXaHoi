@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="vi">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Báo cáo vi phạm</title><link rel="stylesheet" href="../../styles.css"></head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="brand">SNAP67CS Admin</div>
+      <div class="nav-list">
+        <a class="nav-item" href="../home/home.html">Trang chủ Admin</a>
+        <a class="nav-item" href="../users/users.html">Quản lý người dùng</a>
+        <a class="nav-item" href="../moderation/moderation.html">Kiểm duyệt nội dung</a>
+        <a class="nav-item active" href="reports.html">Báo cáo vi phạm</a>
+        <a class="nav-item" href="../ai/ai.html">Hệ thống AI</a>
+        <a class="nav-item" href="../analytics/analytics.html">Thống kê & Phân tích</a>
+        <a class="nav-item" href="../settings/settings.html">Cài đặt</a>
+      </div>
+      <div class="sidebar-footer"><a class="nav-item" href="../auth/login.html" onclick="logout();return false;">Logout</a></div>
+    </aside>
+
+    <main class="main">
+      <div class="card p-3">
+        <h3 style="margin:0 0 12px 0">Báo cáo Vi phạm</h3>
+        <table class="table" style="width:100%;background:#fff;border-radius:10px;box-shadow:var(--shadow)">
+          <thead>
+            <tr><th>Loại</th><th>Nội dung</th><th>Người báo cáo</th><th>Trạng thái</th><th>Hành động</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Post</td>
+              <td>Nội dung không phù hợp</td>
+              <td>@user111</td>
+              <td><span class="pill warning">pending</span></td>
+              <td><a href="#">Xem</a> · <a href="#" style="color:#10b981">Xử lý</a></td>
+            </tr>
+            <tr>
+              <td>Comment</td>
+              <td>Bình luận độc hại</td>
+              <td>@user222</td>
+              <td><span class="pill warning">pending</span></td>
+              <td><a href="#">Xem</a> · <a href="#" style="color:#10b981">Xử lý</a></td>
+            </tr>
+            <tr>
+              <td>User</td>
+              <td>Tài khoản spam</td>
+              <td>@user333</td>
+              <td><span class="pill success">reviewed</span></td>
+              <td><a href="#">Xem</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <script src="../../webadmins.js"></script>
+</body>
+</html>
+
