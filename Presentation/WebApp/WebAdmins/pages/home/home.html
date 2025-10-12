@@ -1,56 +1,120 @@
 <!doctype html>
 <html lang="vi">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin Dashboard</title><link rel="stylesheet" href="../../styles.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Trang chủ Admin</title><link rel="stylesheet" href="../../styles.css"></head>
 <body>
   <div class="app-layout">
     <aside class="sidebar">
-      <div class="brand">Social Admin</div>
+      <div class="brand">SNAP67CS Admin</div>
       <div class="nav-list">
-        <a class="nav-item active" href="home.html">Dashboard</a>
+        <a class="nav-item active" href="home.html">Trang chủ Admin</a>
         <a class="nav-item" href="../users/users.html">Quản lý người dùng</a>
         <a class="nav-item" href="../moderation/moderation.html">Kiểm duyệt nội dung</a>
         <a class="nav-item" href="../reports/reports.html">Báo cáo vi phạm</a>
-        <a class="nav-item" href="../ai/ai.html">AI & Thống kê</a>
+        <a class="nav-item" href="../ai/ai.html">Hệ thống AI</a>
+        <a class="nav-item" href="../analytics/analytics.html">Thống kê & Phân tích</a>
+        <a class="nav-item" href="../settings/settings.html">Cài đặt</a>
       </div>
       <div class="sidebar-footer"><a class="nav-item" href="../auth/login.html" onclick="logout();return false;">Logout</a></div>
     </aside>
 
     <main class="main">
+      <div style="margin-bottom:32px">
+        <h1 style="margin:0 0 8px 0;color:#111827;font-size:32px;font-weight:700">Trang chủ Admin</h1>
+        <p style="margin:0;color:var(--muted);font-size:16px">Tổng quan hệ thống quản lý mạng xã hội</p>
+      </div>
+
       <div class="kpi-grid">
-        <div class="kpi card p-3"><div style="font-size:12px;color:var(--muted)">Người dùng mới</div><h3>1,234</h3><div style="color:green;font-size:12px">+12% so với tháng trước</div></div>
-        <div class="kpi card p-3"><div style="font-size:12px;color:var(--muted)">Bài đăng hôm nay</div><h3>5,678</h3><div style="color:green;font-size:12px">+6% so với hôm qua</div></div>
-        <div class="kpi card p-3"><div style="font-size:12px;color:var(--muted)">Vi phạm phát hiện</div><h3>89</h3><div style="color:#ef4444;font-size:12px">-3% so với tuần trước</div></div>
-      </div>
-
-      <div class="card p-3 mt-3">
-        <h5>Người dùng mới theo tháng</h5>
-        <div style="height:180px;background:#f8fafc;border-radius:8px;margin-top:12px;display:flex;align-items:center;justify-content:center;color:var(--muted)">Biểu đồ (demo)</div>
-      </div>
-
-      <div class="card p-3 mt-3">
-        <h5>Phân loại vi phạm</h5>
-        <div style="height:120px;background:#f8fafc;border-radius:8px;margin-top:12px;display:flex;align-items:center;justify-content:center;color:var(--muted)">Biểu đồ (demo)</div>
-      </div>
-
-      <div class="card p-3 mt-3">
-        <h5>Top Hashtags</h5>
-        <ul style="margin:0;padding-left:18px;color:var(--muted)"><li>#travel</li><li>#food</li><li>#tech</li><li>#fashion</li><li>#fitness</li></ul>
-      </div>
-
-      <div class="card p-3 mt-3">
-        <h5>Bài đăng chờ duyệt</h5>
-        <div style="margin-top:12px"><table class="table"><thead><tr><th>Tiêu đề</th><th>Người đăng</th><th>Loại</th><th>Hành động</th></tr></thead><tbody><tr><td>Du lịch HN</td><td>user123</td><td>Ảnh</td><td><button class="btn btn-sm btn-primary">Duyệt</button> <button class="btn btn-sm btn-outline-secondary">Từ chối</button></td></tr></tbody></table></div>
-      </div>
-
-      <div class="card p-3 mt-3">
-        <h5>AI Performance</h5>
-        <div style="display:flex;gap:12px;margin-top:12px">
-          <div class="card p-3" style="flex:1;min-width:160px"><div style="font-size:12px;color:var(--muted)">Accuracy</div><h4>94.5%</h4></div>
-          <div class="card p-3" style="flex:1;min-width:160px"><div style="font-size:12px;color:var(--muted)">False Positive</div><h4>2.3%</h4></div>
-          <div class="card p-3" style="flex:1;min-width:160px"><div style="font-size:12px;color:var(--muted)">Processing</div><h4>1.2s / item</h4></div>
+        <div class="kpi card p-4">
+          <div style="font-size:14px;color:var(--muted);margin-bottom:8px">Người dùng mới</div>
+          <h3 style="margin:0 0 8px 0;font-size:28px;font-weight:700;color:#111827">1,234</h3>
+          <div style="color:#16a34a;font-size:14px;font-weight:500">+12% so với tháng trước</div>
+        </div>
+        <div class="kpi card p-4">
+          <div style="font-size:14px;color:var(--muted);margin-bottom:8px">Bài đăng hôm nay</div>
+          <h3 style="margin:0 0 8px 0;font-size:28px;font-weight:700;color:#111827">5,678</h3>
+          <div style="color:#16a34a;font-size:14px;font-weight:500">+8% so với tháng trước</div>
+        </div>
+        <div class="kpi card p-4">
+          <div style="font-size:14px;color:var(--muted);margin-bottom:8px">Vi phạm phát hiện</div>
+          <h3 style="margin:0 0 8px 0;font-size:28px;font-weight:700;color:#111827">89</h3>
+          <div style="color:#ef4444;font-size:14px;font-weight:500">-5% so với tháng trước</div>
+        </div>
+        <div class="kpi card p-4">
+          <div style="font-size:14px;color:var(--muted);margin-bottom:8px">Comments độc hại</div>
+          <h3 style="margin:0 0 8px 0;font-size:28px;font-weight:700;color:#111827">156</h3>
+          <div style="color:#ef4444;font-size:14px;font-weight:500">-15% so với tháng trước</div>
         </div>
       </div>
 
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;margin-top:32px">
+        <div class="card p-4">
+          <h3 style="margin:0 0 16px 0;color:#111827;font-size:20px;font-weight:600">Người dùng mới theo tháng</h3>
+          <div style="height:300px;background:#f8fafc;border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:16px">Biểu đồ thống kê (demo)</div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:24px">
+          <div class="card p-4">
+            <h3 style="margin:0 0 16px 0;color:#111827;font-size:18px;font-weight:600">Top Hashtags</h3>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#f8fafc;border-radius:8px">
+                <span style="color:#111827;font-weight:500">#travel</span>
+                <span style="color:var(--muted);font-size:14px">1.2k</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#f8fafc;border-radius:8px">
+                <span style="color:#111827;font-weight:500">#food</span>
+                <span style="color:var(--muted);font-size:14px">980</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#f8fafc;border-radius:8px">
+                <span style="color:#111827;font-weight:500">#tech</span>
+                <span style="color:var(--muted);font-size:14px">756</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card p-4">
+            <h3 style="margin:0 0 16px 0;color:#111827;font-size:18px;font-weight:600">Báo cáo nhanh</h3>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="color:#111827">Bài đăng chờ duyệt</span>
+                <span style="color:#ef4444;font-weight:600">15</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="color:#111827">Comments chờ duyệt</span>
+                <span style="color:#ef4444;font-weight:600">23</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="color:#111827">Stories chờ duyệt</span>
+                <span style="color:#ef4444;font-weight:600">8</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:32px">
+        <div class="card p-4">
+          <h3 style="margin:0 0 16px 0;color:#111827;font-size:18px;font-weight:600">AI Performance</h3>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="color:#111827">Accuracy</span>
+              <span style="color:#16a34a;font-weight:600">94.5%</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="color:#111827">False Positive</span>
+              <span style="color:#ef4444;font-weight:600">2.3%</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="color:#111827">Processing Time</span>
+              <span style="color:#111827;font-weight:600">1.2s</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card p-4">
+          <h3 style="margin:0 0 16px 0;color:#111827;font-size:18px;font-weight:600">Phân loại vi phạm</h3>
+          <div style="height:120px;background:#f8fafc;border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:16px">Biểu đồ phân loại (demo)</div>
+        </div>
+      </div>
     </main>
   </div>
 

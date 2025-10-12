@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Chỉnh sửa thông tin cá nhân</title>
+  <link rel="stylesheet" href="../../styles.css">
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="brand">SNAP67CS Admin</div>
+      <div class="nav-list">
+        <a class="nav-item" href="../home/home.html">Trang chủ Admin</a>
+        <a class="nav-item" href="../users/users.html">Quản lý người dùng</a>
+        <a class="nav-item" href="../moderation/moderation.html">Kiểm duyệt nội dung</a>
+        <a class="nav-item" href="../reports/reports.html">Báo cáo vi phạm</a>
+        <a class="nav-item" href="../ai/ai.html">Hệ thống AI</a>
+        <a class="nav-item" href="../analytics/analytics.html">Thống kê & Phân tích</a>
+        <a class="nav-item active" href="settings.html">Cài đặt</a>
+      </div>
+      <div class="sidebar-footer">
+        <a class="nav-item" href="../auth/login.html" onclick="logout();return false;">Logout</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <button onclick="handleBackNavigation()" class="back-arrow" style="position:static;margin-bottom:16px;">←</button>
+      
+      <div class="card p-4">
+        <div style="margin-bottom:24px">
+          <h2 style="margin:0;color:#111827;font-size:24px;font-weight:700">Chỉnh sửa thông tin cá nhân</h2>
+        </div>
+
+        <!-- Step 1: Email verification -->
+        <div class="form-step active" id="step1">
+          <h3>Xác thực email</h3>
+          <p>Nhập email của bạn để nhận mã OTP xác thực</p>
+          
+          <form id="emailForm" onsubmit="handleEmailSubmit(event)">
+            <input type="email" name="email" class="form-control" placeholder="Nhập email của bạn" required>
+            <div class="auth-btn-wrap">
+              <button type="submit" class="btn-primary">Gửi mã OTP</button>
+            </div>
+            <div id="emailMessage" class="auth-links"></div>
+          </form>
+        </div>
+
+        <!-- Step 2: OTP verification -->
+        <div class="form-step" id="step2">
+          <h3>Nhập mã OTP</h3>
+          <p>Mã OTP đã được gửi đến email của bạn</p>
+          
+          <div class="otp-container">
+            <div style="display:flex;justify-content:center;gap:8px;margin-bottom:20px">
+              <input type="text" class="otp-input" maxlength="1" data-index="0">
+              <input type="text" class="otp-input" maxlength="1" data-index="1">
+              <input type="text" class="otp-input" maxlength="1" data-index="2">
+              <input type="text" class="otp-input" maxlength="1" data-index="3">
+              <input type="text" class="otp-input" maxlength="1" data-index="4">
+              <input type="text" class="otp-input" maxlength="1" data-index="5">
+            </div>
+            
+            <div class="otp-timer" id="otpTimer">Mã OTP có hiệu lực trong: <span id="countdown">10:00</span></div>
+            <button type="button" class="resend-btn" id="resendBtn" onclick="resendOTP()" disabled>Gửi lại mã OTP</button>
+            
+            <div style="margin-top:20px">
+              <button type="button" class="btn-primary" onclick="verifyOTP()">Xác thực OTP</button>
+              <button type="button" class="btn-secondary" onclick="goBackToStep1()" style="margin-left:12px">Quay lại</button>
+            </div>
+            
+            <div id="otpMessage" class="auth-links" style="margin-top:12px"></div>
+          </div>
+        </div>
+
+        <!-- Step 3: Edit profile form -->
+        <div class="form-step" id="step3">
+          <h3>Chỉnh sửa thông tin</h3>
+          <p>Cập nhật thông tin cá nhân của bạn</p>
+          
+          <form id="profileForm" onsubmit="handleProfileUpdate(event)">
+            <div class="form-row">
+              <input type="text" name="fullName" class="form-control" placeholder="Họ và tên" required>
+              <input type="email" name="email" class="form-control" placeholder="Email" required>
+            </div>
+            
+            <div class="form-row">
+              <input type="tel" name="phone" class="form-control" placeholder="Số điện thoại" required>
+              <input type="date" name="dateOfBirth" class="form-control" required>
+            </div>
+            
+            <input type="text" name="address" class="form-control" placeholder="Địa chỉ" required>
+            
+            <div class="auth-btn-wrap">
+              <button type="submit" class="btn-primary">Cập nhật thông tin</button>
+            </div>
+            <div id="profileMessage" class="auth-links"></div>
+          </form>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="../../webadmins.js"></script>
+  <script>
+    let currentEmail = '';
+    let otpTimer = null;
+    let otpExpiry = null;
+
+  
+
+    // Handle email submission
+    async function handleEmailSubmit(event) {
+      event.preventDefault();
+      const form = event.target;
+      const email = form.email.value.trim();
+      const msgEl = document.getElementById('emailMessage');
+      
+      if (!email) {
+        showMessage(msgEl, 'Vui lòng nhập email', true);
+        return;
+      }
+
+      currentEmail = email;
+      const r = await postJson(`${apiBase}/request-otp`, { email, purpose: 'edit-profile' });
+      
+      if (r.ok) {
+        showStep(2);
+        startOTPTimer();
+        
+      
+      } else {
+        showMessage(msgEl, r.data?.message || 'Gửi OTP thất bại', true);
+      }
+    }
+
+    // Handle OTP verification
+    async function verifyOTP() {
+      const otpInputs = document.querySelectorAll('.otp-input');
+      const otp = Array.from(otpInputs).map(input => input.value).join('');
+      const msgEl = document.getElementById('otpMessage');
+      
+      if (otp.length !== 6) {
+        showMessage(msgEl, 'Vui lòng nhập đủ 6 số OTP', true);
+        return;
+      }
+
+      const r = await postJson(`${apiBase}/verify-otp`, { 
+        email: currentEmail, 
+        otp: otp,
+        purpose: 'edit-profile'
+      });
+      
+      if (r.ok) {
+        showMessage(msgEl, 'Xác thực OTP thành công');
+        showStep(3);
+        loadCurrentProfile();
+        clearOTPTimer();
+      } else {
+        showMessage(msgEl, r.data?.message || 'Mã OTP không đúng hoặc đã hết hạn', true);
+      }
+    }
+
+    // Load current profile data
+    function loadCurrentProfile() {
+      const users = _read('mock_users');
+      const currentUser = localStorage.getItem('currentUser');
+      
+      // Find user data
+      let userData = null;
+      for (const key of Object.keys(users)) {
+        const user = users[key];
+        if (user.username === currentUser || key === currentUser) {
+          userData = user;
+          break;
+        }
+      }
+
+      if (userData) {
+        document.querySelector('input[name="fullName"]').value = userData.fullName || '';
+        document.querySelector('input[name="email"]').value = userData.email || '';
+        document.querySelector('input[name="phone"]').value = userData.phone || '';
+        document.querySelector('input[name="dateOfBirth"]').value = userData.dateOfBirth || '';
+        document.querySelector('input[name="address"]').value = userData.address || '';
+      }
+    }
+
+    // Handle profile update
+    async function handleProfileUpdate(event) {
+      event.preventDefault();
+      const form = event.target;
+      const msgEl = document.getElementById('profileMessage');
+      
+      const profileData = {
+        fullName: form.fullName.value.trim(),
+        email: form.email.value.trim(),
+        phone: form.phone.value.trim(),
+        dateOfBirth: form.dateOfBirth.value,
+        address: form.address.value.trim()
+      };
+
+      // Validate required fields
+      if (!profileData.fullName || !profileData.email || !profileData.phone || !profileData.dateOfBirth || !profileData.address) {
+        showMessage(msgEl, 'Vui lòng điền đầy đủ thông tin', true);
+        return;
+      }
+
+      const r = await postJson(`${apiBase}/update-profile`, { 
+        email: currentEmail,
+        ...profileData
+      });
+      
+      if (r.ok) {
+        showMessage(msgEl, 'Cập nhật thông tin thành công');
+        setTimeout(() => {
+          window.location.href = 'settings.html';
+        }, 1500);
+      } else {
+        showMessage(msgEl, r.data?.message || 'Cập nhật thông tin thất bại', true);
+      }
+    }
+
+    // Show specific step
+    function showStep(stepNumber) {
+      document.querySelectorAll('.form-step').forEach(step => step.classList.remove('active'));
+      document.getElementById(`step${stepNumber}`).classList.add('active');
+    }
+
+    // Go back to step 1
+    function goBackToStep1() {
+      showStep(1);
+      clearOTPTimer();
+    }
+
+    // Handle back navigation
+    function handleBackNavigation() {
+      const step1 = document.getElementById('step1');
+      const step2 = document.getElementById('step2');
+      const step3 = document.getElementById('step3');
+      
+      if (step3.classList.contains('active')) {
+        // If on step 3, go back to step 2
+        showStep(2);
+        startOTPTimer();
+      } else if (step2.classList.contains('active')) {
+        // If on step 2, go back to step 1
+        showStep(1);
+        clearOTPTimer();
+      } else {
+        // If on step 1, go back to settings
+        window.location.href = 'settings.html';
+      }
+    }
+
+    // Resend OTP
+    async function resendOTP() {
+      if (!currentEmail) return;
+      
+      const r = await postJson(`${apiBase}/request-otp`, { email: currentEmail, purpose: 'edit-profile' });
+      if (r.ok) {
+        const msgEl = document.getElementById('otpMessage');
+        msgEl.innerHTML = '<div style="color:#065f46;font-weight:600;">✓ Mã OTP mới đã được gửi</div>';
+        
+       
+        
+        startOTPTimer();
+      }
+    }
+
+    // Start OTP timer
+    function startOTPTimer() {
+      const timerEl = document.getElementById('countdown');
+      const resendBtn = document.getElementById('resendBtn');
+      let timeLeft = 600; // 10 minutes in seconds
+      
+      otpExpiry = Date.now() + (10 * 60 * 1000);
+      
+      otpTimer = setInterval(() => {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        
+        if (timeLeft <= 0) {
+          clearInterval(otpTimer);
+          timerEl.textContent = '0:00';
+          document.getElementById('otpTimer').classList.add('expired');
+          resendBtn.disabled = false;
+          resendBtn.textContent = 'Gửi lại mã OTP';
+        }
+        
+        timeLeft--;
+      }, 1000);
+    }
+
+    // Clear OTP timer
+    function clearOTPTimer() {
+      if (otpTimer) {
+        clearInterval(otpTimer);
+        otpTimer = null;
+      }
+    }
+
+    // OTP input handling
+    document.addEventListener('DOMContentLoaded', function() {
+      const otpInputs = document.querySelectorAll('.otp-input');
+      
+      otpInputs.forEach((input, index) => {
+        input.addEventListener('input', function(e) {
+          const value = e.target.value;
+          
+          if (value.length === 1) {
+            // Move to next input
+            if (index < otpInputs.length - 1) {
+              otpInputs[index + 1].focus();
+            }
+          }
+          
+          // Update filled class
+          if (value) {
+            input.classList.add('filled');
+          } else {
+            input.classList.remove('filled');
+          }
+        });
+        
+        input.addEventListener('keydown', function(e) {
+          if (e.key === 'Backspace' && !e.target.value && index > 0) {
+            otpInputs[index - 1].focus();
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>
