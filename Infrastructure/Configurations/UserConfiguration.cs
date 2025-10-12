@@ -75,5 +75,4 @@ namespace UngDungMangXaHoi.Infrastructure.Configurations
             builder.HasIndex(u => u.account_id).IsUnique();
         }
     }
-
 }

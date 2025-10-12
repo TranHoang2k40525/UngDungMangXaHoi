@@ -97,108 +97,127 @@ export default function ChangePassword() {
         style={styles.content}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Back Button */}
-        <TouchableOpacity 
-          style={styles.backButton} 
-          onPress={() => navigation.goBack()}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity 
+              style={styles.backButton} 
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={styles.backIcon}>←</Text>
+            </TouchableOpacity>
+          </View>
 
-        {/* Card */}
-        <View style={styles.card}>
-          {/* Title */}
-          <Text style={styles.title}>Đổi mật khẩu</Text>
+          {/* Form */}
+          <View style={styles.formContainer}>
+            <View style={styles.card}>
+              <View style={styles.iconContainer}>
+                <View style={styles.lockIcon}>
+                  <Text style={styles.lockText}>🔒</Text>
+                </View>
+              </View>
 
-          {!otpSent ? (
-            <>
-              {/* Instruction Text */}
-              <Text style={styles.instruction}>
-                Nhập mật khẩu hiện tại và mật khẩu mới để đổi mật khẩu.
+              <Text style={styles.title}>Đổi mật khẩu</Text>
+              <Text style={styles.subtitle}>
+                Vui lòng nhập mật khẩu hiện tại và mật khẩu mới của bạn
               </Text>
 
-              {/* Old Password Input */}
-              <Text style={styles.label}>Mật khẩu hiện tại</Text>
-              <TextInput
-                style={styles.input}
-                value={oldPassword}
-                onChangeText={setOldPassword}
-                placeholder="Nhập mật khẩu hiện tại"
-                placeholderTextColor="#9CA3AF"
-                secureTextEntry
-                autoCapitalize="none"
-              />
+              {!otpSent ? (
+                <View style={styles.form}>
+                  {/* Old Password Input */}
+                  <Text style={styles.label}>Mật khẩu hiện tại</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={oldPassword}
+                    onChangeText={setOldPassword}
+                    placeholder="Nhập mật khẩu hiện tại"
+                    placeholderTextColor="#9CA3AF"
+                    secureTextEntry
+                    autoCapitalize="none"
+                  />
 
-              {/* New Password Input */}
-              <Text style={styles.label}>Mật khẩu mới</Text>
-              <TextInput
-                style={styles.input}
-                value={newPassword}
-                onChangeText={setNewPassword}
-                placeholder="Nhập mật khẩu mới (ít nhất 8 ký tự)"
-                placeholderTextColor="#9CA3AF"
-                secureTextEntry
-                autoCapitalize="none"
-              />
+                  {/* New Password Input */}
+                  <Text style={styles.label}>Mật khẩu mới</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                    placeholder="Nhập mật khẩu mới (ít nhất 8 ký tự)"
+                    placeholderTextColor="#9CA3AF"
+                    secureTextEntry
+                    autoCapitalize="none"
+                  />
 
-              {/* Confirm Password Input */}
-              <Text style={styles.label}>Xác nhận mật khẩu mới</Text>
-              <TextInput
-                style={styles.input}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                placeholder="Nhập lại mật khẩu mới"
-                placeholderTextColor="#9CA3AF"
-                secureTextEntry
-                autoCapitalize="none"
-              />
+                  {/* Confirm Password Input */}
+                  <Text style={styles.label}>Xác nhận mật khẩu mới</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    placeholder="Nhập lại mật khẩu mới"
+                    placeholderTextColor="#9CA3AF"
+                    secureTextEntry
+                    autoCapitalize="none"
+                  />
 
-              {/* Send OTP Button */}
-              <TouchableOpacity 
-                style={[styles.sendOtpButton, isLoading && styles.sendOtpButtonDisabled]} 
-                onPress={handleSendOtp}
-                disabled={isLoading}
-              >
-                <Text style={styles.sendOtpButtonText}>
-                  {isLoading ? 'Đang gửi...' : 'Gửi mã OTP'}
-                </Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              {/* Instruction Text */}
-              <Text style={styles.instruction}>
-                Chúng tôi đã gửi mã OTP đến email của bạn. Vui lòng nhập mã để xác thực đổi mật khẩu.
-              </Text>
+                  {/* Send OTP Button */}
+                  <TouchableOpacity 
+                    style={[styles.button, isLoading && styles.buttonDisabled]} 
+                    onPress={handleSendOtp}
+                    disabled={isLoading}
+                  >
+                    <Text style={styles.buttonText}>
+                      {isLoading ? 'Đang gửi...' : 'Gửi mã OTP'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.form}>
+                  <View style={styles.iconContainer}>
+                    <View style={styles.lockIcon}>
+                      <Text style={styles.lockText}>📧</Text>
+                    </View>
+                  </View>
+                  
+                  <Text style={styles.subtitle}>
+                    Chúng tôi đã gửi mã OTP đến email của bạn. Vui lòng nhập mã để xác thực đổi mật khẩu.
+                  </Text>
 
-              {/* OTP Input Label */}
-              <Text style={styles.label}>Mã xác thực</Text>
+                  {/* OTP Input Label */}
+                  <Text style={styles.label}>Mã xác thực</Text>
 
-              {/* OTP Input Field */}
-              <TextInput
-                style={styles.input}
-                value={otp}
-                onChangeText={setOtp}
-                placeholder="Nhập mã gồm 4-6 số"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="numeric"
-                maxLength={6}
-                autoFocus
-              />
+                  {/* OTP Input Field */}
+                  <TextInput
+                    style={[styles.input, styles.codeInput]}
+                    value={otp}
+                    onChangeText={setOtp}
+                    placeholder="Nhập mã gồm 4-6 số"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="numeric"
+                    maxLength={6}
+                    autoFocus
+                  />
 
-              {/* Verify Button */}
-              <TouchableOpacity 
-                style={[styles.verifyButton, isLoading && styles.verifyButtonDisabled]} 
-                onPress={handleVerifyOtp}
-                disabled={isLoading}
-              >
-                <Text style={styles.verifyButtonText}>
-                  {isLoading ? 'Đang xác thực...' : 'Xác nhận mã'}
-                </Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
+                  {/* Verify Button */}
+                  <TouchableOpacity 
+                    style={[styles.button, isLoading && styles.buttonDisabled]} 
+                    onPress={handleVerifyOtp}
+                    disabled={isLoading}
+                  >
+                    <Text style={styles.buttonText}>
+                      {isLoading ? 'Đang xác thực...' : 'Xác nhận mã'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
@@ -211,24 +230,38 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 20,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 40,
+  },
+  header: {
+    paddingTop: 60,
+    paddingHorizontal: 24,
+    paddingBottom: 20,
+    backgroundColor: '#FFFFFF',
   },
   backButton: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    zIndex: 10,
-    padding: 10,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
   },
   backIcon: {
-    fontSize: 24,
+    fontSize: 28,
     color: '#374151',
+    fontWeight: '600',
+  },
+  formContainer: {
+    paddingHorizontal: 24,
+    paddingTop: 20,
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 24,
+    borderRadius: 24,
+    padding: 32,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -236,63 +269,82 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 3,
+  },
+  iconContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  lockIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  lockText: {
+    fontSize: 36,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#111827',
     textAlign: 'center',
-    marginBottom: 16,
-  },
-  instruction: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 24,
-  },
-  label: {
-    fontSize: 16,
-    color: '#374151',
     marginBottom: 8,
   },
+  subtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 20,
+  },
+  form: {
+    width: '100%',
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    marginBottom: 8,
+    marginTop: 16,
+  },
   input: {
+    backgroundColor: '#F9FAFB',
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     fontSize: 16,
     color: '#111827',
-    marginBottom: 16,
   },
-  sendOtpButton: {
-    backgroundColor: '#3B82F6',
-    borderRadius: 8,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  sendOtpButtonDisabled: {
-    backgroundColor: '#9CA3AF',
-  },
-  sendOtpButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
+  codeInput: {
+    textAlign: 'center',
+    fontSize: 20,
     fontWeight: '600',
+    letterSpacing: 4,
   },
-  verifyButton: {
+  button: {
     backgroundColor: '#3B82F6',
-    borderRadius: 8,
+    borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 24,
+    shadowColor: '#3B82F6',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  verifyButtonDisabled: {
+  buttonDisabled: {
     backgroundColor: '#9CA3AF',
   },
-  verifyButtonText: {
+  buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
