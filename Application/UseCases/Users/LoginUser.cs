@@ -27,7 +27,7 @@ namespace UngDungMangXaHoi.Application.UseCases.Users
             }
             else
             {
-                account = await _accountRepository.GetByPhoneAsync(new PhoneNumber(emailOrPhone));
+                account = await _accountRepository.GetByPhoneAsync(emailOrPhone);
             }
 
             if (account == null || !_passwordHasher.VerifyPassword(password, account.password_hash.Value))
