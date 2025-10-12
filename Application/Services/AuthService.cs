@@ -66,7 +66,6 @@ namespace UngDungMangXaHoi.Application.Services
             if (await _accountRepository.ExistsByPhoneAsync(phoneObj))
                 throw new InvalidOperationException("Số điện thoại đã được sử dụng");
 
-            // Băm mật khẩu trước khi lưu
             var passwordHash = _passwordHasher.HashPassword(password);
 
             var account = new Account
