@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="vi">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Quản lý người dùng</title><link rel="stylesheet" href="../../styles.css"></head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="brand">SNAP67CS Admin</div>
+      <div class="nav-list">
+        <a class="nav-item" href="../home/home.html">Trang chủ Admin</a>
+        <a class="nav-item active" href="users.html">Quản lý người dùng</a>
+        <a class="nav-item" href="../moderation/moderation.html">Kiểm duyệt nội dung</a>
+        <a class="nav-item" href="../reports/reports.html">Báo cáo vi phạm</a>
+        <a class="nav-item" href="../ai/ai.html">Hệ thống AI</a>
+        <a class="nav-item" href="../analytics/analytics.html">Thống kê & Phân tích</a>
+        <a class="nav-item" href="../settings/settings.html">Cài đặt</a>
+      </div>
+      <div class="sidebar-footer"><a class="nav-item" href="../auth/login.html" onclick="logout();return false;">Logout</a></div>
+    </aside>
+
+    <main class="main">
+      <div class="card p-3">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <h3 style="margin:0">Quản lý Người dùng</h3>
+        </div>
+        <div style="margin-top:12px">
+          <div class="tabs" style="margin-bottom:10px">
+            <div class="tab active" data-filter="active">Active</div>
+            <div class="tab" data-filter="banned">Banned</div>
+            <div class="tab" data-filter="all">All</div>
+          </div>
+          <table class="table" style="width:100%;background:#fff;border-radius:10px;box-shadow:var(--shadow);table-layout:fixed">
+            <colgroup>
+              <col style="width:25%">
+              <col style="width:30%">
+              <col style="width:15%">
+              <col style="width:10%">
+              <col style="width:20%">
+            </colgroup>
+            <thead>
+              <tr>
+                <th style="text-align:left;padding:12px">User</th>
+                <th style="text-align:left;padding:12px">Email</th>
+                <th style="text-align:center;padding:12px">Trạng thái</th>
+                <th style="text-align:center;padding:12px">Vi phạm</th>
+                <th style="text-align:center;padding:12px">Hành động</th>
+              </tr>
+            </thead>
+            <tbody id="users-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="../../webadmins.js"></script>
+  <script>
+    (function(){
+      // Seed demo users for the admin list
+      function seed(){
+        var list = _read('admin_users_list');
+        if(!Array.isArray(list) || list.length === 0){
+          list = [
+            { id: 1, name: 'Nguyễn Văn A', email: 'user1@example.com', status: 'active', violations: 0 },
+            { id: 2, name: 'Trần Thị B',   email: 'user2@example.com', status: 'active', violations: 2 },
+            { id: 3, name: 'Lê Văn C',     email: 'user3@example.com', status: 'banned', violations: 5 }
+          ];
+          _write('admin_users_list', list);
+        }
+        return list;
+      }
+
+      function getList(){ return seed(); }
+      function saveList(list){ _write('admin_users_list', list); }
+
+      function render(filter){
+        var tbody = document.getElementById('users-tbody');
+        var data = getList().filter(function(u){ return filter==='all' ? true : u.status===filter; });
+        tbody.innerHTML = data.map(function(u){
+          var pillClass = u.status==='active' ? 'success' : (u.status==='banned' ? 'danger' : 'neutral');
+          var actionHtml = u.status==='banned'
+            ? '<a href="#" data-action="unlock" data-id="'+u.id+'" style="color:#10b981">Mở khóa</a>'
+            : '<a href="#" style="color:#ef4444" data-action="lock" data-id="'+u.id+'">Khóa</a>';
+          return '<tr>'+
+            '<td style="padding:12px;text-align:left">'+u.name+'</td>'+
+            '<td style="padding:12px;text-align:left">'+u.email+'</td>'+
+            '<td style="padding:12px;text-align:center"><span class="pill '+pillClass+'">'+u.status+'</span></td>'+
+            '<td style="padding:12px;text-align:center;font-weight:600">'+u.violations+'</td>'+
+            '<td style="padding:12px;text-align:center"><a href="#" style="color:#3b82f6">Chi tiết</a> · '+ actionHtml +'</td>'+
+          '</tr>';
+        }).join('');
+      }
+
+      function setStatus(id, status){
+        var list = getList();
+        var idx = list.findIndex(function(x){ return x.id===id; });
+        if(idx!==-1){ list[idx].status = status; saveList(list); }
+      }
+
+      // Tab switching
+      var currentFilter = 'active';
+      Array.prototype.forEach.call(document.querySelectorAll('.tabs .tab'), function(tab){
+        tab.addEventListener('click', function(){
+          Array.prototype.forEach.call(document.querySelectorAll('.tabs .tab'), function(t){ t.classList.remove('active'); });
+          tab.classList.add('active');
+          currentFilter = tab.getAttribute('data-filter');
+          render(currentFilter);
+        });
+      });
+
+      // Delegate lock/unlock click
+      document.getElementById('users-tbody').addEventListener('click', function(e){
+        var a = e.target.closest('a[data-action]');
+        if(!a) return;
+        e.preventDefault();
+        var id = Number(a.getAttribute('data-id'));
+        var action = a.getAttribute('data-action');
+        if(action==='lock') setStatus(id, 'banned');
+        if(action==='unlock') setStatus(id, 'active');
+        render(currentFilter);
+      });
+
+      // initial
+      render(currentFilter);
+    })();
+  </script>
+</body>
+</html>
