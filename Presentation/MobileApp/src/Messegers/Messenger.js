@@ -14,13 +14,13 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 const conversations = [
-  { id: 1, name: 'Hoàng Phạm', message: 'I have a nice day, bro!', time: 'now', avatar: require('./assets/trai.png'), },
+  { id: 1, name: 'Hoàng Phạm', message: 'I have a nice day, bro!', time: 'now', avatar: require('../Assets/trai.png'), },
   { id: 2, name: 'Linh Nguyễn', message: 'I heard this is a good movie. s...', time: 'now', avatar: require('./assets/gai1.png'),},
-  { id: 3, name: 'Trang Thu', message: 'See you on the next meeting!', time: '15m', avatar: require('./assets/gai2.png'), },
-  { id: 4, name: 'Noo', message: 'Sounds good 😁😁😁', time: '20m', avatar: require('./assets/noo.png'),},
-  { id: 5, name: 'Tùng', message: 'The new design is looks cool, b...', time: '1m', avatar: require('./assets/sontung.png'),},
-  { id: 6, name: 'Việt Lê', message: 'That kind UI is pretty good', time: '5h', avatar: require('./assets/embe.png'), },
-  { id: 7, name: 'Vinh Nguyễn', message: 'Wow, I\'m going to travel in To...', time: '4h', avatar: require('./assets/meo.png'),},
+  { id: 3, name: 'Trang Thu', message: 'See you on the next meeting!', time: '15m', avatar: require('../Assets/gai2.png'), },
+  { id: 4, name: 'Noo', message: 'Sounds good', time: '20m', avatar: require('../Assets/noo.png'),},
+  { id: 5, name: 'Tùng', message: 'The new design is looks cool, b...', time: '1m', avatar: require('../Assets/sontung.png'),},
+  { id: 6, name: 'Việt Lê', message: 'That kind UI is pretty good', time: '5h', avatar: require('../Assets/embe.png'), },
+  { id: 7, name: 'Vinh Nguyễn', message: 'Wow, I\'m going to travel in To...', time: '4h', avatar: require('../Assets/meo.png'),},
 ];
 
 export default function Messenger() {

@@ -19,7 +19,7 @@ namespace UngDungMangXaHoi.Application.UseCases.Users
             var user = await _userRepository.GetByIdAsync(userId);
             if (user == null)
             {
-                throw new Exception("User not found.");
+                throw new Exception("Không tìm thấy người dùng.");
             }
 
             user.full_name = request.FullName ?? user.full_name;

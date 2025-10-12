@@ -28,8 +28,8 @@ namespace UngDungMangXaHoi.Application.UseCases.Users
                 password_hash = new PasswordHash(_passwordHasher.HashPassword(request.Password)),
                 account_type = AccountType.User,
                 status = "pending",
-                created_at = DateTime.UtcNow,
-                updated_at = DateTime.UtcNow
+                created_at = DateTimeOffset.UtcNow,
+                updated_at = DateTimeOffset.UtcNow
             };
 
             var user = new User

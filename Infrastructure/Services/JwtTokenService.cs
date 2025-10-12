@@ -42,7 +42,7 @@ namespace UngDungMangXaHoi.Infrastructure.Services
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(claims),
-                Expires = DateTime.UtcNow.AddHours(1),
+                Expires = DateTimeOffset.UtcNow.AddHours(1).DateTime,
                 Issuer = _issuer,
                 Audience = _audience,
                 SigningCredentials = new SigningCredentials(
@@ -68,7 +68,7 @@ namespace UngDungMangXaHoi.Infrastructure.Services
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(claims),
-                Expires = DateTime.UtcNow.AddDays(30),
+                Expires = DateTimeOffset.UtcNow.AddDays(30).DateTime,
                 Issuer = _issuer,
                 Audience = _audience,
                 SigningCredentials = new SigningCredentials(
@@ -80,7 +80,7 @@ namespace UngDungMangXaHoi.Infrastructure.Services
             return tokenHandler.WriteToken(token);
         }
 
-        public ClaimsPrincipal ValidateToken(string token)
+        public ClaimsPrincipal? ValidateToken(string token)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.ASCII.GetBytes(_accessSecret);

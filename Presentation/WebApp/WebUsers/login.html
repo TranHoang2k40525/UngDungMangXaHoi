@@ -1,38 +1,95 @@
-<!DOCT    <link rel="stylesheet" href="styles/style.css">
+<!DOCTYPE html>
 <html lang="vi">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Đăng nhập - Snap67CS</title>
-    <link rel="stylesheet" href="styles/auth.css" />
-  </head>
-  <body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập - Ứng dụng mạng xã hội</title>
+    <link rel="stylesheet" href="Styles/auth.css">
+</head>
+<body>
     <div class="container">
-      <div class="header">
-        <h1>SNAP67CS</h1>
-      </div>
-      <form action="home/index_new.html">
-        <div class="form-group">
-          <input type="email" placeholder="Email" />
+        <div class="header">
+            <h1>SOCIALAPP</h1>
         </div>
-        <div class="form-group">
-          <input type="password" placeholder="Password" />
-        </div>
-        <button type="submit" class="btn">Log In</button>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <input type="text" id="identifier" placeholder="Email hoặc Số điện thoại" required />
+            </div>
+            
+            <div class="form-group">
+                <input type="password" id="password" placeholder="Mật khẩu" required />
+            </div>
+            
+            <button type="submit" class="btn" id="loginBtn">Đăng nhập</button>
+            
+            <div class="form-footer">
+                <a href="forgot-password.html">Quên mật khẩu?</a>
+            </div>
+            
+            <div class="divider">
+                <span>HOẶC</span>
+            </div>
+            
+            <div class="form-footer">
+                <span>Chưa có tài khoản? </span>
+                <a href="signup.html">Đăng ký</a>
+            </div>
+        </form>
+        
         <div class="form-footer">
-          <a href="forgot-password.html">Forgot password?</a>
+            <span>SocialApp</span>
         </div>
-        <div class="divider">
-          <span>OR</span>
-        </div>
-        <div class="form-footer">
-          <span>Don't have an account? </span>
-          <a href="signup.html">Sign up</a>
-        </div>
-      </form>
-      <div class="form-footer">
-        <span>Snap67CS</span>
-      </div>
     </div>
-  </body>
+
+    <!-- Scripts -->
+    <script src="Context/UserContext.js"></script>
+    <script>
+        const userContext = window.UserContext;
+        
+        // Kiểm tra trạng thái đăng nhập khi load trang
+        window.addEventListener('load', () => {
+            if (userContext.isAuthenticated) {
+                window.location.href = 'index.html';
+            }
+        });
+        
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const loginBtn = document.getElementById('loginBtn');
+            const originalText = loginBtn.textContent;
+            
+            try {
+                loginBtn.textContent = 'Đang đăng nhập...';
+                loginBtn.disabled = true;
+                
+                const identifier = document.getElementById('identifier').value;
+                const password = document.getElementById('password').value;
+                
+                // Xác định email hoặc phone
+                const credentials = {
+                    Email: identifier.includes('@') ? identifier : '',
+                    Phone: !identifier.includes('@') ? identifier : '',
+                    Password: password
+                };
+                
+                // Gọi API đăng nhập
+                const result = await userContext.login(credentials);
+                
+                if (result.success) {
+                    alert('Đăng nhập thành công!');
+                    window.location.href = 'index.html';
+                } else {
+                    alert('Lỗi: ' + result.error);
+                }
+            } catch (error) {
+                alert('Lỗi: ' + error.message);
+            } finally {
+                loginBtn.textContent = originalText;
+                loginBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
 </html>

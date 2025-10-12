@@ -31,6 +31,7 @@ CREATE INDEX IX_Accounts_Email ON Accounts(email);
 -- Tạo index trên phone để login và tìm kiếm theo SĐT nhanh
 CREATE INDEX IX_Accounts_Phone ON Accounts(phone);
 
+
 -- Tạo bảng Users: Tách riêng thông tin profile cá nhân cho người dùng thường
 CREATE TABLE Users (
     user_id INT IDENTITY PRIMARY KEY,  -- ID tự tăng, khóa chính cho user
@@ -64,7 +65,8 @@ CREATE TABLE Admins (
     website NVARCHAR(255),  -- Link website cá nhân (có thể rỗng)
     admin_level NVARCHAR(20) DEFAULT 'moderator'  -- Cấp độ quyền ('super_admin', 'moderator', v.v.), mặc định moderator
 );
-
+ALTER TABLE Admins
+ADD CONSTRAINT UQ_Admins_account_id UNIQUE (account_id);
 -- Tạo bảng OTPs: Quản lý mã OTP cho quên/đổi mật khẩu, lưu hashed để bảo mật
 CREATE TABLE OTPs (
     otp_id INT IDENTITY PRIMARY KEY,  -- ID tự tăng, khóa chính
@@ -83,7 +85,7 @@ CREATE INDEX IX_OTPs_AccountId_Hash ON OTPs (account_id, otp_hash);
 CREATE TABLE RefreshTokens (
     token_id INT IDENTITY PRIMARY KEY,  -- ID tự tăng, khóa chính
     account_id INT FOREIGN KEY REFERENCES Accounts(account_id),  -- Liên kết tài khoản
-    refresh_token NVARCHAR(255) NOT NULL,  -- Giá trị token hashed (bắt buộc)
+    refresh_token NVARCHAR(1000) NOT NULL,  -- Giá trị token hashed (bắt buộc)
     expires_at DATETIME NOT NULL,  -- Thời gian hết hạn (e.g., 7-30 ngày)
     created_at DATETIME DEFAULT GETDATE()  -- Thời gian tạo token
 );
@@ -99,7 +101,8 @@ CREATE TABLE LoginHistory (
     device_info NVARCHAR(100),  -- Thông tin thiết bị (browser/app, có thể rỗng)
     login_time DATETIME DEFAULT GETDATE()  -- Thời gian đăng nhập
 );
-
+ALTER TABLE OTPs
+DROP CONSTRAINT FK__OTPs__account_id__XXXX; -- Thay XXXX bằng tên constraint thực tế (xem qua EXEC sp_help 'OTPs')
 /* ==========================
    BẢNG BÀI ĐĂNG & BÌNH LUẬN (THÊM PostMedia CHO MULTIPLE MEDIA)
    Phần này tạo bảng cho bài đăng, media (nhiều ảnh/video), like và comment

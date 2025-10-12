@@ -8,22 +8,49 @@ import {
   StatusBar,
   Platform,
   KeyboardAvoidingView,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useUser } from '../Context/UserContext';
 
 export default function Login() {
-  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState(''); // Email or Phone
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const navigation = useNavigation();
+  const { login } = useUser();
 
-  const handleLogin = () => {
-    console.log('Logging in with:', { username, password });
-    navigation.navigate('Home');
+  const handleLogin = async () => {
+    if (!identifier || !password) {
+      Alert.alert('Lỗi', 'Vui lòng điền email/số điện thoại và mật khẩu.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    // Gửi cả Email và Phone (backend sẽ thử Email trước, nếu không thì Phone)
+    const credentials = {
+      Email: identifier.includes('@') ? identifier : '', // Nếu có @ thì coi là email
+      Phone: !identifier.includes('@') ? identifier : '', // Ngược lại là phone
+      Password: password,
+    };
+
+    try {
+      const result = await login(credentials);
+      if (result.success) {
+        Alert.alert('Thành công', 'Đăng nhập thành công!');
+        navigation.navigate('Home'); // Navigate đến Home sau login
+      } else {
+        Alert.alert('Lỗi', result.error || 'Đăng nhập thất bại.');
+      }
+    } catch (error) {
+      Alert.alert('Lỗi', error.message || 'Đăng nhập thất bại.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleFacebookLogin = () => {
-    console.log('Login with Facebook');
-  };
+
 
   return (
     <View style={styles.container}>
@@ -46,16 +73,16 @@ export default function Login() {
 
           {/* Form */}
           <View style={styles.form}>
-            {/* Email Input */}
+            {/* Identifier Input (Email or Phone) */}
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
-                value={username}
-                onChangeText={setUsername}
-                placeholder="Email"
+                value={identifier}
+                onChangeText={setIdentifier}
+                placeholder="Email hoặc Số điện thoại"
                 placeholderTextColor="#9CA3AF"
                 autoCapitalize="none"
-                keyboardType="email-address"
+                keyboardType="email-address" // Default email, nhưng hỗ trợ phone
               />
             </View>
 
@@ -75,14 +102,20 @@ export default function Login() {
             {/* Forgot Password */}
             <TouchableOpacity
               style={styles.forgotContainer}
-              onPress={() => navigation.navigate('Forgot')}
+              onPress={() => navigation.navigate('ForgotPassword')}
             >
-              <Text style={styles.forgotText}>Forgot password?</Text>
+              <Text style={styles.forgotText}>Quên mật khẩu?</Text>
             </TouchableOpacity>
 
             {/* Login Button */}
-            <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-              <Text style={styles.loginButtonText}>Log In</Text>
+            <TouchableOpacity 
+              style={[styles.loginButton, isLoading && styles.loginButtonDisabled]} 
+              onPress={handleLogin}
+              disabled={isLoading}
+            >
+              <Text style={styles.loginButtonText}>
+                {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+              </Text>
             </TouchableOpacity>
 
             {/* Divider */}
@@ -92,8 +125,7 @@ export default function Login() {
               <View style={styles.dividerLine} />
             </View>
 
-            {/* Facebook Login */}
- 
+        
 
             {/* Sign Up Link */}
             <View style={styles.signupContainer}>
@@ -114,6 +146,7 @@ export default function Login() {
   );
 }
 
+// Styles giữ nguyên như file cũ, thêm facebookButton nếu chưa có
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -180,6 +213,9 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  loginButtonDisabled: {
+    backgroundColor: '#9CA3AF',
   },
   divider: {
     flexDirection: 'row',

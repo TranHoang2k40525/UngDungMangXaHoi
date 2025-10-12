@@ -3,32 +3,33 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Sign Up</title>
+  <title>Đăng ký Admin</title>
   <link rel="stylesheet" href="../../styles.css">
 </head>
 <body>
   <div class="container-center">
     <div class="card auth">
       <a class="back-arrow" href="login.html" title="Quay lại">←</a>
-      <div class="logo">SIGN UP</div>
+      <div class="logo">ĐĂNG KÝ ADMIN</div>
 
-      <form id="regForm" onsubmit="event.preventDefault(); handleRegister(regForm, msg)">
-        <input name="username" class="form-control" placeholder="Tên người dùng" />
-        <input name="fullName" class="form-control" placeholder="Họ và tên" />
+      <form id="regForm">
+        <input name="username" id="username" class="form-control" placeholder="Tên người dùng" required />
+        <input name="fullName" id="fullName" class="form-control" placeholder="Họ và tên" required />
         <div class="form-row">
-          <input name="dateOfBirth" type="date" class="form-control" />
-          <select name="gender" class="form-control" style="height:46px;border-radius:10px">
-            <option value="0">Giới tính</option>
-            <option value="1">Male</option>
-            <option value="2">Female</option>
+          <input name="dateOfBirth" id="dateOfBirth" type="date" class="form-control" required />
+          <select name="gender" id="gender" class="form-control" style="height:46px;border-radius:10px" required>
+            <option value="">Giới tính</option>
+            <option value="Nam">Nam</option>
+            <option value="Nữ">Nữ</option>
+            <option value="Khác">Khác</option>
           </select>
         </div>
-        <input name="phone" class="form-control" placeholder="Số điện thoại" />
-        <input name="email" class="form-control" placeholder="Email" />
-        <input name="password" type="password" class="form-control" placeholder="Mật khẩu" />
+        <input name="phone" id="phone" class="form-control" placeholder="Số điện thoại" required />
+        <input name="email" id="email" type="email" class="form-control" placeholder="Email" required />
+        <input name="password" id="password" type="password" class="form-control" placeholder="Mật khẩu" required />
 
         <div class="auth-btn-wrap" style="margin-top:14px">
-          <button class="btn-primary" type="submit" style="width:100%;">Đăng ký</button>
+          <button class="btn-primary" type="submit" id="registerBtn" style="width:100%;">Đăng ký</button>
         </div>
 
         <div id="msg" style="min-height:18px;margin-top:12px;color:var(--muted)"></div>
@@ -36,6 +37,55 @@
     </div>
   </div>
 
-  <script src="../../webadmins.js"></script>
+  <!-- Scripts -->
+  <script src="../Context/AdminContext.js"></script>
+  <script>
+    const adminContext = window.AdminContext;
+    
+    document.getElementById('regForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const registerBtn = document.getElementById('registerBtn');
+      const msg = document.getElementById('msg');
+      const originalText = registerBtn.textContent;
+      
+      try {
+        registerBtn.textContent = 'Đang đăng ký...';
+        registerBtn.disabled = true;
+        msg.textContent = '';
+        
+        // Lấy dữ liệu form
+        const formData = {
+          Username: document.getElementById('username').value,
+          FullName: document.getElementById('fullName').value,
+          DateOfBirth: document.getElementById('dateOfBirth').value,
+          Email: document.getElementById('email').value,
+          Phone: document.getElementById('phone').value,
+          Password: document.getElementById('password').value,
+          Gender: document.getElementById('gender').value
+        };
+        
+        // Gọi API đăng ký
+        const result = await adminContext.register(formData);
+        
+        if (result.success) {
+          msg.textContent = 'Đăng ký thành công! OTP đã được gửi đến email của bạn.';
+          msg.style.color = 'green';
+          setTimeout(() => {
+            window.location.href = `verify-otp.html?email=${encodeURIComponent(formData.Email)}`;
+          }, 2000);
+        } else {
+          msg.textContent = 'Lỗi: ' + result.error;
+          msg.style.color = 'red';
+        }
+      } catch (error) {
+        msg.textContent = 'Lỗi: ' + error.message;
+        msg.style.color = 'red';
+      } finally {
+        registerBtn.textContent = originalText;
+        registerBtn.disabled = false;
+      }
+    });
+  </script>
 </body>
 </html>

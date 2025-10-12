@@ -5,6 +5,9 @@ using UngDungMangXaHoi.Domain.Interfaces;
 using UngDungMangXaHoi.Domain.ValueObjects;
 using UngDungMangXaHoi.Infrastructure.Persistence;
 
+#pragma warning disable CS8604 // Possible null reference argument for parameter
+#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type
+
 namespace UngDungMangXaHoi.Infrastructure.Repositories
 {
     public class AccountRepository : IAccountRepository
@@ -29,15 +32,15 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
             return await _context.Accounts
                 .Include(a => a.User)
                 .Include(a => a.Admin)
-                .FirstOrDefaultAsync(a => a.email.Value == email.Value);
+                .FirstOrDefaultAsync(a => a.email != null && a.email!.Value.ToLower() == email!.Value.ToLower());
         }
 
-        public async Task<Account?> GetByPhoneAsync(PhoneNumber phone)
+        public async Task<Account?> GetByPhoneAsync(string phone)
         {
             return await _context.Accounts
                 .Include(a => a.User)
                 .Include(a => a.Admin)
-                .FirstOrDefaultAsync(a => a.phone.Value == phone.Value);
+                .FirstOrDefaultAsync(a => a.phone != null && a.phone.Value == phone);
         }
 
         public async Task<Account> AddAsync(Account account)
@@ -55,12 +58,14 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
 
         public async Task<bool> ExistsByEmailAsync(Email email)
         {
-            return await _context.Accounts.AnyAsync(a => a.email.Value == email.Value);
+            return await _context.Accounts
+                .AnyAsync(a => a.email != null && a.email!.Value.ToLower() == email!.Value.ToLower());
         }
 
-        public async Task<bool> ExistsByPhoneAsync(PhoneNumber phone)
+        public async Task<bool> ExistsByPhoneAsync(string phone)
         {
-            return await _context.Accounts.AnyAsync(a => a.phone.Value == phone.Value);
+            return await _context.Accounts
+                .AnyAsync(a => a.phone != null && a.phone.Value == phone);
         }
     }
 }

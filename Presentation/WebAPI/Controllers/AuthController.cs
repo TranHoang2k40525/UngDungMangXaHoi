@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using UngDungMangXaHoi.Application.Validators;
+using UngDungMangXaHoi.Application.Services;
 using UngDungMangXaHoi.Domain.Entities;
 using UngDungMangXaHoi.Domain.Interfaces;
 using UngDungMangXaHoi.Domain.ValueObjects;
@@ -17,28 +18,36 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         private readonly IUserRepository _userRepository;
         private readonly IOTPRepository _otpRepository;
         private readonly IPasswordHasher _passwordHasher;
-        private readonly ITokenService _tokenService;
+        private readonly AuthService _authService;
         private readonly IEmailService _emailService;
+        private readonly IRefreshTokenRepository _refreshTokenRepository;
+        private readonly ILoginHistoryRepository _loginHistoryRepository;
 
         public AuthController(
             IAccountRepository accountRepository,
             IUserRepository userRepository,
             IOTPRepository otpRepository,
             IPasswordHasher passwordHasher,
-            ITokenService tokenService,
-            IEmailService emailService)
+            AuthService authService,
+            IEmailService emailService,
+            IRefreshTokenRepository refreshTokenRepository,
+            ILoginHistoryRepository loginHistoryRepository)
         {
             _accountRepository = accountRepository;
             _userRepository = userRepository;
             _otpRepository = otpRepository;
             _passwordHasher = passwordHasher;
-            _tokenService = tokenService;
+            _authService = authService;
             _emailService = emailService;
+            _refreshTokenRepository = refreshTokenRepository;
+            _loginHistoryRepository = loginHistoryRepository;
         }
 
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterUserRequest request)
         {
+            Console.WriteLine($"Nhận được JSON: {System.Text.Json.JsonSerializer.Serialize(request)}");
+
             var validator = new UserValidator();
             var validationResult = await validator.ValidateAsync(request);
             if (!validationResult.IsValid)
@@ -48,23 +57,23 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             if (await _accountRepository.ExistsByEmailAsync(new Email(request.Email)))
             {
-                return BadRequest("Email already exists.");
+                return BadRequest("Email đã tồn tại.");
             }
 
-            if (await _accountRepository.ExistsByPhoneAsync(new PhoneNumber(request.Phone)))
+            if (await _accountRepository.ExistsByPhoneAsync(request.Phone))
             {
-                return BadRequest("Phone number already exists.");
+                return BadRequest("Số điện thoại đã tồn tại.");
             }
 
             if (await _userRepository.ExistsByUserNameAsync(new UserName(request.Username)))
             {
-                return BadRequest("Username already exists.");
+                return BadRequest("Tên người dùng đã tồn tại.");
             }
 
             var failedAttempts = await _otpRepository.GetFailedAttemptsAsync(0, "register");
             if (failedAttempts >= 5)
             {
-                return StatusCode(429, "Too many attempts. Please try again after 2 minutes.");
+                return StatusCode(429, "Quá nhiều lần thử. Vui lòng thử lại sau 2 phút.");
             }
 
             var account = new Account
@@ -74,12 +83,15 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 password_hash = new PasswordHash(_passwordHasher.HashPassword(request.Password)),
                 account_type = AccountType.User,
                 status = "pending",
-                created_at = DateTime.UtcNow,
-                updated_at = DateTime.UtcNow
+                created_at = DateTimeOffset.UtcNow,
+                updated_at = DateTimeOffset.UtcNow
             };
+
+            var addedAccount = await _accountRepository.AddAsync(account);
 
             var user = new User
             {
+                account_id = addedAccount.account_id,
                 username = new UserName(request.Username),
                 full_name = request.FullName,
                 date_of_birth = request.DateOfBirth,
@@ -87,25 +99,24 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 Account = account
             };
 
-            await _accountRepository.AddAsync(account);
             await _userRepository.AddAsync(user);
 
-            var otp = await _tokenService.GenerateOtpAsync();
+            var otp = await _authService.GenerateOtpAsync();
             var otpHash = _passwordHasher.HashPassword(otp);
             var otpEntity = new OTP
             {
                 account_id = account.account_id,
                 otp_hash = otpHash,
                 purpose = "register",
-                expires_at = DateTime.UtcNow.AddMinutes(1),
+                expires_at = DateTimeOffset.UtcNow.AddMinutes(1),
                 used = false,
-                created_at = DateTime.UtcNow
+                created_at = DateTimeOffset.UtcNow
             };
 
             await _otpRepository.AddAsync(otpEntity);
-            await _emailService.SendOtpEmailAsync(request.Email, otp);
+            await _emailService.SendOtpEmailAsync(request.Email, otp, "register", request.FullName);
 
-            return Ok(new { message = "OTP sent to email. Please verify within 1 minute." });
+            return Ok(new { message = "OTP đã được gửi đến email. Vui lòng xác thực trong vòng 1 phút." });
         }
 
         [HttpPost("verify-otp")]
@@ -114,26 +125,26 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             var account = await _accountRepository.GetByEmailAsync(new Email(request.Email));
             if (account == null || account.status != "pending")
             {
-                return BadRequest("Invalid account or already verified.");
+                return BadRequest("Tài khoản không hợp lệ hoặc đã được xác thực.");
             }
 
             var otp = await _otpRepository.GetByAccountIdAsync(account.account_id, "register");
-            if (otp == null || otp.expires_at < DateTime.UtcNow)
+            if (otp == null || otp.expires_at < DateTimeOffset.UtcNow)
             {
-                return BadRequest("OTP expired or invalid.");
+                return BadRequest("OTP đã hết hạn hoặc không hợp lệ.");
             }
 
             var failedAttempts = await _otpRepository.GetFailedAttemptsAsync(account.account_id, "register");
             if (failedAttempts >= 5)
             {
                 await _otpRepository.DeleteAsync(otp.otp_id);
-                return StatusCode(429, "Too many failed attempts. Please try registering again after 2 minutes.");
+                return StatusCode(429, "Quá nhiều lần thử thất bại. Vui lòng đăng ký lại sau 2 phút.");
             }
 
             if (!_passwordHasher.VerifyPassword(request.Otp, otp.otp_hash))
             {
-                await _otpRepository.UpdateAsync(otp); // Increment attempt count in DB if needed
-                return BadRequest("Invalid OTP.");
+                await _otpRepository.UpdateAsync(otp);
+                return BadRequest("OTP không hợp lệ.");
             }
 
             account.status = "active";
@@ -141,7 +152,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             await _accountRepository.UpdateAsync(account);
             await _otpRepository.UpdateAsync(otp);
 
-            var (accessToken, refreshToken) = await _tokenService.GenerateTokensAsync(account);
+            var (accessToken, refreshToken) = await _authService.GenerateTokensAsync(account);
             return Ok(new { AccessToken = accessToken, RefreshToken = refreshToken });
         }
 
@@ -149,32 +160,321 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
             var account = await _accountRepository.GetByEmailAsync(new Email(request.Email)) ??
-                          await _accountRepository.GetByPhoneAsync(new PhoneNumber(request.Phone));
+                          await _accountRepository.GetByPhoneAsync(request.Phone);
             if (account == null || account.status != "active")
             {
-                return Unauthorized("Invalid credentials or account not active.");
+                return Unauthorized("Thông tin đăng nhập không hợp lệ hoặc tài khoản chưa được kích hoạt.");
             }
 
             if (!_passwordHasher.VerifyPassword(request.Password, account.password_hash.Value))
             {
-                return Unauthorized("Invalid credentials.");
+                return Unauthorized("Thông tin đăng nhập không hợp lệ.");
             }
 
-            var (accessToken, refreshToken) = await _tokenService.GenerateTokensAsync(account);
+            // Lấy IP address và device info
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "";
+            var userAgent = HttpContext.Request.Headers["User-Agent"].ToString();
+
+            var (accessToken, refreshToken) = await _authService.DangNhapAsync(
+                request.Email ?? request.Phone, 
+                request.Password, 
+                account.account_type.ToString(), 
+                ipAddress, 
+                userAgent);
+            
             return Ok(new { AccessToken = accessToken, RefreshToken = refreshToken });
+        }
+
+        [HttpPost("refresh")]
+        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
+        {
+            var result = await _authService.RefreshTokenAsync(request.RefreshToken);
+            if (result == null)
+            {
+                return Unauthorized("Refresh token không hợp lệ hoặc đã hết hạn.");
+            }
+
+            return Ok(new { AccessToken = result.Value.AccessToken, RefreshToken = result.Value.RefreshToken });
+        }
+
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout([FromBody] RefreshTokenRequest request)
+        {
+            var success = await _authService.LogoutAsync(request.RefreshToken);
+            if (!success)
+            {
+                return BadRequest("Refresh token không hợp lệ.");
+            }
+
+            return Ok(new { message = "Đăng xuất thành công." });
+        }
+
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+        {
+            var account = await _accountRepository.GetByEmailAsync(new Email(request.Email));
+            if (account == null || account.status != "active")
+            {
+                return BadRequest("Email không tồn tại hoặc tài khoản chưa được kích hoạt.");
+            }
+
+            // Kiểm tra số lần thử trong 2 phút
+            var failedAttempts = await _otpRepository.GetFailedAttemptsAsync(account.account_id, "forgot_password");
+            if (failedAttempts >= 5)
+            {
+                return StatusCode(429, "Quá nhiều lần thử. Vui lòng thử lại sau 2 phút.");
+            }
+
+            // Lấy tên người dùng
+            string fullName = "";
+            if (account.account_type == AccountType.User && account.User != null)
+            {
+                fullName = account.User.full_name;
+            }
+            else if (account.account_type == AccountType.Admin && account.Admin != null)
+            {
+                fullName = account.Admin.full_name;
+            }
+
+            // Tạo OTP mới
+            var otp = await _authService.GenerateOtpAsync();
+            var otpHash = _passwordHasher.HashPassword(otp);
+            var otpEntity = new OTP
+            {
+                account_id = account.account_id,
+                otp_hash = otpHash,
+                purpose = "forgot_password",
+                expires_at = DateTimeOffset.UtcNow.AddMinutes(1),
+                used = false,
+                created_at = DateTimeOffset.UtcNow
+            };
+
+            await _otpRepository.AddAsync(otpEntity);
+            await _emailService.SendOtpEmailAsync(request.Email, otp, "forgot_password", fullName);
+
+            return Ok(new { message = "OTP đã được gửi đến email. Vui lòng xác thực trong vòng 1 phút." });
+        }
+
+        [HttpPost("verify-forgot-password-otp")]
+        public async Task<IActionResult> VerifyForgotPasswordOtp([FromBody] VerifyOtpRequest request)
+        {
+            var account = await _accountRepository.GetByEmailAsync(new Email(request.Email));
+            if (account == null || account.status != "active")
+            {
+                return BadRequest("Tài khoản không hợp lệ hoặc chưa được kích hoạt.");
+            }
+
+            var otp = await _otpRepository.GetByAccountIdAsync(account.account_id, "forgot_password");
+            if (otp == null || otp.expires_at < DateTimeOffset.UtcNow)
+            {
+                return BadRequest("OTP đã hết hạn hoặc không hợp lệ.");
+            }
+
+            var failedAttempts = await _otpRepository.GetFailedAttemptsAsync(account.account_id, "forgot_password");
+            if (failedAttempts >= 5)
+            {
+                await _otpRepository.DeleteAsync(otp.otp_id);
+                return StatusCode(429, "Quá nhiều lần thử thất bại. Vui lòng thử lại sau 2 phút.");
+            }
+
+            if (!_passwordHasher.VerifyPassword(request.Otp, otp.otp_hash))
+            {
+                await _otpRepository.UpdateAsync(otp);
+                return BadRequest("OTP không hợp lệ.");
+            }
+
+            // Đánh dấu OTP đã sử dụng
+            otp.used = true;
+            await _otpRepository.UpdateAsync(otp);
+
+            return Ok(new { message = "Xác thực OTP thành công. Bạn có thể đặt lại mật khẩu." });
+        }
+
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+        {
+            var account = await _accountRepository.GetByEmailAsync(new Email(request.Email));
+            if (account == null || account.status != "active")
+            {
+                return BadRequest("Tài khoản không hợp lệ hoặc chưa được kích hoạt.");
+            }
+
+            // Kiểm tra OTP đã được verify chưa
+            var otp = await _otpRepository.GetByAccountIdAsync(account.account_id, "forgot_password");
+            if (otp == null || !otp.used || otp.expires_at < DateTimeOffset.UtcNow)
+            {
+                return BadRequest("Vui lòng xác thực OTP trước.");
+            }
+
+            // Cập nhật mật khẩu mới
+            account.password_hash = new PasswordHash(_passwordHasher.HashPassword(request.NewPassword));
+            account.updated_at = DateTimeOffset.UtcNow;
+            await _accountRepository.UpdateAsync(account);
+
+            // Xóa OTP đã sử dụng
+            await _otpRepository.DeleteAsync(otp.otp_id);
+
+            return Ok(new { message = "Đặt lại mật khẩu thành công." });
+        }
+
+        [HttpPost("change-password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+        {
+            // Xác thực JWT token trước
+            var token = HttpContext.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
+            if (string.IsNullOrEmpty(token))
+            {
+                return Unauthorized("Cần có token.");
+            }
+
+            var principal = _authService.ValidateToken(token);
+            if (principal == null)
+            {
+                return Unauthorized("Token không hợp lệ.");
+            }
+
+            var accountId = int.Parse(principal.FindFirst("nameid")?.Value ?? "0");
+            var account = await _accountRepository.GetByIdAsync(accountId);
+            if (account == null || account.status != "active")
+            {
+                return BadRequest("Không tìm thấy tài khoản hoặc tài khoản chưa được kích hoạt.");
+            }
+
+            // Xác thực mật khẩu cũ
+            if (!_passwordHasher.VerifyPassword(request.OldPassword, account.password_hash.Value))
+            {
+                return BadRequest("Mật khẩu hiện tại không đúng.");
+            }
+
+            // Kiểm tra số lần thử trong 2 phút
+            var failedAttempts = await _otpRepository.GetFailedAttemptsAsync(account.account_id, "change_password");
+            if (failedAttempts >= 5)
+            {
+                return StatusCode(429, "Quá nhiều lần thử. Vui lòng thử lại sau 2 phút.");
+            }
+
+            // Lấy tên người dùng
+            string fullName = "";
+            if (account.account_type == AccountType.User && account.User != null)
+            {
+                fullName = account.User.full_name;
+            }
+            else if (account.account_type == AccountType.Admin && account.Admin != null)
+            {
+                fullName = account.Admin.full_name;
+            }
+
+            // Tạo OTP mới
+            var otp = await _authService.GenerateOtpAsync();
+            var otpHash = _passwordHasher.HashPassword(otp);
+            var otpEntity = new OTP
+            {
+                account_id = account.account_id,
+                otp_hash = otpHash,
+                purpose = "change_password",
+                expires_at = DateTimeOffset.UtcNow.AddMinutes(1),
+                used = false,
+                created_at = DateTimeOffset.UtcNow
+            };
+
+            await _otpRepository.AddAsync(otpEntity);
+            await _emailService.SendOtpEmailAsync(account.email?.Value ?? "", otp, "change_password", fullName);
+
+            return Ok(new { message = "OTP đã được gửi đến email. Vui lòng xác thực trong vòng 1 phút." });
+        }
+
+        [HttpPost("verify-change-password-otp")]
+        public async Task<IActionResult> VerifyChangePasswordOtp([FromBody] VerifyChangePasswordOtpRequest request)
+        {
+            // Xác thực JWT token trước
+            var token = HttpContext.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
+            if (string.IsNullOrEmpty(token))
+            {
+                return Unauthorized("Cần có token.");
+            }
+
+            var principal = _authService.ValidateToken(token);
+            if (principal == null)
+            {
+                return Unauthorized("Token không hợp lệ.");
+            }
+
+            var accountId = int.Parse(principal.FindFirst("nameid")?.Value ?? "0");
+            var account = await _accountRepository.GetByIdAsync(accountId);
+            if (account == null || account.status != "active")
+            {
+                return BadRequest("Không tìm thấy tài khoản hoặc tài khoản chưa được kích hoạt.");
+            }
+
+            var otp = await _otpRepository.GetByAccountIdAsync(account.account_id, "change_password");
+            if (otp == null || otp.expires_at < DateTimeOffset.UtcNow)
+            {
+                return BadRequest("OTP đã hết hạn hoặc không hợp lệ.");
+            }
+
+            var failedAttempts = await _otpRepository.GetFailedAttemptsAsync(account.account_id, "change_password");
+            if (failedAttempts >= 5)
+            {
+                await _otpRepository.DeleteAsync(otp.otp_id);
+                return StatusCode(429, "Quá nhiều lần thử thất bại. Vui lòng thử lại sau 2 phút.");
+            }
+
+            if (!_passwordHasher.VerifyPassword(request.Otp, otp.otp_hash))
+            {
+                await _otpRepository.UpdateAsync(otp);
+                return BadRequest("OTP không hợp lệ.");
+            }
+
+            // Cập nhật mật khẩu mới
+            account.password_hash = new PasswordHash(_passwordHasher.HashPassword(request.NewPassword));
+            account.updated_at = DateTimeOffset.UtcNow;
+            await _accountRepository.UpdateAsync(account);
+
+            // Xóa OTP đã sử dụng
+            await _otpRepository.DeleteAsync(otp.otp_id);
+
+            return Ok(new { message = "Đổi mật khẩu thành công." });
         }
     }
 
     public class VerifyOtpRequest
     {
-        public string Email { get; set; }
-        public string Otp { get; set; }
+        public string Email { get; set; } = null!;
+        public string Otp { get; set; } = null!;
     }
 
     public class LoginRequest
     {
-        public string Email { get; set; }
-        public string Phone { get; set; }
-        public string Password { get; set; }
+        public string Email { get; set; } = null!;
+        public string Phone { get; set; } = null!;
+        public string Password { get; set; } = null!;
+    }
+
+    public class RefreshTokenRequest
+    {
+        public string RefreshToken { get; set; } = null!;
+    }
+
+    public class ForgotPasswordRequest
+    {
+        public string Email { get; set; } = null!;
+    }
+
+    public class ResetPasswordRequest
+    {
+        public string Email { get; set; } = null!;
+        public string NewPassword { get; set; } = null!;
+    }
+
+    public class ChangePasswordRequest
+    {
+        public string OldPassword { get; set; } = null!;
+        public string NewPassword { get; set; } = null!;
+    }
+
+    public class VerifyChangePasswordOtpRequest
+    {
+        public string Otp { get; set; } = null!;
+        public string NewPassword { get; set; } = null!;
     }
 }

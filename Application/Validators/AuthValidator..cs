@@ -26,14 +26,14 @@ namespace UngDungMangXaHoi.Application.Services
         {
             var accessToken = ManualJwt.GenerateAccessToken(account, _accessSecret, _issuer, _audience);
             var refreshToken = ManualJwt.GenerateRefreshToken(account, _refreshSecret);
-            return (accessToken, refreshToken);
+            return await Task.FromResult((accessToken, refreshToken));
         }
 
         public async Task<string> GenerateOtpAsync()
         {
             var random = new Random();
             var otp = random.Next(100000, 999999).ToString();
-            return otp;
+            return await Task.FromResult(otp);
         }
     }
 }

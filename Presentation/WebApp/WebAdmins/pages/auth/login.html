@@ -9,24 +9,24 @@
 <body>
   <div class="container-center">
     <div class="card auth">
-      <a class="back-arrow" href="../home/home.html" title="Quay lại">←</a>
+      <a class="back-arrow" href="../index.html" title="Quay lại">←</a>
 
-      <div class="logo">SNA67CS</div>
+      <div class="logo">ADMIN PANEL</div>
 
-      <form id="loginForm" onsubmit="event.preventDefault(); handleLogin(loginForm, msg)">
-        <input name="username" class="form-control" placeholder="Tên đăng nhập hoặc email" />
+      <form id="loginForm">
+        <input name="identifier" id="identifier" class="form-control" placeholder="Email hoặc Số điện thoại" required />
         <div style="position:relative">
-          <input id="pwd" type="password" name="password" class="form-control" placeholder="Password" />
+          <input id="pwd" type="password" name="password" class="form-control" placeholder="Mật khẩu" required />
           <button type="button" onclick="(function(){ const p=document.getElementById('pwd'); p.type = p.type==='password'?'text':'password'; })()" style="position:absolute;right:12px;top:8px;border:none;background:none;color:#9ca3af;">👁️</button>
         </div>
 
         <div class="auth-btn-wrap">
-          <button class="btn-primary" type="submit" style="width:320px;max-width:86%;">Log in</button>
+          <button class="btn-primary" type="submit" id="loginBtn" style="width:320px;max-width:86%;">Đăng nhập</button>
         </div>
 
         <div class="auth-links">
-          <div>Don't have an account? <a href="register.html">Sign up</a></div>
-          <div style="margin-top:8px"><a href="forgot-password.html">Forgot password?</a></div>
+          <div>Chưa có tài khoản? <a href="register.html">Đăng ký</a></div>
+          <div style="margin-top:8px"><a href="forgot-password.html">Quên mật khẩu?</a></div>
         </div>
 
         <div id="msg" style="min-height:18px;margin-top:12px;color:var(--muted)"></div>
@@ -34,6 +34,61 @@
     </div>
   </div>
 
-  <script src="../../webadmins.js"></script>
+  <!-- Scripts -->
+  <script src="../Context/AdminContext.js"></script>
+  <script>
+    const adminContext = window.AdminContext;
+    
+    // Kiểm tra trạng thái đăng nhập khi load trang
+    window.addEventListener('load', () => {
+      if (adminContext.isAuthenticated) {
+        window.location.href = '../index.html';
+      }
+    });
+    
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const loginBtn = document.getElementById('loginBtn');
+      const msg = document.getElementById('msg');
+      const originalText = loginBtn.textContent;
+      
+      try {
+        loginBtn.textContent = 'Đang đăng nhập...';
+        loginBtn.disabled = true;
+        msg.textContent = '';
+        
+        const identifier = document.getElementById('identifier').value;
+        const password = document.getElementById('pwd').value;
+        
+        // Xác định email hoặc phone
+        const credentials = {
+          Email: identifier.includes('@') ? identifier : '',
+          Phone: !identifier.includes('@') ? identifier : '',
+          Password: password
+        };
+        
+        // Gọi API đăng nhập
+        const result = await adminContext.login(credentials);
+        
+        if (result.success) {
+          msg.textContent = 'Đăng nhập thành công!';
+          msg.style.color = 'green';
+          setTimeout(() => {
+            window.location.href = '../index.html';
+          }, 1000);
+        } else {
+          msg.textContent = 'Lỗi: ' + result.error;
+          msg.style.color = 'red';
+        }
+      } catch (error) {
+        msg.textContent = 'Lỗi: ' + error.message;
+        msg.style.color = 'red';
+      } finally {
+        loginBtn.textContent = originalText;
+        loginBtn.disabled = false;
+      }
+    });
+  </script>
 </body>
 </html>

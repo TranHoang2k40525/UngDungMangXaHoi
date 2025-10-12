@@ -27,7 +27,7 @@ namespace UngDungMangXaHoi.Domain.ValueObjects
 
         public override string ToString() => Value;
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is UserName other)
                 return Value == other.Value;

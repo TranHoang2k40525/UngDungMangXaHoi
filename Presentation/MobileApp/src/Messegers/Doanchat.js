@@ -52,7 +52,7 @@ export default function Doanchat() {
         
         <View style={styles.headerCenter}>
           <Image 
-            source={require('./assets/gai2.png')} 
+            source={require('../Assets/gai2.png')} 
             style={styles.headerAvatar}
           />
           <View style={styles.headerTextContainer}>
@@ -75,7 +75,7 @@ export default function Doanchat() {
         >
           <View style={styles.profileSection}>
             <Image 
-              source={require('./assets/gai2.png')} 
+              source={require('../Assets/gai2.png')} 
               style={styles.profileAvatar}
             />
             <Text style={styles.profileName}>Trang Thu</Text>

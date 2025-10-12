@@ -9,30 +9,64 @@ import {
   Platform,
   KeyboardAvoidingView,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useUser } from '../Context/UserContext';
 
 export default function SignUp() {
-  const [fullName, setFullName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [birthDate, setBirthDate] = useState('');
-  const [gender, setGender] = useState('female'); // 'male' or 'female'
+  const [username, setUsername] = useState(''); // Thêm field Username
+  const [fullName, setFullName] = useState(''); // Tên (first name)
+  const [lastName, setLastName] = useState(''); // Họ (last name)
+  const [birthDate, setBirthDate] = useState(''); // dd/mm/yyyy
+  const [gender, setGender] = useState('Nữ'); // 'Nam', 'Nữ', 'Khác'
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const navigation = useNavigation();
+  const { register } = useUser();
 
-  const handleSignUp = () => {
-    console.log('Sign up with:', {
-      fullName,
-      lastName,
-      birthDate,
-      gender,
-      phoneNumber,
-      email,
-      password,
-    });
-    navigation.navigate('Login');
+  const parseDateOfBirth = (dateStr) => {
+    if (!dateStr) return new Date();
+    const [day, month, year] = dateStr.split('/').map(Number);
+    return new Date(year, month - 1, day); // JS Date: month 0-based
+  };
+
+  const handleSignUp = async () => {
+    if (!username || !fullName || !lastName || !birthDate || !phoneNumber || !email || !password) {
+      Alert.alert('Lỗi', 'Vui lòng điền đầy đủ thông tin.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    const fullNameCombined = `${lastName} ${fullName}`; // Họ + Tên
+    const dateOfBirth = parseDateOfBirth(birthDate);
+
+    const userData = {
+      Username: username,
+      FullName: fullNameCombined,
+      DateOfBirth: dateOfBirth.toISOString(), // Backend mong DateTime, gửi ISO string
+      Email: email,
+      Phone: phoneNumber,
+      Password: password,
+      Gender: gender,
+    };
+
+    try {
+      const result = await register(userData);
+      if (result.success) {
+        Alert.alert('Thành công', result.data.message || 'OTP đã gửi đến email. Vui lòng verify.');
+        navigation.navigate('VerifyOtp', { email }); // Navigate đến VerifyOtp screen
+      } else {
+        Alert.alert('Lỗi', result.error || 'Đăng ký thất bại.');
+      }
+    } catch (error) {
+      Alert.alert('Lỗi', error.message || 'Đăng ký thất bại.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -62,27 +96,40 @@ export default function SignUp() {
 
           {/* Form */}
           <View style={styles.form}>
-            {/* Tên người dùng */}
+            {/* Username */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Tên người dùng:</Text>
+              <Text style={styles.label}>Tên người dùng (Username):</Text>
               <TextInput
                 style={styles.input}
-                value={fullName}
-                onChangeText={setFullName}
-                placeholder=""
+                value={username}
+                onChangeText={setUsername}
+                placeholder="Nhập username"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="none"
+              />
+            </View>
+
+            {/* Họ */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Họ:</Text>
+              <TextInput
+                style={styles.input}
+                value={lastName}
+                onChangeText={setLastName}
+                placeholder="Nhập họ"
                 placeholderTextColor="#9CA3AF"
                 autoCapitalize="words"
               />
             </View>
 
-            {/* Họ và tên */}
+            {/* Tên */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Họ và tên:</Text>
+              <Text style={styles.label}>Tên:</Text>
               <TextInput
                 style={styles.input}
-                value={lastName}
-                onChangeText={setLastName}
-                placeholder=""
+                value={fullName}
+                onChangeText={setFullName}
+                placeholder="Nhập tên"
                 placeholderTextColor="#9CA3AF"
                 autoCapitalize="words"
               />
@@ -91,12 +138,12 @@ export default function SignUp() {
             {/* Ngày sinh và Giới tính */}
             <View style={styles.rowContainer}>
               <View style={styles.dateContainer}>
-                <Text style={styles.label}>Ngày sinh: dd/mm/yy</Text>
+                <Text style={styles.label}>Ngày sinh: dd/mm/yyyy</Text>
                 <TextInput
                   style={styles.input}
                   value={birthDate}
                   onChangeText={setBirthDate}
-                  placeholder=""
+                  placeholder="dd/mm/yyyy"
                   placeholderTextColor="#9CA3AF"
                   keyboardType="numeric"
                 />
@@ -105,25 +152,18 @@ export default function SignUp() {
               <View style={styles.genderContainer}>
                 <Text style={styles.label}>Giới tính:</Text>
                 <View style={styles.radioGroup}>
-                  <TouchableOpacity
-                    style={styles.radioOption}
-                    onPress={() => setGender('male')}
-                  >
-                    <View style={styles.radioOuter}>
-                      {gender === 'male' && <View style={styles.radioInner} />}
-                    </View>
-                    <Text style={styles.radioLabel}>Male</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.radioOption}
-                    onPress={() => setGender('female')}
-                  >
-                    <View style={styles.radioOuter}>
-                      {gender === 'female' && <View style={styles.radioInner} />}
-                    </View>
-                    <Text style={styles.radioLabel}>Female</Text>
-                  </TouchableOpacity>
+                  {['Nam', 'Nữ', 'Khác'].map((option) => (
+                    <TouchableOpacity
+                      key={option}
+                      style={styles.radioOption}
+                      onPress={() => setGender(option)}
+                    >
+                      <View style={styles.radioOuter}>
+                        {gender === option && <View style={styles.radioInner} />}
+                      </View>
+                      <Text style={styles.radioLabel}>{option}</Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
               </View>
             </View>
@@ -135,7 +175,7 @@ export default function SignUp() {
                 style={styles.input}
                 value={phoneNumber}
                 onChangeText={setPhoneNumber}
-                placeholder=""
+                placeholder="Nhập số điện thoại"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="phone-pad"
               />
@@ -148,7 +188,7 @@ export default function SignUp() {
                 style={styles.input}
                 value={email}
                 onChangeText={setEmail}
-                placeholder=""
+                placeholder="Nhập email"
                 placeholderTextColor="#9CA3AF"
                 autoCapitalize="none"
                 keyboardType="email-address"
@@ -162,7 +202,7 @@ export default function SignUp() {
                 style={styles.input}
                 value={password}
                 onChangeText={setPassword}
-                placeholder=""
+                placeholder="Nhập mật khẩu (ít nhất 8 ký tự)"
                 placeholderTextColor="#9CA3AF"
                 secureTextEntry
                 autoCapitalize="none"
@@ -170,8 +210,14 @@ export default function SignUp() {
             </View>
 
             {/* Đăng ký Button */}
-            <TouchableOpacity style={styles.signupButton} onPress={handleSignUp}>
-              <Text style={styles.signupButtonText}>Đăng ký</Text>
+            <TouchableOpacity 
+              style={[styles.signupButton, isLoading && styles.signupButtonDisabled]} 
+              onPress={handleSignUp}
+              disabled={isLoading}
+            >
+              <Text style={styles.signupButtonText}>
+                {isLoading ? 'Đang đăng ký...' : 'Đăng ký'}
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -180,6 +226,7 @@ export default function SignUp() {
   );
 }
 
+// Styles giữ nguyên như file cũ
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -299,5 +346,8 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  signupButtonDisabled: {
+    backgroundColor: '#9CA3AF',
   },
 });

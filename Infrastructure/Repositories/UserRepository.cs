@@ -8,6 +8,9 @@ using UngDungMangXaHoi.Domain.Interfaces;
 using UngDungMangXaHoi.Domain.ValueObjects;
 using UngDungMangXaHoi.Infrastructure.Persistence;
 
+#pragma warning disable CS8604 // Possible null reference argument for parameter
+#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type
+
 namespace UngDungMangXaHoi.Infrastructure.Repositories
 {
     public class UserRepository : IUserRepository
@@ -30,7 +33,7 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         {
             return await _context.Users
                 .Include(u => u.Account)
-                .FirstOrDefaultAsync(u => u.Account.email.Value == email.Value);
+                .FirstOrDefaultAsync(u => u.Account.email != null && u.Account.email!.Value.ToLower() == email!.Value.ToLower());
         }
 
         public async Task<User?> GetByUserNameAsync(UserName userName)
@@ -89,7 +92,7 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
 
         public async Task<bool> ExistsByEmailAsync(Email email)
         {
-            return await _context.Accounts.AnyAsync(a => a.email.Value == email.Value);
+            return await _context.Accounts.AnyAsync(a => a.email != null && a.email!.Value.ToLower() == email!.Value.ToLower());
         }
 
         public async Task<bool> ExistsByUserNameAsync(UserName userName)
@@ -102,8 +105,8 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
             var query = _context.Users
                 .Include(u => u.Account)
                 .Where(u => u.Account.status == "active" &&
-                    (u.full_name.Contains(searchTerm) ||
-                     u.username.Value.Contains(searchTerm)));
+                    (u.full_name.ToLower().Contains(searchTerm.ToLower()) ||
+                     u.username.Value.ToLower().Contains(searchTerm.ToLower())));
 
             return await query
                 .OrderBy(u => u.full_name)

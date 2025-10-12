@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trang chủ - Ứng dụng mạng xã hội</title>
+    <link rel="stylesheet" href="Styles/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="container">
+                <div class="logo">
+                    <h1>SocialApp</h1>
+                </div>
+                <nav class="nav">
+                    <a href="login.html" id="loginLink" class="nav-link">Đăng nhập</a>
+                    <a href="signup.html" id="signupLink" class="nav-link">Đăng ký</a>
+                    <div id="userMenu" class="user-menu" style="display: none;">
+                        <span id="userName">Tên người dùng</span>
+                        <button id="logoutBtn" class="btn btn-outline">Đăng xuất</button>
+                    </div>
+                </nav>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main">
+            <div class="container">
+                <div id="welcomeMessage" class="welcome-message">
+                    <h2>Chào mừng đến với SocialApp!</h2>
+                    <p>Kết nối với bạn bè và chia sẻ những khoảnh khắc tuyệt vời.</p>
+                </div>
+
+                <div id="userContent" class="user-content" style="display: none;">
+                    <h2>Xin chào, <span id="userDisplayName"></span>!</h2>
+                    <p>Bạn đã đăng nhập thành công.</p>
+                    <div class="user-actions">
+                        <button class="btn btn-primary" onclick="goToProfile()">Xem hồ sơ</button>
+                        <button class="btn btn-secondary" onclick="goToSettings()">Cài đặt</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="container">
+                <p>&copy; 2024 SocialApp. Tất cả quyền được bảo lưu.</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="Context/UserContext.js"></script>
+    <script>
+        // Khởi tạo UserContext
+        const userContext = window.UserContext;
+
+        // Cập nhật UI dựa trên trạng thái đăng nhập
+        function updateUI() {
+            const loginLink = document.getElementById('loginLink');
+            const signupLink = document.getElementById('signupLink');
+            const userMenu = document.getElementById('userMenu');
+            const welcomeMessage = document.getElementById('welcomeMessage');
+            const userContent = document.getElementById('userContent');
+            const userName = document.getElementById('userName');
+            const userDisplayName = document.getElementById('userDisplayName');
+
+            if (userContext.isAuthenticated && userContext.user) {
+                // Đã đăng nhập
+                loginLink.style.display = 'none';
+                signupLink.style.display = 'none';
+                userMenu.style.display = 'flex';
+                welcomeMessage.style.display = 'none';
+                userContent.style.display = 'block';
+                
+                userName.textContent = userContext.user.email;
+                userDisplayName.textContent = userContext.user.email;
+            } else {
+                // Chưa đăng nhập
+                loginLink.style.display = 'block';
+                signupLink.style.display = 'block';
+                userMenu.style.display = 'none';
+                welcomeMessage.style.display = 'block';
+                userContent.style.display = 'none';
+            }
+        }
+
+        // Xử lý đăng xuất
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            try {
+                await userContext.logout();
+                updateUI();
+                alert('Đăng xuất thành công!');
+            } catch (error) {
+                console.error('Logout error:', error);
+                alert('Có lỗi xảy ra khi đăng xuất.');
+            }
+        });
+
+        // Lắng nghe thay đổi trạng thái đăng nhập
+        userContext.addListener(updateUI);
+
+        // Khởi tạo UI
+        updateUI();
+
+        // Các hàm điều hướng
+        function goToProfile() {
+            alert('Chức năng xem hồ sơ đang được phát triển.');
+        }
+
+        function goToSettings() {
+            alert('Chức năng cài đặt đang được phát triển.');
+        }
+
+        // Setup auto refresh token
+        userContext.setupTokenRefresh();
+    </script>
+</body>
+</html>

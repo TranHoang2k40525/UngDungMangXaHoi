@@ -1,55 +1,126 @@
-<!DOCT    <link rel="stylesheet" href="styles/style.css">
+<!DOCTYPE html>
 <html lang="vi">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Đăng ký - Snap67CS</title>
-    <link rel="stylesheet" href="styles/auth.css" />
-  </head>
-  <body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng ký - Ứng dụng mạng xã hội</title>
+    <link rel="stylesheet" href="Styles/auth.css">
+</head>
+<body>
     <div class="container">
-      <div class="header">
-        <a href="login.html" style="text-decoration: none; "</a>
-        <h1>SIGN UP</h1>
-      </div>
-      <form>
-        <div class="form-group">
-          <label>Tên người dùng:</label>
-          <input type="text" required />
+        <div class="header">
+            <a href="login.html" class="back-link">←</a>
+            <h1>ĐĂNG KÝ</h1>
         </div>
-        <div class="form-group">
-          <label>Họ và tên:</label>
-          <input type="text" required />
+        
+        <form id="signupForm">
+            <div class="form-group">
+                <label>Tên người dùng:</label>
+                <input type="text" id="username" required />
+            </div>
+            
+            <div class="form-group">
+                <label>Họ:</label>
+                <input type="text" id="lastName" required />
+            </div>
+            
+            <div class="form-group">
+                <label>Tên:</label>
+                <input type="text" id="firstName" required />
+            </div>
+            
+            <div class="form-group">
+                <label>Ngày sinh: dd/mm/yyyy</label>
+                <input type="text" id="birthDate" placeholder="dd/mm/yyyy" required />
+            </div>
+            
+            <div class="form-group">
+                <label>Giới tính:</label>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="gender" value="Nam" /> Nam
+                    </label>
+                    <label>
+                        <input type="radio" name="gender" value="Nữ" checked /> Nữ
+                    </label>
+                    <label>
+                        <input type="radio" name="gender" value="Khác" /> Khác
+                    </label>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Số điện thoại:</label>
+                <input type="tel" id="phone" required />
+            </div>
+            
+            <div class="form-group">
+                <label>Email:</label>
+                <input type="email" id="email" required />
+            </div>
+            
+            <div class="form-group">
+                <label>Mật khẩu:</label>
+                <input type="password" id="password" required />
+            </div>
+            
+            <button type="submit" class="btn" id="signupBtn">Đăng ký</button>
+        </form>
+        
+        <div class="footer">
+            <p>Đã có tài khoản? <a href="login.html">Đăng nhập</a></p>
         </div>
-        <div class="form-group">
-          <label>Ngày sinh: dd/mm/yy</label>
-          <input type="text" placeholder="dd/mm/yy" required />
-        </div>
-        <div class="form-group">
-          <label>Giới tính:</label>
-          <div class="radio-group">
-            <label>
-              <input type="radio" name="gender" value="male" /> Male
-            </label>
-            <label>
-              <input type="radio" name="gender" value="female" /> Female
-            </label>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Số điện thoại:</label>
-          <input type="tel" required />
-        </div>
-        <div class="form-group">
-          <label>Email:</label>
-          <input type="email" required />
-        </div>
-        <div class="form-group">
-          <label>Mật khẩu:</label>
-          <input type="password" required />
-        </div>
-        <button type="submit" class="btn">Đăng ký</button>
-      </form>
     </div>
-  </body>
+
+    <!-- Scripts -->
+    <script src="Context/UserContext.js"></script>
+    <script>
+        const userContext = window.UserContext;
+        
+        document.getElementById('signupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const signupBtn = document.getElementById('signupBtn');
+            const originalText = signupBtn.textContent;
+            
+            try {
+                signupBtn.textContent = 'Đang đăng ký...';
+                signupBtn.disabled = true;
+                
+                // Lấy dữ liệu form
+                const formData = {
+                    Username: document.getElementById('username').value,
+                    FullName: `${document.getElementById('lastName').value} ${document.getElementById('firstName').value}`,
+                    DateOfBirth: parseDateOfBirth(document.getElementById('birthDate').value),
+                    Email: document.getElementById('email').value,
+                    Phone: document.getElementById('phone').value,
+                    Password: document.getElementById('password').value,
+                    Gender: document.querySelector('input[name="gender"]:checked').value
+                };
+                
+                // Gọi API đăng ký
+                const result = await userContext.register(formData);
+                
+                if (result.success) {
+                    alert('Đăng ký thành công! OTP đã được gửi đến email của bạn.');
+                    window.location.href = `verify-otp.html?email=${encodeURIComponent(formData.Email)}`;
+                } else {
+                    alert('Lỗi: ' + result.error);
+                }
+            } catch (error) {
+                alert('Lỗi: ' + error.message);
+            } finally {
+                signupBtn.textContent = originalText;
+                signupBtn.disabled = false;
+            }
+        });
+        
+        function parseDateOfBirth(dateStr) {
+            if (!dateStr) return new Date().toISOString();
+            const [day, month, year] = dateStr.split('/').map(Number);
+            const date = new Date(year, month - 1, day);
+            return date.toISOString();
+        }
+    </script>
+</body>
 </html>

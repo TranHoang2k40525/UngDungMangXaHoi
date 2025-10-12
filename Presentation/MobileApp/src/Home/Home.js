@@ -13,13 +13,13 @@ import { useNavigation } from '@react-navigation/native';
 
 // Dữ liệu stories
 const storiesData = [
-  { id: '1', name: 'Hoàng', avatar: require('./assets/trai.png'), hasStory: true },
-  { id: '2', name: 'Quân', avatar: require('./assets/noo.png'), hasStory: true },
-  { id: '3', name: 'Trang', avatar: require('./assets/gai2.png'), hasStory: true },
-  { id: '4', name: 'Vinh', avatar: require('./assets/meo.png'), hasStory: true },
-  { id: '5', name: 'Linh', avatar: require('./assets/gai1.png'), hasStory: false },
-  { id: '6', name: 'Việt', avatar: require('./assets/embe.png'), hasStory: true },
-  { id: '7', name: 'Tùng', avatar: require('./assets/sontung.png'), hasStory: false },
+  { id: '1', name: 'Hoàng', avatar: require('../Assets/trai.png'), hasStory: true },
+  { id: '2', name: 'Quân', avatar: require('../Assets/noo.png'), hasStory: true },
+  { id: '3', name: 'Trang', avatar: require('../Assets/gai2.png'), hasStory: true },
+  { id: '4', name: 'Vinh', avatar: require('../Assets/meo.png'), hasStory: true },
+  { id: '5', name: 'Linh', avatar: require('../Assets/gai1.png'), hasStory: false },
+  { id: '6', name: 'Việt', avatar: require('../Assets/embe.png'), hasStory: true },
+  { id: '7', name: 'Tùng', avatar: require('../Assets/sontung.png'), hasStory: false },
 ];
 
 // Component Story Item
@@ -45,7 +45,7 @@ export default function Home() {
       <View style={styles.header}>
         <TouchableOpacity style={styles.navItem}>
           <Image
-            source={require('./assets/icons8-camera-50.png')}
+            source={require('../Assets/icons8-camera-50.png')}
             style={[styles.cameraIconImage, { width: 29, height: 29 }]}
           />
         </TouchableOpacity>
@@ -58,7 +58,7 @@ export default function Home() {
           </TouchableOpacity>
           <TouchableOpacity style={styles.navItem}>
             <Image
-              source={require('./assets/icons8-notification-48.png')}
+              source={require('../Assets/icons8-notification-48.png')}
               style={[styles.homeIconImage, { width: 30, height: 30 }]}
             />
           </TouchableOpacity>
@@ -67,7 +67,7 @@ export default function Home() {
             onPress={() => navigation.navigate('Messenger')}
           >
             <Image
-              source={require('./assets/icons8-facebook-messenger-50.png')}
+              source={require('../Assets/icons8-facebook-messenger-50.png')}
               style={[styles.homeIconImage, { width: 30, height: 30 }]}
             />
           </TouchableOpacity>
@@ -146,14 +146,14 @@ export default function Home() {
               </TouchableOpacity>
               <TouchableOpacity style={styles.navItem}>
                 <Image
-                  source={require('./assets/icons8-email-65.png')}
+                  source={require('../Assets/icons8-email-65.png')}
                   style={[styles.homeIconImage, { width: 42, height: 42 }]}
                 />
               </TouchableOpacity>
             </View>
             <TouchableOpacity style={styles.navItem}>
               <Image
-                source={require('./assets/icons8-bookmark-outline-24.png')}
+                source={require('../Assets/icons8-bookmark-outline-24.png')}
                 style={[styles.homeIconImage, { width: 30, height: 30 }]}
               />
             </TouchableOpacity>
@@ -171,7 +171,7 @@ export default function Home() {
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.navItem}>
           <Image
-            source={require('./assets/icons8-home-32.png')}
+            source={require('../Assets/icons8-home-32.png')}
             style={[styles.homeIconImage, { width: 33, height: 33 }]}
           />
         </TouchableOpacity>

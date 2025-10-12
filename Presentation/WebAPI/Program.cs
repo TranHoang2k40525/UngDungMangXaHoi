@@ -10,6 +10,7 @@ using UngDungMangXaHoi.Infrastructure.ExternalServices;
 using UngDungMangXaHoi.Application.Services;
 using UngDungMangXaHoi.Application.UseCases.Users;
 using UngDungMangXaHoi.Domain.Interfaces;
+using System.Text.Json.Serialization; // Thêm namespace này
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,7 +18,11 @@ var builder = WebApplication.CreateBuilder(args);
 Env.TraversePath().Load();
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()); // Thêm dòng này
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -70,11 +75,15 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 builder.Services.AddScoped<IOTPRepository, OTPRepository>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+builder.Services.AddScoped<ILoginHistoryRepository, LoginHistoryRepository>();
 
 // Services
 builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddScoped<ITokenService, AuthService>();
-builder.Services.AddScoped(sp => new UngDungMangXaHoi.Infrastructure.Services.EmailService(sp.GetRequiredService<IConfiguration>()));
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<INotificationService, EmailService>();
 
 // External Services
 builder.Services.AddScoped<CloudinaryService>(provider =>
@@ -87,8 +96,8 @@ builder.Services.AddScoped<CloudinaryService>(provider =>
     );
 });
 
-builder.Services.AddScoped<UngDungMangXaHoi.Domain.Interfaces.INotificationService, UngDungMangXaHoi.Infrastructure.Services.EmailService>();
-
+// Đăng ký JwtTokenService
+builder.Services.AddScoped<JwtTokenService>();
 // Use Cases
 builder.Services.AddScoped<RegisterUser>();
 builder.Services.AddScoped<LoginUser>();
