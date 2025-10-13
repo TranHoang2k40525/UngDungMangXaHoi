@@ -6,7 +6,7 @@ import {
   verifyOtp, 
   logout, 
   refreshToken, 
-  isAuthenticated,
+  isAuthenticated as checkAuth,
   setupTokenRefresh 
 } from '../API/Api';
 
@@ -35,7 +35,9 @@ export const UserProvider = ({ children }) => {
       setIsLoading(true);
       
       // Kiểm tra xem có token không
-      const hasToken = await isAuthenticated();
+      const hasToken = await checkAuth();
+      console.log('Has token:', hasToken);
+      
       if (hasToken) {
         // Có token, thử refresh để lấy thông tin user mới nhất
         try {
@@ -53,6 +55,9 @@ export const UserProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Auth initialization failed:', error);
+      // Nếu có lỗi, đảm bảo user được logout
+      setUser(null);
+      setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
     }

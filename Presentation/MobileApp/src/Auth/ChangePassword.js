@@ -9,6 +9,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { changePassword, verifyChangePasswordOtp } from '../API/Api';
@@ -47,11 +48,12 @@ export default function ChangePassword() {
         OldPassword: oldPassword, 
         NewPassword: newPassword 
       });
-      if (result.success) {
+      // API trả về response trực tiếp, không có wrapper success
+      if (result) {
         setOtpSent(true);
         Alert.alert('Thành công', 'Mã OTP đã được gửi đến email của bạn.');
       } else {
-        Alert.alert('Lỗi', result.error || 'Không thể gửi mã OTP.');
+        Alert.alert('Lỗi', 'Không thể gửi mã OTP.');
       }
     } catch (error) {
       Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra.');
@@ -73,11 +75,12 @@ export default function ChangePassword() {
         Otp: otp, 
         NewPassword: newPassword 
       });
-      if (result.success) {
+      // API trả về response trực tiếp, không có wrapper success
+      if (result) {
         Alert.alert('Thành công', 'Đổi mật khẩu thành công!');
         navigation.goBack();
       } else {
-        Alert.alert('Lỗi', result.error || 'Mã OTP không đúng.');
+        Alert.alert('Lỗi', 'Mã OTP không đúng.');
       }
     } catch (error) {
       Alert.alert('Lỗi', error.message || 'Xác thực OTP thất bại.');
@@ -171,9 +174,16 @@ export default function ChangePassword() {
                     onPress={handleSendOtp}
                     disabled={isLoading}
                   >
-                    <Text style={styles.buttonText}>
-                      {isLoading ? 'Đang gửi...' : 'Gửi mã OTP'}
-                    </Text>
+                    {isLoading ? (
+                      <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                        <Text style={[styles.buttonText, { marginLeft: 8 }]}>
+                          Đang gửi...
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.buttonText}>Gửi mã OTP</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -209,9 +219,16 @@ export default function ChangePassword() {
                     onPress={handleVerifyOtp}
                     disabled={isLoading}
                   >
-                    <Text style={styles.buttonText}>
-                      {isLoading ? 'Đang xác thực...' : 'Xác nhận mã'}
-                    </Text>
+                    {isLoading ? (
+                      <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                        <Text style={[styles.buttonText, { marginLeft: 8 }]}>
+                          Đang xác thực...
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.buttonText}>Xác nhận mã</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               )}
@@ -348,5 +365,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

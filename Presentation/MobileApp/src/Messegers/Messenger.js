@@ -12,10 +12,11 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const conversations = [
   { id: 1, name: 'Hoàng Phạm', message: 'I have a nice day, bro!', time: 'now', avatar: require('../Assets/trai.png'), },
-  { id: 2, name: 'Linh Nguyễn', message: 'I heard this is a good movie. s...', time: 'now', avatar: require('./assets/gai1.png'),},
+  { id: 2, name: 'Linh Nguyễn', message: 'I heard this is a good movie. s...', time: 'now', avatar: require('../Assets/gai1.png'),},
   { id: 3, name: 'Trang Thu', message: 'See you on the next meeting!', time: '15m', avatar: require('../Assets/gai2.png'), },
   { id: 4, name: 'Noo', message: 'Sounds good', time: '20m', avatar: require('../Assets/noo.png'),},
   { id: 5, name: 'Tùng', message: 'The new design is looks cool, b...', time: '1m', avatar: require('../Assets/sontung.png'),},
@@ -26,6 +27,7 @@ const conversations = [
 export default function Messenger() {
   const [searchText, setSearchText] = useState('');
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
 
   // Lọc danh sách conversations dựa trên searchText
   const filteredConversations = useMemo(() => {
@@ -47,6 +49,7 @@ export default function Messenger() {
         backgroundColor="#FFFFFF"
         translucent={false}
       />
+      <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top }]}>
       
       <View style={styles.content}>
         {/* Header */}
@@ -119,6 +122,7 @@ export default function Messenger() {
           )}
         </ScrollView>
       </View>
+      </SafeAreaView>
     </View>
   );
 }
@@ -127,6 +131,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  safeArea: {
+    flex: 1,
   },
   content: {
     flex: 1,

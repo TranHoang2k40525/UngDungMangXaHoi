@@ -55,6 +55,22 @@
         msg.textContent = '';
         
         // Lấy dữ liệu form
+        const genderValue = document.getElementById('gender').value;
+        let genderNumber;
+        switch (genderValue) {
+          case 'Nam':
+            genderNumber = 0;
+            break;
+          case 'Nữ':
+            genderNumber = 1;
+            break;
+          case 'Khác':
+            genderNumber = 2;
+            break;
+          default:
+            genderNumber = 0;
+        }
+        
         const formData = {
           Username: document.getElementById('username').value,
           FullName: document.getElementById('fullName').value,
@@ -62,7 +78,7 @@
           Email: document.getElementById('email').value,
           Phone: document.getElementById('phone').value,
           Password: document.getElementById('password').value,
-          Gender: document.getElementById('gender').value
+          Gender: genderNumber
         };
         
         // Gọi API đăng ký

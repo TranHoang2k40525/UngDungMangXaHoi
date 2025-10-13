@@ -27,10 +27,10 @@ const apiCall = async (endpoint, options = {}) => {
 // Auth API object
 const authAPI = {
   // Register
-  async register(userData) {
+  async register(adminData) {
     return apiCall('/api/auth/register', {
       method: 'POST',
-      body: JSON.stringify(userData),
+      body: JSON.stringify(adminData),
     });
   },
 
@@ -109,7 +109,7 @@ const authAPI = {
     // Clear local storage
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
-    localStorage.removeItem('userInfo');
+    localStorage.removeItem('adminInfo');
   },
 
   // Quên mật khẩu

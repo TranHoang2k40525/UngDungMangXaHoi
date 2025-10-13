@@ -30,8 +30,8 @@
             </div>
             
             <div class="form-group">
-                <label>Ngày sinh: dd/mm/yyyy</label>
-                <input type="text" id="birthDate" placeholder="dd/mm/yyyy" required />
+                <label>Ngày sinh:</label>
+                <input type="date" id="birthDate" required />
             </div>
             
             <div class="form-group">
@@ -64,7 +64,14 @@
                 <input type="password" id="password" required />
             </div>
             
+            <div class="form-group">
+                <label>Xác nhận mật khẩu:</label>
+                <input type="password" id="confirmPassword" required />
+            </div>
+            
             <button type="submit" class="btn" id="signupBtn">Đăng ký</button>
+            
+            <div id="msg" style="min-height: 18px; margin-top: 12px; color: var(--muted);"></div>
         </form>
         
         <div class="footer">
@@ -74,53 +81,6 @@
 
     <!-- Scripts -->
     <script src="Context/UserContext.js"></script>
-    <script>
-        const userContext = window.UserContext;
-        
-        document.getElementById('signupForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const signupBtn = document.getElementById('signupBtn');
-            const originalText = signupBtn.textContent;
-            
-            try {
-                signupBtn.textContent = 'Đang đăng ký...';
-                signupBtn.disabled = true;
-                
-                // Lấy dữ liệu form
-                const formData = {
-                    Username: document.getElementById('username').value,
-                    FullName: `${document.getElementById('lastName').value} ${document.getElementById('firstName').value}`,
-                    DateOfBirth: parseDateOfBirth(document.getElementById('birthDate').value),
-                    Email: document.getElementById('email').value,
-                    Phone: document.getElementById('phone').value,
-                    Password: document.getElementById('password').value,
-                    Gender: document.querySelector('input[name="gender"]:checked').value
-                };
-                
-                // Gọi API đăng ký
-                const result = await userContext.register(formData);
-                
-                if (result.success) {
-                    alert('Đăng ký thành công! OTP đã được gửi đến email của bạn.');
-                    window.location.href = `verify-otp.html?email=${encodeURIComponent(formData.Email)}`;
-                } else {
-                    alert('Lỗi: ' + result.error);
-                }
-            } catch (error) {
-                alert('Lỗi: ' + error.message);
-            } finally {
-                signupBtn.textContent = originalText;
-                signupBtn.disabled = false;
-            }
-        });
-        
-        function parseDateOfBirth(dateStr) {
-            if (!dateStr) return new Date().toISOString();
-            const [day, month, year] = dateStr.split('/').map(Number);
-            const date = new Date(year, month - 1, day);
-            return date.toISOString();
-        }
-    </script>
+    <script src="js/main.js"></script>
 </body>
 </html>

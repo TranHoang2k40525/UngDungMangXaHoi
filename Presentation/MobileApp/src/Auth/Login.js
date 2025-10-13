@@ -9,9 +9,13 @@ import {
   Platform,
   KeyboardAvoidingView,
   Alert,
+  SafeAreaView,
+  ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useUser } from '../Context/UserContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function Login() {
   const [identifier, setIdentifier] = useState(''); // Email or Phone
@@ -19,6 +23,7 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const navigation = useNavigation();
   const { login } = useUser();
+  const insets = useSafeAreaInsets();
 
   const handleLogin = async () => {
     if (!identifier || !password) {
@@ -38,8 +43,8 @@ export default function Login() {
     try {
       const result = await login(credentials);
       if (result.success) {
-        Alert.alert('Thành công', 'Đăng nhập thành công!');
-        navigation.navigate('Home'); // Navigate đến Home sau login
+        // Không cần Alert, tự động chuyển sang Home
+        // App.js sẽ tự động handle navigation dựa trên isAuthenticated state
       } else {
         Alert.alert('Lỗi', result.error || 'Đăng nhập thất bại.');
       }
@@ -82,7 +87,7 @@ export default function Login() {
                 placeholder="Email hoặc Số điện thoại"
                 placeholderTextColor="#9CA3AF"
                 autoCapitalize="none"
-                keyboardType="email-address" // Default email, nhưng hỗ trợ phone
+                keyboardType="email-address"
               />
             </View>
 
@@ -99,7 +104,7 @@ export default function Login() {
               />
             </View>
 
-            {/* Forgot Password */}
+            {/* Forgot Password - Centered */}
             <TouchableOpacity
               style={styles.forgotContainer}
               onPress={() => navigation.navigate('ForgotPassword')}
@@ -113,9 +118,16 @@ export default function Login() {
               onPress={handleLogin}
               disabled={isLoading}
             >
-              <Text style={styles.loginButtonText}>
-                {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
-              </Text>
+              {isLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <Text style={[styles.loginButtonText, { marginLeft: 8 }]}>
+                    Đang đăng nhập...
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.loginButtonText}>Đăng nhập</Text>
+              )}
             </TouchableOpacity>
 
             {/* Divider */}
@@ -124,8 +136,6 @@ export default function Login() {
               <Text style={styles.dividerText}>OR</Text>
               <View style={styles.dividerLine} />
             </View>
-
-        
 
             {/* Sign Up Link */}
             <View style={styles.signupContainer}>
@@ -146,7 +156,6 @@ export default function Login() {
   );
 }
 
-// Styles giữ nguyên như file cũ, thêm facebookButton nếu chưa có
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -195,7 +204,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   forgotContainer: {
-    alignItems: 'flex-end',
+    alignItems: 'center', // Centered instead of flex-end
     marginBottom: 16,
   },
   forgotText: {
@@ -217,6 +226,11 @@ const styles = StyleSheet.create({
   loginButtonDisabled: {
     backgroundColor: '#9CA3AF',
   },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -231,26 +245,6 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontSize: 14,
     paddingHorizontal: 8,
-  },
-  facebookButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#3B5998',
-    borderRadius: 8,
-    paddingVertical: 16,
-    marginBottom: 24,
-  },
-  facebookIcon: {
-    fontSize: 18,
-    color: '#FFFFFF',
-    marginRight: 8,
-    fontWeight: 'bold',
-  },
-  facebookButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
   signupContainer: {
     flexDirection: 'row',

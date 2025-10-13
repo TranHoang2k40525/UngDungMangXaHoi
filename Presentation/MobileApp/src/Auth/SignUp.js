@@ -10,15 +10,21 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Alert,
+  SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useUser } from '../Context/UserContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 export default function SignUp() {
   const [username, setUsername] = useState(''); // Thêm field Username
   const [fullName, setFullName] = useState(''); // Tên (first name)
   const [lastName, setLastName] = useState(''); // Họ (last name)
   const [birthDate, setBirthDate] = useState(''); // dd/mm/yyyy
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [gender, setGender] = useState('Nữ'); // 'Nam', 'Nữ', 'Khác'
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
@@ -26,11 +32,37 @@ export default function SignUp() {
   const [isLoading, setIsLoading] = useState(false);
   const navigation = useNavigation();
   const { register } = useUser();
+  const insets = useSafeAreaInsets();
 
   const parseDateOfBirth = (dateStr) => {
     if (!dateStr) return new Date();
     const [day, month, year] = dateStr.split('/').map(Number);
     return new Date(year, month - 1, day); // JS Date: month 0-based
+  };
+
+  const formatDate = (date) => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const onDateChange = (event, selectedDate) => {
+    setShowDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      setSelectedDate(selectedDate);
+      setBirthDate(formatDate(selectedDate));
+    }
+  };
+
+  const showDatePickerModal = () => {
+    setShowDatePicker(true);
+  };
+
+  const validateUsername = (username) => {
+    // Username must be 3-20 characters, letters, numbers, underscores, and Unicode characters
+    const usernameRegex = /^[\p{L}\p{N}_]{3,20}$/u;
+    return usernameRegex.test(username);
   };
 
   const handleSignUp = async () => {
@@ -39,19 +71,40 @@ export default function SignUp() {
       return;
     }
 
+    if (!validateUsername(username)) {
+      Alert.alert('Lỗi', 'Username phải có 3-20 ký tự và chỉ chứa chữ cái, số, dấu gạch dưới.');
+      return;
+    }
+
     setIsLoading(true);
 
     const fullNameCombined = `${lastName} ${fullName}`; // Họ + Tên
     const dateOfBirth = parseDateOfBirth(birthDate);
 
+    // Convert gender to match backend enum (backend expects 0, 1, 2)
+    let genderValue;
+    switch (gender) {
+      case 'Nam':
+        genderValue = 0;
+        break;
+      case 'Nữ':
+        genderValue = 1;
+        break;
+      case 'Khác':
+        genderValue = 2;
+        break;
+      default:
+        genderValue = 0;
+    }
+
     const userData = {
       Username: username,
       FullName: fullNameCombined,
-      DateOfBirth: dateOfBirth.toISOString(), // Backend mong DateTime, gửi ISO string
+      DateOfBirth: dateOfBirth.toISOString(), // Send as ISO string
       Email: email,
       Phone: phoneNumber,
       Password: password,
-      Gender: gender,
+      Gender: genderValue, // Send as 0/1/2 (backend enum)
     };
 
     try {
@@ -70,7 +123,7 @@ export default function SignUp() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar
         barStyle="dark-content"
         backgroundColor="#FFFFFF"
@@ -79,6 +132,7 @@ export default function SignUp() {
       <KeyboardAvoidingView
         style={styles.content}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <ScrollView
           style={styles.scrollView}
@@ -138,15 +192,24 @@ export default function SignUp() {
             {/* Ngày sinh và Giới tính */}
             <View style={styles.rowContainer}>
               <View style={styles.dateContainer}>
-                <Text style={styles.label}>Ngày sinh: dd/mm/yyyy</Text>
-                <TextInput
-                  style={styles.input}
-                  value={birthDate}
-                  onChangeText={setBirthDate}
-                  placeholder="dd/mm/yyyy"
-                  placeholderTextColor="#9CA3AF"
-                  keyboardType="numeric"
-                />
+                <Text style={styles.label}>Ngày sinh:</Text>
+                <TouchableOpacity 
+                  style={styles.dateInput}
+                  onPress={showDatePickerModal}
+                >
+                  <Text style={[styles.dateText, !birthDate && styles.placeholderText]}>
+                    {birthDate || 'dd/mm/yyyy'}
+                  </Text>
+                </TouchableOpacity>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={selectedDate}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={onDateChange}
+                    maximumDate={new Date()}
+                  />
+                )}
               </View>
 
               <View style={styles.genderContainer}>
@@ -215,14 +278,21 @@ export default function SignUp() {
               onPress={handleSignUp}
               disabled={isLoading}
             >
-              <Text style={styles.signupButtonText}>
-                {isLoading ? 'Đang đăng ký...' : 'Đăng ký'}
-              </Text>
+              {isLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <Text style={[styles.signupButtonText, { marginLeft: 8 }]}>
+                    Đang đăng ký...
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.signupButtonText}>Đăng ký</Text>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -243,31 +313,37 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
-    position: 'relative',
-    paddingTop: 80,
-    paddingBottom: 30,
     paddingHorizontal: 24,
-    alignItems: 'center',
+    paddingBottom: 20,
     backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
   backButton: {
     position: 'absolute',
     left: 24,
-    top: 80,
-    zIndex: 10,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
   },
   backIcon: {
-    fontSize: 28,
+    fontSize: 24,
     color: '#374151',
+    fontWeight: '600',
   },
   title: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: '#111827',
-    letterSpacing: 1,
+    textAlign: 'center',
   },
   form: {
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
     paddingTop: 20,
   },
   inputContainer: {
@@ -280,10 +356,12 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: '#F9FAFB',
-    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 14,
+    paddingVertical: 16,
+    fontSize: 16,
     color: '#111827',
   },
   rowContainer: {
@@ -349,5 +427,26 @@ const styles = StyleSheet.create({
   },
   signupButtonDisabled: {
     backgroundColor: '#9CA3AF',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateInput: {
+    height: 50,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  dateText: {
+    fontSize: 16,
+    color: '#374151',
+  },
+  placeholderText: {
+    color: '#9CA3AF',
   },
 });

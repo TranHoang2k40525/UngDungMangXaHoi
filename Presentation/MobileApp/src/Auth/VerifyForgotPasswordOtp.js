@@ -9,9 +9,10 @@ import {
   Platform,
   KeyboardAvoidingView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { verifyForgotPasswordOtp, resetPassword } from '../API/Api';
+import { resetPassword } from '../API/Api';
 
 export default function VerifyForgotPasswordOtp() {
   const [otp, setOtp] = useState('');
@@ -47,12 +48,15 @@ export default function VerifyForgotPasswordOtp() {
     setIsLoading(true);
 
     try {
+      // Import trực tiếp trong function để tránh cache issue
+      const { verifyForgotPasswordOtp } = await import('../API/Api');
       const result = await verifyForgotPasswordOtp({ Email: email, Otp: otp });
-      if (result.success) {
+      // API trả về response trực tiếp, không có wrapper success
+      if (result) {
         setOtpVerified(true);
         Alert.alert('Thành công', 'Xác thực OTP thành công! Bây giờ bạn có thể đặt lại mật khẩu.');
       } else {
-        Alert.alert('Lỗi', result.error || 'Mã OTP không đúng.');
+        Alert.alert('Lỗi', 'Mã OTP không đúng.');
       }
     } catch (error) {
       Alert.alert('Lỗi', error.message || 'Xác thực OTP thất bại.');
@@ -81,11 +85,12 @@ export default function VerifyForgotPasswordOtp() {
 
     try {
       const result = await resetPassword({ Email: email, NewPassword: newPassword });
-      if (result.success) {
+      // API trả về response trực tiếp, không có wrapper success
+      if (result) {
         Alert.alert('Thành công', 'Đặt lại mật khẩu thành công! Bạn có thể đăng nhập với mật khẩu mới.');
         navigation.navigate('Login');
       } else {
-        Alert.alert('Lỗi', result.error || 'Đặt lại mật khẩu thất bại.');
+        Alert.alert('Lỗi', 'Đặt lại mật khẩu thất bại.');
       }
     } catch (error) {
       Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra.');
@@ -104,10 +109,11 @@ export default function VerifyForgotPasswordOtp() {
     try {
       const { forgotPassword } = await import('../API/Api');
       const result = await forgotPassword(email);
-      if (result.success) {
+      // API trả về response trực tiếp, không có wrapper success
+      if (result) {
         Alert.alert('Thành công', 'Mã OTP mới đã được gửi đến email của bạn.');
       } else {
-        Alert.alert('Lỗi', result.error || 'Không thể gửi lại mã OTP.');
+        Alert.alert('Lỗi', 'Không thể gửi lại mã OTP.');
         setCanResend(true);
       }
     } catch (error) {
@@ -170,9 +176,16 @@ export default function VerifyForgotPasswordOtp() {
                 onPress={handleVerifyOtp}
                 disabled={isLoading}
               >
-                <Text style={styles.verifyButtonText}>
-                  {isLoading ? 'Đang xác thực...' : 'Xác nhận mã'}
-                </Text>
+                {isLoading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Text style={[styles.verifyButtonText, { marginLeft: 8 }]}>
+                      Đang xác thực...
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.verifyButtonText}>Xác nhận mã</Text>
+                )}
               </TouchableOpacity>
 
               {/* Resend Button */}
@@ -181,9 +194,18 @@ export default function VerifyForgotPasswordOtp() {
                 onPress={handleResendOtp}
                 disabled={!canResend || resendLoading}
               >
-                <Text style={[styles.resendButtonText, (!canResend || resendLoading) && styles.resendButtonTextDisabled]}>
-                  {resendLoading ? 'Đang gửi...' : canResend ? 'Gửi lại mã' : `Gửi lại mã (${countdown}s)`}
-                </Text>
+                {resendLoading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color="#3B82F6" />
+                    <Text style={[styles.resendButtonText, { marginLeft: 8 }]}>
+                      Đang gửi...
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={[styles.resendButtonText, (!canResend || resendLoading) && styles.resendButtonTextDisabled]}>
+                    {canResend ? 'Gửi lại mã' : `Gửi lại mã (${countdown}s)`}
+                  </Text>
+                )}
               </TouchableOpacity>
             </>
           ) : (
@@ -226,9 +248,16 @@ export default function VerifyForgotPasswordOtp() {
                 onPress={handleResetPassword}
                 disabled={isLoading}
               >
-                <Text style={styles.resetButtonText}>
-                  {isLoading ? 'Đang đặt lại...' : 'Đặt lại mật khẩu'}
-                </Text>
+                {isLoading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Text style={[styles.resetButtonText, { marginLeft: 8 }]}>
+                      Đang đặt lại...
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.resetButtonText}>Đặt lại mật khẩu</Text>
+                )}
               </TouchableOpacity>
             </>
           )}
@@ -345,5 +374,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

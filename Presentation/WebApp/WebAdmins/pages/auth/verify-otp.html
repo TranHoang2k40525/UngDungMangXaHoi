@@ -4,249 +4,249 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Xác thực OTP - Admin Panel</title>
-    <link rel="stylesheet" href="../../styles.css">
+    <link rel="stylesheet" href="../../Styles/admin.css">
     <style>
-        body {
-            background-color: #F3F4F6;
-            font-family: Arial, sans-serif;
+        .otp-container {
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
         }
-        
-        .container-center {
-            min-height: 100vh;
+
+        .otp-icon {
+            width: 80px;
+            height: 80px;
+            background: #DBEAFE;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            margin: 0 auto 1.5rem;
+            font-size: 2.5rem;
         }
-        
-        .back-arrow {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            font-size: 24px;
-            color: #374151;
-            text-decoration: none;
-            padding: 10px;
-        }
-        
-        .card {
-            background: white;
-            border-radius: 12px;
-            padding: 24px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            width: 100%;
-            max-width: 400px;
-        }
-        
-        .logo {
-            font-size: 24px;
+
+        .otp-title {
+            font-size: 1.5rem;
             font-weight: bold;
             color: #111827;
             text-align: center;
-            margin-bottom: 16px;
+            margin-bottom: 0.5rem;
         }
-        
-        .instruction {
-            font-size: 16px;
+
+        .otp-subtitle {
+            font-size: 0.875rem;
             color: #6B7280;
             text-align: center;
-            line-height: 24px;
-            margin-bottom: 24px;
+            margin-bottom: 2rem;
+            line-height: 1.5;
         }
-        
-        .form-control {
+
+        .otp-input {
             width: 100%;
-            border: 1px solid #D1D5DB;
-            border-radius: 8px;
-            padding: 12px 16px;
-            font-size: 16px;
-            color: #111827;
-            margin-bottom: 16px;
-            box-sizing: border-box;
+            padding: 1rem;
+            border: 1px solid #E5E7EB;
+            border-radius: 12px;
+            background: #F9FAFB;
+            font-size: 1.25rem;
+            font-weight: 600;
+            text-align: center;
+            letter-spacing: 0.25rem;
+            margin-bottom: 1.5rem;
         }
-        
-        .form-control:focus {
+
+        .otp-input:focus {
             outline: none;
             border-color: #3B82F6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
-        
-        .otp-input {
+
+        .resend-section {
             text-align: center;
-            letter-spacing: 2px;
+            margin-top: 1rem;
         }
-        
-        .btn-primary {
-            width: 100%;
-            background-color: #3B82F6;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 16px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            margin-bottom: 16px;
-        }
-        
-        .btn-primary:hover:not(:disabled) {
-            background-color: #2563EB;
-        }
-        
-        .btn-primary:disabled {
-            background-color: #9CA3AF;
-            cursor: not-allowed;
-        }
-        
-        .resend-button {
-            width: 100%;
+
+        .resend-btn {
             background: none;
             border: none;
             color: #3B82F6;
-            font-size: 16px;
-            font-weight: 500;
+            font-size: 1rem;
+            font-weight: 600;
             cursor: pointer;
-            padding: 12px;
-        }
-        
-        .resend-button:hover:not(:disabled) {
             text-decoration: underline;
         }
-        
-        .resend-button:disabled {
+
+        .resend-btn:disabled {
             color: #9CA3AF;
             cursor: not-allowed;
+        }
+
+        .countdown {
+            color: #6B7280;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
-    <div class="container-center">
-        <a href="javascript:history.back()" class="back-arrow">←</a>
+    <div class="container">
+        <div class="header">
+            <h1>ADMIN PANEL</h1>
+        </div>
         
-        <div class="card">
-            <div class="logo">Nhập mã xác thực</div>
-            
-            <p class="instruction">
-                Chúng tôi đã gửi mã xác thực đến địa chỉ email của bạn. Vui lòng nhập mã để tiếp tục đặt lại mật khẩu.
+        <div class="otp-container">
+            <div class="otp-icon">📧</div>
+            <h2 class="otp-title">Nhập mã xác thực</h2>
+            <p class="otp-subtitle">
+                Chúng tôi đã gửi mã OTP đến địa chỉ email của bạn. Vui lòng nhập mã để tiếp tục đăng ký.
             </p>
             
-            <form id="verifyOtpForm">
+            <form id="otpForm">
                 <input 
                     type="text" 
-                    id="otp" 
-                    class="form-control otp-input" 
-                    placeholder="Nhập mã gồm 4-6 số" 
+                    id="otpInput" 
+                    class="otp-input" 
+                    placeholder="Nhập mã gồm 4-6 số"
                     maxlength="6"
+                    autocomplete="one-time-code"
                     required
                 />
                 
-                <button type="submit" class="btn-primary" id="confirmBtn">
+                <button type="submit" class="btn" id="verifyBtn">
                     Xác nhận mã
                 </button>
                 
-                <button type="button" class="resend-button" id="resendBtn">
-                    Gửi lại mã
-                </button>
+                <div class="resend-section">
+                    <button type="button" class="resend-btn" id="resendBtn" disabled>
+                        Gửi lại mã
+                    </button>
+                    <div class="countdown" id="countdown"></div>
+                </div>
             </form>
         </div>
     </div>
 
     <!-- Scripts -->
-    <script src="../Context/AdminContext.js"></script>
+    <script src="../../Context/AdminContext.js"></script>
     <script>
         const adminContext = window.AdminContext;
         
-        let countdown = 60;
-        let canResend = false;
+        let countdownTimer;
+        let countdownSeconds = 60;
         
         // Lấy email từ URL params
         const urlParams = new URLSearchParams(window.location.search);
         const email = urlParams.get('email') || '';
         
-        // Countdown timer
+        // Khởi tạo countdown
         function startCountdown() {
+            countdownSeconds = 60;
             const resendBtn = document.getElementById('resendBtn');
-            const timer = setInterval(() => {
-                countdown--;
-                resendBtn.textContent = `Gửi lại mã (${countdown}s)`;
+            const countdown = document.getElementById('countdown');
+            
+            resendBtn.disabled = true;
+            
+            countdownTimer = setInterval(() => {
+                countdown.textContent = `Gửi lại sau ${countdownSeconds} giây`;
+                countdownSeconds--;
                 
-                if (countdown <= 0) {
-                    clearInterval(timer);
-                    canResend = true;
-                    resendBtn.textContent = 'Gửi lại mã';
+                if (countdownSeconds < 0) {
+                    clearInterval(countdownTimer);
                     resendBtn.disabled = false;
+                    countdown.textContent = '';
                 }
             }, 1000);
         }
         
-        // Khởi tạo countdown
-        startCountdown();
-        
-        // Xử lý form submit
-        document.getElementById('verifyOtpForm').addEventListener('submit', async (e) => {
+        // Xử lý submit OTP
+        document.getElementById('otpForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const confirmBtn = document.getElementById('confirmBtn');
-            const originalText = confirmBtn.textContent;
+            const verifyBtn = document.getElementById('verifyBtn');
+            const otpInput = document.getElementById('otpInput');
+            const originalText = verifyBtn.textContent;
             
             try {
-                confirmBtn.textContent = 'Đang xác thực...';
-                confirmBtn.disabled = true;
+                verifyBtn.textContent = 'Đang xác thực...';
+                verifyBtn.disabled = true;
+                otpInput.disabled = true;
                 
-                const otp = document.getElementById('otp').value;
+                const otp = otpInput.value.trim();
                 
                 if (!otp || otp.length < 4) {
-                    alert('Vui lòng nhập mã OTP đầy đủ.');
+                    alert('Vui lòng nhập mã OTP đầy đủ');
                     return;
                 }
                 
-                const result = await adminContext.verifyOtp({ Email: email, Otp: otp });
+                const result = await adminContext.verifyOtp({
+                    Email: email,
+                    Otp: otp
+                });
                 
                 if (result.success) {
-                    alert('Xác thực OTP thành công!');
-                    window.location.href = '../index.html';
+                    alert('Xác thực thành công!');
+                    window.location.href = 'login.html';
                 } else {
                     alert('Lỗi: ' + result.error);
                 }
             } catch (error) {
                 alert('Lỗi: ' + error.message);
             } finally {
-                confirmBtn.textContent = originalText;
-                confirmBtn.disabled = false;
+                verifyBtn.textContent = originalText;
+                verifyBtn.disabled = false;
+                otpInput.disabled = false;
             }
         });
         
         // Xử lý gửi lại OTP
         document.getElementById('resendBtn').addEventListener('click', async () => {
-            if (!canResend) return;
-            
             const resendBtn = document.getElementById('resendBtn');
             const originalText = resendBtn.textContent;
             
             try {
                 resendBtn.textContent = 'Đang gửi...';
                 resendBtn.disabled = true;
-                canResend = false;
-                countdown = 60;
                 
-                // Gửi lại OTP bằng cách đăng ký lại
-                const result = await adminContext.register({ Email: email });
+                const result = await adminContext.register({
+                    Email: email,
+                    Username: 'temp_admin', // Tạm thời
+                    FullName: 'Admin',
+                    DateOfBirth: '1990-01-01',
+                    Gender: 'Other',
+                    Phone: '0123456789',
+                    Password: 'temp_password',
+                    AdminLevel: 'SuperAdmin'
+                });
                 
                 if (result.success) {
-                    alert('Mã OTP mới đã được gửi đến email của bạn.');
+                    alert('Mã OTP đã được gửi lại!');
                     startCountdown();
                 } else {
                     alert('Lỗi: ' + result.error);
-                    canResend = true;
-                    resendBtn.textContent = 'Gửi lại mã';
-                    resendBtn.disabled = false;
                 }
             } catch (error) {
                 alert('Lỗi: ' + error.message);
-                canResend = true;
-                resendBtn.textContent = 'Gửi lại mã';
-                resendBtn.disabled = false;
+            } finally {
+                resendBtn.textContent = originalText;
             }
         });
+        
+        // Auto focus vào input
+        document.getElementById('otpInput').focus();
+        
+        // Bắt đầu countdown khi load trang
+        startCountdown();
+        
+        // Kiểm tra nếu chưa có email thì redirect về register
+        if (!email) {
+            window.location.href = 'register.html';
+        }
     </script>
 </body>
 </html>

@@ -50,35 +50,24 @@ class UserContext {
   // Đăng ký
   async register(userData) {
     try {
-      const response = await fetch('/API/Api.js');
-      const apiModule = await import('/API/Api.js');
-      const result = await apiModule.authAPI.register(userData);
-      return { success: true, data: result };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
+      const response = await fetch('http://10.68.31.105:5297/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(userData)
+      });
 
-  // Xác thực OTP
-  async verifyOtp(otpData) {
-    try {
-      const response = await fetch('/API/Api.js');
-      const apiModule = await import('/API/Api.js');
-      const result = await apiModule.authAPI.verifyOtp(otpData);
-      
-      // Lưu thông tin user
-      const userInfo = {
-        email: otpData.Email,
-        accountType: 'User',
-      };
-      localStorage.setItem('userInfo', JSON.stringify(userInfo));
-      
-      this.user = userInfo;
-      this.isAuthenticated = true;
-      this.notifyListeners();
-      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
       return { success: true, data: result };
     } catch (error) {
+      console.error('Register error:', error);
       return { success: false, error: error.message };
     }
   }
@@ -86,139 +75,303 @@ class UserContext {
   // Đăng nhập
   async login(credentials) {
     try {
-      const response = await fetch('/API/Api.js');
-      const apiModule = await import('/API/Api.js');
-      const result = await apiModule.authAPI.login(credentials);
-      
-      // Lưu thông tin user
-      const userInfo = {
-        email: credentials.Email || credentials.Phone,
-        accountType: 'User',
+      // Xác định email hoặc phone
+      const requestData = {
+        Email: credentials.Email || credentials.identifier || '',
+        Phone: credentials.Phone || (!credentials.Email && !credentials.identifier?.includes('@') ? credentials.identifier : ''),
+        Password: credentials.Password || credentials.password
       };
-      localStorage.setItem('userInfo', JSON.stringify(userInfo));
+
+      // Loại bỏ các field rỗng
+      if (!requestData.Email) delete requestData.Email;
+      if (!requestData.Phone) delete requestData.Phone;
+
+      const response = await fetch('http://10.68.31.105:5297/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
       
-      this.user = userInfo;
-      this.isAuthenticated = true;
-      this.notifyListeners();
-      
-      return { success: true, data: result };
+      if (result.success) {
+        // Lưu token và user info
+        localStorage.setItem('accessToken', result.data.accessToken);
+        localStorage.setItem('refreshToken', result.data.refreshToken);
+        localStorage.setItem('userInfo', JSON.stringify(result.data.user));
+        
+        this.user = result.data.user;
+        this.isAuthenticated = true;
+        this.notifyListeners();
+      }
+
+      return { success: true, data: result.data };
     } catch (error) {
+      console.error('Login error:', error);
       return { success: false, error: error.message };
     }
   }
 
-  // Đăng xuất
-  async logout() {
+  // Verify OTP
+  async verifyOtp(otpData) {
     try {
-      const response = await fetch('/API/Api.js');
-      const apiModule = await import('/API/Api.js');
-      await apiModule.authAPI.logout();
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      // Clear local storage
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('userInfo');
+      const response = await fetch('http://10.68.31.105:5297/api/auth/verify-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(otpData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
       
-      this.user = null;
-      this.isAuthenticated = false;
-      this.notifyListeners();
+      if (result.success) {
+        // Lưu token và user info
+        localStorage.setItem('accessToken', result.data.accessToken);
+        localStorage.setItem('refreshToken', result.data.refreshToken);
+        localStorage.setItem('userInfo', JSON.stringify(result.data.user));
+        
+        this.user = result.data.user;
+        this.isAuthenticated = true;
+        this.notifyListeners();
+      }
+
+      return { success: true, data: result.data };
+    } catch (error) {
+      console.error('Verify OTP error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Quên mật khẩu
+  async forgotPassword(email) {
+    try {
+      const response = await fetch('http://10.68.31.105:5297/api/auth/forgot-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ Email: email })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Verify OTP quên mật khẩu
+  async verifyForgotPasswordOtp(otpData) {
+    try {
+      const response = await fetch('http://10.68.31.105:5297/api/auth/verify-forgot-password-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(otpData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('Verify forgot password OTP error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Đặt lại mật khẩu
+  async resetPassword(passwordData) {
+    try {
+      const response = await fetch('http://10.68.31.105:5297/api/auth/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(passwordData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('Reset password error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Đổi mật khẩu
+  async changePassword(passwordData) {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        throw new Error('Bạn cần đăng nhập để đổi mật khẩu');
+      }
+
+      const response = await fetch('http://10.68.31.105:5297/api/auth/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(passwordData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('Change password error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Verify OTP đổi mật khẩu
+  async verifyChangePasswordOtp(otpData) {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        throw new Error('Bạn cần đăng nhập để đổi mật khẩu');
+      }
+
+      const response = await fetch('http://10.68.31.105:5297/api/auth/verify-change-password-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(otpData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('Verify change password OTP error:', error);
+      return { success: false, error: error.message };
     }
   }
 
   // Refresh token
   async refreshToken() {
     try {
-      const response = await fetch('/API/Api.js');
-      const apiModule = await import('/API/Api.js');
-      const result = await apiModule.authAPI.refreshToken();
-      return { success: true, data: result };
-    } catch (error) {
-      // Token refresh failed, logout user
-      await this.logout();
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Setup auto refresh token
-  setupTokenRefresh() {
-    const refreshToken = localStorage.getItem('refreshToken');
-    if (!refreshToken) return;
-
-    // Kiểm tra token mỗi 5 phút
-    setInterval(async () => {
-      try {
-        await this.refreshToken();
-      } catch (error) {
-        console.error('Token refresh failed:', error);
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (!refreshToken) {
+        throw new Error('No refresh token available');
       }
-    }, 5 * 60 * 1000); // 5 phút
-  }
 
-  // Quên mật khẩu
-  async forgotPassword(email) {
-    try {
-      const response = await fetch('/API/Api.js');
-      const apiModule = await import('/API/Api.js');
-      const result = await apiModule.authAPI.forgotPassword(email);
-      return { success: true, data: result };
+      const response = await fetch('http://10.68.31.105:5297/api/auth/refresh-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ RefreshToken: refreshToken })
+      });
+
+      if (!response.ok) {
+        throw new Error('Token refresh failed');
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        localStorage.setItem('accessToken', result.data.accessToken);
+        localStorage.setItem('refreshToken', result.data.refreshToken);
+        return { success: true, data: result.data };
+      } else {
+        throw new Error('Token refresh failed');
+      }
     } catch (error) {
+      console.error('Refresh token error:', error);
+      this.logout();
       return { success: false, error: error.message };
     }
   }
 
-  // Xác thực OTP quên mật khẩu
-  async verifyForgotPasswordOtp(data) {
-    try {
-      const response = await fetch('/API/Api.js');
-      const apiModule = await import('/API/Api.js');
-      const result = await apiModule.authAPI.verifyForgotPasswordOtp(data);
-      return { success: true, data: result };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+  // Đăng xuất
+  logout() {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('userInfo');
+    this.user = null;
+    this.isAuthenticated = false;
+    this.notifyListeners();
   }
 
-  // Reset mật khẩu
-  async resetPassword(data) {
-    try {
-      const response = await fetch('/API/Api.js');
-      const apiModule = await import('/API/Api.js');
-      const result = await apiModule.authAPI.resetPassword(data);
-      return { success: true, data: result };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+  // Setup token refresh
+  setupTokenRefresh() {
+    // Refresh token mỗi 50 phút
+    setInterval(async () => {
+      if (this.isAuthenticated) {
+        await this.refreshToken();
+      }
+    }, 50 * 60 * 1000);
   }
 
-  // Đổi mật khẩu
-  async changePassword(data) {
-    try {
-      const response = await fetch('/API/Api.js');
-      const apiModule = await import('/API/Api.js');
-      const result = await apiModule.authAPI.changePassword(data);
-      return { success: true, data: result };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
+  // Kiểm tra token có hợp lệ không
+  async isTokenValid() {
+    const token = localStorage.getItem('accessToken');
+    if (!token) return false;
 
-  // Xác thực OTP đổi mật khẩu
-  async verifyChangePasswordOtp(data) {
     try {
-      const response = await fetch('/API/Api.js');
-      const apiModule = await import('/API/Api.js');
-      const result = await apiModule.authAPI.verifyChangePasswordOtp(data);
-      return { success: true, data: result };
+      const response = await fetch('http://10.68.31.105:5297/api/auth/validate-token', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        }
+      });
+
+      return response.ok;
     } catch (error) {
-      return { success: false, error: error.message };
+      console.error('Token validation error:', error);
+      return false;
     }
   }
 }
 
 // Tạo instance global
-const userContext = new UserContext();
-
-// Export cho sử dụng
-window.UserContext = userContext;
+window.UserContext = UserContext;

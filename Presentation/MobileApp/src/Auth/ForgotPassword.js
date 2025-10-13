@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Alert,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { forgotPassword } from '../API/Api';
@@ -18,8 +19,6 @@ export default function ForgotPassword() {
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigation = useNavigation();
 
@@ -32,11 +31,12 @@ export default function ForgotPassword() {
     setIsLoading(true);
     try {
       const result = await forgotPassword(email);
-      if (result.success) {
+      // API trả về response trực tiếp, không có wrapper success
+      if (result) {
         Alert.alert('Thành công', 'Mã OTP đã được gửi đến email của bạn.');
         setStep(2);
       } else {
-        Alert.alert('Lỗi', result.error || 'Không thể gửi mã OTP.');
+        Alert.alert('Lỗi', 'Không thể gửi mã OTP.');
       }
     } catch (error) {
       Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra.');
@@ -45,42 +45,43 @@ export default function ForgotPassword() {
     }
   };
 
-  const handleVerifyCode = () => {
-    if (verificationCode) {
-      console.log('Verifying code:', verificationCode);
-      setStep(3);
-    } else {
+  const handleVerifyCode = async () => {
+    if (!verificationCode) {
       Alert.alert('Lỗi', 'Vui lòng nhập mã xác thực');
-    }
-  };
-
-  const handleResetPassword = () => {
-    if (!newPassword || !confirmPassword) {
-      Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ thông tin');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      Alert.alert('Lỗi', 'Mật khẩu xác nhận không khớp');
-      return;
-    }
-    if (newPassword.length < 8) {
-      Alert.alert('Lỗi', 'Mật khẩu phải có ít nhất 8 ký tự');
       return;
     }
     
-    console.log('Password reset successful');
-    Alert.alert('Thành công', 'Mật khẩu đã được đặt lại thành công!');
-    navigation.navigate('Login');
+    setIsLoading(true);
+    try {
+      const result = await verifyForgotPasswordOtp({ Email: email, Otp: verificationCode });
+      // API trả về response trực tiếp, không có wrapper success
+      if (result) {
+        Alert.alert('Thành công', 'Mã xác thực hợp lệ. Chuyển đến trang đặt lại mật khẩu...');
+        // Chuyển sang trang VerifyForgotPasswordOtp với email và OTP
+        navigation.navigate('VerifyForgotPasswordOtp', { 
+          email: email, 
+          otp: verificationCode 
+        });
+      } else {
+        Alert.alert('Lỗi', 'Mã xác thực không đúng.');
+      }
+    } catch (error) {
+      Alert.alert('Lỗi', error.message || 'Xác thực mã thất bại.');
+    } finally {
+      setIsLoading(false);
+    }
   };
+
 
   const handleResendCode = async () => {
     setIsLoading(true);
     try {
       const result = await forgotPassword(email);
-      if (result.success) {
+      // API trả về response trực tiếp, không có wrapper success
+      if (result) {
         Alert.alert('Thành công', 'Mã xác thực đã được gửi lại!');
       } else {
-        Alert.alert('Lỗi', result.error || 'Không thể gửi lại mã OTP.');
+        Alert.alert('Lỗi', 'Không thể gửi lại mã OTP.');
       }
     } catch (error) {
       Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra.');
@@ -156,9 +157,16 @@ export default function ForgotPassword() {
                     onPress={handleSendCode}
                     disabled={isLoading}
                   >
-                    <Text style={styles.buttonText}>
-                      {isLoading ? 'Đang gửi...' : 'Gửi mã OTP'}
-                    </Text>
+                    {isLoading ? (
+                      <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                        <Text style={[styles.buttonText, { marginLeft: 8 }]}>
+                          Đang gửi...
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.buttonText}>Gửi mã OTP</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
@@ -193,74 +201,43 @@ export default function ForgotPassword() {
                   />
 
                   <TouchableOpacity 
-                    style={styles.button}
+                    style={[styles.button, isLoading && styles.buttonDisabled]}
                     onPress={handleVerifyCode}
+                    disabled={isLoading}
                   >
-                    <Text style={styles.buttonText}>Xác nhận mã</Text>
+                    {isLoading ? (
+                      <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                        <Text style={[styles.buttonText, { marginLeft: 8 }]}>
+                          Đang xác nhận...
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.buttonText}>Xác nhận mã</Text>
+                    )}
                   </TouchableOpacity>
 
                   <TouchableOpacity 
-                    style={styles.resendButton}
+                    style={[styles.resendButton, isLoading && styles.resendButtonDisabled]}
                     onPress={handleResendCode}
                     disabled={isLoading}
                   >
-                    <Text style={styles.resendText}>
-                      {isLoading ? 'Đang gửi lại...' : 'Gửi lại mã'}
-                    </Text>
+                    {isLoading ? (
+                      <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="small" color="#3B82F6" />
+                        <Text style={[styles.resendText, { marginLeft: 8 }]}>
+                          Đang gửi lại...
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.resendText}>Gửi lại mã</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
             </View>
           )}
 
-          {/* Step 3: Reset Password */}
-          {step === 3 && (
-            <View style={styles.formContainer}>
-              <View style={styles.card}>
-                <View style={styles.iconContainer}>
-                  <View style={styles.lockIcon}>
-                    <Text style={styles.lockText}>🔑</Text>
-                  </View>
-                </View>
-
-                <Text style={styles.title}>Đặt lại mật khẩu mới</Text>
-                <Text style={styles.subtitle}>
-                  Nhập mật khẩu mới cho tài khoản của bạn
-                </Text>
-
-                <View style={styles.form}>
-                  <Text style={styles.label}>Mật khẩu mới</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={newPassword}
-                    onChangeText={setNewPassword}
-                    placeholder="Nhập mật khẩu mới (ít nhất 8 ký tự)"
-                    placeholderTextColor="#9CA3AF"
-                    secureTextEntry
-                    autoCapitalize="none"
-                  />
-
-                  <Text style={styles.label}>Xác nhận mật khẩu</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    placeholder="Nhập lại mật khẩu mới"
-                    placeholderTextColor="#9CA3AF"
-                    secureTextEntry
-                    autoCapitalize="none"
-                  />
-
-                  <TouchableOpacity 
-                    style={styles.button}
-                    onPress={handleResetPassword}
-                  >
-                    <Text style={styles.buttonText}>Đặt lại mật khẩu</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -402,5 +379,13 @@ const styles = StyleSheet.create({
     color: '#3B82F6',
     fontSize: 16,
     fontWeight: '600',
+  },
+  resendButtonDisabled: {
+    backgroundColor: '#F3F4F6',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -9,6 +9,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useUser } from '../Context/UserContext';
@@ -48,7 +49,8 @@ export default function VerifyOtp() {
       const result = await verifyOtp({ Email: email, Otp: otp });
       if (result.success) {
         Alert.alert('Thành công', 'Xác thực OTP thành công!');
-        navigation.navigate('Home');
+        // Navigation sẽ được xử lý tự động bởi App.js dựa trên isAuthenticated state
+        // Không cần navigate thủ công
       } else {
         Alert.alert('Lỗi', result.error || 'Mã OTP không đúng.');
       }
@@ -133,9 +135,16 @@ export default function VerifyOtp() {
             onPress={handleVerifyOtp}
             disabled={isLoading}
           >
-            <Text style={styles.confirmButtonText}>
-              {isLoading ? 'Đang xác thực...' : 'Xác nhận mã'}
-            </Text>
+            {isLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text style={[styles.confirmButtonText, { marginLeft: 8 }]}>
+                  Đang xác thực...
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.confirmButtonText}>Xác nhận mã</Text>
+            )}
           </TouchableOpacity>
 
           {/* Resend Button */}
@@ -144,9 +153,18 @@ export default function VerifyOtp() {
             onPress={handleResendOtp}
             disabled={!canResend || resendLoading}
           >
-            <Text style={[styles.resendButtonText, (!canResend || resendLoading) && styles.resendButtonTextDisabled]}>
-              {resendLoading ? 'Đang gửi...' : canResend ? 'Gửi lại mã' : `Gửi lại mã (${countdown}s)`}
-            </Text>
+            {resendLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#3B82F6" />
+                <Text style={[styles.resendButtonText, { marginLeft: 8 }]}>
+                  Đang gửi...
+                </Text>
+              </View>
+            ) : (
+              <Text style={[styles.resendButtonText, (!canResend || resendLoading) && styles.resendButtonTextDisabled]}>
+                {canResend ? 'Gửi lại mã' : `Gửi lại mã (${countdown}s)`}
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -248,5 +266,10 @@ const styles = StyleSheet.create({
   },
   resendButtonTextDisabled: {
     color: '#9CA3AF',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

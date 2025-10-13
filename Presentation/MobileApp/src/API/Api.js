@@ -1,28 +1,50 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
-export const API_BASE_URL = 'http://192.168.1.101:5297'; // Thay bằng IP thực tế, ví dụ: 'http://192.168.1.100:5000'
+export const API_BASE_URL = 'http://10.68.31.105:5297'; // Backend đang chạy trên IP này
 
 // Hàm helper để gọi API
 const apiCall = async (endpoint, options = {}) => {
   try {
+    console.log(`Making API call to: ${API_BASE_URL}${endpoint}`);
+    
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         ...options.headers,
       },
+      timeout: 10000, // 10 seconds timeout
     });
 
+    console.log(`Response status: ${response.status}`);
+
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch (parseError) {
+        console.warn('Could not parse error response:', parseError);
+      }
+      throw new Error(errorMessage);
     }
 
-    return await response.json();
+    const result = await response.json();
+    console.log('API call successful');
+    return result;
   } catch (error) {
     console.error('API Error:', error);
-    throw error;
+    
+    // Xử lý các loại lỗi khác nhau
+    if (error.name === 'TypeError' && error.message.includes('Network request failed')) {
+      throw new Error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.');
+    } else if (error.name === 'AbortError') {
+      throw new Error('Yêu cầu bị hủy do timeout.');
+    } else {
+      throw error;
+    }
   }
 };
 
@@ -154,8 +176,13 @@ export const verifyChangePasswordOtp = async (data) => {
 
 // Helper functions
 export const isAuthenticated = async () => {
-  const token = await AsyncStorage.getItem('accessToken');
-  return !!token;
+  try {
+    const token = await AsyncStorage.getItem('accessToken');
+    return !!token;
+  } catch (error) {
+    console.error('Error checking authentication:', error);
+    return false;
+  }
 };
 
 // Auto refresh token khi token hết hạn

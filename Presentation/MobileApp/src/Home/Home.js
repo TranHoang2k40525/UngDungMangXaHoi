@@ -5,11 +5,12 @@ import {
   Image,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   FlatList,
+  StatusBar,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Dữ liệu stories
 const storiesData = [
@@ -38,11 +39,18 @@ export default function Home() {
   const [likes, setLikes] = useState(250); // Số lượt thích ban đầu
   const [comments, setComments] = useState(15); // Số bình luận ban đầu
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
+    <View style={styles.container}>
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#FFFFFF"
+        translucent={false}
+      />
+      <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top }]}>
+        {/* Header */}
+        <View style={styles.header}>
         <TouchableOpacity style={styles.navItem}>
           <Image
             source={require('../Assets/icons8-camera-50.png')}
@@ -207,7 +215,8 @@ export default function Home() {
           />
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -215,6 +224,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  safeArea: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',

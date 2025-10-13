@@ -15,7 +15,7 @@ class AdminContext {
 
   // Kiểm tra trạng thái đăng nhập
   checkAuthStatus() {
-    const token = localStorage.getItem('adminAccessToken');
+    const token = localStorage.getItem('accessToken');
     const adminInfo = localStorage.getItem('adminInfo');
     
     if (token && adminInfo) {
@@ -47,12 +47,11 @@ class AdminContext {
     });
   }
 
-  // Đăng ký admin
+  // Đăng ký
   async register(adminData) {
     try {
-      const response = await fetch('/pages/API/Api.js');
-      const apiModule = await import('/pages/API/Api.js');
-      const result = await apiModule.authAPI.register(adminData);
+      const { authAPI } = await import('../API/Api.js');
+      const result = await authAPI.register(adminData);
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: error.message };
@@ -62,14 +61,14 @@ class AdminContext {
   // Xác thực OTP
   async verifyOtp(otpData) {
     try {
-      const response = await fetch('/pages/API/Api.js');
-      const apiModule = await import('/pages/API/Api.js');
-      const result = await apiModule.authAPI.verifyOtp(otpData);
+      const { authAPI } = await import('../API/Api.js');
+      const result = await authAPI.verifyOtp(otpData);
       
       // Lưu thông tin admin
       const adminInfo = {
         email: otpData.Email,
         accountType: 'Admin',
+        adminLevel: 'SuperAdmin'
       };
       localStorage.setItem('adminInfo', JSON.stringify(adminInfo));
       
@@ -83,17 +82,17 @@ class AdminContext {
     }
   }
 
-  // Đăng nhập admin
+  // Đăng nhập
   async login(credentials) {
     try {
-      const response = await fetch('/pages/API/Api.js');
-      const apiModule = await import('/pages/API/Api.js');
-      const result = await apiModule.authAPI.login(credentials);
+      const { authAPI } = await import('../API/Api.js');
+      const result = await authAPI.login(credentials);
       
       // Lưu thông tin admin
       const adminInfo = {
         email: credentials.Email || credentials.Phone,
         accountType: 'Admin',
+        adminLevel: 'SuperAdmin'
       };
       localStorage.setItem('adminInfo', JSON.stringify(adminInfo));
       
@@ -110,15 +109,14 @@ class AdminContext {
   // Đăng xuất
   async logout() {
     try {
-      const response = await fetch('/pages/API/Api.js');
-      const apiModule = await import('/pages/API/Api.js');
-      await apiModule.authAPI.logout();
+      const { authAPI } = await import('../API/Api.js');
+      await authAPI.logout();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
       // Clear local storage
-      localStorage.removeItem('adminAccessToken');
-      localStorage.removeItem('adminRefreshToken');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
       localStorage.removeItem('adminInfo');
       
       this.admin = null;
@@ -130,9 +128,8 @@ class AdminContext {
   // Refresh token
   async refreshToken() {
     try {
-      const response = await fetch('/pages/API/Api.js');
-      const apiModule = await import('/pages/API/Api.js');
-      const result = await apiModule.authAPI.refreshToken();
+      const { authAPI } = await import('../API/Api.js');
+      const result = await authAPI.refreshToken();
       return { success: true, data: result };
     } catch (error) {
       // Token refresh failed, logout admin
@@ -143,7 +140,7 @@ class AdminContext {
 
   // Setup auto refresh token
   setupTokenRefresh() {
-    const refreshToken = localStorage.getItem('adminRefreshToken');
+    const refreshToken = localStorage.getItem('refreshToken');
     if (!refreshToken) return;
 
     // Kiểm tra token mỗi 5 phút
@@ -159,9 +156,8 @@ class AdminContext {
   // Quên mật khẩu
   async forgotPassword(email) {
     try {
-      const response = await fetch('/pages/API/Api.js');
-      const apiModule = await import('/pages/API/Api.js');
-      const result = await apiModule.authAPI.forgotPassword(email);
+      const { authAPI } = await import('../API/Api.js');
+      const result = await authAPI.forgotPassword(email);
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: error.message };
@@ -171,9 +167,8 @@ class AdminContext {
   // Xác thực OTP quên mật khẩu
   async verifyForgotPasswordOtp(data) {
     try {
-      const response = await fetch('/pages/API/Api.js');
-      const apiModule = await import('/pages/API/Api.js');
-      const result = await apiModule.authAPI.verifyForgotPasswordOtp(data);
+      const { authAPI } = await import('../API/Api.js');
+      const result = await authAPI.verifyForgotPasswordOtp(data);
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: error.message };
@@ -183,9 +178,8 @@ class AdminContext {
   // Reset mật khẩu
   async resetPassword(data) {
     try {
-      const response = await fetch('/pages/API/Api.js');
-      const apiModule = await import('/pages/API/Api.js');
-      const result = await apiModule.authAPI.resetPassword(data);
+      const { authAPI } = await import('../API/Api.js');
+      const result = await authAPI.resetPassword(data);
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: error.message };
@@ -195,9 +189,8 @@ class AdminContext {
   // Đổi mật khẩu
   async changePassword(data) {
     try {
-      const response = await fetch('/pages/API/Api.js');
-      const apiModule = await import('/pages/API/Api.js');
-      const result = await apiModule.authAPI.changePassword(data);
+      const { authAPI } = await import('../API/Api.js');
+      const result = await authAPI.changePassword(data);
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: error.message };
@@ -207,45 +200,8 @@ class AdminContext {
   // Xác thực OTP đổi mật khẩu
   async verifyChangePasswordOtp(data) {
     try {
-      const response = await fetch('/pages/API/Api.js');
-      const apiModule = await import('/pages/API/Api.js');
-      const result = await apiModule.authAPI.verifyChangePasswordOtp(data);
-      return { success: true, data: result };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Lấy danh sách users
-  async getAllUsers() {
-    try {
-      const response = await fetch('/pages/API/Api.js');
-      const apiModule = await import('/pages/API/Api.js');
-      const result = await apiModule.adminAPI.getAllUsers();
-      return { success: true, data: result };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Lấy danh sách reports
-  async getAllReports() {
-    try {
-      const response = await fetch('/pages/API/Api.js');
-      const apiModule = await import('/pages/API/Api.js');
-      const result = await apiModule.adminAPI.getAllReports();
-      return { success: true, data: result };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Moderation
-  async moderateContent(data) {
-    try {
-      const response = await fetch('/pages/API/Api.js');
-      const apiModule = await import('/pages/API/Api.js');
-      const result = await apiModule.adminAPI.moderateContent(data);
+      const { authAPI } = await import('../API/Api.js');
+      const result = await authAPI.verifyChangePasswordOtp(data);
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: error.message };

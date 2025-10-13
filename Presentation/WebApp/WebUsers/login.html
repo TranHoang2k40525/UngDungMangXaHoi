@@ -9,87 +9,39 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>SOCIALAPP</h1>
+            <h1>ĐĂNG NHẬP</h1>
         </div>
         
         <form id="loginForm">
             <div class="form-group">
-                <input type="text" id="identifier" placeholder="Email hoặc Số điện thoại" required />
+                <label>Email hoặc Số điện thoại:</label>
+                <input type="text" id="identifier" required />
             </div>
             
             <div class="form-group">
-                <input type="password" id="password" placeholder="Mật khẩu" required />
+                <label>Mật khẩu:</label>
+                <div style="position: relative;">
+                    <input type="password" id="password" required />
+                    <button type="button" id="togglePassword" style="position: absolute; right: 12px; top: 8px; border: none; background: none; color: #9ca3af;">👁️</button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <a href="forgot-password.html" class="forgot-link">Quên mật khẩu?</a>
             </div>
             
             <button type="submit" class="btn" id="loginBtn">Đăng nhập</button>
             
-            <div class="form-footer">
-                <a href="forgot-password.html">Quên mật khẩu?</a>
-            </div>
-            
-            <div class="divider">
-                <span>HOẶC</span>
-            </div>
-            
-            <div class="form-footer">
-                <span>Chưa có tài khoản? </span>
-                <a href="signup.html">Đăng ký</a>
-            </div>
+            <div id="msg" style="min-height: 18px; margin-top: 12px; color: var(--muted);"></div>
         </form>
         
-        <div class="form-footer">
-            <span>SocialApp</span>
+        <div class="footer">
+            <p>Chưa có tài khoản? <a href="signup.html">Đăng ký</a></p>
         </div>
     </div>
 
     <!-- Scripts -->
     <script src="Context/UserContext.js"></script>
-    <script>
-        const userContext = window.UserContext;
-        
-        // Kiểm tra trạng thái đăng nhập khi load trang
-        window.addEventListener('load', () => {
-            if (userContext.isAuthenticated) {
-                window.location.href = 'index.html';
-            }
-        });
-        
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const loginBtn = document.getElementById('loginBtn');
-            const originalText = loginBtn.textContent;
-            
-            try {
-                loginBtn.textContent = 'Đang đăng nhập...';
-                loginBtn.disabled = true;
-                
-                const identifier = document.getElementById('identifier').value;
-                const password = document.getElementById('password').value;
-                
-                // Xác định email hoặc phone
-                const credentials = {
-                    Email: identifier.includes('@') ? identifier : '',
-                    Phone: !identifier.includes('@') ? identifier : '',
-                    Password: password
-                };
-                
-                // Gọi API đăng nhập
-                const result = await userContext.login(credentials);
-                
-                if (result.success) {
-                    alert('Đăng nhập thành công!');
-                    window.location.href = 'index.html';
-                } else {
-                    alert('Lỗi: ' + result.error);
-                }
-            } catch (error) {
-                alert('Lỗi: ' + error.message);
-            } finally {
-                loginBtn.textContent = originalText;
-                loginBtn.disabled = false;
-            }
-        });
-    </script>
+    <script src="js/main.js"></script>
 </body>
 </html>
