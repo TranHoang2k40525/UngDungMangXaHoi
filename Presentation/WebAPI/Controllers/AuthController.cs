@@ -94,7 +94,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 account_id = addedAccount.account_id,
                 username = new UserName(request.Username),
                 full_name = request.FullName,
-                date_of_birth = request.DateOfBirth,
+                date_of_birth = new DateTimeOffset(request.DateOfBirth, TimeSpan.Zero),
                 gender = request.Gender,
                 Account = account
             };
