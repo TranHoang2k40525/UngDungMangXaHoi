@@ -123,7 +123,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection(); // Comment out for development
 app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
