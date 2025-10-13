@@ -21,7 +21,8 @@ namespace UngDungMangXaHoi.Application.Validators
         {
             RuleFor(x => x.Username)
                 .NotEmpty().WithMessage("Username is required.")
-                .Length(3, 50).WithMessage("Username must be between 3 and 50 characters.");
+                .Length(3, 20).WithMessage("Username must be between 3 and 20 characters.")
+                .Matches(@"^[\p{L}\p{N}_]{3,20}$").WithMessage("Username must contain only letters, numbers, and underscores.");
 
             RuleFor(x => x.FullName)
                 .NotEmpty().WithMessage("Full name is required.")
