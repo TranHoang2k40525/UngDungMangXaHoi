@@ -29,6 +29,13 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .FirstOrDefaultAsync(u => u.user_id == id);
         }
 
+        public async Task<User?> GetByAccountIdAsync(int accountId)
+        {
+            return await _context.Users
+                .Include(u => u.Account)
+                .FirstOrDefaultAsync(u => u.account_id == accountId);
+        }
+
         public async Task<User?> GetByEmailAsync(Email email)
         {
             return await _context.Users
