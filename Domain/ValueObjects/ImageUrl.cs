@@ -8,7 +8,7 @@ namespace UngDungMangXaHoi.Domain.ValueObjects
         public string Value { get; private set; }
 
         private static readonly Regex UrlRegex = new Regex(
-            @"^https?://[^\s/$.?#].[^\s]*$",
+            @"^(https?://[^\s/$.?#].[^\s]*|/[^\s]*)$",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         public ImageUrl(string value)
@@ -16,8 +16,9 @@ namespace UngDungMangXaHoi.Domain.ValueObjects
             if (string.IsNullOrWhiteSpace(value))
                 throw new ArgumentException("Image URL cannot be null or empty", nameof(value));
 
+            // Chấp nhận cả URL đầy đủ (https://...) và relative path (/Assets/...)
             if (!UrlRegex.IsMatch(value))
-                throw new ArgumentException("Invalid URL format", nameof(value));
+                throw new ArgumentException("Invalid URL format. Must be full URL (https://...) or relative path (/...)", nameof(value));
 
             Value = value;
         }
@@ -36,14 +37,14 @@ namespace UngDungMangXaHoi.Domain.ValueObjects
 
         public override int GetHashCode() => Value.GetHashCode();
 
-        public static bool operator ==(ImageUrl left, ImageUrl right)
+        public static bool operator ==(ImageUrl? left, ImageUrl? right)
         {
             if (ReferenceEquals(left, right)) return true;
             if (left is null || right is null) return false;
             return left.Value == right.Value;
         }
 
-        public static bool operator !=(ImageUrl left, ImageUrl right) => !(left == right);
+        public static bool operator !=(ImageUrl? left, ImageUrl? right) => !(left == right);
     }
 }
 
