@@ -1,4 +1,5 @@
 using System;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using UngDungMangXaHoi.Application.Validators;
@@ -311,6 +312,9 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             account.updated_at = DateTimeOffset.UtcNow;
             await _accountRepository.UpdateAsync(account);
 
+            // Xóa tất cả refresh token của account để tránh refresh bằng token cũ sau khi đổi mật khẩu
+            await _refreshTokenRepository.DeleteByAccountIdAsync(account.account_id);
+
             // Xóa OTP đã sử dụng
             await _otpRepository.DeleteAsync(otp.otp_id);
 
@@ -320,36 +324,45 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         [HttpPost("change-password")]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
         {
-            // Xác thực JWT token trước
-            var token = HttpContext.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
-            if (string.IsNullOrEmpty(token))
+            // Middleware đã xác thực token và gán vào HttpContext.User rồi
+            // Chỉ cần lấy accountId từ claims
+            var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            
+            if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
             {
-                return Unauthorized("Cần có token.");
+                Console.WriteLine("[CHANGE-PASSWORD] ERROR: Cannot extract account ID from token");
+                return Unauthorized("Token không chứa thông tin tài khoản.");
             }
-
-            var principal = _authService.ValidateToken(token);
-            if (principal == null)
-            {
-                return Unauthorized("Token không hợp lệ.");
-            }
-
-            var accountId = int.Parse(principal.FindFirst("nameid")?.Value ?? "0");
+            
+            Console.WriteLine($"[CHANGE-PASSWORD] User from middleware: AccountId={accountId}");
+            
             var account = await _accountRepository.GetByIdAsync(accountId);
             if (account == null || account.status != "active")
             {
+                Console.WriteLine($"[CHANGE-PASSWORD] Account not found or inactive. AccountId: {accountId}");
                 return BadRequest("Không tìm thấy tài khoản hoặc tài khoản chưa được kích hoạt.");
             }
+
+            Console.WriteLine($"[CHANGE-PASSWORD] Account found: {account.email?.Value}, Status: {account.status}");
+            Console.WriteLine($"[CHANGE-PASSWORD] Verifying old password...");
 
             // Xác thực mật khẩu cũ
             if (!_passwordHasher.VerifyPassword(request.OldPassword, account.password_hash.Value))
             {
+                Console.WriteLine("[CHANGE-PASSWORD] Old password verification FAILED");
                 return BadRequest("Mật khẩu hiện tại không đúng.");
             }
 
+            Console.WriteLine("[CHANGE-PASSWORD] Old password verified successfully");
+
             // Kiểm tra số lần thử trong 2 phút
+            Console.WriteLine($"[CHANGE-PASSWORD] Checking failed attempts for account {account.account_id}...");
             var failedAttempts = await _otpRepository.GetFailedAttemptsAsync(account.account_id, "change_password");
+            Console.WriteLine($"[CHANGE-PASSWORD] Failed attempts: {failedAttempts}");
+            
             if (failedAttempts >= 5)
             {
+                Console.WriteLine("[CHANGE-PASSWORD] Too many attempts, returning 429");
                 return StatusCode(429, "Quá nhiều lần thử. Vui lòng thử lại sau 2 phút.");
             }
 
@@ -364,6 +377,9 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 fullName = account.Admin.full_name;
             }
 
+            Console.WriteLine($"[CHANGE-PASSWORD] Full name: {fullName}");
+            Console.WriteLine("[CHANGE-PASSWORD] Generating OTP...");
+
             // Tạo OTP mới
             var otp = await _authService.GenerateOtpAsync();
             var otpHash = _passwordHasher.HashPassword(otp);
@@ -377,29 +393,27 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 created_at = DateTimeOffset.UtcNow
             };
 
+            Console.WriteLine("[CHANGE-PASSWORD] Saving OTP to database...");
             await _otpRepository.AddAsync(otpEntity);
+            
+            Console.WriteLine($"[CHANGE-PASSWORD] Sending OTP email to {account.email?.Value}...");
             await _emailService.SendOtpEmailAsync(account.email?.Value ?? "", otp, "change_password", fullName);
-
+            
+            Console.WriteLine("[CHANGE-PASSWORD] SUCCESS - OTP sent");
             return Ok(new { message = "OTP đã được gửi đến email. Vui lòng xác thực trong vòng 1 phút." });
         }
 
         [HttpPost("verify-change-password-otp")]
         public async Task<IActionResult> VerifyChangePasswordOtp([FromBody] VerifyChangePasswordOtpRequest request)
         {
-            // Xác thực JWT token trước
-            var token = HttpContext.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
-            if (string.IsNullOrEmpty(token))
+            // Middleware đã xác thực token và gán vào HttpContext.User rồi
+            var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            
+            if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
             {
-                return Unauthorized("Cần có token.");
+                return Unauthorized("Token không chứa thông tin tài khoản.");
             }
 
-            var principal = _authService.ValidateToken(token);
-            if (principal == null)
-            {
-                return Unauthorized("Token không hợp lệ.");
-            }
-
-            var accountId = int.Parse(principal.FindFirst("nameid")?.Value ?? "0");
             var account = await _accountRepository.GetByIdAsync(accountId);
             if (account == null || account.status != "active")
             {
@@ -429,6 +443,9 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             account.password_hash = new PasswordHash(_passwordHasher.HashPassword(request.NewPassword));
             account.updated_at = DateTimeOffset.UtcNow;
             await _accountRepository.UpdateAsync(account);
+
+            // Xóa tất cả refresh token của account -> bắt buộc đăng nhập lại với mật khẩu mới
+            await _refreshTokenRepository.DeleteByAccountIdAsync(account.account_id);
 
             // Xóa OTP đã sử dụng
             await _otpRepository.DeleteAsync(otp.otp_id);

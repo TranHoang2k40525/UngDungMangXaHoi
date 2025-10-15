@@ -26,9 +26,7 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Database configuration
-var configuredConn = builder.Configuration.GetConnectionString("DefaultConnection");
-var envConn = Environment.GetEnvironmentVariable("DB_HOST");
+// Database configuration - ƯU TIÊN .env, fallback appsettings.json
 var sqlServer = Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost";
 var sqlPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "1433";
 var sqlUser = Environment.GetEnvironmentVariable("DB_USER") ?? "sa";
@@ -36,18 +34,27 @@ var sqlPass = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "123456789";
 var sqlDb = Environment.GetEnvironmentVariable("DB_NAME") ?? "ungdungmangxahoiv_2";
 var sqlTrust = Environment.GetEnvironmentVariable("SQLSERVER_TRUST_CERT") ?? "true";
 
-var connectionString = !string.IsNullOrWhiteSpace(configuredConn)
-    ? configuredConn
-    : !string.IsNullOrWhiteSpace(envConn)
-        ? envConn
-        : $"Server={sqlServer},{sqlPort};Database={sqlDb};User Id={sqlUser};Password={sqlPass};TrustServerCertificate={sqlTrust};";
+var connectionString = $"Server={sqlServer},{sqlPort};Database={sqlDb};User Id={sqlUser};Password={sqlPass};TrustServerCertificate={sqlTrust};";
+
+Console.WriteLine($"[DB CONFIG] Server: {sqlServer}:{sqlPort}, Database: {sqlDb}");
 
 builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(connectionString));
 
-// JWT Authentication
-var jwtAccessSecret = Environment.GetEnvironmentVariable("JWT_ACCESS_SECRET") ?? "kkwefihewofjevwljflwljgjewjwjegljlwflwflew";
-var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER") ?? "UngDungMangXaHoi";
-var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? "UngDungMangXaHoi";
+// JWT Authentication - ƯU TIÊN .env, fallback appsettings.json
+var jwtAccessSecret = Environment.GetEnvironmentVariable("JWT_ACCESS_SECRET") 
+    ?? builder.Configuration["JwtSettings:AccessSecret"] 
+    ?? "kkwefihewofjevwljflwljgjewjwjegljlwflwflew";
+    
+var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER") 
+    ?? builder.Configuration["JwtSettings:Issuer"] 
+    ?? "UngDungMangXaHoi";
+    
+var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") 
+    ?? builder.Configuration["JwtSettings:Audience"] 
+    ?? "UngDungMangXaHoi";
+
+Console.WriteLine($"[JWT AUTH] AccessSecret length: {jwtAccessSecret.Length}");
+Console.WriteLine($"[JWT AUTH] Issuer: {jwtIssuer}, Audience: {jwtAudience}");
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

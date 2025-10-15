@@ -6,34 +6,104 @@ using UngDungMangXaHoi.Infrastructure.Services;
 
 namespace UngDungMangXaHoi.Presentation.WebAPI.Middleware
 {
-    // Middleware này sẽ kiểm tra và xác thực JWT token trong mọi request
+    /// <summary>
+    /// JWT Middleware - tương tự authMiddleware.js trong Node.js
+    /// Xác thực token và gán thông tin user vào HttpContext.User
+    /// </summary>
     public class JwtMiddleware
     {
         private readonly RequestDelegate _next;
-        private readonly JwtTokenService _jwtService;
 
-        public JwtMiddleware(RequestDelegate next, JwtTokenService jwtService)
+        public JwtMiddleware(RequestDelegate next)
         {
             _next = next;
-            _jwtService = jwtService;
         }
 
-        public async Task Invoke(HttpContext context)
+        public async Task Invoke(HttpContext context, JwtTokenService jwtService)
         {
-            // Lấy token từ header Authorization
-            var token = context.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
-
-            if (token != null)
+            var path = context.Request.Path.Value?.ToLower() ?? "";
+            
+            // Bỏ qua các endpoint public (không cần authentication)
+            if (path.Contains("/login") || 
+                path.Contains("/register") || 
+                path.Contains("/verify-otp") ||
+                path.Contains("/forgot-password") ||
+                path.Contains("/verify-forgot-password-otp") ||
+                path.Contains("/reset-password") ||
+                path.Contains("/refresh"))
             {
-                // Xác thực token và gán thông tin user vào context
-                var principal = _jwtService.ValidateToken(token);
-                if (principal != null)
-                {
-                    context.User = principal;
-                }
+                await _next(context);
+                return;
             }
 
-            await _next(context);
+            try
+            {
+                // Lấy token từ header Authorization (Bearer token)
+                var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
+                Console.WriteLine($"[JWT MIDDLEWARE] Path: {path}");
+                Console.WriteLine($"[JWT MIDDLEWARE] Authorization Header: {authHeader}");
+
+                if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer "))
+                {
+                    Console.WriteLine("[JWT MIDDLEWARE] Missing or invalid token format");
+                    context.Response.StatusCode = 401;
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        message = "Không có token hoặc token không hợp lệ!",
+                        code = "INVALID_TOKEN"
+                    });
+                    return;
+                }
+
+                var token = authHeader.Substring("Bearer ".Length).Trim();
+                if (string.IsNullOrEmpty(token))
+                {
+                    Console.WriteLine("[JWT MIDDLEWARE] Token is empty");
+                    context.Response.StatusCode = 401;
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        message = "Token không được cung cấp!",
+                        code = "MISSING_TOKEN"
+                    });
+                    return;
+                }
+
+                // Xác thực token
+                var principal = jwtService.ValidateToken(token);
+                
+                if (principal == null)
+                {
+                    Console.WriteLine("[JWT MIDDLEWARE] Token validation returned null");
+                    context.Response.StatusCode = 401;
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        message = "Token không hợp lệ!",
+                        code = "INVALID_TOKEN"
+                    });
+                    return;
+                }
+
+                // Lưu thông tin user vào HttpContext.User (giống req.user trong Node.js)
+                context.User = principal;
+
+                // Log thông tin user đã xác thực
+                var accountId = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                var accountType = principal.FindFirst("account_type")?.Value;
+                Console.WriteLine($"[JWT MIDDLEWARE] User authenticated: AccountId={accountId}, Type={accountType}");
+
+                await _next(context);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[JWT MIDDLEWARE] Unhandled error: {ex.Message}");
+                context.Response.StatusCode = 500;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    message = "Lỗi xác thực!",
+                    code = "AUTH_ERROR",
+                    error = ex.Message
+                });
+            }
         }
     }
 

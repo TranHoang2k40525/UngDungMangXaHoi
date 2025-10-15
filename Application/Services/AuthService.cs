@@ -126,8 +126,19 @@ namespace UngDungMangXaHoi.Application.Services
         public async Task<(string AccessToken, string RefreshToken)> GenerateTokensAsync(Account account)
         {
             var accessToken = _jwtService.GenerateAccessToken(account);
-            var refreshToken = _jwtService.GenerateRefreshToken(account);
-            return await Task.FromResult((accessToken, refreshToken));  // Wrap sync call vào Task
+            var refreshTokenValue = _jwtService.GenerateRefreshToken(account);
+
+            // Lưu refresh token vào database để các lần gọi refresh tiếp theo hợp lệ
+            var refreshToken = new RefreshToken
+            {
+                account_id = account.account_id,
+                refresh_token = refreshTokenValue,
+                expires_at = DateTimeOffset.UtcNow.AddDays(30),
+                created_at = DateTimeOffset.UtcNow
+            };
+            await _refreshTokenRepository.AddAsync(refreshToken);
+
+            return await Task.FromResult((accessToken, refreshTokenValue));  // Wrap sync call vào Task
         }
 
         // Sửa để khớp interface: Giữ async Task<string>, wrap logic sync vào Task.FromResult để tránh warning CS1998
