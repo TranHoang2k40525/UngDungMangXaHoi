@@ -84,6 +84,7 @@ builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 builder.Services.AddScoped<IOTPRepository, OTPRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<ILoginHistoryRepository, LoginHistoryRepository>();
+builder.Services.AddScoped<IPostRepository, PostRepository>();
 
 // Services
 builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
@@ -91,6 +92,7 @@ builder.Services.AddScoped<ITokenService, AuthService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, EmailService>();
+builder.Services.AddScoped<UserProfileService>();
 
 // External Services
 builder.Services.AddScoped<CloudinaryService>(provider =>
