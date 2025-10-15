@@ -6,6 +6,10 @@ using UngDungMangXaHoi.Domain.ValueObjects;
 
 namespace UngDungMangXaHoi.WebAPI.Controllers
 {
+    /// <summary>
+    /// UserController - Reserved for future user-related endpoints
+    /// Profile management has been moved to ProfileController
+    /// </summary>
     [ApiController]
     [Route("api/users")]
     [Authorize(Policy = "UserOnly")]
@@ -18,32 +22,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             _userRepository = userRepository;
         }
 
-        [HttpGet("profile")]
-        public async Task<IActionResult> GetProfile()
-        {
-            var userIdClaim = User.FindFirst("sub")?.Value;
-            if (!int.TryParse(userIdClaim, out var userId))
-            {
-                return Unauthorized("Invalid token.");
-            }
-
-            var user = await _userRepository.GetByIdAsync(userId);
-            if (user == null)
-            {
-                return NotFound("User not found.");
-            }
-
-            var response = new {
-                Username = user.username,
-                FullName = user.full_name,
-                Email = user.Account.email,
-                Phone = user.Account.phone,
-                Gender = user.gender,
-                AvatarUrl = user.avatar_url,
-                Bio = user.bio
-            };
-
-            return Ok(response);
-        }
+        // GetProfile method removed - use ProfileController.GetProfile instead
+        // Endpoint: GET /api/users/profile is now handled by ProfileController
     }
 }
