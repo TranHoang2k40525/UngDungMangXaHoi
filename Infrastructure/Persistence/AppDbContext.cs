@@ -17,6 +17,8 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
         public DbSet<OTP> OTPs { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<LoginHistory> LoginHistory { get; set; }
+        public DbSet<Post> Posts { get; set; }
+        public DbSet<PostMedia> PostMedia { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -29,6 +31,8 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new OTPConfiguration());
             modelBuilder.ApplyConfiguration(new RefreshTokenConfiguration());
             modelBuilder.ApplyConfiguration(new LoginHistoryConfiguration());
+            modelBuilder.ApplyConfiguration(new PostConfiguration());
+            modelBuilder.ApplyConfiguration(new PostMediaConfiguration());
         }
     }
 }
