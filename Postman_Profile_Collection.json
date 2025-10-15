@@ -1,0 +1,458 @@
+{
+	"info": {
+		"name": "User Profile Management API",
+		"description": "Collection để test các API quản lý profile user",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:5297",
+			"type": "string"
+		},
+		{
+			"key": "accessToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "userId",
+			"value": "1",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "0. Authentication",
+			"item": [
+				{
+					"name": "Login (Get Access Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.accessToken) {",
+									"        pm.collectionVariables.set('accessToken', jsonData.data.accessToken);",
+									"        pm.collectionVariables.set('userId', jsonData.data.userId);",
+									"        console.log('✅ Access Token saved: ' + jsonData.data.accessToken.substring(0, 20) + '...');",
+									"        console.log('✅ User ID saved: ' + jsonData.data.userId);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"identifier\": \"hoang@example.com\",\n  \"password\": \"yourpassword\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						},
+						"description": "🔑 Login để lấy access token. Token sẽ tự động lưu vào collection variable."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "1. Profile Management",
+			"item": [
+				{
+					"name": "Get Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/users/profile",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"profile"
+							]
+						},
+						"description": "📋 Lấy thông tin profile đầy đủ của user đang đăng nhập"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"fullName\": \"Trần Hoàng Updated\",\n  \"gender\": \"Male\",\n  \"bio\": \"Full-stack Developer | Tech Enthusiast\",\n  \"isPrivate\": false,\n  \"dateOfBirth\": \"2000-05-15\",\n  \"address\": \"Hồ Chí Minh\",\n  \"hometown\": \"Đà Nẵng\",\n  \"job\": \"Senior Developer\",\n  \"website\": \"https://hoangdev.com\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users/profile",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"profile"
+							]
+						},
+						"description": "✏️ Cập nhật thông tin cơ bản (không cần OTP)\n\n**Fields có thể cập nhật:**\n- fullName\n- gender (Male/Female/Other)\n- bio\n- isPrivate (true/false)\n- dateOfBirth\n- address\n- hometown\n- job\n- website"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "2. Change Email (OTP)",
+			"item": [
+				{
+					"name": "Step 1: Request Change Email",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"newEmail\": \"newemail@example.com\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users/profile/change-email/request",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"profile",
+								"change-email",
+								"request"
+							]
+						},
+						"description": "📧 Bước 1: Gửi OTP đến email MỚI\n\n**Lưu ý:**\n- OTP sẽ được gửi đến email MỚI (không phải email hiện tại)\n- OTP có hiệu lực 5 phút\n- Tối đa 5 lần thử"
+					},
+					"response": []
+				},
+				{
+					"name": "Step 2: Verify Change Email",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"newEmail\": \"newemail@example.com\",\n  \"otp\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users/profile/change-email/verify",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"profile",
+								"change-email",
+								"verify"
+							]
+						},
+						"description": "✅ Bước 2: Verify OTP và đổi email\n\n**Nhập:**\n- newEmail: Email mới (phải giống step 1)\n- otp: Mã OTP nhận được qua email"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "3. Change Phone (OTP)",
+			"item": [
+				{
+					"name": "Step 1: Request Change Phone",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"newPhone\": \"0987654321\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users/profile/change-phone/request",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"profile",
+								"change-phone",
+								"request"
+							]
+						},
+						"description": "📱 Bước 1: Gửi OTP để đổi số điện thoại\n\n**Lưu ý:**\n- OTP sẽ được gửi đến EMAIL HIỆN TẠI (không phải SĐT mới)\n- OTP có hiệu lực 5 phút\n- Tối đa 5 lần thử"
+					},
+					"response": []
+				},
+				{
+					"name": "Step 2: Verify Change Phone",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"newPhone\": \"0987654321\",\n  \"otp\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users/profile/change-phone/verify",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"profile",
+								"change-phone",
+								"verify"
+							]
+						},
+						"description": "✅ Bước 2: Verify OTP và đổi SĐT\n\n**Nhập:**\n- newPhone: SĐT mới (phải giống step 1)\n- otp: Mã OTP nhận được qua email"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "4. Avatar Management",
+			"item": [
+				{
+					"name": "Upload Avatar (Simple)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "avatarFile",
+									"type": "file",
+									"src": [],
+									"description": "⚠️ Chọn file ảnh (.jpg, .png, .gif, max 5MB)"
+								},
+								{
+									"key": "createPost",
+									"value": "false",
+									"type": "text",
+									"description": "false = chỉ update avatar, không đăng bài"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users/profile/avatar",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"profile",
+								"avatar"
+							]
+						},
+						"description": "🖼️ Upload avatar đơn giản (không tạo post)\n\n**Kết quả:**\n- File lưu tại: Assets/Images/{username}_{randomCode}.jpg\n- Cập nhật avatar_url trong database\n- Không tạo bài post"
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Avatar + Create Post",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],  
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "avatarFile",
+									"type": "file",
+									"src": [],
+									"description": "⚠️ Chọn file ảnh (.jpg, .png, .gif, max 5MB)"
+								},
+								{
+									"key": "createPost",
+									"value": "true",
+									"type": "text",
+									"description": "true = update avatar VÀ đăng bài"
+								},
+								{
+									"key": "postCaption",
+									"value": "Ảnh đại diện mới của tôi 🎉",
+									"type": "text",
+									"description": "Caption cho bài post"
+								},
+								{
+									"key": "postLocation",
+									"value": "Hà Nội",
+									"type": "text",
+									"description": "Location (optional)"
+								},
+								{
+									"key": "postPrivacy",
+									"value": "Public",
+									"type": "text",
+									"description": "Public / Friends / Private"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users/profile/avatar",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"profile",
+								"avatar"
+							]
+						},
+						"description": "🖼️📝 Upload avatar VÀ tạo bài post với ảnh đó\n\n**Kết quả:**\n- File lưu tại: Assets/Images/{username}_{randomCode}.jpg\n- Cập nhật avatar_url trong database\n- Tạo 1 bài post mới trong bảng Posts\n- Tạo 1 media trong bảng PostMedia"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Avatar by UserId",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/users/profile/avatar/{{userId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"profile",
+								"avatar",
+								"{{userId}}"
+							]
+						},
+						"description": "🖼️ Xem avatar của user (không cần authentication)\n\n**Response:** File ảnh trực tiếp (image/jpeg)"
+					},
+					"response": []
+				},
+				{
+					"name": "Remove Avatar",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/users/profile/avatar",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"profile",
+								"avatar"
+							]
+						},
+						"description": "🗑️ Gỡ avatar (xóa ảnh đại diện)\n\n**Kết quả:**\n- Reset avatar_url về null trong database\n- Xóa file ảnh trong Assets/Images/\n- User sẽ không có avatar"
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

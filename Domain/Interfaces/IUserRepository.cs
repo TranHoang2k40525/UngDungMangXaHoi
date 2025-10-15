@@ -8,6 +8,7 @@ namespace UngDungMangXaHoi.Domain.Interfaces
     public interface IUserRepository
     {
         Task<User?> GetByIdAsync(int id);
+        Task<User?> GetByAccountIdAsync(int accountId);
         Task<User?> GetByEmailAsync(Email email);
         Task<User?> GetByUserNameAsync(UserName userName);
         Task<IEnumerable<User>> GetAllAsync();
