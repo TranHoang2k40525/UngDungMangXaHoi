@@ -3,16 +3,11 @@ using System.Net;
 using System.Net.Mail;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
-using UngDungMangXaHoi.Domain.Interfaces; // { changed code }
+using UngDungMangXaHoi.Domain.Interfaces;
 
 namespace UngDungMangXaHoi.Infrastructure.Services
 {
-    public interface IEmailService
-    {
-        Task SendOtpEmailAsync(string email, string otp, string purpose, string fullName);
-    }
-
-    public class EmailService : IEmailService, INotificationService // { changed code: Thêm IEmailService vào đây }
+    public class EmailService : IEmailService, INotificationService
     {
         private readonly string _smtpHost;
         private readonly int _smtpPort;
@@ -43,6 +38,8 @@ namespace UngDungMangXaHoi.Infrastructure.Services
                 "register" => "Mã OTP đăng ký tài khoản",
                 "forgot_password" => "Mã OTP quên mật khẩu",
                 "change_password" => "Mã OTP đổi mật khẩu",
+                "change_email" => "Mã OTP đổi email",
+                "change_phone" => "Mã OTP đổi số điện thoại",
                 _ => "Mã OTP xác thực"
             };
 
@@ -67,6 +64,8 @@ namespace UngDungMangXaHoi.Infrastructure.Services
                 "register" => "đăng ký",
                 "forgot_password" => "quên mật khẩu",
                 "change_password" => "đổi mật khẩu",
+                "change_email" => "đổi email",
+                "change_phone" => "đổi số điện thoại",
                 _ => "xác thực"
             };
 
