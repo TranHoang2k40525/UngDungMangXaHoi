@@ -5,12 +5,14 @@ import {
   Image,
   TouchableOpacity,
   StyleSheet,
+  SafeAreaView,
   ScrollView,
   FlatList,
-  StatusBar,
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { launchCamera } from 'react-native-image-picker';
 
 // Dữ liệu stories
 const storiesData = [
@@ -36,22 +38,53 @@ const StoryItem = ({ name, avatar, hasStory }) => (
 export default function Home() {
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [likes, setLikes] = useState(250); // Số lượt thích ban đầu
-  const [comments, setComments] = useState(15); // Số bình luận ban đầu
+  const [likes, setLikes] = useState(250);
+  const [comments, setComments] = useState(15);
   const navigation = useNavigation();
-  const insets = useSafeAreaInsets();
+
+  const handleCameraPress = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          {
+            title: 'Camera Permission',
+            message: 'This app needs access to your camera to take photos.',
+            buttonPositive: 'OK',
+            buttonNegative: 'Cancel',
+          }
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          return;
+        }
+      } catch (err) {
+        return;
+      }
+    }
+
+    const options = {
+      mediaType: 'photo',
+      cameraType: 'back',
+      saveToPhotos: true,
+    };
+
+    launchCamera(options, (response) => {
+      if (response.didCancel) {
+        return;
+      } else if (response.errorCode) {
+        return;
+      } else if (response.assets && response.assets.length > 0) {
+        const photoUri = response.assets[0].uri;
+        navigation.navigate('PhotoPreview', { photoUri });
+      }
+    });
+  };
 
   return (
-    <View style={styles.container}>
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#FFFFFF"
-        translucent={false}
-      />
-      <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top }]}>
-        {/* Header */}
-        <View style={styles.header}>
-        <TouchableOpacity style={styles.navItem}>
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.navItem} onPress={handleCameraPress}>
           <Image
             source={require('../Assets/icons8-camera-50.png')}
             style={[styles.cameraIconImage, { width: 29, height: 29 }]}
@@ -64,7 +97,10 @@ export default function Home() {
           <TouchableOpacity style={styles.headerIconWrapper}>
             <View style={styles.heartIconHeader} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem}>
+          <TouchableOpacity 
+            style={styles.navItem}
+            onPress={() => navigation.navigate('Thongbao')}
+          >
             <Image
               source={require('../Assets/icons8-notification-48.png')}
               style={[styles.homeIconImage, { width: 30, height: 30 }]}
@@ -177,7 +213,10 @@ export default function Home() {
 
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity 
+          style={styles.navItem}
+          onPress={() => navigation.navigate('Home')}
+        >
           <Image
             source={require('../Assets/icons8-home-32.png')}
             style={[styles.homeIconImage, { width: 33, height: 33 }]}
@@ -208,15 +247,17 @@ export default function Home() {
             <View style={styles.reelsPlay} />
           </View>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity 
+          style={styles.navItem}
+          onPress={() => navigation.navigate('Profile')}
+        >
           <Image
             source={{ uri: 'https://i.pravatar.cc/150?img=9' }}
             style={styles.profileIcon}
           />
         </TouchableOpacity>
       </View>
-      </SafeAreaView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -224,9 +265,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-  },
-  safeArea: {
-    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -236,6 +274,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 0.5,
     borderBottomColor: '#DBDBDB',
+    zIndex: 1,
   },
   logo: {
     fontSize: 24,
