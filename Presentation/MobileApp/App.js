@@ -10,8 +10,14 @@ import ForgotPassword from "./src/Auth/ForgotPassword";
 import VerifyForgotPasswordOtp from "./src/Auth/VerifyForgotPasswordOtp";
 import ChangePassword from "./src/Auth/ChangePassword";
 import Home from "./src/Home/Home";
+import Video from "./src/Home/Video";
+import Thongbao from "./src/Home/Thongbao";
 import Doanchat from "./src/Messegers/Doanchat";
 import Messenger from "./src/Messegers/Messenger";
+import Search from "./src/Searchs/Search";
+import Profile from "./src/User/Profile";
+import Editprofile from "./src/User/Editprofile";
+import PhotoPreview from "./src/User/PhotoPreview";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 
 const Stack = createStackNavigator();
@@ -58,6 +64,12 @@ function AppNavigator() {
             <Stack.Screen name="Messenger" component={Messenger} />
             <Stack.Screen name="Doanchat" component={Doanchat} />
             <Stack.Screen name="ChangePassword" component={ChangePassword} />
+            <Stack.Screen name="Search" component={Search} />
+            <Stack.Screen name="Video" component={Video} />
+            <Stack.Screen name="Thongbao" component={Thongbao} />
+            <Stack.Screen name="Profile" component={Profile} />
+            <Stack.Screen name="Editprofile" component={Editprofile} />
+             <Stack.Screen name="PhotoPreview" component={PhotoPreview} />
           </>
         ) : (
           // Unauthenticated screens
