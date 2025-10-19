@@ -1,12 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
-export const API_BASE_URL = 'http://10.68.31.105:5297'; // Backend đang chạy trên IP này
+export const API_BASE_URL = 'http://192.168.100.184:5297'; // Backend đang chạy trên IP này
 
 // Hàm helper để gọi API
 const apiCall = async (endpoint, options = {}) => {
   try {
-    console.log(`Making API call to: ${API_BASE_URL}${endpoint}`);
+    console.log(`[API-CALL] Making API call to: ${API_BASE_URL}${endpoint}`);
+    console.log(`[API-CALL] Options:`, JSON.stringify(options, null, 2));
     
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
@@ -18,24 +19,35 @@ const apiCall = async (endpoint, options = {}) => {
       timeout: 10000, // 10 seconds timeout
     });
 
-    console.log(`Response status: ${response.status}`);
+    console.log(`[API-CALL] Response status: ${response.status}`);
+
+    // Đọc response text trước
+    const responseText = await response.text();
+    console.log(`[API-CALL] Response text:`, responseText);
+
+    // Parse JSON nếu có content
+    let result = null;
+    if (responseText) {
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        console.warn('[API-CALL] Could not parse response as JSON:', parseError);
+        // Nếu không parse được JSON, throw error
+        throw new Error('Server trả về dữ liệu không hợp lệ');
+      }
+    }
 
     if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.message || errorMessage;
-      } catch (parseError) {
-        console.warn('Could not parse error response:', parseError);
-      }
+      // Xử lý error response
+      let errorMessage = result?.message || result?.Message || `HTTP error! status: ${response.status}`;
+      console.error('[API-CALL] Error:', errorMessage);
       throw new Error(errorMessage);
     }
 
-    const result = await response.json();
-    console.log('API call successful');
+    console.log('[API-CALL] API call successful');
     return result;
   } catch (error) {
-    console.error('API Error:', error);
+    console.error('[API-CALL] API Error:', error);
     
     // Xử lý các loại lỗi khác nhau
     if (error.name === 'TypeError' && error.message.includes('Network request failed')) {
@@ -64,7 +76,7 @@ export const verifyOtp = async (data) => {
   });
 
   // Lưu token vào AsyncStorage sau khi verify thành công
-  if (result.AccessToken && result.RefreshToken) {
+  if (result?.AccessToken && result?.RefreshToken) {
     await AsyncStorage.setItem('accessToken', result.AccessToken);
     await AsyncStorage.setItem('refreshToken', result.RefreshToken);
   }
@@ -80,7 +92,7 @@ export const login = async (credentials) => {
   });
 
   // Lưu token
-  if (result.AccessToken && result.RefreshToken) {
+  if (result?.AccessToken && result?.RefreshToken) {
     await AsyncStorage.setItem('accessToken', result.AccessToken);
     await AsyncStorage.setItem('refreshToken', result.RefreshToken);
   }
@@ -106,7 +118,7 @@ export const refreshToken = async () => {
     body: JSON.stringify({ RefreshToken: refreshToken }),
   });
 
-  if (result.AccessToken && result.RefreshToken) {
+  if (result?.AccessToken && result?.RefreshToken) {
     await AsyncStorage.setItem('accessToken', result.AccessToken);
     await AsyncStorage.setItem('refreshToken', result.RefreshToken);
   }
@@ -132,6 +144,7 @@ export const logout = async () => {
 
 // Quên mật khẩu
 export const forgotPassword = async (email) => {
+  console.log('[FORGOT-PASSWORD] Calling API with email:', email);
   return apiCall('/api/auth/forgot-password', {
     method: 'POST',
     body: JSON.stringify({ Email: email }),
@@ -140,6 +153,7 @@ export const forgotPassword = async (email) => {
 
 // Xác thực OTP quên mật khẩu
 export const verifyForgotPasswordOtp = async (data) => {
+  console.log('[VERIFY-FORGOT-PASSWORD-OTP] Calling API with data:', data);
   return apiCall('/api/auth/verify-forgot-password-otp', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -148,6 +162,7 @@ export const verifyForgotPasswordOtp = async (data) => {
 
 // Reset mật khẩu
 export const resetPassword = async (data) => {
+  console.log('[RESET-PASSWORD] Calling API with data:', { Email: data.Email, NewPassword: '***' });
   return apiCall('/api/auth/reset-password', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -190,8 +205,8 @@ export const setupTokenRefresh = () => {
   // Kiểm tra token mỗi 5 phút
   setInterval(async () => {
     try {
-      const refreshToken = await AsyncStorage.getItem('refreshToken');
-      if (refreshToken) {
+      const refreshTokenValue = await AsyncStorage.getItem('refreshToken');
+      if (refreshTokenValue) {
         await refreshToken();
       }
     } catch (error) {
