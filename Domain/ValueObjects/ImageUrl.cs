@@ -11,14 +11,24 @@ namespace UngDungMangXaHoi.Domain.ValueObjects
             @"^(https?://[^\s/$.?#].[^\s]*|/[^\s]*)$",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+        private static readonly Regex Base64Regex = new Regex(
+            @"^data:image/(png|jpg|jpeg|gif|webp);base64,",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
         public ImageUrl(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
                 throw new ArgumentException("Image URL cannot be null or empty", nameof(value));
 
-            // Chấp nhận cả URL đầy đủ (https://...) và relative path (/Assets/...)
-            if (!UrlRegex.IsMatch(value))
-                throw new ArgumentException("Invalid URL format. Must be full URL (https://...) or relative path (/...)", nameof(value));
+            // Chấp nhận:
+            // 1. URL đầy đủ (https://...)
+            // 2. Relative path (/Assets/...)
+            // 3. Base64 data URL (data:image/...;base64,...)
+            bool isValidUrl = UrlRegex.IsMatch(value);
+            bool isBase64 = Base64Regex.IsMatch(value);
+
+            if (!isValidUrl && !isBase64)
+                throw new ArgumentException("Invalid format. Must be URL, relative path, or Base64 data URL", nameof(value));
 
             Value = value;
         }

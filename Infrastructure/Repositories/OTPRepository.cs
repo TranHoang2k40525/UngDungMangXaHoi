@@ -30,6 +30,13 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .FirstOrDefaultAsync(o => o.account_id == accountId && o.purpose == purpose && !o.used && o.expires_at > DateTimeOffset.UtcNow);
         }
 
+        public async Task<OTP?> GetVerifiedOtpAsync(int accountId, string purpose)
+        {
+            // Lấy OTP đã verify (used = true) và chưa hết hạn
+            return await _context.OTPs
+                .FirstOrDefaultAsync(o => o.account_id == accountId && o.purpose == purpose && o.used && o.expires_at > DateTimeOffset.UtcNow);
+        }
+
         public async Task UpdateAsync(OTP otp)
         {
             _context.OTPs.Update(otp);

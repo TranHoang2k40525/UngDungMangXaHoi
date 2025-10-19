@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="vi">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hệ thống AI</title><link rel="stylesheet" href="../../styles.css"></head>
 <body>
@@ -14,7 +14,25 @@
         <a class="nav-item" href="../analytics/analytics.html">Thống kê & Phân tích</a>
         <a class="nav-item" href="../settings/settings.html">Cài đặt</a>
       </div>
-      <div class="sidebar-footer"><a class="nav-item" href="../auth/login.html" onclick="logout();return false;">Logout</a></div>
+      <div class="sidebar-footer">
+        <!-- Avatar + Account Info -->
+        <div style="padding: 16px; border-top: 1px solid rgba(255,255,255,0.1); margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <img id="sidebarAvatar" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect fill='%236366F1' width='40' height='40'/%3E%3Ctext fill='%23fff' x='50%25' y='50%25' text-anchor='middle' dy='.3em' font-size='16' font-weight='600'%3EA%3C/text%3E%3C/svg%3E" 
+                 alt="Avatar" 
+                 style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid #fff;">
+            <div style="flex: 1; min-width: 0;">
+              <div id="sidebarFullName" style="color: #fff; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                Loading...
+              </div>
+              <div id="sidebarEmail" style="color: rgba(255,255,255,0.7); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                ...
+              </div>
+            </div>
+          </div>
+        </div>
+        <a class="nav-item" href="#" id="logoutBtn">Logout</a>
+      </div>
     </aside>
 
     <main class="main">
@@ -51,6 +69,24 @@
     </main>
   </div>
 
+  <script type="module">
+    import { authAPI, adminAPI } from '../../API/Api.js';
+    import { updateSidebarProfile } from '../../Context/SidebarHelper.js';
+    
+    if (!authAPI.isAuthenticated()) {
+      window.location.href = '../auth/login.html';
+    }
+    
+    updateSidebarProfile(adminAPI);
+    
+    document.getElementById('logoutBtn')?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await authAPI.logout();
+      window.location.href = '../auth/login.html';
+    });
+  </script>
+
+  
   <script src="../../webadmins.js"></script>
   <script>
     (function(){

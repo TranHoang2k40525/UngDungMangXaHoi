@@ -13,7 +13,6 @@
       <div class="logo">ĐĂNG KÝ ADMIN</div>
 
       <form id="regForm">
-        <input name="username" id="username" class="form-control" placeholder="Tên người dùng" required />
         <input name="fullName" id="fullName" class="form-control" placeholder="Họ và tên" required />
         <div class="form-row">
           <input name="dateOfBirth" id="dateOfBirth" type="date" class="form-control" required />
@@ -24,9 +23,9 @@
             <option value="Khác">Khác</option>
           </select>
         </div>
-        <input name="phone" id="phone" class="form-control" placeholder="Số điện thoại" required />
-        <input name="email" id="email" type="email" class="form-control" placeholder="Email" required />
-        <input name="password" id="password" type="password" class="form-control" placeholder="Mật khẩu" required />
+        <input name="email" id="email" type="email" class="form-control" placeholder="Email (chỉ email được cấp quyền)" required />
+        <input name="phone" id="phone" class="form-control" placeholder="Số điện thoại (tùy chọn)" />
+        <input name="password" id="password" type="password" class="form-control" placeholder="Mật khẩu (tối thiểu 8 ký tự)" required />
 
         <div class="auth-btn-wrap" style="margin-top:14px">
           <button class="btn-primary" type="submit" id="registerBtn" style="width:100%;">Đăng ký</button>
@@ -38,9 +37,8 @@
   </div>
 
   <!-- Scripts -->
-  <script src="../Context/AdminContext.js"></script>
-  <script>
-    const adminContext = window.AdminContext;
+  <script type="module">
+    import { authAPI } from '../../API/Api.js';
     
     document.getElementById('regForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -71,29 +69,34 @@
             genderNumber = 0;
         }
         
+        const phoneValue = document.getElementById('phone').value.trim();
+        
         const formData = {
-          Username: document.getElementById('username').value,
           FullName: document.getElementById('fullName').value,
           DateOfBirth: document.getElementById('dateOfBirth').value,
           Email: document.getElementById('email').value,
-          Phone: document.getElementById('phone').value,
           Password: document.getElementById('password').value,
           Gender: genderNumber
         };
         
-        // Gọi API đăng ký
-        const result = await adminContext.register(formData);
-        
-        if (result.success) {
-          msg.textContent = 'Đăng ký thành công! OTP đã được gửi đến email của bạn.';
-          msg.style.color = 'green';
-          setTimeout(() => {
-            window.location.href = `verify-otp.html?email=${encodeURIComponent(formData.Email)}`;
-          }, 2000);
-        } else {
-          msg.textContent = 'Lỗi: ' + result.error;
-          msg.style.color = 'red';
+        // Chỉ thêm Phone nếu có giá trị
+        if (phoneValue) {
+          formData.Phone = phoneValue;
         }
+        
+        console.log('Sending data:', formData); // Debug
+        
+        // Gọi API đăng ký Admin
+        const result = await authAPI.registerAdmin(formData);
+        
+        msg.textContent = result.message || 'Đăng ký tài khoản Admin thành công!';
+        msg.style.color = 'green';
+        
+        // Chuyển về trang đăng nhập sau 2 giây
+        setTimeout(() => {
+          window.location.href = 'login.html';
+        }, 2000);
+        
       } catch (error) {
         msg.textContent = 'Lỗi: ' + error.message;
         msg.style.color = 'red';
