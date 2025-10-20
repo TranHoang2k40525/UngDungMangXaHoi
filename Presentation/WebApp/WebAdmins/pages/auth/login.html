@@ -9,9 +9,7 @@
 <body>
   <div class="container-center">
     <div class="card auth">
-      <a class="back-arrow" href="../index.html" title="Quay lại">←</a>
-
-      <div class="logo">ADMIN PANEL</div>
+      <div class="logo">SNAP67CS Admin</div>
 
       <form id="loginForm">
         <input name="identifier" id="identifier" class="form-control" placeholder="Email hoặc Số điện thoại" required />
@@ -35,14 +33,13 @@
   </div>
 
   <!-- Scripts -->
-  <script src="../Context/AdminContext.js"></script>
-  <script>
-    const adminContext = window.AdminContext;
+  <script type="module">
+    import { authAPI, adminAPI } from '../../API/Api.js';
     
     // Kiểm tra trạng thái đăng nhập khi load trang
     window.addEventListener('load', () => {
-      if (adminContext.isAuthenticated) {
-        window.location.href = '../index.html';
+      if (authAPI.isAuthenticated()) {
+        window.location.href = '../home/home.html';
       }
     });
     
@@ -69,20 +66,52 @@
         };
         
         // Gọi API đăng nhập
-        const result = await adminContext.login(credentials);
+        const result = await authAPI.login(credentials);
         
-        if (result.success) {
-          msg.textContent = 'Đăng nhập thành công!';
-          msg.style.color = 'green';
-          setTimeout(() => {
-            window.location.href = '../index.html';
-          }, 1000);
-        } else {
-          msg.textContent = 'Lỗi: ' + result.error;
-          msg.style.color = 'red';
+        console.log('Login result:', result); // Debug
+        console.log('Access token stored:', localStorage.getItem('accessToken')); // Debug
+        
+        // KIỂM TRA: Chỉ cho phép Admin đăng nhập vào Web Admin
+        // Giải mã token để lấy account_type
+        const token = localStorage.getItem('accessToken');
+        if (!token) {
+          throw new Error('Không thể lấy token đăng nhập');
         }
+        
+        // Decode JWT token (phần payload)
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const accountType = payload.account_type || payload.role;
+        
+        console.log('Account type:', accountType); // Debug
+        
+        // Kiểm tra account_type phải là Admin
+        if (accountType !== 'Admin') {
+          // Xóa token
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          throw new Error('Chỉ tài khoản Admin mới có thể đăng nhập vào hệ thống này. Vui lòng sử dụng tài khoản Admin.');
+        }
+        
+        // Đợi một chút để đảm bảo token đã được lưu
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Lấy thông tin profile sau khi đăng nhập thành công
+        const profileInfo = await adminAPI.getProfile();
+        
+        console.log('Profile info:', profileInfo); // Debug
+        
+        // Lưu thông tin admin vào localStorage
+        localStorage.setItem('adminInfo', JSON.stringify(profileInfo));
+        
+        msg.textContent = 'Đăng nhập thành công!';
+        msg.style.color = 'green';
+        
+        setTimeout(() => {
+          window.location.href = '../home/home.html';
+        }, 1000);
+        
       } catch (error) {
-        msg.textContent = 'Lỗi: ' + error.message;
+        msg.textContent = 'Lỗi đăng nhập: ' + error.message;
         msg.style.color = 'red';
       } finally {
         loginBtn.textContent = originalText;

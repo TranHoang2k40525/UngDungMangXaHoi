@@ -32,7 +32,7 @@ namespace UngDungMangXaHoi.Infrastructure.Configurations
             {
                 aub.Property(au => au.Value)
                    .HasColumnName("avatar_url")
-                   .HasMaxLength(255);
+                   .HasColumnType("NVARCHAR(MAX)"); // Hỗ trợ Base64 image (dài)
             });
 
             builder.Property(a => a.is_private)

@@ -112,9 +112,12 @@ export default function Search() {
 
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity 
+          style={styles.navItem}
+          onPress={() => navigation.navigate('Home')}
+        >
           <Image
-            source={require('./assets/icons8-home-32.png')}
+            source={require('../Assets/icons8-home-32.png')}
             style={[styles.homeIconImage, { width: 33, height: 33 }]}
           />
         </TouchableOpacity>
@@ -140,7 +143,10 @@ export default function Search() {
             <View style={styles.reelsPlay} />
           </View>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
+        <TouchableOpacity 
+          style={styles.navItem}
+          onPress={() => navigation.navigate('Profile')}
+        >
           <Image
             source={{ uri: 'https://i.pravatar.cc/150?img=9' }}
             style={styles.profileIcon}
@@ -250,7 +256,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 0.5,
     borderTopColor: '#DBDBDB',
     backgroundColor: '#FFFFFF',
-    marginBottom: 35, // Raised the bottom navigation by adding marginBottom: 50
+    marginBottom: 35,
   },
   navItem: {
     padding: 6,

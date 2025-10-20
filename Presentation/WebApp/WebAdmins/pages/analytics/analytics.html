@@ -1,6 +1,6 @@
 ﻿<!doctype html>
 <html lang="vi">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cài đặt</title><link rel="stylesheet" href="../../styles.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Thống kê & Phân tích</title><link rel="stylesheet" href="../../styles.css"></head>
 <body>
   <div class="app-layout">
     <aside class="sidebar">
@@ -11,8 +11,8 @@
         <a class="nav-item" href="../moderation/moderation.html">Kiểm duyệt nội dung</a>
         <a class="nav-item" href="../reports/reports.html">Báo cáo vi phạm</a>
         <a class="nav-item" href="../ai/ai.html">Hệ thống AI</a>
-        <a class="nav-item" href="../analytics/analytics.html">Thống kê & Phân tích</a>
-        <a class="nav-item active" href="settings.html">Cài đặt</a>
+        <a class="nav-item active" href="analytics.html">Thống kê & Phân tích</a>
+        <a class="nav-item" href="../settings/settings.html">Cài đặt</a>
       </div>
       <div class="sidebar-footer">
         <!-- Avatar + Account Info -->
@@ -36,53 +36,19 @@
     </aside>
 
     <main class="main">
-      <div class="card p-4">
-        <h2 style="margin:0 0 24px 0;color:#111827;font-size:24px;font-weight:700">Cài đặt tài khoản</h2>
-        
-        <div class="settings-grid">
-          <div class="settings-card">
-            <div class="settings-icon">👤</div>
-            <div class="settings-content">
-              <h3>Thông tin cá nhân</h3>
-              <p>Chỉnh sửa họ tên, email, số điện thoại, ngày sinh và địa chỉ</p>
-              <button class="btn-primary" onclick="window.location.href='edit-profile.html'">
-                Chỉnh sửa thông tin
-              </button>
-            </div>
-          </div>
-
-          <div class="settings-card">
-            <div class="settings-icon">🔒</div>
-            <div class="settings-content">
-              <h3>Bảo mật</h3>
-              <p>Thay đổi mật khẩu để bảo vệ tài khoản của bạn</p>
-              <button class="btn-primary" onclick="window.location.href='change-password.html'">
-                Đổi mật khẩu
-              </button>
-            </div>
-          </div>
-
-          <div class="settings-card">
-            <div class="settings-icon">🔔</div>
-            <div class="settings-content">
-              <h3>Thông báo</h3>
-              <p>Quản lý cài đặt thông báo và email</p>
-              <button class="btn-secondary" disabled>
-                Sắp có
-              </button>
-            </div>
-          </div>
-
-          <div class="settings-card">
-            <div class="settings-icon">🌐</div>
-            <div class="settings-content">
-              <h3>Ngôn ngữ</h3>
-              <p>Thay đổi ngôn ngữ hiển thị</p>
-              <button class="btn-secondary" disabled>
-                Sắp có
-              </button>
-            </div>
-          </div>
+      <div class="card p-3">
+        <h3 style="margin:0 0 12px 0">Thống kê & Phân tích</h3>
+        <div class="card p-3">
+          <h4 style="margin:0">Tăng trưởng người dùng</h4>
+          <div style="height:220px;background:#f3f4f6;border-radius:10px;margin-top:10px;display:flex;align-items:center;justify-content:center;color:var(--muted)">Biểu đồ Tăng trưởng người dùng</div>
+        </div>
+        <div class="card p-3 mt-3">
+          <h4 style="margin:0">Engagement Rate</h4>
+          <div style="height:220px;background:#f3f4f6;border-radius:10px;margin-top:10px;display:flex;align-items:center;justify-content:center;color:var(--muted)">Biểu đồ Engagement Rate</div>
+        </div>
+        <div class="card p-3 mt-3">
+          <h4 style="margin:0">Peak Activity Hours</h4>
+          <div style="height:220px;background:#f3f4f6;border-radius:10px;margin-top:10px;display:flex;align-items:center;justify-content:center;color:var(--muted)">Biểu đồ Peak Activity Hours</div>
         </div>
       </div>
     </main>

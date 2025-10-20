@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Xác thực OTP - Admin Panel</title>
+    <title>Xác thực OTP - Admin </title>
     <link rel="stylesheet" href="../../Styles/admin.css">
     <style>
         .otp-container {
@@ -133,16 +133,15 @@
     </div>
 
     <!-- Scripts -->
-    <script src="../../Context/AdminContext.js"></script>
-    <script>
-        const adminContext = window.AdminContext;
+    <script type="module">
+        import { authAPI } from '../../API/Api.js';
         
         let countdownTimer;
         let countdownSeconds = 60;
         
-        // Lấy email từ URL params
+        // Lấy email từ URL params hoặc localStorage
         const urlParams = new URLSearchParams(window.location.search);
-        const email = urlParams.get('email') || '';
+        const email = urlParams.get('email') || localStorage.getItem('pendingAdminEmail') || '';
         
         // Khởi tạo countdown
         function startCountdown() {
@@ -184,19 +183,20 @@
                     return;
                 }
                 
-                const result = await adminContext.verifyOtp({
+                // Gọi API verify Admin OTP
+                const result = await authAPI.verifyAdminOtp({
                     Email: email,
                     Otp: otp
                 });
                 
-                if (result.success) {
-                    alert('Xác thực thành công!');
-                    window.location.href = 'login.html';
-                } else {
-                    alert('Lỗi: ' + result.error);
-                }
+                // Xóa email tạm
+                localStorage.removeItem('pendingAdminEmail');
+                
+                alert('Xác thực thành công! Vui lòng đăng nhập.');
+                window.location.href = 'login.html';
+                
             } catch (error) {
-                alert('Lỗi: ' + error.message);
+                alert('Lỗi xác thực OTP: ' + error.message);
             } finally {
                 verifyBtn.textContent = originalText;
                 verifyBtn.disabled = false;
@@ -204,37 +204,10 @@
             }
         });
         
-        // Xử lý gửi lại OTP
+        // Xử lý gửi lại OTP (tạm thời disable vì cần nhập lại thông tin)
         document.getElementById('resendBtn').addEventListener('click', async () => {
-            const resendBtn = document.getElementById('resendBtn');
-            const originalText = resendBtn.textContent;
-            
-            try {
-                resendBtn.textContent = 'Đang gửi...';
-                resendBtn.disabled = true;
-                
-                const result = await adminContext.register({
-                    Email: email,
-                    Username: 'temp_admin', // Tạm thời
-                    FullName: 'Admin',
-                    DateOfBirth: '1990-01-01',
-                    Gender: 'Other',
-                    Phone: '0123456789',
-                    Password: 'temp_password',
-                    AdminLevel: 'SuperAdmin'
-                });
-                
-                if (result.success) {
-                    alert('Mã OTP đã được gửi lại!');
-                    startCountdown();
-                } else {
-                    alert('Lỗi: ' + result.error);
-                }
-            } catch (error) {
-                alert('Lỗi: ' + error.message);
-            } finally {
-                resendBtn.textContent = originalText;
-            }
+            alert('Vui lòng quay lại trang đăng ký để gửi lại OTP.');
+            window.location.href = 'register.html';
         });
         
         // Auto focus vào input
@@ -245,6 +218,7 @@
         
         // Kiểm tra nếu chưa có email thì redirect về register
         if (!email) {
+            alert('Không tìm thấy email. Vui lòng đăng ký lại.');
             window.location.href = 'register.html';
         }
     </script>

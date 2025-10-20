@@ -12,7 +12,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { resetPassword } from '../API/Api';
 
 export default function VerifyForgotPasswordOtp() {
   const [otp, setOtp] = useState('');
@@ -22,7 +21,6 @@ export default function VerifyForgotPasswordOtp() {
   const [resendLoading, setResendLoading] = useState(false);
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
-  const [otpVerified, setOtpVerified] = useState(false);
   
   const navigation = useNavigation();
   const route = useRoute();
@@ -39,33 +37,13 @@ export default function VerifyForgotPasswordOtp() {
     }
   }, [countdown]);
 
-  const handleVerifyOtp = async () => {
+  // Đặt lại mật khẩu với OTP
+  const handleResetPassword = async () => {
     if (!otp || otp.length < 4) {
       Alert.alert('Lỗi', 'Vui lòng nhập mã OTP đầy đủ.');
       return;
     }
 
-    setIsLoading(true);
-
-    try {
-      // Import trực tiếp trong function để tránh cache issue
-      const { verifyForgotPasswordOtp } = await import('../API/Api');
-      const result = await verifyForgotPasswordOtp({ Email: email, Otp: otp });
-      // API trả về response trực tiếp, không có wrapper success
-      if (result) {
-        setOtpVerified(true);
-        Alert.alert('Thành công', 'Xác thực OTP thành công! Bây giờ bạn có thể đặt lại mật khẩu.');
-      } else {
-        Alert.alert('Lỗi', 'Mã OTP không đúng.');
-      }
-    } catch (error) {
-      Alert.alert('Lỗi', error.message || 'Xác thực OTP thất bại.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleResetPassword = async () => {
     if (!newPassword || !confirmPassword) {
       Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ mật khẩu mới.');
       return;
@@ -84,16 +62,62 @@ export default function VerifyForgotPasswordOtp() {
     setIsLoading(true);
 
     try {
-      const result = await resetPassword({ Email: email, NewPassword: newPassword });
-      // API trả về response trực tiếp, không có wrapper success
-      if (result) {
-        Alert.alert('Thành công', 'Đặt lại mật khẩu thành công! Bạn có thể đăng nhập với mật khẩu mới.');
-        navigation.navigate('Login');
-      } else {
-        Alert.alert('Lỗi', 'Đặt lại mật khẩu thất bại.');
+      console.log('🔐 Resetting password...');
+      console.log('📧 Email:', email);
+      console.log('🔢 OTP:', otp);
+      
+      const response = await fetch('http://192.168.100.184:5297/api/auth/reset-password-with-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          Email: email,
+          Otp: otp,
+          NewPassword: newPassword
+        }),
+      });
+
+      console.log('📥 Response Status:', response.status);
+      console.log('📥 Response OK:', response.ok);
+
+      if (response.ok) {
+        // ✅ THÀNH CÔNG - KHÔNG ĐỌC BODY NỮA
+        console.log('✅ Password reset successful!');
+        
+        setIsLoading(false); // Tắt loading trước
+        
+        Alert.alert(
+          'Thành công!', 
+          'Mật khẩu của bạn đã được đặt lại thành công. Bạn có thể đăng nhập với mật khẩu mới.',
+          [
+            {
+              text: 'Đăng nhập ngay',
+              onPress: () => navigation.navigate('Login')
+            }
+          ]
+        );
+        return; // Thoát luôn, không làm gì thêm
       }
+
+      // ❌ LỖI - Mới đọc body để lấy error message
+      console.log('❌ Request failed, reading error...');
+      let errorMessage = 'Mã OTP không đúng hoặc đã hết hạn.';
+      
+      try {
+        const errorData = await response.json();
+        console.log('📥 Error data:', errorData);
+        errorMessage = errorData?.message || errorData?.Message || errorMessage;
+      } catch (parseError) {
+        console.log('⚠️ Could not parse error response:', parseError.message);
+      }
+      
+      Alert.alert('Lỗi', errorMessage);
+      
     } catch (error) {
-      Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra.');
+      console.error('❌ Network Error:', error);
+      console.error('❌ Error details:', error.message);
+      Alert.alert('Lỗi', 'Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.');
     } finally {
       setIsLoading(false);
     }
@@ -107,17 +131,40 @@ export default function VerifyForgotPasswordOtp() {
     setCountdown(60);
 
     try {
-      const { forgotPassword } = await import('../API/Api');
-      const result = await forgotPassword(email);
-      // API trả về response trực tiếp, không có wrapper success
-      if (result) {
+      console.log('🔄 Resending OTP...');
+      
+      const response = await fetch('http://192.168.100.184:5297/api/auth/forgot-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          Email: email
+        }),
+      });
+
+      console.log('📥 Resend Status:', response.status);
+
+      if (response.ok) {
         Alert.alert('Thành công', 'Mã OTP mới đã được gửi đến email của bạn.');
+        setOtp(''); // Reset OTP field
       } else {
-        Alert.alert('Lỗi', 'Không thể gửi lại mã OTP.');
+        let errorMessage = 'Không thể gửi lại mã OTP.';
+        
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData?.message || errorData?.Message || errorMessage;
+        } catch (e) {
+          console.log('⚠️ Could not parse error response');
+        }
+        
+        Alert.alert('Lỗi', errorMessage);
         setCanResend(true);
       }
     } catch (error) {
-      Alert.alert('Lỗi', error.message || 'Không thể gửi lại mã OTP.');
+      console.error('❌ Resend Error:', error);
+      Alert.alert('Lỗi', 'Không thể kết nối đến server.');
       setCanResend(true);
     } finally {
       setResendLoading(false);
@@ -145,122 +192,88 @@ export default function VerifyForgotPasswordOtp() {
 
         {/* Card */}
         <View style={styles.card}>
-          {!otpVerified ? (
-            <>
-              {/* Title */}
-              <Text style={styles.title}>Nhập mã xác thực</Text>
+          <Text style={styles.title}>Đặt lại mật khẩu</Text>
 
-              {/* Instruction Text */}
-              <Text style={styles.instruction}>
-                Chúng tôi đã gửi mã xác thực đến địa chỉ email của bạn. Vui lòng nhập mã để tiếp tục đặt lại mật khẩu.
+          <Text style={styles.instruction}>
+            Nhập mã OTP đã được gửi đến email{'\n'}
+            <Text style={styles.emailHighlight}>{email}</Text>
+            {'\n'}và mật khẩu mới của bạn.
+          </Text>
+
+          {/* OTP Input */}
+          <Text style={styles.label}>Mã xác thực (OTP)</Text>
+          <TextInput
+            style={styles.input}
+            value={otp}
+            onChangeText={setOtp}
+            placeholder="Nhập mã gồm 4-6 số"
+            placeholderTextColor="#9CA3AF"
+            keyboardType="numeric"
+            maxLength={6}
+            autoFocus
+          />
+
+          {/* New Password Input */}
+          <Text style={styles.label}>Mật khẩu mới</Text>
+          <TextInput
+            style={styles.input}
+            value={newPassword}
+            onChangeText={setNewPassword}
+            placeholder="Nhập mật khẩu mới (ít nhất 8 ký tự)"
+            placeholderTextColor="#9CA3AF"
+            secureTextEntry
+            autoCapitalize="none"
+          />
+
+          {/* Confirm Password Input */}
+          <Text style={styles.label}>Xác nhận mật khẩu</Text>
+          <TextInput
+            style={styles.input}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            placeholder="Nhập lại mật khẩu mới"
+            placeholderTextColor="#9CA3AF"
+            secureTextEntry
+            autoCapitalize="none"
+          />
+
+          {/* Submit Button */}
+          <TouchableOpacity 
+            style={[styles.primaryButton, isLoading && styles.primaryButtonDisabled]} 
+            onPress={handleResetPassword}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text style={[styles.primaryButtonText, { marginLeft: 8 }]}>
+                  Đang xử lý...
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.primaryButtonText}>Đặt lại mật khẩu</Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Resend Button */}
+          <TouchableOpacity 
+            style={[styles.resendButton, (!canResend || resendLoading) && styles.resendButtonDisabled]} 
+            onPress={handleResendOtp}
+            disabled={!canResend || resendLoading}
+          >
+            {resendLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#3B82F6" />
+                <Text style={[styles.resendButtonText, { marginLeft: 8 }]}>
+                  Đang gửi...
+                </Text>
+              </View>
+            ) : (
+              <Text style={[styles.resendButtonText, (!canResend || resendLoading) && styles.resendButtonTextDisabled]}>
+                {canResend ? 'Gửi lại mã OTP' : `Gửi lại mã (${countdown}s)`}
               </Text>
-
-              {/* OTP Input Label */}
-              <Text style={styles.label}>Mã xác thực</Text>
-
-              {/* OTP Input Field */}
-              <TextInput
-                style={styles.input}
-                value={otp}
-                onChangeText={setOtp}
-                placeholder="Nhập mã gồm 4-6 số"
-                placeholderTextColor="#9CA3AF"
-                keyboardType="numeric"
-                maxLength={6}
-                autoFocus
-              />
-
-              {/* Verify Button */}
-              <TouchableOpacity 
-                style={[styles.verifyButton, isLoading && styles.verifyButtonDisabled]} 
-                onPress={handleVerifyOtp}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                    <Text style={[styles.verifyButtonText, { marginLeft: 8 }]}>
-                      Đang xác thực...
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={styles.verifyButtonText}>Xác nhận mã</Text>
-                )}
-              </TouchableOpacity>
-
-              {/* Resend Button */}
-              <TouchableOpacity 
-                style={[styles.resendButton, (!canResend || resendLoading) && styles.resendButtonDisabled]} 
-                onPress={handleResendOtp}
-                disabled={!canResend || resendLoading}
-              >
-                {resendLoading ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color="#3B82F6" />
-                    <Text style={[styles.resendButtonText, { marginLeft: 8 }]}>
-                      Đang gửi...
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={[styles.resendButtonText, (!canResend || resendLoading) && styles.resendButtonTextDisabled]}>
-                    {canResend ? 'Gửi lại mã' : `Gửi lại mã (${countdown}s)`}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              {/* Title */}
-              <Text style={styles.title}>Đặt lại mật khẩu</Text>
-
-              {/* Instruction Text */}
-              <Text style={styles.instruction}>
-                Nhập mật khẩu mới của bạn.
-              </Text>
-
-              {/* New Password Input */}
-              <Text style={styles.label}>Mật khẩu mới</Text>
-              <TextInput
-                style={styles.input}
-                value={newPassword}
-                onChangeText={setNewPassword}
-                placeholder="Nhập mật khẩu mới (ít nhất 8 ký tự)"
-                placeholderTextColor="#9CA3AF"
-                secureTextEntry
-                autoCapitalize="none"
-              />
-
-              {/* Confirm Password Input */}
-              <Text style={styles.label}>Xác nhận mật khẩu</Text>
-              <TextInput
-                style={styles.input}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                placeholder="Nhập lại mật khẩu mới"
-                placeholderTextColor="#9CA3AF"
-                secureTextEntry
-                autoCapitalize="none"
-              />
-
-              {/* Reset Button */}
-              <TouchableOpacity 
-                style={[styles.resetButton, isLoading && styles.resetButtonDisabled]} 
-                onPress={handleResetPassword}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                    <Text style={[styles.resetButtonText, { marginLeft: 8 }]}>
-                      Đang đặt lại...
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={styles.resetButtonText}>Đặt lại mật khẩu</Text>
-                )}
-              </TouchableOpacity>
-            </>
-          )}
+            )}
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </View>
@@ -283,6 +296,16 @@ const styles = StyleSheet.create({
     left: 20,
     zIndex: 10,
     padding: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   backIcon: {
     fontSize: 24,
@@ -290,60 +313,76 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 24,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 12,
+    elevation: 5,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#111827',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   instruction: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#6B7280',
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 22,
     marginBottom: 24,
   },
+  emailHighlight: {
+    fontWeight: '600',
+    color: '#3B82F6',
+  },
   label: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#374151',
+    fontWeight: '600',
     marginBottom: 8,
   },
   input: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#D1D5DB',
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     fontSize: 16,
     color: '#111827',
     marginBottom: 16,
+    backgroundColor: '#F9FAFB',
   },
-  verifyButton: {
+  primaryButton: {
     backgroundColor: '#3B82F6',
-    borderRadius: 8,
+    borderRadius: 10,
     paddingVertical: 16,
     alignItems: 'center',
-    marginBottom: 16,
+    marginTop: 8,
+    marginBottom: 12,
+    shadowColor: '#3B82F6',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  verifyButtonDisabled: {
+  primaryButtonDisabled: {
     backgroundColor: '#9CA3AF',
+    shadowOpacity: 0,
   },
-  verifyButtonText: {
+  primaryButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   resendButton: {
     alignItems: 'center',
@@ -354,26 +393,11 @@ const styles = StyleSheet.create({
   },
   resendButtonText: {
     color: '#3B82F6',
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
   },
   resendButtonTextDisabled: {
     color: '#9CA3AF',
-  },
-  resetButton: {
-    backgroundColor: '#3B82F6',
-    borderRadius: 8,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  resetButtonDisabled: {
-    backgroundColor: '#9CA3AF',
-  },
-  resetButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
   loadingContainer: {
     flexDirection: 'row',
