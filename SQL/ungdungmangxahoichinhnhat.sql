@@ -101,8 +101,7 @@ CREATE TABLE LoginHistory (
     device_info NVARCHAR(100),  -- Thông tin thiết bị (browser/app, có thể rỗng)
     login_time DATETIME DEFAULT GETDATE()  -- Thời gian đăng nhập
 );
-ALTER TABLE OTPs
-DROP CONSTRAINT FK__OTPs__account_id__XXXX; -- Thay XXXX bằng tên constraint thực tế (xem qua EXEC sp_help 'OTPs')
+
 /* ==========================
    BẢNG BÀI ĐĂNG & BÌNH LUẬN (THÊM PostMedia CHO MULTIPLE MEDIA)
    Phần này tạo bảng cho bài đăng, media (nhiều ảnh/video), like và comment
