@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
-export const API_BASE_URL = 'http://192.168.100.184:5297'; // Backend đang chạy trên IP này
+export const API_BASE_URL = 'http://192.168.1.103:5297'; // Backend đang chạy trên IP này
 
 // Hàm helper để gọi API
 const apiCall = async (endpoint, options = {}) => {

@@ -24,7 +24,11 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()); // Thêm dòng này
     });
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    // Use full type name (replace '+' from nested types) to generate unique schema ids
+    options.CustomSchemaIds(type => (type.FullName ?? type.Name).Replace("+", "."));
+});
 
 // Database configuration - ƯU TIÊN .env, fallback appsettings.json
 var sqlServer = Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost";

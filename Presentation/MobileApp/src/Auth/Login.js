@@ -72,7 +72,7 @@ export default function Login() {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
-              <Text style={styles.logo}>SNA67CS</Text>
+              <Text style={styles.logo}>MediaLite</Text>
             </View>
           </View>
 

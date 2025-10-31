@@ -226,8 +226,9 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         ///   - postLocation: string (optional)
         ///   - postPrivacy: "Public"/"Friends"/"Private" (optional)
         /// </summary>
-        [HttpPost("avatar")]
-        public async Task<IActionResult> UpdateAvatar([FromForm] IFormFile avatarFile, [FromForm] UpdateAvatarRequest request)
+    [HttpPost("avatar")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UpdateAvatar([FromForm] IFormFile avatarFile, [FromForm] UpdateAvatarRequest request)
         {
             try
             {

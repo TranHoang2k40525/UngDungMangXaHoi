@@ -12,7 +12,7 @@ import {
     PermissionsAndroid,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { launchCamera } from "react-native-image-picker";
+import * as ImagePicker from "expo-image-picker";
 import CommentsModal from "./CommentsModal";
 
 // Dữ liệu stories
@@ -97,42 +97,30 @@ export default function Home() {
     const navigation = useNavigation();
 
     const handleCameraPress = async () => {
-        if (Platform.OS === "android") {
-            try {
-                const granted = await PermissionsAndroid.request(
-                    PermissionsAndroid.PERMISSIONS.CAMERA,
-                    {
-                        title: "Camera Permission",
-                        message:
-                            "This app needs access to your camera to take photos.",
-                        buttonPositive: "OK",
-                        buttonNegative: "Cancel",
-                    }
-                );
-                if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-                    return;
-                }
-            } catch (err) {
-                return;
-            }
+        // Request camera permissions using Expo ImagePicker
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== "granted") {
+            console.log("Camera permission not granted");
+            return;
         }
 
-        const options = {
-            mediaType: "photo",
-            cameraType: "back",
-            saveToPhotos: true,
-        };
+        try {
+            const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                quality: 1,
+                allowsEditing: false,
+                exif: false,
+            });
 
-        launchCamera(options, (response) => {
-            if (response.didCancel) {
-                return;
-            } else if (response.errorCode) {
-                return;
-            } else if (response.assets && response.assets.length > 0) {
-                const photoUri = response.assets[0].uri;
-                navigation.navigate("PhotoPreview", { photoUri });
+            // Newer Expo ImagePicker returns { canceled, assets }
+            if (result.canceled) return;
+            const uri = result.assets && result.assets.length > 0 ? result.assets[0].uri : result.uri;
+            if (uri) {
+                navigation.navigate("PhotoPreview", { photoUri: uri });
             }
-        });
+        } catch (err) {
+            console.log("Camera error:", err);
+        }
     };
 
     return (
@@ -152,7 +140,7 @@ export default function Home() {
                     />
                 </TouchableOpacity>
 
-                <Text style={styles.logo}>SNA67CS</Text>
+                <Text style={styles.logo}>MediaLite</Text>
 
                 <View style={styles.headerRight}>
                     <TouchableOpacity style={styles.headerIconWrapper}>
