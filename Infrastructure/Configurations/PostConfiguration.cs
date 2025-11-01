@@ -38,10 +38,15 @@ namespace UngDungMangXaHoi.Infrastructure.Configurations
                 .HasColumnName("is_visible")
                 .HasDefaultValue(true);
 
+            // Store DateTimeOffset as datetime2 in SQL to avoid casting issues
             builder.Property(p => p.created_at)
                 .IsRequired()
                 .HasColumnName("created_at")
-                .HasDefaultValueSql("GETDATE()");
+                .HasColumnType("datetime2")
+                .HasDefaultValueSql("GETDATE()")
+                .HasConversion(
+                    v => v.DateTime,
+                    v => new DateTimeOffset(v, TimeSpan.Zero));
 
             // Relationships
             builder.HasOne(p => p.User)
@@ -89,10 +94,15 @@ namespace UngDungMangXaHoi.Infrastructure.Configurations
             builder.Property(m => m.duration)
                 .HasColumnName("duration");
 
+            // Store DateTimeOffset as datetime2 in SQL to avoid casting issues
             builder.Property(m => m.created_at)
                 .IsRequired()
                 .HasColumnName("created_at")
-                .HasDefaultValueSql("GETDATE()");
+                .HasColumnType("datetime2")
+                .HasDefaultValueSql("GETDATE()")
+                .HasConversion(
+                    v => v.DateTime,
+                    v => new DateTimeOffset(v, TimeSpan.Zero));
 
             // Relationships
             builder.HasOne(m => m.Post)
