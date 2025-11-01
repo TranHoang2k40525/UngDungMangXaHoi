@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using UngDungMangXaHoi.Domain.Entities;
@@ -38,6 +40,14 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .FirstOrDefaultAsync(p => p.post_id == postId);
         }
 
+        public async Task<Post?> GetByIdWithMediaAsync(int postId)
+        {
+            return await _context.Posts
+                .Include(p => p.User)
+                .Include(p => p.Media)
+                .FirstOrDefaultAsync(p => p.post_id == postId);
+        }
+
         public async Task UpdateAsync(Post post)
         {
             _context.Posts.Update(post);
@@ -52,6 +62,48 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 _context.Posts.Remove(post);
                 await _context.SaveChangesAsync();
             }
+        }
+
+        public async Task<IEnumerable<Post>> GetFeedAsync(int? currentUserId, int pageNumber, int pageSize)
+        {
+            // Hiển thị: tất cả bài public + bài của chính mình (bao gồm private/followers của mình)
+            var query = _context.Posts
+                .AsNoTracking()
+                .Include(p => p.User)
+                .Include(p => p.Media)
+                .Where(p => p.is_visible && (p.privacy.ToLower() == "public" || (currentUserId != null && p.user_id == currentUserId)) )
+                .OrderByDescending(p => p.created_at)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize);
+
+            return await query.ToListAsync();
+        }
+
+        public async Task<IEnumerable<Post>> GetUserPostsAsync(int userId, int pageNumber, int pageSize)
+        {
+            return await _context.Posts
+                .AsNoTracking()
+                .Include(p => p.User)
+                .Include(p => p.Media)
+                .Where(p => p.is_visible && p.user_id == userId)
+                .OrderByDescending(p => p.created_at)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<Post>> GetVideoPostsAsync(int pageNumber, int pageSize)
+        {
+            // Bài có ít nhất một media là Video và ở chế độ public
+            return await _context.Posts
+                .AsNoTracking()
+                .Include(p => p.User)
+                .Include(p => p.Media)
+                .Where(p => p.is_visible && p.privacy.ToLower() == "public" && p.Media.Any(m => m.media_type.ToLower() == "video"))
+                .OrderByDescending(p => p.created_at)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
         }
     }
 }
