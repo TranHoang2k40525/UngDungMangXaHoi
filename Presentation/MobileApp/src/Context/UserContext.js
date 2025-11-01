@@ -1,13 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { 
-  login, 
-  register, 
-  verifyOtp, 
-  logout, 
-  refreshToken, 
+import {
+  login,
+  register,
+  verifyOtp,
+  logout,
+  refreshToken,
   isAuthenticated as checkAuth,
-  setupTokenRefresh 
+  setupTokenRefresh,
+  getProfile,
+  restoreSession,
 } from '../API/Api';
 
 const UserContext = createContext();
@@ -25,7 +27,6 @@ export const UserProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Khởi tạo user context
   useEffect(() => {
     initializeAuth();
   }, []);
@@ -33,29 +34,17 @@ export const UserProvider = ({ children }) => {
   const initializeAuth = async () => {
     try {
       setIsLoading(true);
-      
-      // Kiểm tra xem có token không
       const hasToken = await checkAuth();
-      console.log('Has token:', hasToken);
-      
       if (hasToken) {
-        // Có token, thử refresh để lấy thông tin user mới nhất
-        try {
-          await refreshToken();
-          // Lấy thông tin user từ token (có thể decode JWT hoặc gọi API)
-          const userInfo = await AsyncStorage.getItem('userInfo');
-          if (userInfo) {
-            setUser(JSON.parse(userInfo));
-            setIsAuthenticated(true);
-          }
-        } catch (error) {
-          console.error('Token refresh failed:', error);
+        const restored = await restoreSession();
+        if (restored.ok && restored.profile) {
+          setUser(restored.profile);
+          setIsAuthenticated(true);
+        } else {
           await handleLogout();
         }
       }
     } catch (error) {
-      console.error('Auth initialization failed:', error);
-      // Nếu có lỗi, đảm bảo user được logout
       setUser(null);
       setIsAuthenticated(false);
     } finally {
@@ -63,7 +52,6 @@ export const UserProvider = ({ children }) => {
     }
   };
 
-  // Đăng ký
   const handleRegister = async (userData) => {
     try {
       const result = await register(userData);
@@ -73,54 +61,41 @@ export const UserProvider = ({ children }) => {
     }
   };
 
-  // Xác thực OTP
   const handleVerifyOtp = async (otpData) => {
     try {
       const result = await verifyOtp(otpData);
-      
-      // Lưu thông tin user
-      const userInfo = {
-        email: otpData.Email,
-        accountType: 'User',
-        // Có thể thêm thông tin khác từ result
-      };
-      await AsyncStorage.setItem('userInfo', JSON.stringify(userInfo));
-      
-      setUser(userInfo);
-      setIsAuthenticated(true);
-      
+      try {
+        const profile = await getProfile();
+        if (profile) {
+          await AsyncStorage.setItem('userInfo', JSON.stringify(profile));
+          setUser(profile);
+          setIsAuthenticated(true);
+        }
+      } catch {}
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: error.message };
     }
   };
 
-  // Đăng nhập
   const handleLogin = async (credentials) => {
     try {
       const result = await login(credentials);
-      
-      // Lưu thông tin user (có thể decode từ JWT hoặc gọi API)
-      const userInfo = {
-        email: credentials.Email || credentials.Phone,
-        accountType: 'User',
-        // Có thể thêm thông tin khác từ result
-      };
-      await AsyncStorage.setItem('userInfo', JSON.stringify(userInfo));
-      
-      setUser(userInfo);
-      setIsAuthenticated(true);
-      
-      // Setup auto refresh token
+      try {
+        const profile = await getProfile();
+        if (profile) {
+          await AsyncStorage.setItem('userInfo', JSON.stringify(profile));
+          setUser(profile);
+          setIsAuthenticated(true);
+        }
+      } catch {}
       setupTokenRefresh();
-      
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: error.message };
     }
   };
 
-  // Đăng xuất
   const handleLogout = async () => {
     try {
       await logout();
@@ -128,21 +103,17 @@ export const UserProvider = ({ children }) => {
       setIsAuthenticated(false);
       return { success: true };
     } catch (error) {
-      console.error('Logout error:', error);
-      // Vẫn clear local state ngay cả khi API call fail
       setUser(null);
       setIsAuthenticated(false);
       return { success: true };
     }
   };
 
-  // Refresh token
   const handleRefreshToken = async () => {
     try {
       const result = await refreshToken();
       return { success: true, data: result };
     } catch (error) {
-      // Token refresh failed, logout user
       await handleLogout();
       return { success: false, error: error.message };
     }
