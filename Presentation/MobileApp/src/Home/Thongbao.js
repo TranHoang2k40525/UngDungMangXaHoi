@@ -5,9 +5,9 @@ import {
   Image,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
 // Dữ liệu thông báo mẫu
@@ -80,7 +80,11 @@ export default function Thongbao() {
       <View style={styles.bottomNav}>
         <TouchableOpacity 
           style={styles.navItem}
-          onPress={() => navigation.navigate('Home')}
+          onPress={() => {
+            const parent = typeof navigation.getParent === 'function' ? navigation.getParent() : null;
+            if (parent && typeof parent.navigate === 'function') parent.navigate('Home');
+            else navigation.navigate('Home');
+          }}
         >
           <Image
             source={require('../Assets/icons8-home-32.png')}

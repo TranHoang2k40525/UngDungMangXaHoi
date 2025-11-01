@@ -7,6 +7,8 @@ import {
   StyleSheet,
   StatusBar,
   FlatList,
+  ScrollView,
+  RefreshControl,
   Platform,
   Image,
 } from 'react-native';
@@ -31,6 +33,12 @@ export default function Search() {
   };
 
   const navigation = useNavigation();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    // Placeholder: có thể gọi API tìm kiếm nổi bật hoặc gợi ý
+    setTimeout(() => setRefreshing(false), 600);
+  };
 
   return (
     <View style={styles.container}>
@@ -64,7 +72,9 @@ export default function Search() {
       </View>
 
       {/* Search Content */}
-      <View style={styles.content}>
+      <ScrollView style={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         {searchText.length === 0 ? (
           // Recent Searches
           <View style={styles.recentSection}>
@@ -108,51 +118,9 @@ export default function Search() {
             </Text>
           </View>
         )}
-      </View>
+      </ScrollView>
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity 
-          style={styles.navItem}
-          onPress={() => navigation.navigate('Home')}
-        >
-          <Image
-            source={require('../Assets/icons8-home-32.png')}
-            style={[styles.homeIconImage, { width: 33, height: 33 }]}
-          />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <View style={styles.searchIconWrapper}>
-            <View style={styles.searchCircle} />
-            <View style={styles.searchHandle} />
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <View style={styles.addIconWrapper}>
-            <View style={styles.addSquare} />
-            <View style={styles.addHorizontal} />
-            <View style={styles.addVertical} />
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.navItem}
-          onPress={() => navigation.navigate('Video')}
-        >
-          <View style={styles.reelsIconWrapper}>
-            <View style={styles.reelsSquare} />
-            <View style={styles.reelsPlay} />
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.navItem}
-          onPress={() => navigation.navigate('Profile')}
-        >
-          <Image
-            source={{ uri: 'https://i.pravatar.cc/150?img=9' }}
-            style={styles.profileIcon}
-          />
-        </TouchableOpacity>
-      </View>
+      {/* Bottom tab bar is provided globally by the Tab Navigator */}
     </View>
   );
 }
@@ -248,112 +216,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#6B7280',
   },
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderTopWidth: 0.5,
-    borderTopColor: '#DBDBDB',
-    backgroundColor: '#FFFFFF',
-    marginBottom: 35,
-  },
-  navItem: {
-    padding: 6,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  homeIconImage: {
-    width: 30,
-    height: 30,
-    borderRadius: 0,
-  },
-  searchIconWrapper: {
-    width: 26,
-    height: 26,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  searchCircle: {
-    width: 18,
-    height: 18,
-    borderWidth: 2.5,
-    borderColor: '#000',
-    borderRadius: 9,
-    position: 'absolute',
-    top: 2,
-    left: 2,
-  },
-  searchHandle: {
-    width: 8,
-    height: 2.5,
-    backgroundColor: '#000',
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    transform: [{ rotate: '45deg' }],
-    borderRadius: 2,
-  },
-  addIconWrapper: {
-    width: 26,
-    height: 26,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  addSquare: {
-    width: 24,
-    height: 24,
-    borderWidth: 2.5,
-    borderColor: '#000',
-    borderRadius: 3,
-  },
-  addHorizontal: {
-    width: 12,
-    height: 2.5,
-    backgroundColor: '#000',
-    position: 'absolute',
-    borderRadius: 2,
-  },
-  addVertical: {
-    width: 2.5,
-    height: 12,
-    backgroundColor: '#000',
-    position: 'absolute',
-    borderRadius: 2,
-  },
-  reelsIconWrapper: {
-    width: 26,
-    height: 26,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  reelsSquare: {
-    width: 24,
-    height: 24,
-    borderWidth: 2.5,
-    borderColor: '#000',
-    borderRadius: 4,
-  },
-  reelsPlay: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 8,
-    borderTopWidth: 5,
-    borderBottomWidth: 5,
-    borderLeftColor: '#000',
-    borderTopColor: 'transparent',
-    borderBottomColor: 'transparent',
-    position: 'absolute',
-    left: 10,
-  },
-  profileIcon: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 2,
-    borderColor: '#000',
-  },
+  // local bottom navigation styles removed; using global Tab Navigator
 });

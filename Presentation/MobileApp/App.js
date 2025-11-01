@@ -1,7 +1,8 @@
 import React from "react";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { UserProvider, useUser } from "./src/Context/UserContext";
 import Login from "./src/Auth/Login";
 import SignUp from "./src/Auth/SignUp";
@@ -23,9 +24,113 @@ import Search from "./src/Searchs/Search";
 import Profile from "./src/User/Profile";
 import Editprofile from "./src/User/Editprofile";
 import PhotoPreview from "./src/User/PhotoPreview";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { View, ActivityIndicator, StyleSheet, Image } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { API_BASE_URL } from "./src/API/Api";
 
 const Stack = createStackNavigator();
+const Tab = createBottomTabNavigator();
+
+function TabProfileIcon({ focused }) {
+    const { user } = useUser();
+    const size = focused ? 24 : 24;
+    const borderColor = focused ? "#000" : "#9CA3AF";
+    let uri = user?.avatarUrl || user?.AvatarUrl || null;
+    if (uri && !uri.startsWith("http")) {
+        uri = `${API_BASE_URL}${uri}`;
+    }
+    if (!uri) {
+        return (
+            <Ionicons
+                name={focused ? "person-circle" : "person-circle-outline"}
+                size={size + 2}
+                color={focused ? "#000" : "#9CA3AF"}
+            />
+        );
+    }
+    return (
+        <View style={{
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            overflow: "hidden",
+            borderWidth: 2,
+            borderColor,
+        }}>
+            <Image source={{ uri }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+        </View>
+    );
+}
+
+function MainTabs() {
+    const insets = useSafeAreaInsets();
+    const baseHeight = 56; // base tab height
+    const bottomInset = insets?.bottom || 0;
+    return (
+        <Tab.Navigator
+            screenOptions={({ route }) => ({
+                headerShown: false,
+                tabBarShowLabel: false,
+                tabBarHideOnKeyboard: true,
+                // Ensure the tab bar clears device navigation area by including bottom safe-area inset
+                tabBarStyle: {
+                    height: baseHeight + bottomInset,
+                    paddingBottom: bottomInset, // chỉ đệm đúng phần safe-area, không thêm khoảng trắng
+                    paddingTop: 0,
+                    borderTopColor: "#DBDBDB",
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                    backgroundColor: "#FFFFFF",
+                },
+                tabBarIcon: ({ focused, color, size }) => {
+                    switch (route.name) {
+                        case "Home":
+                            return (
+                                <Ionicons
+                                    name={focused ? "home" : "home-outline"}
+                                    size={24}
+                                    color={focused ? "#000" : "#9CA3AF"}
+                                />
+                            );
+                        case "Search":
+                            return (
+                                <Ionicons
+                                    name={focused ? "search" : "search-outline"}
+                                    size={24}
+                                    color={focused ? "#000" : "#9CA3AF"}
+                                />
+                            );
+                        case "CreatePost":
+                            return (
+                                <Ionicons
+                                    name={focused ? "add-circle" : "add-circle-outline"}
+                                    size={26}
+                                    color={focused ? "#000" : "#9CA3AF"}
+                                />
+                            );
+                        case "Video":
+                            return (
+                                <Ionicons
+                                    name={focused ? "play-circle" : "play-circle-outline"}
+                                    size={26}
+                                    color={focused ? "#000" : "#9CA3AF"}
+                                />
+                            );
+                        case "Profile":
+                            return <TabProfileIcon focused={focused} />;
+                        default:
+                            return null;
+                    }
+                },
+            })}
+        >
+            <Tab.Screen name="Home" component={Home} />
+            <Tab.Screen name="Search" component={Search} />
+            <Tab.Screen name="CreatePost" component={CreatePost} />
+            <Tab.Screen name="Video" component={Video} />
+            <Tab.Screen name="Profile" component={Profile} />
+        </Tab.Navigator>
+    );
+}
 
 // Component để xử lý navigation dựa trên trạng thái đăng nhập
 function AppNavigator() {
@@ -42,7 +147,7 @@ function AppNavigator() {
     return (
         <NavigationContainer>
             <Stack.Navigator
-                initialRouteName={isAuthenticated ? "Home" : "Login"}
+                initialRouteName={isAuthenticated ? "MainTabs" : "Login"}
                 screenOptions={{
                     headerShown: false,
                     gestureEnabled: true,
@@ -69,17 +174,14 @@ function AppNavigator() {
                 {isAuthenticated ? (
                     // Authenticated screens
                     <>
-                        <Stack.Screen name="Home" component={Home} />
+                        <Stack.Screen name="MainTabs" component={MainTabs} />
                         <Stack.Screen name="Messenger" component={Messenger} />
                         <Stack.Screen name="Doanchat" component={Doanchat} />
                         <Stack.Screen
                             name="ChangePassword"
                             component={ChangePassword}
                         />
-                        <Stack.Screen name="Search" component={Search} />
-                        <Stack.Screen name="Video" component={Video} />
                         <Stack.Screen name="Thongbao" component={Thongbao} />
-                        <Stack.Screen name="Profile" component={Profile} />
                         <Stack.Screen name="SharePost" component={SharePost} />
                         <Stack.Screen
                             name="CommentsModal"
@@ -92,10 +194,6 @@ function AppNavigator() {
                         <Stack.Screen
                             name="Editprofile"
                             component={Editprofile}
-                        />
-                        <Stack.Screen
-                            name="CreatePost"
-                            component={CreatePost}
                         />
                         <Stack.Screen
                             name="PhotoPreview"

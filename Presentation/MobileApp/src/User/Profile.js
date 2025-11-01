@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,28 +8,82 @@ import {
   TouchableOpacity,
   StatusBar,
   Dimensions,
-  SafeAreaView,
+  RefreshControl,
+  
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
+import { getMyPosts, getProfile, updateAvatar, API_BASE_URL } from '../API/Api';
+import { useUser } from '../Context/UserContext';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 const imageSize = (width - 6) / 3;
 
 const Profile = () => {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+  const { logout } = useUser();
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const posts = [
-    { id: 1, image: 'https://picsum.photos/400/400?random=1' },
-    { id: 2, image: 'https://picsum.photos/400/400?random=2' },
-    { id: 3, image: 'https://picsum.photos/400/400?random=3' },
-    { id: 4, image: 'https://picsum.photos/400/400?random=4' },
-    { id: 5, image: 'https://picsum.photos/400/400?random=5' },
-    { id: 6, image: 'https://picsum.photos/400/400?random=6' },
-    { id: 7, image: 'https://picsum.photos/400/400?random=7' },
-    { id: 8, image: 'https://picsum.photos/400/400?random=8' },
-    { id: 9, image: 'https://picsum.photos/400/400?random=9' },
-  ];
+  // Build full URL for avatar when API returns relative path
+  const getAvatarUri = (p) => {
+    const raw = p?.avatarUrl;
+    if (!raw) return 'https://i.pravatar.cc/150';
+    if (raw.startsWith('http')) return raw;
+    return `${API_BASE_URL}${raw}`;
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const [p, me] = await Promise.all([
+          getMyPosts(),
+          getProfile(),
+        ]);
+        if (mounted) {
+          setPosts(Array.isArray(p) ? p : []);
+          setProfile(me || null);
+        }
+      } catch (e) {
+        console.warn('My posts error', e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  const handlePickAvatar = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      alert('Cần quyền truy cập thư viện ảnh để đổi avatar');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1,1],
+      quality: 0.9,
+    });
+    if (result.canceled) return;
+    const asset = result.assets?.[0];
+    if (!asset?.uri) return;
+    try {
+  const res = await updateAvatar({ uri: asset.uri, name: 'avatar.jpg', type: 'image/jpeg', createPost: false });
+  const newUrl = res?.data?.avatarUrl;
+  if (newUrl) setProfile(prev => (prev ? { ...prev, avatarUrl: newUrl } : prev));
+    } catch (e) {
+      console.warn('Update avatar error', e);
+      alert('Đổi avatar thất bại');
+    }
+  };
 
   const stories = [
     { id: 1, name: 'New', icon: 'add', image: null },
@@ -39,34 +93,64 @@ const Profile = () => {
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
+  <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Ionicons name="lock-closed" size={16} color="#000" />
-          <Text style={styles.username}>jacob_w</Text>
+          {profile?.isPrivate ? (
+            <Ionicons name="lock-closed" size={16} color="#000" />
+          ) : null}
+          <Text style={styles.username}>{profile?.username || 'username'}</Text>
           <Ionicons name="chevron-down" size={16} color="#000" style={styles.chevron} />
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.headerIcon}>
             <Ionicons name="add-circle-outline" size={24} color="#000" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerIcon}>
+          <TouchableOpacity style={styles.headerIcon} onPress={() => setMenuOpen(v => !v)}>
             <Feather name="menu" size={24} color="#000" />
           </TouchableOpacity>
         </View>
       </View>
+      {menuOpen && (
+        <View style={styles.menuSheet}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); navigation.navigate('Editprofile'); }}>
+            <Text style={styles.menuText}>Xem/Chỉnh sửa thông tin</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); navigation.navigate('ChangePassword'); }}>
+            <Text style={styles.menuText}>Đổi mật khẩu</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); logout(); }}>
+            <Text style={[styles.menuText, { color: '#ef4444' }]}>Đăng xuất</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+  <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: (insets.bottom || 0) + 16 }}
+    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async ()=>{
+      try {
+        setRefreshing(true);
+        const [p, me] = await Promise.all([
+          getMyPosts(),
+          getProfile(),
+        ]);
+        setPosts(Array.isArray(p) ? p : []);
+        setProfile(me || null);
+      } catch(e) { console.warn('Profile refresh error', e); }
+      finally { setRefreshing(false); }
+    }} />}
+  >
         {/* Profile Info */}
         <View style={styles.profileSection}>
           <View style={styles.profileHeader}>
-            <Image
-              source={{ uri: 'https://picsum.photos/200/200?random=20' }}
-              style={styles.profileImage}
-            />
+            <TouchableOpacity onPress={handlePickAvatar} activeOpacity={0.8}>
+              <Image
+                source={{ uri: getAvatarUri(profile) }}
+                style={styles.profileImage}
+              />
+            </TouchableOpacity>
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>54</Text>
@@ -84,9 +168,9 @@ const Profile = () => {
           </View>
 
           <View style={styles.bioSection}>
-            <Text style={styles.bioName}>Jacob Wells</Text>
-            <Text style={styles.bioText}>Digital product designer @paulzi</Text>
-            <Text style={styles.bioText}>Everything is designed.</Text>
+            <Text style={styles.bioName}>{profile?.fullName || ''}</Text>
+            {!!profile?.bio && <Text style={styles.bioText}>{profile.bio}</Text>}
+            {!!profile?.website && <Text style={styles.bioText}>{profile.website}</Text>}
           </View>
 
           <View style={styles.buttonContainer}>
@@ -138,60 +222,29 @@ const Profile = () => {
 
         {/* Posts Grid */}
         <View style={styles.postsGrid}>
-          {posts.map((post) => (
-            <TouchableOpacity key={post.id} style={styles.postContainer}>
-              <Image
-                source={{ uri: post.image }}
-                style={styles.postImage}
-              />
-            </TouchableOpacity>
-          ))}
+          {loading ? (
+            <Text style={{padding:16, color:'#666'}}>Đang tải...</Text>
+          ) : posts.length === 0 ? (
+            <Text style={{padding:16}}>Chưa có bài đăng</Text>
+          ) : (
+            posts.map((post) => {
+              const firstImage = (post.media || []).find(m => (m.type||'').toLowerCase() === 'image');
+              if (!firstImage) return (
+                <View key={post.id} style={[styles.postContainer, {justifyContent:'center', alignItems:'center'}]}>
+                  <Text style={{color:'#999'}}>Video</Text>
+                </View>
+              );
+              return (
+                <TouchableOpacity key={post.id} style={styles.postContainer}>
+                  <Image source={{ uri: firstImage.url }} style={styles.postImage} />
+                </TouchableOpacity>
+              );
+            })
+          )}
         </View>
       </ScrollView>
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity 
-          style={styles.navItem}
-          onPress={() => navigation.navigate('Home')}
-        >
-          <Image
-            source={require('../Assets/icons8-home-32.png')}
-            style={[styles.homeIconImage, { width: 33, height: 33 }]}
-          />
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.navItem}
-          onPress={() => navigation.navigate('Search')}
-        >
-          <View style={styles.searchIconWrapper}>
-            <View style={styles.searchCircle} />
-            <View style={styles.searchHandle} />
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <View style={styles.addIconWrapper}>
-            <View style={styles.addSquare} />
-            <View style={styles.addHorizontal} />
-            <View style={styles.addVertical} />
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.navItem}
-          onPress={() => navigation.navigate('Video')}
-        >
-          <View style={styles.reelsIconWrapper}>
-            <View style={styles.reelsSquare} />
-            <View style={styles.reelsPlay} />
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Image
-            source={{ uri: 'https://i.pravatar.cc/150?img=9' }}
-            style={styles.profileIcon}
-          />
-        </TouchableOpacity>
-      </View>
+      {/* Bottom tab bar is now handled globally in App.js */}
     </SafeAreaView>
   );
 };
@@ -225,6 +278,29 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  menuSheet: {
+    position: 'absolute',
+    right: 12,
+    top: 56,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    paddingVertical: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+    zIndex: 10,
+  },
+  menuItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minWidth: 200,
+  },
+  menuText: {
+    fontSize: 14,
+    color: '#111827',
   },
   headerIcon: {
     marginLeft: 16,
@@ -375,113 +451,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     backgroundColor: '#f0f0f0',
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderTopWidth: 0.5,
-    borderTopColor: '#DBDBDB',
-    backgroundColor: '#FFFFFF',
-  },
-  navItem: {
-    padding: 6,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  homeIconImage: {
-    width: 30,
-    height: 30,
-    borderRadius: 0,
-  },
-  searchIconWrapper: {
-    width: 26,
-    height: 26,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  searchCircle: {
-    width: 18,
-    height: 18,
-    borderWidth: 2.5,
-    borderColor: '#000',
-    borderRadius: 9,
-    position: 'absolute',
-    top: 2,
-    left: 2,
-  },
-  searchHandle: {
-    width: 8,
-    height: 2.5,
-    backgroundColor: '#000',
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    transform: [{ rotate: '45deg' }],
-    borderRadius: 2,
-  },
-  addIconWrapper: {
-    width: 26,
-    height: 26,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  addSquare: {
-    width: 24,
-    height: 24,
-    borderWidth: 2.5,
-    borderColor: '#000',
-    borderRadius: 3,
-  },
-  addHorizontal: {
-    width: 12,
-    height: 2.5,
-    backgroundColor: '#000',
-    position: 'absolute',
-    borderRadius: 2,
-  },
-  addVertical: {
-    width: 2.5,
-    height: 12,
-    backgroundColor: '#000',
-    position: 'absolute',
-    borderRadius: 2,
-  },
-  reelsIconWrapper: {
-    width: 26,
-    height: 26,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  reelsSquare: {
-    width: 24,
-    height: 24,
-    borderWidth: 2.5,
-    borderColor: '#000',
-    borderRadius: 4,
-  },
-  reelsPlay: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 8,
-    borderTopWidth: 5,
-    borderBottomWidth: 5,
-    borderLeftColor: '#000',
-    borderTopColor: 'transparent',
-    borderBottomColor: 'transparent',
-    position: 'absolute',
-    left: 10,
-  },
-  profileIcon: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 2,
-    borderColor: '#000',
   },
 });
 

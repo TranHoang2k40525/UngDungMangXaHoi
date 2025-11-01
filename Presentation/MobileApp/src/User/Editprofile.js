@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,26 +7,107 @@ import {
   StyleSheet,
   Image,
   Platform,
+  KeyboardAvoidingView,
+  ScrollView,
+  RefreshControl,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getProfile, updateProfile, API_BASE_URL } from '../API/Api';
 
 export default function Editprofile() {
   const navigation = useNavigation();
-  const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState('user123');
-  const [fullName, setFullName] = useState('Nguyễn Văn A');
-  const [dob, setDob] = useState('01/01/1990');
-  const [phone, setPhone] = useState('0123456789');
-  const [email, setEmail] = useState('example@gmail.com');
-  const [password, setPassword] = useState('password123');
-  const [address, setAddress] = useState('123 Đường ABC, Hà Nội');
-  const [gender, setGender] = useState('Male');
-  const [avatar, setAvatar] = useState('https://i.pravatar.cc/150?img=3');
+  const insets = useSafeAreaInsets();
+  const [isEditing, setIsEditing] = useState(true);
+  const [name, setName] = useState('');
+  const [initialName, setInitialName] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [dob, setDob] = useState('');
+  const [address, setAddress] = useState('');
+  const [gender, setGender] = useState('Khác');
+  const [avatar, setAvatar] = useState(null);
+  const [bio, setBio] = useState('');
+  const [website, setWebsite] = useState('');
+  const [hometown, setHometown] = useState('');
+  const [job, setJob] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const handleSave = () => {
-    // Here you can add logic to save the changes, e.g., API call
-    setIsEditing(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const me = await getProfile();
+        if (me) {
+          setName(me.username || '');
+          setInitialName(me.username || '');
+          setFullName(me.fullName || '');
+          setDob(me.dateOfBirth ? new Date(me.dateOfBirth).toISOString().slice(0,10) : '');
+          setAddress(me.address || '');
+          // Map gender from server ("Nam"/"Nữ"/"Khác") to local values used in UI ('Male'/'Female'/others)
+          const g = (me.gender || '').toLowerCase();
+          setGender(g.includes('nam') ? 'Male' : g.includes('nữ') || g.includes('nu') || g.includes('female') ? 'Female' : 'Khác');
+          const rawAvatar = me.avatarUrl;
+          const avatarUri = rawAvatar ? (rawAvatar.startsWith('http') ? rawAvatar : `${API_BASE_URL}${rawAvatar}`) : null;
+          setAvatar(avatarUri);
+          setBio(me.bio || '');
+          setWebsite(me.website || '');
+          setHometown(me.hometown || '');
+          setJob(me.job || '');
+        }
+      } catch (e) {
+        console.warn('Load profile error', e);
+      }
+    })();
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      // Map lại giới tính về format server mong muốn ("Nam"/"Nữ"/"Khác")
+      const serverGender = gender === 'Male' ? 'Nam' : gender === 'Female' ? 'Nữ' : 'Khác';
+      // Lưu ý: Endpoint hiện tại chưa hỗ trợ đổi username. Chỉ gửi các trường được hỗ trợ.
+      const payload = {
+        FullName: fullName,
+        Gender: serverGender,
+        Bio: bio,
+        DateOfBirth: dob ? new Date(dob).toISOString() : null,
+        Address: address,
+        Hometown: hometown,
+        Job: job,
+        Website: website,
+      };
+      // Nếu người dùng đổi username, thông báo trước (vì backend chưa hỗ trợ tại endpoint này)
+      if (name && initialName && name !== initialName) {
+        // Không chặn lưu các trường khác; chỉ cảnh báo đổi username chưa được áp dụng
+        // Có thể thay bằng Alert.alert nếu muốn popup
+        console.log('[Editprofile] Username change is not supported by current endpoint.');
+      }
+      await updateProfile(payload);
+      // Sau khi cập nhật, lấy lại profile để đảm bảo hiển thị mới nhất
+      try {
+        const refreshed = await getProfile();
+        if (refreshed) {
+          setName(refreshed.username || name);
+          setFullName(refreshed.fullName || fullName);
+          setDob(refreshed.dateOfBirth ? new Date(refreshed.dateOfBirth).toISOString().slice(0,10) : dob);
+          setAddress(refreshed.address ?? address);
+          const g = (refreshed.gender || '').toLowerCase();
+          setGender(g.includes('nam') ? 'Male' : g.includes('nữ') || g.includes('nu') ? 'Female' : 'Khác');
+          setBio(refreshed.bio ?? bio);
+          setWebsite(refreshed.website ?? website);
+          setHometown(refreshed.hometown ?? hometown);
+          setJob(refreshed.job ?? job);
+        }
+      } catch {}
+      setIsEditing(false);
+      navigation.goBack();
+    } catch (e) {
+      console.warn('Update profile error', e);
+      alert('Cập nhật hồ sơ thất bại');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCancel = () => {
@@ -56,214 +137,191 @@ export default function Editprofile() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={handleCancel}>
-          <Text style={styles.cancelButton}>Hủy</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Chỉnh sửa hồ sơ</Text>
-        {isEditing ? (
-          <TouchableOpacity onPress={handleSave}>
-            <Text style={styles.doneButton}>Lưu</Text>
+    <SafeAreaView style={styles.safe}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        {/* Top bar */}
+        <View style={[styles.header, { paddingTop: insets.top }] }>
+          <TouchableOpacity onPress={handleCancel} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.cancelButton}>Hủy</Text>
           </TouchableOpacity>
-        ) : (
-          <Text style={styles.doneButton}></Text> // Placeholder to keep alignment
-        )}
-      </View>
+          <Text style={styles.title}>Chỉnh sửa hồ sơ</Text>
+          <TouchableOpacity onPress={handleSave} disabled={saving} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={[styles.doneButton, saving && { opacity: 0.6 }]}>{saving ? 'Đang lưu…' : 'Lưu'}</Text>
+          </TouchableOpacity>
+        </View>
 
-      <View style={styles.profileSection}>
-        <Image
-          source={{ uri: avatar }}
-          style={styles.profileImage}
-        />
-        {isEditing && (
-          <>
+        <ScrollView contentContainerStyle={{ paddingBottom: (insets.bottom || 0) + 24 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async ()=>{
+            try {
+              setRefreshing(true);
+              const me = await getProfile();
+              if (me) {
+                setName(me.username || '');
+                setInitialName(me.username || '');
+                setFullName(me.fullName || '');
+                setDob(me.dateOfBirth ? new Date(me.dateOfBirth).toISOString().slice(0,10) : '');
+                setAddress(me.address || '');
+                const g = (me.gender || '').toLowerCase();
+                setGender(g.includes('nam') ? 'Male' : g.includes('nữ') || g.includes('nu') || g.includes('female') ? 'Female' : 'Khác');
+                const rawAvatar = me.avatarUrl;
+                const avatarUri = rawAvatar ? (rawAvatar.startsWith('http') ? rawAvatar : `${API_BASE_URL}${rawAvatar}`) : null;
+                setAvatar(avatarUri);
+                setBio(me.bio || '');
+                setWebsite(me.website || '');
+                setHometown(me.hometown || '');
+                setJob(me.job || '');
+              }
+            } catch(e){ console.warn('Editprofile refresh error', e);} finally { setRefreshing(false);} }} />}
+        >
+          {/* Avatar */}
+          <View style={styles.profileSection}>
+            <Image
+              source={{ uri: avatar || 'https://i.pravatar.cc/150' }}
+              style={styles.profileImage}
+            />
             <TouchableOpacity onPress={pickImage}>
               <Text style={styles.changePhoto}>Tải ảnh từ thiết bị</Text>
             </TouchableOpacity>
-            <TouchableOpacity>
-              <Text style={styles.changePhoto}>Thay đổi ảnh đại diện</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
+            <Text style={styles.avatarHint}>Mẹo: Bạn có thể đổi avatar nhanh ở trang Hồ sơ bằng cách chạm vào ảnh.</Text>
+          </View>
 
-      <View style={styles.formContainer}>
-        <View style={styles.form}>
-          <View style={styles.inputRow}>
-            <View style={styles.labelContainer}>
-              <Text style={styles.label}>Tên người dùng:</Text>
-            </View>
-            <View style={styles.valueContainer}>
-              {isEditing ? (
-                <TextInput
-                  style={styles.input}
-                  value={name}
-                  onChangeText={setName}
-                />
-              ) : (
-                <Text style={styles.value}>{name}</Text>
-              )}
-            </View>
-          </View>
-          <View style={styles.inputRow}>
-            <View style={styles.labelContainer}>
-              <Text style={styles.label}>Họ và tên:</Text>
-            </View>
-            <View style={styles.valueContainer}>
-              {isEditing ? (
-                <TextInput
-                  style={styles.input}
-                  value={fullName}
-                  onChangeText={setFullName}
-                />
-              ) : (
-                <Text style={styles.value}>{fullName}</Text>
-              )}
-            </View>
-          </View>
-          <View style={styles.inputRow}>
-            <View style={styles.labelContainer}>
-              <Text style={styles.label}>Ngày sinh: dd/mm/yyyy</Text>
-            </View>
-            <View style={styles.valueContainer}>
-              {isEditing ? (
-                <TextInput
-                  style={styles.input}
-                  value={dob}
-                  onChangeText={setDob}
-                />
-              ) : (
-                <Text style={styles.value}>{dob}</Text>
-              )}
-            </View>
-          </View>
-          <View style={styles.inputRow}>
-            <View style={styles.labelContainer}>
-              <Text style={styles.label}>Giới tính:</Text>
-            </View>
-            <View style={styles.valueContainer}>
-              {isEditing ? (
-                <View style={styles.genderContainer}>
-                  <TouchableOpacity
-                    style={styles.radioButton}
-                    onPress={() => setGender('Male')}
-                  >
-                    <View style={styles.radioCircle}>
-                      {gender === 'Male' && <View style={styles.selectedRb} />}
-                    </View>
-                    <Text style={styles.radioText}>Nam</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.radioButton}
-                    onPress={() => setGender('Female')}
-                  >
-                    <View style={styles.radioCircle}>
-                      {gender === 'Female' && <View style={styles.selectedRb} />}
-                    </View>
-                    <Text style={styles.radioText}>Nữ</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <Text style={styles.value}>{gender === 'Male' ? 'Nam' : 'Nữ'}</Text>
-              )}
-            </View>
-          </View>
-          <View style={styles.inputRow}>
-            <View style={styles.labelContainer}>
-              <Text style={styles.label}>Số điện thoại:</Text>
-            </View>
-            <View style={styles.valueContainer}>
-              {isEditing ? (
-                <TextInput
-                  style={styles.input}
-                  value={phone}
-                  onChangeText={setPhone}
-                />
-              ) : (
-                <Text style={styles.value}>{phone}</Text>
-              )}
-            </View>
-          </View>
-          <View style={styles.inputRow}>
-            <View style={styles.labelContainer}>
-              <Text style={styles.label}>Email:</Text>
-            </View>
-            <View style={styles.valueContainer}>
-              {isEditing ? (
-                <TextInput
-                  style={styles.input}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                />
-              ) : (
-                <Text style={styles.value}>{email}</Text>
-              )}
-            </View>
-          </View>
-          <View style={styles.inputRow}>
-            <View style={styles.labelContainer}>
-              <Text style={styles.label}>Mật khẩu:</Text>
-            </View>
-            <View style={styles.valueContainer}>
-              {isEditing ? (
-                <TextInput
-                  style={styles.input}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                />
-              ) : (
-                <Text style={styles.value}>********</Text>
-              )}
-            </View>
-          </View>
-          <View style={styles.inputRow}>
-            <View style={styles.labelContainer}>
-              <Text style={styles.label}>Địa chỉ:</Text>
-            </View>
-            <View style={styles.valueContainer}>
-              {isEditing ? (
-                <TextInput
-                  style={styles.input}
-                  value={address}
-                  onChangeText={setAddress}
-                />
-              ) : (
-                <Text style={styles.value}>{address}</Text>
-              )}
-            </View>
-          </View>
-        </View>
-      </View>
+          {/* Form */}
+          <View style={styles.formContainer}>
+            <View style={styles.form}>
+              {/* Họ và tên */}
+              <Text style={styles.inputLabel}>Họ và tên</Text>
+              <TextInput
+                style={styles.input}
+                value={fullName}
+                onChangeText={setFullName}
+                placeholder="Nhập họ và tên"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="words"
+              />
 
-      {!isEditing && (
-        <View style={styles.buttonWrapper}>
-          <TouchableOpacity 
-            style={styles.editButton}
-            onPress={() => setIsEditing(true)}
-          >
-            <Text style={styles.editButtonText}>Sửa thông tin</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
+              {/* Tên người dùng */}
+              <Text style={styles.inputLabel}>Tên người dùng</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: '#F3F4F6', color: '#6B7280' }]}
+                value={name}
+                onChangeText={setName}
+                editable={false}
+                placeholder="Ví dụ: hoangtest"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="none"
+              />
+              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+                Tên người dùng hiện chưa thể đổi tại màn hình này.
+              </Text>
+
+              {/* Ngày sinh */}
+              <Text style={styles.inputLabel}>Ngày sinh (YYYY-MM-DD)</Text>
+              <TextInput
+                style={styles.input}
+                value={dob}
+                onChangeText={setDob}
+                placeholder="2004-05-25"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="numbers-and-punctuation"
+              />
+
+              {/* Giới tính */}
+              <Text style={styles.inputLabel}>Giới tính</Text>
+              <View style={styles.genderRow}>
+                <TouchableOpacity
+                  style={[styles.genderPill, gender === 'Male' && styles.genderPillActive]}
+                  onPress={() => setGender('Male')}
+                >
+                  <Text style={[styles.genderText, gender === 'Male' && styles.genderTextActive]}>Nam</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.genderPill, gender === 'Female' && styles.genderPillActive]}
+                  onPress={() => setGender('Female')}
+                >
+                  <Text style={[styles.genderText, gender === 'Female' && styles.genderTextActive]}>Nữ</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.genderPill, gender !== 'Male' && gender !== 'Female' && styles.genderPillActive]}
+                  onPress={() => setGender('Khác')}
+                >
+                  <Text style={[styles.genderText, gender !== 'Male' && gender !== 'Female' && styles.genderTextActive]}>Khác</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Website */}
+              <Text style={styles.inputLabel}>Website</Text>
+              <TextInput
+                style={styles.input}
+                value={website}
+                onChangeText={setWebsite}
+                placeholder="https://example.com"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="none"
+              />
+
+              {/* Nghề nghiệp */}
+              <Text style={styles.inputLabel}>Nghề nghiệp</Text>
+              <TextInput
+                style={styles.input}
+                value={job}
+                onChangeText={setJob}
+                placeholder="VD: Lập trình viên"
+                placeholderTextColor="#9CA3AF"
+              />
+
+              {/* Quê quán */}
+              <Text style={styles.inputLabel}>Quê quán</Text>
+              <TextInput
+                style={styles.input}
+                value={hometown}
+                onChangeText={setHometown}
+                placeholder="VD: TP.HCM"
+                placeholderTextColor="#9CA3AF"
+              />
+
+              {/* Địa chỉ */}
+              <Text style={styles.inputLabel}>Địa chỉ</Text>
+              <TextInput
+                style={styles.input}
+                value={address}
+                onChangeText={setAddress}
+                placeholder="Địa chỉ hiện tại"
+                placeholderTextColor="#9CA3AF"
+              />
+
+              {/* Tiểu sử */}
+              <Text style={styles.inputLabel}>Tiểu sử</Text>
+              <TextInput
+                style={[styles.input, { height: 90, textAlignVertical: 'top' }]}
+                value={bio}
+                onChangeText={setBio}
+                placeholder="Giới thiệu ngắn về bạn"
+                placeholderTextColor="#9CA3AF"
+                multiline
+              />
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-  },
+  safe: { flex: 1, backgroundColor: '#FFFFFF' },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
-    marginTop: 50, // Push header down by 150px
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
   },
   cancelButton: {
     color: '#007AFF',
@@ -279,7 +337,8 @@ const styles = StyleSheet.create({
   },
   profileSection: {
     alignItems: 'center',
-    marginBottom: 10, // Reduced from 20 to 10 to bring form closer to avatar
+    paddingTop: 16,
+    paddingBottom: 8,
   },
   profileImage: {
     width: 80,
@@ -292,91 +351,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 5,
   },
+  avatarHint: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#6B7280',
+  },
   formContainer: {
     flex: 1,
-    justifyContent: 'flex-start', // Changed to flex-start to pull form up
+    justifyContent: 'flex-start',
     alignItems: 'center',
   },
   form: {
-    width: '80%', // Reduce width to center content better
-    maxWidth: 400,
+    width: '92%',
+    maxWidth: 520,
+    paddingHorizontal: 4,
   },
-  inputRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  labelContainer: {
-    flex: 1,
-    marginRight: 10,
-  },
-  valueContainer: {
-    flex: 2,
-  },
-  label: {
-    color: '#8E8E93',
-    fontSize: 14,
-  },
+  inputLabel: { color: '#374151', fontSize: 14, marginTop: 12, marginBottom: 6, fontWeight: '500' },
   input: {
     borderWidth: 1,
-    borderColor: '#D3D3D3',
-    borderRadius: 5,
-    padding: 10,
-    fontSize: 14,
-    flex: 1,
-  },
-  value: {
-    fontSize: 14,
-    color: '#000000',
-  },
-  genderContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  radioButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 20,
-  },
-  radioCircle: {
-    height: 20,
-    width: 20,
+    borderColor: '#E5E7EB',
     borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#007AFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  selectedRb: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#007AFF',
-  },
-  radioText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#000',
-  },
-  buttonWrapper: {
-    position: 'absolute',
-    bottom: 100, // Position 100px from the bottom
-    width: '100%',
-    alignItems: 'center',
-  },
-  editButton: {
-    backgroundColor: '#007AFF',
+    paddingHorizontal: 12,
     paddingVertical: 12,
-    borderRadius: 5,
-    marginLeft: 48,
-    width: '80%',
-    maxWidth: 400,
+    fontSize: 14,
+    backgroundColor: '#FFFFFF',
   },
-  editButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 95,
+  genderRow: { flexDirection: 'row', gap: 8 },
+  genderPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
   },
+  genderPillActive: { backgroundColor: '#111827', borderColor: '#111827' },
+  genderText: { color: '#111827', fontSize: 14, fontWeight: '500' },
+  genderTextActive: { color: '#FFFFFF' },
 });
