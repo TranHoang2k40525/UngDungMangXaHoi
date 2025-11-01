@@ -11,6 +11,7 @@ using UngDungMangXaHoi.Application.Services;
 using UngDungMangXaHoi.Application.UseCases.Users;
 using UngDungMangXaHoi.Domain.Interfaces;
 using System.Text.Json.Serialization; // Thêm namespace này
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -139,6 +140,17 @@ if (app.Environment.IsDevelopment())
 
 // app.UseHttpsRedirection(); // Comment out for development
 app.UseCors("AllowAll");
+// Serve static files from Assets folder (Images, Videos)
+var assetsPath = Path.Combine(Directory.GetCurrentDirectory(), "Assets");
+if (!Directory.Exists(assetsPath))
+{
+    Directory.CreateDirectory(assetsPath);
+}
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(assetsPath),
+    RequestPath = "/Assets"
+});
 app.UseAuthentication();
 app.UseAuthorization();
 
