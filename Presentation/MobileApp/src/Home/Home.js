@@ -1,19 +1,27 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     View,
     Text,
     Image,
+    TextInput,
     TouchableOpacity,
     StyleSheet,
-    SafeAreaView,
     ScrollView,
     FlatList,
     Platform,
     PermissionsAndroid,
+    Share,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { RefreshControl } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { useUser } from "../Context/UserContext";
 import * as ImagePicker from "expo-image-picker";
 import CommentsModal from "./CommentsModal";
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getFeed, updatePostPrivacy, updatePostCaption, deletePost, getProfile } from "../API/Api";
+import { Ionicons } from "@expo/vector-icons";
+import { Video } from "expo-av";
 
 // Dữ liệu stories
 const storiesData = [
@@ -88,13 +96,144 @@ const StoryItem = ({ id, name, avatar, hasStory, navigation }) => {
     );
 };
 
+// Carousel for multiple images like Instagram
+const PostImagesCarousel = ({ images = [] }) => {
+    const [index, setIndex] = useState(0);
+    return (
+        <View style={{ position:'relative' }}>
+            <FlatList
+                data={images}
+                keyExtractor={(it, i) => String(i)}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                renderItem={({ item }) => (
+                    <Image source={{ uri: item.url }} style={styles.postImage} />
+                )}
+                onMomentumScrollEnd={(e) => {
+                    const w = e.nativeEvent.layoutMeasurement.width || 1;
+                    const x = e.nativeEvent.contentOffset.x || 0;
+                    setIndex(Math.max(0, Math.round(x / w)));
+                }}
+            />
+            {/* Counter top-right */}
+            <View style={styles.imageCounter}>
+                <Text style={styles.imageCounterText}>{index + 1}/{images.length}</Text>
+            </View>
+            {/* Dots bottom */}
+            <View style={styles.dotsContainer}>
+                {images.map((_, i) => (
+                    <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
+                ))}
+            </View>
+        </View>
+    );
+};
+
 export default function Home() {
-    const [liked, setLiked] = useState(false);
-    const [saved, setSaved] = useState(false);
-    const [likes, setLikes] = useState(250);
-    const [comments, setComments] = useState(15);
+    const insets = useSafeAreaInsets();
+    const BOTTOM_NAV_HEIGHT = 0; // dùng tab bar toàn cục, không thêm padding dưới
+    // Per-post local UI state (likes/shares/comments counts)
+    const [postStates, setPostStates] = useState({}); // { [postId]: { liked, likes, shares, comments } }
+    const [activeCommentsPostId, setActiveCommentsPostId] = useState(null);
     const [showComments, setShowComments] = useState(false);
+    const [posts, setPosts] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [currentUserId, setCurrentUserId] = useState(null); // lưu dạng number khi có thể
+    const [refreshing, setRefreshing] = useState(false);
+    // 3-dots menu & privacy sheet
+    const [optionsPostId, setOptionsPostId] = useState(null);
+    const [showOptions, setShowOptions] = useState(false);
+    const [showPrivacySheet, setShowPrivacySheet] = useState(false);
+    const [busy, setBusy] = useState(false);
+    // Inline caption edit state
+    const [editingCaptionPostId, setEditingCaptionPostId] = useState(null);
+    const [captionDraft, setCaptionDraft] = useState("");
     const navigation = useNavigation();
+    const route = useRoute();
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                // Load current user id from storage to enable owner-only options
+                try {
+                    const userStr = await AsyncStorage.getItem('userInfo');
+                    if (userStr) {
+                        const user = JSON.parse(userStr);
+                        const raw = user?.user_id ?? user?.userId ?? user?.UserId ?? user?.id ?? null;
+                        const uidNum = raw != null ? Number(raw) : null;
+                        if (mounted) setCurrentUserId(Number.isFinite(uidNum) ? uidNum : null);
+                        console.log('[HOME] AsyncStorage userInfo ->', { raw, uidNum });
+                    }
+                } catch {}
+                // Attempt to cross-check with profile API (best-effort)
+                try {
+                    const prof = await getProfile();
+                    // API trả camelCase (userId). Fallback: UserId.
+                    const profId = prof?.userId ?? prof?.UserId;
+                    if (profId != null) {
+                        const uid = Number(profId);
+                        if (Number.isFinite(uid)) {
+                            if (mounted) setCurrentUserId(uid);
+                            console.log('[HOME] getProfile() -> userId set:', uid);
+                        } else {
+                            console.log('[HOME] getProfile() -> invalid userId:', profId);
+                        }
+                    } else {
+                        console.log('[HOME] getProfile() -> no userId on payload');
+                    }
+                } catch (e) {
+                    console.log('[HOME] getProfile() failed (non-fatal):', e?.message || e);
+                }
+                const data = await getFeed();
+                if (mounted) {
+                    let arr = Array.isArray(data) ? data : [];
+                    // Sort newest-first just in case
+                    arr = arr.slice().sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+                    setPosts(arr);
+                    // seed per-post state
+                    const next = {};
+                    for (const p of arr) {
+                        next[p.id] = {
+                            liked: false,
+                            likes: Number(p.likesCount ?? 0),
+                            shares: Number(p.sharesCount ?? 0),
+                            comments: Number(p.commentsCount ?? 0),
+                        };
+                    }
+                    setPostStates(next);
+                }
+            } catch (e) {
+                console.warn('Feed error', e);
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        })();
+        return () => { mounted = false; };
+    }, []);
+
+    // Refresh feed if a parent navigates with { refresh: true }
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('focus', () => {
+            if (route?.params?.refresh) {
+                onRefreshFeed();
+                try { navigation.setParams({ refresh: false }); } catch {}
+            }
+        });
+        return unsubscribe;
+    }, [navigation, route?.params?.refresh]);
+
+    // Log ownership mapping whenever posts or user changes
+    useEffect(() => {
+        const uid = getOwnerId();
+        console.log('[HOME] Current userId used for ownership:', uid, 'Context:', ctxUser?.user_id ?? ctxUser?.UserId ?? ctxUser?.id, 'State:', currentUserId);
+        posts.forEach(p => {
+            const pid = p?.user?.id != null ? Number(p.user.id) : null;
+            const own = Number.isFinite(uid) && Number.isFinite(pid) && uid === pid;
+            console.log('[HOME] Post ownership check ->', { postId: p.id, postUserId: pid, isOwner: own });
+        });
+    }, [posts, currentUserId, ctxUser]);
 
     const handleCameraPress = async () => {
         // Request camera permissions using Expo ImagePicker
@@ -123,10 +262,165 @@ export default function Home() {
         }
     };
 
+    const onToggleLike = (postId) => {
+        setPostStates((prev) => {
+            const cur = prev[postId] || { liked: false, likes: 0, shares: 0, comments: 0 };
+            const liked = !cur.liked;
+            const likes = Math.max(0, cur.likes + (liked ? 1 : -1));
+            return { ...prev, [postId]: { ...cur, liked, likes } };
+        });
+    };
+
+    const onOpenComments = (postId) => {
+        setActiveCommentsPostId(postId);
+        setShowComments(true);
+    };
+
+    const onShare = async (post) => {
+        try {
+            const firstMedia = (post.media || [])[0];
+            const url = firstMedia?.url || '';
+            await Share.share({
+                message: post.caption ? `${post.caption}${url ? `\n${url}` : ''}` : url || 'Xem bài viết',
+                url,
+                title: 'Chia sẻ bài đăng',
+            });
+            setPostStates((prev) => {
+                const cur = prev[post.id] || { liked: false, likes: 0, shares: 0, comments: 0 };
+                return { ...prev, [post.id]: { ...cur, shares: cur.shares + 1 } };
+            });
+        } catch (e) {
+            // ignore
+        }
+    };
+
+    const onRepost = (postId) => {
+        // Stub: later hook to real repost flow
+        setPostStates((prev) => {
+            const cur = prev[postId] || { liked: false, likes: 0, shares: 0, comments: 0 };
+            return { ...prev, [postId]: { ...cur, shares: cur.shares + 1 } };
+        });
+    };
+
+    // Ưu tiên lấy user id từ UserContext, fallback sang state đọc từ AsyncStorage
+    const { user: ctxUser } = useUser();
+    const getOwnerId = () => {
+        const fromCtx = ctxUser?.user_id ?? ctxUser?.userId ?? ctxUser?.UserId ?? ctxUser?.id;
+        const n1 = fromCtx != null ? Number(fromCtx) : null;
+        if (Number.isFinite(n1)) return n1;
+        const n2 = currentUserId != null ? Number(currentUserId) : null;
+        return Number.isFinite(n2) ? n2 : null;
+    };
+    const isOwner = (post) => {
+        const uid = getOwnerId();
+        const pidRaw = post?.user?.id;
+        const pid = pidRaw != null ? Number(pidRaw) : null;
+        return Number.isFinite(uid) && Number.isFinite(pid) && uid === pid;
+    };
+
+    const openOptionsFor = (post) => {
+        const uid = getOwnerId();
+        const pid = post?.user?.id != null ? Number(post.user.id) : null;
+        console.log('[HOME] Open options for post', post.id, 'ownerId:', uid, 'postUserId:', pid, 'isOwner:', Number.isFinite(uid) && Number.isFinite(pid) && uid === pid);
+        setOptionsPostId(post.id);
+        setShowOptions(true);
+        setShowPrivacySheet(false);
+        setEditingCaptionPostId(null);
+    };
+
+    const closeAllOverlays = () => {
+        setShowOptions(false);
+        setShowPrivacySheet(false);
+        setOptionsPostId(null);
+        setEditingCaptionPostId(null);
+        setCaptionDraft("");
+    };
+
+    const pickPrivacy = async (privacyKey) => {
+        if (!optionsPostId) return;
+        try {
+            setBusy(true);
+            const updated = await updatePostPrivacy(optionsPostId, privacyKey);
+            setPosts((prev) => prev.map(p => p.id === optionsPostId ? { ...p, privacy: updated?.privacy ?? privacyKey } : p));
+            closeAllOverlays();
+        } catch (e) {
+            console.warn('Update privacy error', e);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const startEditCaption = (post) => {
+        setEditingCaptionPostId(post.id);
+        setCaptionDraft(post.caption || "");
+        // Keep options open to allow cancel by tapping outside
+    };
+
+    const submitCaptionEdit = async () => {
+        if (!editingCaptionPostId) return;
+        try {
+            setBusy(true);
+            const updated = await updatePostCaption(editingCaptionPostId, captionDraft);
+            setPosts((prev) => prev.map(p => p.id === editingCaptionPostId ? { ...p, caption: updated?.caption ?? captionDraft } : p));
+            closeAllOverlays();
+        } catch (e) {
+            console.warn('Update caption error', e);
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const confirmDelete = async () => {
+        if (!optionsPostId) return;
+        const { Alert } = require('react-native');
+        Alert.alert(
+            'Xóa bài đăng',
+            'Bạn có chắc muốn xóa bài đăng này?',
+            [
+                { text: 'Hủy', style: 'cancel' },
+                {
+                    text: 'Xóa', style: 'destructive', onPress: async () => {
+                        try {
+                            setBusy(true);
+                            await deletePost(optionsPostId);
+                            setPosts((prev) => prev.filter(p => p.id !== optionsPostId));
+                            closeAllOverlays();
+                        } catch (e) {
+                            console.warn('Delete post error', e);
+                        } finally {
+                            setBusy(false);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const onRefreshFeed = async () => {
+        try {
+            setRefreshing(true);
+            const data = await getFeed();
+            let arr = Array.isArray(data) ? data : [];
+            arr = arr.slice().sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+            setPosts(arr);
+        } catch (e) {
+            console.warn('Refresh feed error', e);
+        } finally {
+            setRefreshing(false);
+        }
+    };
+
+    // Navigate to full-screen video page with proper initial index
+    const openVideoPlayerFor = (post) => {
+        const videos = posts.filter(pp => (pp.media||[]).some(m => (m.type||'').toLowerCase()==='video'));
+        const initialIndex = videos.findIndex(v => v.id === post.id);
+        navigation.navigate('Video', { videos, initialIndex: Math.max(0, initialIndex) });
+    };
+
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={[styles.container, { paddingTop: insets.top }] }>
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: 4 }]}> 
                 <TouchableOpacity
                     style={styles.navItem}
                     onPress={handleCameraPress}
@@ -173,7 +467,12 @@ export default function Home() {
                 </View>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                // Bỏ hoàn toàn khoảng trắng phía trên tab bar
+                contentContainerStyle={{ paddingBottom: 0 }}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefreshFeed} />}
+            >
                 {/* Stories */}
                 <View style={styles.storiesContainer}>
                     <FlatList
@@ -193,176 +492,218 @@ export default function Home() {
                     />
                 </View>
 
-                {/* Post */}
-                <View style={styles.post}>
-                    {/* Post Header */}
-                    <View style={styles.postHeader}>
-                        <View style={styles.postHeaderLeft}>
-                            <Image
-                                source={{
-                                    uri: "https://i.pravatar.cc/150?img=8",
-                                }}
-                                style={styles.postAvatar}
-                            />
-                            <View>
-                                <Text style={styles.postUsername}>
-                                    Hoàng_Phạm
+                {/* Feed posts from API */}
+                {loading ? (
+                    <Text style={{ padding: 16, color: '#666' }}>Đang tải...</Text>
+                ) : (
+                    posts.map((p) => (
+                        <View key={p.id} style={styles.post}>
+                            <View style={styles.postHeader}>
+                                <TouchableOpacity style={styles.postHeaderLeft} onPress={() => navigation.navigate('Profile') /* TODO: navigate to other user's profile */}>
+                                    <Image
+                                        source={{ uri: p.user?.avatarUrl || 'https://i.pravatar.cc/150' }}
+                                        style={styles.postAvatar}
+                                    />
+                                    <View>
+                                        <Text style={styles.postUsername}>{p.user?.username || 'user'}</Text>
+                                        <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                            <Text style={styles.postLocation}>{new Date(p.createdAt).toLocaleString()}</Text>
+                                            {!!p.privacy && (
+                                                <View style={styles.privacyPill}>
+                                                    <Ionicons name={p.privacy==='private' ? 'lock-closed' : p.privacy==='followers' ? 'people' : 'earth'} size={12} color="#374151" />
+                                                    <Text style={styles.privacyText}>{p.privacy}</Text>
+                                                </View>
+                                            )}
+                                        </View>
+                                    </View>
+                                </TouchableOpacity>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                    <TouchableOpacity style={styles.followBtn} onPress={() => { /* TODO: follow */ }}>
+                                        <Text style={styles.followBtnText}>Theo dõi</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => openOptionsFor(p)}>
+                                        <Text style={styles.moreIcon}>⋯</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+
+                            <View style={styles.postImageContainer}>
+                                {p.media && p.media.length > 0 ? (
+                                    (() => {
+                                        const images = (p.media||[]).filter(m => (m.type||'').toLowerCase()==='image');
+                                        const videos = (p.media||[]).filter(m => (m.type||'').toLowerCase()==='video');
+                                        if (images.length > 1) {
+                                            return <PostImagesCarousel key={`car-${p.id}`} images={images} />;
+                                        }
+                                        if (images.length === 1) {
+                                            return <Image source={{ uri: images[0].url }} style={styles.postImage} />;
+                                        }
+                                        if (videos.length > 0) {
+                                            const video = videos[0];
+                                            return (
+                                                <TouchableOpacity activeOpacity={0.9} onPress={() => openVideoPlayerFor(p)}>
+                                                    <Video
+                                                        source={{ uri: video.url }}
+                                                        style={styles.postImage}
+                                                        resizeMode="cover"
+                                                        isLooping
+                                                        shouldPlay={false}
+                                                        useNativeControls={false}
+                                                    />
+                                                    <View style={styles.playOverlay} pointerEvents="none">
+                                                        <Ionicons name="play" size={36} color="#fff" />
+                                                    </View>
+                                                </TouchableOpacity>
+                                            );
+                                        }
+                                        return (
+                                            <View style={[styles.postImage, {justifyContent:'center', alignItems:'center'}]}>
+                                                <Text style={{ color: '#fff' }}>Không có media</Text>
+                                            </View>
+                                        );
+                                    })()
+                                ) : (
+                                    <View style={[styles.postImage, {justifyContent:'center', alignItems:'center'}]}>
+                                        <Text style={{ color: '#fff' }}>Không có media</Text>
+                                    </View>
+                                )}
+                            </View>
+
+                            {/* Actions */}
+                            <View style={styles.postActions}>
+                                <View style={styles.postActionsLeft}>
+                                    <TouchableOpacity onPress={() => onToggleLike(p.id)}>
+                                        <Ionicons
+                                            name={(postStates[p.id]?.liked ? 'heart' : 'heart-outline')}
+                                            size={28}
+                                            color={postStates[p.id]?.liked ? '#ED4956' : '#262626'}
+                                        />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={{flexDirection:'row', alignItems:'center'}} onPress={() => onOpenComments(p.id)}>
+                                        <Ionicons name="chatbubble-outline" size={26} color="#262626" />
+                                        <Text style={{ marginLeft: 6, color:'#262626', fontWeight:'600' }}>{postStates[p.id]?.comments ?? 0}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => onRepost(p.id)}>
+                                        <Ionicons name="repeat-outline" size={28} color="#262626" />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => onShare(p)}>
+                                        <Ionicons name="paper-plane-outline" size={26} color="#262626" />
+                                    </TouchableOpacity>
+                                </View>
+                                {/* Right-side placeholder (bookmark, etc.) could go here */}
+                            </View>
+
+                            <View style={styles.postStats}>
+                                {/* Likes and shares summary */}
+                                <Text style={styles.likeCount}>
+                                    {(postStates[p.id]?.likes ?? 0).toLocaleString()} lượt thích • {(postStates[p.id]?.shares ?? 0).toLocaleString()} lượt chia sẻ
                                 </Text>
-                                <Text style={styles.postLocation}>
-                                    Hà Nội, Việt Nam 15:07pm
-                                </Text>
+                                {editingCaptionPostId === p.id ? (
+                                    <View style={{ marginTop: 6 }}>
+                                        <Text
+                                            style={[styles.captionText, { marginBottom: 8 }]}
+                                        >Chỉnh sửa caption</Text>
+                                        <View style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8 }}>
+                                            <TextInput
+                                                style={{ padding: 10, color: '#111827', maxHeight: 120 }}
+                                                value={captionDraft}
+                                                onChangeText={setCaptionDraft}
+                                                multiline
+                                                placeholder="Nhập caption..."
+                                            />
+                                        </View>
+                                        {/* Simple inline controls */}
+                                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+                                            <TouchableOpacity style={styles.primaryBtn} onPress={submitCaptionEdit}>
+                                                <Text style={styles.primaryBtnText}>Lưu</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={styles.secondaryBtn} onPress={closeAllOverlays}>
+                                                <Text style={styles.secondaryBtnText}>Hủy</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                ) : (
+                                    !!p.caption && (
+                                        <Text style={styles.captionText}>{p.caption}</Text>
+                                    )
+                                )}
                             </View>
                         </View>
-                        <TouchableOpacity>
-                            <Text style={styles.moreIcon}>⋯</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Post Image */}
-                    <View style={styles.postImageContainer}>
-                        <Image
-                            source={{
-                                uri: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800",
-                            }}
-                            style={styles.postImage}
-                        />
-                        <View style={styles.imageCounter}>
-                            <Text style={styles.imageCounterText}>1/3</Text>
-                        </View>
-                        <View style={styles.dotsContainer}>
-                            <View style={[styles.dot, styles.dotActive]} />
-                            <View style={styles.dot} />
-                            <View style={styles.dot} />
-                        </View>
-                    </View>
-
-                    {/* Post Actions */}
-                    <View style={styles.postActions}>
-                        <View style={styles.postActionsLeft}>
-                            <TouchableOpacity
-                                onPress={() => {
-                                    setLiked(!liked);
-                                    setLikes(liked ? likes - 1 : likes + 1);
-                                }}
-                            >
-                                {liked ? (
-                                    <Text style={styles.heartIconPostFilled}>
-                                        ♥
-                                    </Text>
-                                ) : (
-                                    <Text style={styles.heartIconPost}>♥</Text>
-                                )}
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                onPress={() => setShowComments(true)}
-                            >
-                                <View style={styles.commentIconWrapper}>
-                                    <View style={styles.commentBubble} />
-                                    <Text style={styles.commentCount}>
-                                        {comments}
-                                    </Text>
-                                </View>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.navItem}>
-                                <Image
-                                    source={require("../Assets/icons8-email-65.png")}
-                                    style={[
-                                        styles.homeIconImage,
-                                        { width: 42, height: 42 },
-                                    ]}
-                                />
-                            </TouchableOpacity>
-                        </View>
-                        <TouchableOpacity style={styles.navItem}>
-                            <Image
-                                source={require("../Assets/icons8-bookmark-outline-24.png")}
-                                style={[
-                                    styles.homeIconImage,
-                                    { width: 30, height: 30 },
-                                ]}
-                            />
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Like and Comment Count */}
-                    <View style={styles.postStats}>
-                        <Text style={styles.likeCount}>
-                            {likes} người yêu thích
-                        </Text>
-                        <TouchableOpacity onPress={() => setShowComments(true)}>
-                            <Text style={styles.commentCountText}>
-                                Xem tất cả {comments} bình luận
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
+                    ))
+                )}
             </ScrollView>
 
             {/* Comments Modal */}
             <CommentsModal
                 visible={showComments}
                 onClose={() => setShowComments(false)}
-                commentsCount={comments}
+                commentsCount={activeCommentsPostId ? (postStates[activeCommentsPostId]?.comments ?? 0) : 0}
             />
 
-            {/* Bottom Navigation */}
-            <View style={styles.bottomNav}>
-                <TouchableOpacity
-                    style={styles.navItem}
-                    onPress={() => navigation.navigate("Home")}
-                >
-                    <Image
-                        source={require("../Assets/icons8-home-32.png")}
-                        style={[
-                            styles.homeIconImage,
-                            { width: 33, height: 33 },
-                        ]}
-                    />
+            {/* Options overlay */}
+            {showOptions && (
+                <TouchableOpacity activeOpacity={1} style={styles.overlay} onPress={closeAllOverlays}>
+                    <TouchableOpacity activeOpacity={0.95} style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+                        <Text style={styles.sheetTitle}>Tùy chọn</Text>
+                        {(() => {
+                            const post = posts.find(x => x.id === optionsPostId);
+                            if (post && isOwner(post)) {
+                                return (
+                                    <>
+                                        <TouchableOpacity style={styles.sheetItem} onPress={() => setShowPrivacySheet(true)}>
+                                            <Text style={styles.sheetItemText}>Chỉnh sửa quyền riêng tư</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={styles.sheetItem} onPress={() => startEditCaption(post)}>
+                                            <Text style={styles.sheetItemText}>Chỉnh sửa bài đăng</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity style={[styles.sheetItem, { borderTopWidth: 0 }]} onPress={confirmDelete}>
+                                            <Text style={[styles.sheetItemText, { color: '#dc2626' }]}>Xóa bài đăng</Text>
+                                        </TouchableOpacity>
+                                    </>
+                                );
+                            }
+                            // Not owner: show limited actions (UI only)
+                            return (
+                                <>
+                                    <TouchableOpacity style={styles.sheetItem} onPress={() => { /* TODO: report */ closeAllOverlays(); }}>
+                                        <Text style={styles.sheetItemText}>Báo cáo</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={[styles.sheetItem, { borderTopWidth: 0 }]} onPress={() => { setPosts(prev => prev.filter(p => p.id !== optionsPostId)); closeAllOverlays(); }}>
+                                        <Text style={styles.sheetItemText}>Ẩn bài viết</Text>
+                                    </TouchableOpacity>
+                                </>
+                            );
+                        })()}
+                    </TouchableOpacity>
                 </TouchableOpacity>
-                <TouchableOpacity
-                    style={styles.navItem}
-                    onPress={() => navigation.navigate("Search")}
-                >
-                    <View style={styles.searchIconWrapper}>
-                        <View style={styles.searchCircle} />
-                        <View style={styles.searchHandle} />
-                    </View>
+            )}
+
+            {/* Privacy choices overlay */}
+            {showOptions && showPrivacySheet && (
+                <TouchableOpacity activeOpacity={1} style={styles.overlay} onPress={closeAllOverlays}>
+                    <TouchableOpacity activeOpacity={0.95} style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+                        <Text style={styles.sheetTitle}>Chọn quyền riêng tư</Text>
+                        {[
+                            { k: 'public', label: 'Public' },
+                            { k: 'followers', label: 'Followers' },
+                            { k: 'private', label: 'Private' },
+                        ].map(opt => (
+                            <TouchableOpacity key={opt.k} style={styles.sheetItem} onPress={() => pickPrivacy(opt.k)}>
+                                <Text style={styles.sheetItemText}>{opt.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </TouchableOpacity>
                 </TouchableOpacity>
-                <TouchableOpacity
-                    style={styles.navItem}
-                    onPress={() => {
-                        try {
-                            navigation.navigate("CreatePost");
-                        } catch (error) {
-                            console.log("Navigation error:", error);
-                        }
-                    }}
-                >
-                    <View style={styles.addIconWrapper}>
-                        <View style={styles.addSquare} />
-                        <View style={styles.addHorizontal} />
-                        <View style={styles.addVertical} />
-                    </View>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={styles.navItem}
-                    onPress={() => navigation.navigate("Video")}
-                >
-                    <View style={styles.reelsIconWrapper}>
-                        <View style={styles.reelsSquare} />
-                        <View style={styles.reelsPlay} />
-                    </View>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={styles.navItem}
-                    onPress={() => navigation.navigate("Profile")}
-                >
-                    <Image
-                        source={{ uri: "https://i.pravatar.cc/150?img=9" }}
-                        style={styles.profileIcon}
-                    />
-                </TouchableOpacity>
-            </View>
+            )}
+
+            {/* Busy spinner overlay */}
+            {busy && (
+                <View style={styles.busyOverlay}>
+                    <View style={styles.spinner} />
+                </View>
+            )}
+
+            {/* Bottom tab bar is now global in App.js */}
         </SafeAreaView>
     );
 }
@@ -469,6 +810,20 @@ const styles = StyleSheet.create({
         fontSize: 11,
         color: "#262626",
     },
+    privacyPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 8,
+        backgroundColor: '#F3F4F6',
+    },
+    privacyText: {
+        color: '#374151',
+        fontSize: 11,
+        textTransform: 'capitalize',
+    },
     moreIcon: {
         fontSize: 24,
         fontWeight: "700",
@@ -481,6 +836,16 @@ const styles = StyleSheet.create({
         width: "100%",
         height: 400,
         backgroundColor: "#F0F0F0",
+    },
+    playOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.15)'
     },
     imageCounter: {
         position: "absolute",
@@ -536,6 +901,18 @@ const styles = StyleSheet.create({
         color: "#ED4956",
         marginTop: -4,
     },
+    followBtn: {
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderWidth: 1,
+        borderColor: '#dbdbdb',
+        borderRadius: 6,
+    },
+    followBtnText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#111827',
+    },
     commentIconWrapper: {
         width: 26,
         height: 26,
@@ -573,110 +950,82 @@ const styles = StyleSheet.create({
         color: "#262626",
         marginBottom: 4,
     },
+    captionText: {
+        fontSize: 14,
+        color: '#111827',
+        lineHeight: 20,
+    },
     commentCountText: {
         fontSize: 12,
         color: "#8E8E8E",
     },
-    bottomNav: {
-        flexDirection: "row",
-        justifyContent: "space-around",
-        alignItems: "center",
+    // bottom nav styles removed (now handled by tab navigator)
+    overlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        justifyContent: 'flex-end',
+    },
+    sheet: {
+        backgroundColor: '#fff',
+        padding: 16,
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+    },
+    sheetTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        marginBottom: 8,
+    },
+    sheetItem: {
+        paddingVertical: 12,
+        borderTopWidth: 1,
+        borderTopColor: '#e5e7eb',
+    },
+    sheetItemText: {
+        fontSize: 16,
+        color: '#111827',
+    },
+    primaryBtn: {
+        backgroundColor: '#111827',
+        paddingHorizontal: 16,
         paddingVertical: 10,
-        borderTopWidth: 0.5,
-        borderTopColor: "#DBDBDB",
-        backgroundColor: "#FFFFFF",
+        borderRadius: 8,
     },
-    navItem: {
-        padding: 6,
-        justifyContent: "center",
-        alignItems: "center",
+    primaryBtnText: {
+        color: '#fff',
+        fontWeight: '600',
     },
-    searchIconWrapper: {
-        width: 26,
-        height: 26,
-        justifyContent: "center",
-        alignItems: "center",
-        position: "relative",
+    secondaryBtn: {
+        backgroundColor: '#f3f4f6',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 8,
     },
-    searchCircle: {
-        width: 18,
-        height: 18,
-        borderWidth: 2.5,
-        borderColor: "#000",
-        borderRadius: 9,
-        position: "absolute",
-        top: 2,
-        left: 2,
+    secondaryBtnText: {
+        color: '#111827',
+        fontWeight: '600',
     },
-    searchHandle: {
-        width: 8,
-        height: 2.5,
-        backgroundColor: "#000",
-        position: "absolute",
-        bottom: 2,
-        right: 2,
-        transform: [{ rotate: "45deg" }],
-        borderRadius: 2,
+    busyOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(255,255,255,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    addIconWrapper: {
-        width: 26,
-        height: 26,
-        justifyContent: "center",
-        alignItems: "center",
-        position: "relative",
-    },
-    addSquare: {
-        width: 24,
-        height: 24,
-        borderWidth: 2.5,
-        borderColor: "#000",
-        borderRadius: 3,
-    },
-    addHorizontal: {
-        width: 12,
-        height: 2.5,
-        backgroundColor: "#000",
-        position: "absolute",
-        borderRadius: 2,
-    },
-    addVertical: {
-        width: 2.5,
-        height: 12,
-        backgroundColor: "#000",
-        position: "absolute",
-        borderRadius: 2,
-    },
-    reelsIconWrapper: {
-        width: 26,
-        height: 26,
-        justifyContent: "center",
-        alignItems: "center",
-        position: "relative",
-    },
-    reelsSquare: {
-        width: 24,
-        height: 24,
-        borderWidth: 2.5,
-        borderColor: "#000",
-        borderRadius: 4,
-    },
-    reelsPlay: {
-        width: 0,
-        height: 0,
-        borderLeftWidth: 8,
-        borderTopWidth: 5,
-        borderBottomWidth: 5,
-        borderLeftColor: "#000",
-        borderTopColor: "transparent",
-        borderBottomColor: "transparent",
-        position: "absolute",
-        left: 10,
-    },
-    profileIcon: {
-        width: 26,
-        height: 26,
-        borderRadius: 13,
-        borderWidth: 2,
-        borderColor: "#000",
-    },
+    spinner: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        borderWidth: 4,
+        borderColor: '#111827',
+        borderTopColor: 'transparent',
+        // simple CSS-like spinner animation is not available; this is a placeholder
+    }
 });
