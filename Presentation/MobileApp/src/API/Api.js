@@ -38,6 +38,56 @@ const apiCall = async (endpoint, options = {}) => {
     }
 
     if (!response.ok) {
+      // Nếu 401: thử refresh token 1 lần rồi gọi lại
+      if (response.status === 401 && !options._retry) {
+        try {
+          const storedRefresh = await AsyncStorage.getItem('refreshToken');
+          if (storedRefresh) {
+            // refresh trực tiếp, không gọi hàm để tránh vấn đề hoisting
+            const rfRes = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+              body: JSON.stringify({ RefreshToken: storedRefresh }),
+            });
+            const rfText = await rfRes.text();
+            let rfJson = null;
+            try { rfJson = rfText ? JSON.parse(rfText) : null; } catch {}
+            if (rfRes.ok) {
+              const newAccess = rfJson?.AccessToken || rfJson?.accessToken;
+              const newRefresh = rfJson?.RefreshToken || rfJson?.refreshToken;
+              if (newAccess && newRefresh) {
+                await AsyncStorage.setItem('accessToken', newAccess);
+                await AsyncStorage.setItem('refreshToken', newRefresh);
+
+                // Thêm Authorization rồi gọi lại
+                const authHeaders = {};
+                authHeaders['Authorization'] = `Bearer ${newAccess}`;
+                const retryRes = await fetch(`${API_BASE_URL}${endpoint}`, {
+                  ...options,
+                  _retry: true,
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    ...options.headers,
+                    ...authHeaders,
+                  },
+                });
+                const retryText = await retryRes.text();
+                let retryJson = null;
+                try { retryJson = retryText ? JSON.parse(retryText) : null; } catch {}
+                if (!retryRes.ok) {
+                  const em = retryJson?.message || `HTTP error! status: ${retryRes.status}`;
+                  throw new Error(em);
+                }
+                return retryJson;
+              }
+            }
+          }
+        } catch (rfErr) {
+          console.error('[API-CALL] Refresh-on-401 failed:', rfErr);
+          // fallthrough -> throw dưới
+        }
+      }
       // Xử lý error response
       let errorMessage = result?.message || result?.Message || `HTTP error! status: ${response.status}`;
       console.error('[API-CALL] Error:', errorMessage);
@@ -76,9 +126,11 @@ export const verifyOtp = async (data) => {
   });
 
   // Lưu token vào AsyncStorage sau khi verify thành công
-  if (result?.AccessToken && result?.RefreshToken) {
-    await AsyncStorage.setItem('accessToken', result.AccessToken);
-    await AsyncStorage.setItem('refreshToken', result.RefreshToken);
+  const access = result?.AccessToken || result?.accessToken;
+  const refresh = result?.RefreshToken || result?.refreshToken;
+  if (access && refresh) {
+    await AsyncStorage.setItem('accessToken', access);
+    await AsyncStorage.setItem('refreshToken', refresh);
   }
 
   return result;
@@ -92,9 +144,11 @@ export const login = async (credentials) => {
   });
 
   // Lưu token
-  if (result?.AccessToken && result?.RefreshToken) {
-    await AsyncStorage.setItem('accessToken', result.AccessToken);
-    await AsyncStorage.setItem('refreshToken', result.RefreshToken);
+  const access = result?.AccessToken || result?.accessToken;
+  const refresh = result?.RefreshToken || result?.refreshToken;
+  if (access && refresh) {
+    await AsyncStorage.setItem('accessToken', access);
+    await AsyncStorage.setItem('refreshToken', refresh);
   }
 
   return result;
@@ -118,9 +172,11 @@ export const refreshToken = async () => {
     body: JSON.stringify({ RefreshToken: refreshToken }),
   });
 
-  if (result?.AccessToken && result?.RefreshToken) {
-    await AsyncStorage.setItem('accessToken', result.AccessToken);
-    await AsyncStorage.setItem('refreshToken', result.RefreshToken);
+  const access = result?.AccessToken || result?.accessToken;
+  const refresh = result?.RefreshToken || result?.refreshToken;
+  if (access && refresh) {
+    await AsyncStorage.setItem('accessToken', access);
+    await AsyncStorage.setItem('refreshToken', refresh);
   }
 
   return result;
@@ -140,6 +196,54 @@ export const logout = async () => {
     }
   }
   await AsyncStorage.multiRemove(['accessToken', 'refreshToken', 'userInfo']);
+};
+
+// =================== PROFILE APIs ===================
+export const getProfile = async () => {
+  const headers = await getAuthHeaders();
+  const result = await apiCall('/api/users/profile', {
+    method: 'GET',
+    headers,
+  });
+  // API trả { message, data }
+  return result?.data || null;
+};
+
+export const updateProfile = async (payload) => {
+  const headers = await getAuthHeaders();
+  return apiCall('/api/users/profile', {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(payload),
+  });
+};
+
+export const updateAvatar = async ({ uri, name = 'avatar.jpg', type = 'image/jpeg', createPost = false, postCaption = '', postLocation = '', postPrivacy = 'public' }) => {
+  const headers = await getAuthHeaders();
+  const form = new FormData();
+  form.append('avatarFile', { uri, name, type });
+  form.append('CreatePost', createPost ? 'true' : 'false');
+  if (postCaption) form.append('PostCaption', postCaption);
+  if (postLocation) form.append('PostLocation', postLocation);
+  form.append('PostPrivacy', postPrivacy);
+
+  const res = await fetch(`${API_BASE_URL}/api/users/profile/avatar`, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      Accept: 'application/json',
+    },
+    body: form,
+  });
+
+  const text = await res.text();
+  let json = null;
+  try { json = text ? JSON.parse(text) : null; } catch {}
+  if (!res.ok) {
+    throw new Error(json?.message || `Cập nhật avatar thất bại (${res.status})`);
+  }
+  // trả { message, data: { avatarUrl } }
+  return json;
 };
 
 // Quên mật khẩu
@@ -214,4 +318,148 @@ export const setupTokenRefresh = () => {
       await logout();
     }
   }, 5 * 60 * 1000); // 5 phút
+};
+
+// Khởi tạo/khôi phục session khi mở app: cố lấy profile, nếu 401 thì refresh rồi thử lại
+export const restoreSession = async () => {
+  try {
+    const access = await AsyncStorage.getItem('accessToken');
+    const refresh = await AsyncStorage.getItem('refreshToken');
+    if (!access && !refresh) return { ok: false };
+
+    // Thử lấy profile bằng access token hiện tại
+    try {
+      const profile = await getProfile();
+      if (profile) {
+        await AsyncStorage.setItem('userInfo', JSON.stringify(profile));
+        return { ok: true, profile };
+      }
+    } catch (e) {
+      // Nếu lỗi có thể do hết hạn, thử refresh
+      try {
+        await refreshToken();
+        const profile = await getProfile();
+        if (profile) {
+          await AsyncStorage.setItem('userInfo', JSON.stringify(profile));
+          return { ok: true, profile };
+        }
+      } catch (e2) {
+        return { ok: false };
+      }
+    }
+    return { ok: false };
+  } catch {
+    return { ok: false };
+  }
+};
+
+// =================== POSTS APIs ===================
+// Tạo bài đăng (multipart/form-data): images[] (nhiều), video (1), Caption, Location, Privacy
+export const createPost = async ({ images = [], video = null, caption = '', location = '', privacy = 'public' }) => {
+  const headers = await getAuthHeaders();
+  const form = new FormData();
+  if (caption) form.append('Caption', caption);
+  if (location) form.append('Location', location);
+  form.append('Privacy', privacy);
+
+  images.forEach((img, idx) => {
+    // img: { uri, name, type }
+    form.append('Images', {
+      uri: img.uri,
+      name: img.name || `image_${idx}.jpg`,
+      type: img.type || 'image/jpeg',
+    });
+  });
+
+  if (video) {
+    form.append('Video', {
+      uri: video.uri,
+      name: video.name || 'video.mp4',
+      type: video.type || 'video/mp4',
+    });
+  }
+
+  const res = await fetch(`${API_BASE_URL}/api/posts`, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      // KHÔNG set 'Content-Type' để RN tự thêm boundary của multipart
+      Accept: 'application/json',
+    },
+    body: form,
+  });
+
+  const text = await res.text();
+  let json = null;
+  try { json = text ? JSON.parse(text) : null; } catch { /* noop */ }
+  if (!res.ok) {
+    throw new Error(json?.message || `Upload thất bại (${res.status})`);
+  }
+  return json;
+};
+
+export const getFeed = async (page = 1, pageSize = 20) => {
+  const res = await fetch(`${API_BASE_URL}/api/posts/feed?page=${page}&pageSize=${pageSize}`);
+  if (!res.ok) throw new Error('Không lấy được feed');
+  return res.json();
+};
+
+export const getReels = async (page = 1, pageSize = 20) => {
+  const res = await fetch(`${API_BASE_URL}/api/posts/reels?page=${page}&pageSize=${pageSize}`);
+  if (!res.ok) throw new Error('Không lấy được reels');
+  return res.json();
+};
+
+export const getMyPosts = async (page = 1, pageSize = 20) => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/posts/me?page=${page}&pageSize=${pageSize}` , { headers });
+  if (!res.ok) throw new Error('Không lấy được bài đăng của tôi');
+  return res.json();
+};
+
+// Cập nhật quyền riêng tư của bài đăng
+export const updatePostPrivacy = async (postId, privacy) => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/privacy`, {
+    method: 'PATCH',
+    headers: { ...headers, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ Privacy: privacy }),
+  });
+  const text = await res.text();
+  let json = null; try { json = text ? JSON.parse(text) : null; } catch {}
+  if (!res.ok) {
+    throw new Error(json?.message || 'Không thể cập nhật quyền riêng tư');
+  }
+  return json; // server trả về post dto
+};
+
+// Cập nhật caption bài đăng
+export const updatePostCaption = async (postId, caption) => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/caption`, {
+    method: 'PATCH',
+    headers: { ...headers, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ Caption: caption }),
+  });
+  const text = await res.text();
+  let json = null; try { json = text ? JSON.parse(text) : null; } catch {}
+  if (!res.ok) {
+    throw new Error(json?.message || 'Không thể cập nhật caption');
+  }
+  return json;
+};
+
+// Xóa bài đăng
+export const deletePost = async (postId) => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/posts/${postId}`, {
+    method: 'DELETE',
+    headers: { ...headers, Accept: 'application/json' },
+  });
+  if (!res.ok && res.status !== 204) {
+    const text = await res.text();
+    let json = null; try { json = text ? JSON.parse(text) : null; } catch {}
+    throw new Error(json?.message || 'Không thể xóa bài đăng');
+  }
+  return true;
 };
