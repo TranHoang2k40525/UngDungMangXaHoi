@@ -99,6 +99,7 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, EmailService>();
 builder.Services.AddScoped<UserProfileService>();
+builder.Services.AddScoped<VideoTranscodeService>();
 
 // External Services
 builder.Services.AddScoped<CloudinaryService>(provider =>
@@ -140,16 +141,35 @@ if (app.Environment.IsDevelopment())
 
 // app.UseHttpsRedirection(); // Comment out for development
 app.UseCors("AllowAll");
-// Serve static files from Assets folder (Images, Videos)
+// Serve static files from Assets folder (Images, Videos) with Range support and proper content types
 var assetsPath = Path.Combine(Directory.GetCurrentDirectory(), "Assets");
 if (!Directory.Exists(assetsPath))
 {
     Directory.CreateDirectory(assetsPath);
 }
+var contentTypeProvider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+// Ensure common video types are mapped
+contentTypeProvider.Mappings[".mp4"] = "video/mp4";
+contentTypeProvider.Mappings[".m4v"] = "video/mp4";
+contentTypeProvider.Mappings[".mov"] = "video/quicktime";
+contentTypeProvider.Mappings[".webm"] = "video/webm";
+contentTypeProvider.Mappings[".mkv"] = "video/x-matroska";
+
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(assetsPath),
-    RequestPath = "/Assets"
+    RequestPath = "/Assets",
+    ContentTypeProvider = contentTypeProvider,
+    ServeUnknownFileTypes = true,
+    OnPrepareResponse = ctx =>
+    {
+        // Add Accept-Ranges and Cache-Control for smoother playback
+        ctx.Context.Response.Headers["Accept-Ranges"] = "bytes";
+        if (!ctx.Context.Response.Headers.ContainsKey("Cache-Control"))
+        {
+            ctx.Context.Response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
+        }
+    }
 });
 app.UseAuthentication();
 app.UseAuthorization();
