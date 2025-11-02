@@ -66,12 +66,17 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
 
         public async Task<IEnumerable<Post>> GetFeedAsync(int? currentUserId, int pageNumber, int pageSize)
         {
-            // Hiển thị: tất cả bài public + bài của chính mình (bao gồm private/followers của mình)
+            // Hiển thị: Public cho tất cả; Private chỉ chủ sở hữu; Followers cho chủ sở hữu và follower
             var query = _context.Posts
                 .AsNoTracking()
                 .Include(p => p.User)
                 .Include(p => p.Media)
-                .Where(p => p.is_visible && (p.privacy.ToLower() == "public" || (currentUserId != null && p.user_id == currentUserId)) )
+                .Where(p => p.is_visible && (
+                    p.privacy.ToLower() == "public"
+                    || (currentUserId != null && p.user_id == currentUserId)
+                    || (p.privacy.ToLower() == "followers" && currentUserId != null &&
+                        _context.Follows.Any(f => f.follower_id == currentUserId && f.following_id == p.user_id))
+                ))
                 .OrderByDescending(p => p.created_at)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize);
@@ -92,18 +97,75 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .ToListAsync();
         }
 
-        public async Task<IEnumerable<Post>> GetVideoPostsAsync(int pageNumber, int pageSize)
+        public async Task<IEnumerable<Post>> GetUserPostsForViewerAsync(int userId, int? viewerUserId, int pageNumber, int pageSize)
         {
-            // Bài có ít nhất một media là Video và ở chế độ public
+            // If the viewer is the owner, return all visible posts
+            if (viewerUserId != null && viewerUserId.Value == userId)
+            {
+                return await GetUserPostsAsync(userId, pageNumber, pageSize);
+            }
+
+            // Otherwise, return public posts + followers-only if viewer follows user
             return await _context.Posts
                 .AsNoTracking()
                 .Include(p => p.User)
                 .Include(p => p.Media)
-                .Where(p => p.is_visible && p.privacy.ToLower() == "public" && p.Media.Any(m => m.media_type.ToLower() == "video"))
+                .Where(p => p.is_visible && p.user_id == userId && (
+                    p.privacy.ToLower() == "public"
+                    || (p.privacy.ToLower() == "followers" && viewerUserId != null &&
+                        _context.Follows.Any(f => f.follower_id == viewerUserId && f.following_id == userId))
+                ))
                 .OrderByDescending(p => p.created_at)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
+        }
+
+        public async Task<IEnumerable<Post>> GetVideoPostsAsync(int? currentUserId, int pageNumber, int pageSize)
+        {
+            // Bài có ít nhất một media là Video
+            // Hiển thị: Public cho tất cả; Private chỉ chủ sở hữu; Followers cho chủ sở hữu và follower
+            return await _context.Posts
+                .AsNoTracking()
+                .Include(p => p.User)
+                .Include(p => p.Media)
+                .Where(p => p.is_visible
+                    && p.Media.Any(m => m.media_type.ToLower() == "video")
+                    && (
+                        p.privacy.ToLower() == "public"
+                        || (currentUserId != null && p.user_id == currentUserId)
+                        || (p.privacy.ToLower() == "followers" && currentUserId != null &&
+                            _context.Follows.Any(f => f.follower_id == currentUserId && f.following_id == p.user_id))
+                    ))
+                .OrderByDescending(p => p.created_at)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<Post>> GetAllVideoPostsAsync(int? currentUserId)
+        {
+            // Bài có ít nhất một media là Video
+            // Hiển thị: Public cho tất cả; Private chỉ chủ sở hữu; Followers cho chủ sở hữu và follower
+            return await _context.Posts
+                .AsNoTracking()
+                .Include(p => p.User)
+                .Include(p => p.Media)
+                .Where(p => p.is_visible
+                    && p.Media.Any(m => m.media_type.ToLower() == "video")
+                    && (
+                        p.privacy.ToLower() == "public"
+                        || (currentUserId != null && p.user_id == currentUserId)
+                        || (p.privacy.ToLower() == "followers" && currentUserId != null &&
+                            _context.Follows.Any(f => f.follower_id == currentUserId && f.following_id == p.user_id))
+                    ))
+                .OrderByDescending(p => p.created_at)
+                .ToListAsync();
+        }
+
+        public async Task<int> GetUserPostCountAsync(int userId)
+        {
+            return await _context.Posts.CountAsync(p => p.is_visible && p.user_id == userId);
         }
     }
 }
