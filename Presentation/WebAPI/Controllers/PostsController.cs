@@ -17,13 +17,15 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
     [Authorize]
     public class PostsController : ControllerBase
     {
-        private readonly IPostRepository _postRepository;
-        private readonly IUserRepository _userRepository;
+    private readonly IPostRepository _postRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly UngDungMangXaHoi.Infrastructure.Services.VideoTranscodeService _videoTranscoder;
 
-        public PostsController(IPostRepository postRepository, IUserRepository userRepository)
+        public PostsController(IPostRepository postRepository, IUserRepository userRepository, UngDungMangXaHoi.Infrastructure.Services.VideoTranscodeService videoTranscoder)
         {
             _postRepository = postRepository;
             _userRepository = userRepository;
+            _videoTranscoder = videoTranscoder;
         }
 
         // DTO for create request via multipart/form-data
@@ -163,6 +165,18 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                     await video.CopyToAsync(vstream);
                 }
 
+                // Attempt to normalize for broad compatibility; keep original if transcoding fails
+                try
+                {
+                    var compatPath = await _videoTranscoder.TryNormalizeAsync(vpath, videosDir);
+                    if (!string.IsNullOrEmpty(compatPath) && System.IO.File.Exists(compatPath))
+                    {
+                        // Switch to compat file for serving
+                        vname = Path.GetFileName(compatPath);
+                    }
+                }
+                catch { /* ignore and fall back to original */ }
+
                 var vmedia = new PostMedia
                 {
                     post_id = createdPost.post_id,
@@ -201,7 +215,39 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetReels([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            var posts = await _postRepository.GetVideoPostsAsync(Math.Max(1, page), Math.Clamp(pageSize, 1, 50));
+            int? currentUserId = null;
+            try
+            {
+                var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!string.IsNullOrEmpty(accountIdStr) && int.TryParse(accountIdStr, out var accountId))
+                {
+                    var u = await _userRepository.GetByAccountIdAsync(accountId);
+                    if (u != null) currentUserId = u.user_id;
+                }
+            }
+            catch { }
+
+            var posts = await _postRepository.GetVideoPostsAsync(currentUserId, Math.Max(1, page), Math.Clamp(pageSize, 1, 50));
+            return Ok(posts.Select(MapPostToDto));
+        }
+
+        [HttpGet("reels/all")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetAllReels()
+        {
+            int? currentUserId = null;
+            try
+            {
+                var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!string.IsNullOrEmpty(accountIdStr) && int.TryParse(accountIdStr, out var accountId))
+                {
+                    var u = await _userRepository.GetByAccountIdAsync(accountId);
+                    if (u != null) currentUserId = u.user_id;
+                }
+            }
+            catch { }
+
+            var posts = await _postRepository.GetAllVideoPostsAsync(currentUserId);
             return Ok(posts.Select(MapPostToDto));
         }
 
@@ -224,7 +270,19 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetUserPosts([FromRoute] int userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            var posts = await _postRepository.GetUserPostsAsync(userId, Math.Max(1, page), Math.Clamp(pageSize, 1, 50));
+            int? currentUserId = null;
+            try
+            {
+                var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!string.IsNullOrEmpty(accountIdStr) && int.TryParse(accountIdStr, out var accountId))
+                {
+                    var u = await _userRepository.GetByAccountIdAsync(accountId);
+                    if (u != null) currentUserId = u.user_id;
+                }
+            }
+            catch { }
+
+            var posts = await _postRepository.GetUserPostsForViewerAsync(userId, currentUserId, Math.Max(1, page), Math.Clamp(pageSize, 1, 50));
             return Ok(posts.Select(MapPostToDto));
         }
 
@@ -234,13 +292,35 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             var media = p.Media
                 .OrderBy(m => m.media_order)
-                .Select(m => new
+                .Select(m =>
                 {
-                    type = m.media_type,
-                    // reconstruct URL from filename and folder by type
-                    url = m.media_type.Equals("video", StringComparison.OrdinalIgnoreCase)
-                        ? BaseUrl($"/Assets/Videos/{m.media_url}")
-                        : BaseUrl($"/Assets/Images/{m.media_url}")
+                    string type = m.media_type;
+                    string url;
+                    string? altUrl = null;
+
+                    if (type.Equals("video", StringComparison.OrdinalIgnoreCase))
+                    {
+                        url = BaseUrl($"/Assets/Videos/{m.media_url}");
+                        try
+                        {
+                            var root = Directory.GetCurrentDirectory();
+                            var videosDir = Path.Combine(root, "Assets", "Videos");
+                            var nameNoExt = Path.GetFileNameWithoutExtension(m.media_url);
+                            var compatName = nameNoExt + "_compat.mp4";
+                            var compatPath = Path.Combine(videosDir, compatName);
+                            if (System.IO.File.Exists(compatPath))
+                            {
+                                altUrl = BaseUrl($"/Assets/Videos/{compatName}");
+                            }
+                        }
+                        catch { }
+                    }
+                    else
+                    {
+                        url = BaseUrl($"/Assets/Images/{m.media_url}");
+                    }
+
+                    return new { type, url, altUrl };
                 });
 
             return new
