@@ -36,8 +36,9 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                     return Unauthorized(new { message = "Token không hợp lệ!" });
                 }
 
-                var userId = int.Parse(userIdClaim.Value);
-                var profile = await _profileService.GetProfileAsync(userId);
+                // Trong JwtTokenService, NameIdentifier chứa account_id
+                var accountId = int.Parse(userIdClaim.Value);
+                var profile = await _profileService.GetProfileByAccountIdAsync(accountId);
 
                 if (profile == null)
                 {
@@ -72,8 +73,8 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                     return Unauthorized(new { message = "Token không hợp lệ!" });
                 }
 
-                var userId = int.Parse(userIdClaim.Value);
-                var success = await _profileService.UpdateBasicInfoAsync(userId, request);
+                var accountId = int.Parse(userIdClaim.Value);
+                var success = await _profileService.UpdateBasicInfoByAccountIdAsync(accountId, request);
 
                 if (!success)
                 {
@@ -98,7 +99,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         {
             try
             {
-                var accountIdClaim = User.FindFirst("AccountId");
+                var accountIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
                 if (accountIdClaim == null)
                 {
                     return Unauthorized(new { message = "Token không hợp lệ!" });
@@ -130,7 +131,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         {
             try
             {
-                var accountIdClaim = User.FindFirst("AccountId");
+                var accountIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
                 if (accountIdClaim == null)
                 {
                     return Unauthorized(new { message = "Token không hợp lệ!" });
@@ -162,7 +163,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         {
             try
             {
-                var accountIdClaim = User.FindFirst("AccountId");
+                var accountIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
                 if (accountIdClaim == null)
                 {
                     return Unauthorized(new { message = "Token không hợp lệ!" });
@@ -194,7 +195,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         {
             try
             {
-                var accountIdClaim = User.FindFirst("AccountId");
+                var accountIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
                 if (accountIdClaim == null)
                 {
                     return Unauthorized(new { message = "Token không hợp lệ!" });
@@ -243,8 +244,8 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                     return Unauthorized(new { message = "Token không hợp lệ!" });
                 }
 
-                var userId = int.Parse(userIdClaim.Value);
-                var (success, message, avatarUrl) = await _profileService.UpdateAvatarAsync(userId, avatarFile, request);
+                var accountId = int.Parse(userIdClaim.Value);
+                var (success, message, avatarUrl) = await _profileService.UpdateAvatarByAccountIdAsync(accountId, avatarFile, request);
 
                 if (!success)
                 {
@@ -278,8 +279,8 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                     return Unauthorized(new { message = "Token không hợp lệ!" });
                 }
 
-                var userId = int.Parse(userIdClaim.Value);
-                var (success, message) = await _profileService.RemoveAvatarAsync(userId);
+                var accountId = int.Parse(userIdClaim.Value);
+                var (success, message) = await _profileService.RemoveAvatarByAccountIdAsync(accountId);
 
                 if (!success)
                 {
