@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
@@ -22,18 +22,22 @@ import Doanchat from "./src/Messegers/Doanchat";
 import Messenger from "./src/Messegers/Messenger";
 import Search from "./src/Searchs/Search";
 import Profile from "./src/User/Profile";
+import UserProfilePublic from "./src/User/UserProfilePublic";
+import PostDetail from "./src/Home/PostDetail";
 import Editprofile from "./src/User/Editprofile";
 import PhotoPreview from "./src/User/PhotoPreview";
 import { View, ActivityIndicator, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { API_BASE_URL } from "./src/API/Api";
+import { TouchableOpacity } from 'react-native';
+import { emitTabTriple } from './src/Utils/TabRefreshEmitter';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function TabProfileIcon({ focused }) {
     const { user } = useUser();
-    const size = focused ? 24 : 24;
+    const size = focused ? 26 : 24;
     const borderColor = focused ? "#000" : "#9CA3AF";
     let uri = user?.avatarUrl || user?.AvatarUrl || null;
     if (uri && !uri.startsWith("http")) {
@@ -62,9 +66,46 @@ function TabProfileIcon({ focused }) {
     );
 }
 
+function TabBarButton({ children, onPress, onLongPress, route, style, accessibilityState, ...rest }) {
+    // triple-tap detector
+    const taps = useRef([]);
+    return (
+        <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={onPress}
+            onLongPress={onLongPress || onPress}
+            style={[{ flex: 1, alignItems: 'center', justifyContent: 'center' }, style]}
+            accessibilityState={accessibilityState}
+            {...rest}
+            onPressIn={() => {
+                const now = Date.now();
+                taps.current = (taps.current || []).filter(t => now - t < 400);
+                taps.current.push(now);
+                if (taps.current.length >= 3) {
+                    // emit an event on navigation to tell that this tab was triple-pressed
+                    // Use navigation from children via a synthetic event: navigation.emit supported below
+                    try {
+                        // children are icons only; route param contains key/name we can use to emit event
+                        // We use the global navigation container by navigating to the same route with a param
+                        // that listeners can pick up via navigation.addListener('tabTriplePress', ...)
+                        // Here we navigate programmatically to the same route which will trigger no-op but we emit an event
+                        // Use setTimeout to allow normal onPress to process first
+                        setTimeout(() => {
+                            // Emit our custom triple-tap event for this tab
+                            try { emitTabTriple(route.name); } catch (e) { }
+                        }, 50);
+                    } catch (e) {}
+                }
+            }}
+        >
+            {children}
+        </TouchableOpacity>
+    );
+}
+
 function MainTabs() {
     const insets = useSafeAreaInsets();
-    const baseHeight = 56; // base tab height
+    const baseHeight = 60; // base tab height
     const bottomInset = insets?.bottom || 0;
     return (
         <Tab.Navigator
@@ -72,11 +113,16 @@ function MainTabs() {
                 headerShown: false,
                 tabBarShowLabel: false,
                 tabBarHideOnKeyboard: true,
+                // Custom tabBarButton to detect triple-tap and emit a refresh event
+                tabBarButton: (props) => {
+                    // route is closed-over from screenOptions
+                    return <TabBarButton {...props} route={route} />;
+                },
                 // Ensure the tab bar clears device navigation area by including bottom safe-area inset
                 tabBarStyle: {
                     height: baseHeight + bottomInset,
                     paddingBottom: bottomInset, // chỉ đệm đúng phần safe-area, không thêm khoảng trắng
-                    paddingTop: 0,
+                    paddingTop: 1,
                     borderTopColor: "#DBDBDB",
                     borderTopWidth: StyleSheet.hairlineWidth,
                     backgroundColor: "#FFFFFF",
@@ -183,6 +229,8 @@ function AppNavigator() {
                         />
                         <Stack.Screen name="Thongbao" component={Thongbao} />
                         <Stack.Screen name="SharePost" component={SharePost} />
+                        <Stack.Screen name="PostDetail" component={PostDetail} />
+                        <Stack.Screen name="UserProfilePublic" component={UserProfilePublic} />
                         <Stack.Screen
                             name="CommentsModal"
                             component={CommentsModal}

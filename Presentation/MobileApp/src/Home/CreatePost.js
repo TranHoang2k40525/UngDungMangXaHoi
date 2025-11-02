@@ -119,6 +119,18 @@ export default function CreatePost() {
         useCallback(() => {
             let alive = true;
             (async () => {
+                if (Platform.OS === 'android') {
+                    // Avoid calling MediaLibrary.getPermissionsAsync on Android to prevent AUDIO permission error
+                    const ok = await androidCheckMediaPermissions();
+                    if (!alive) return;
+                    setPermStatus(ok ? 'granted' : 'denied');
+                    if (ok) {
+                        setLoading(true);
+                        await loadAssets(true);
+                        setLoading(false);
+                    }
+                    return;
+                }
                 const cur = await MediaLibrary.getPermissionsAsync();
                 console.log(`${LOG} getPermissionsAsync (focus) ->`, {
                     status: cur?.status,
@@ -127,11 +139,11 @@ export default function CreatePost() {
                 });
                 if (!alive) return;
                 setPermStatus(cur.status);
-                if (Platform.OS === 'ios' && cur.accessPrivileges) {
+                if (cur.accessPrivileges) {
                     setIosAccess(cur.accessPrivileges);
                 }
                 setCanAskAgain(cur.canAskAgain ?? true);
-                if (cur.status === 'granted' || (Platform.OS === 'ios' && cur.accessPrivileges === 'limited')) {
+                if (cur.status === 'granted' || cur.accessPrivileges === 'limited') {
                     setLoading(true);
                     await loadAssets(true);
                     setLoading(false);
@@ -185,8 +197,10 @@ export default function CreatePost() {
     // Open system photo picker (works without full storage permission on Android 13+ and iOS)
     const openSystemPicker = useCallback(async () => {
         try {
+            // Chọn tất cả loại media với fallback tương thích các phiên bản Expo
+            const pickerMediaTypes = ['images', 'videos'];
             const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.All,
+                mediaTypes: pickerMediaTypes,
                 allowsMultipleSelection: multipleSelectMode,
                 selectionLimit: multipleSelectMode ? 10 : 1,
                 quality: 1,
@@ -279,6 +293,21 @@ export default function CreatePost() {
             setHasNextPage(true);
         }
         if (!hasNextPage && !reset) return;
+        // Guard: ensure we have at least limited permission before accessing library
+        if (Platform.OS === 'android') {
+            const ok = await androidCheckMediaPermissions();
+            if (!ok) {
+                console.log(`${LOG} loadAssets aborted: no permission (android)`);
+                return;
+            }
+        } else {
+            const perm = await MediaLibrary.getPermissionsAsync();
+            const granted = perm?.status === 'granted' || perm?.accessPrivileges === 'limited';
+            if (!granted) {
+                console.log(`${LOG} loadAssets aborted: no permission (ios)`);
+                return;
+            }
+        }
         const pageSize = 24; // smaller initial page to load faster
         const res = await MediaLibrary.getAssetsAsync({
             mediaType: [MediaLibrary.MediaType.photo, MediaLibrary.MediaType.video],
@@ -386,7 +415,8 @@ export default function CreatePost() {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        // Là màn trong Tab, bỏ safe-area cạnh dưới để không tạo dải tràn trên tab bar
+        <SafeAreaView edges={['top']} style={styles.container}>
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()}>

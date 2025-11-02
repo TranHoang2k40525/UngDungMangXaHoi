@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { createPost } from "../API/Api";
+import { Video, ResizeMode } from 'expo-av';
 
 export default function SharePost() {
     const navigation = useNavigation();
@@ -76,10 +77,39 @@ export default function SharePost() {
                 <ScrollView showsVerticalScrollIndicator={false}>
                     {/* Preview và Caption */}
                     <View style={styles.postPreview}>
-                        <Image
-                            source={{ uri: (selectedImage?.uri || selectedImage) }}
-                            style={styles.previewImage}
-                        />
+                        {(() => {
+                            const isVideo = (selectedImage?.mediaType === 'video' || selectedImage?.type === 'video');
+                            const uri = selectedImage?.uri || selectedImage;
+                            if (isVideo) {
+                                return (
+                                    <View style={{ position:'relative' }}>
+                                        <Video
+                                            source={{ uri }}
+                                            style={styles.previewImage}
+                                            resizeMode={ResizeMode.COVER}
+                                            shouldPlay={false}
+                                            isLooping
+                                            useNativeControls={false}
+                                            isMuted={false}
+                                            volume={1.0}
+                                            onError={(e) => {
+                                                console.warn('[SHARE] preview video error', e);
+                                                // No fallback per constraints; consider re-encoding source if persistent
+                                            }}
+                                        />
+                                        <View style={styles.videoPlayOverlay} pointerEvents="none">
+                                            <Text style={{ color:'#fff', fontWeight:'800', fontSize:18 }}>▶</Text>
+                                        </View>
+                                    </View>
+                                );
+                            }
+                            return (
+                                <Image
+                                    source={{ uri }}
+                                    style={styles.previewImage}
+                                />
+                            );
+                        })()}
 
                         <TextInput
                             style={styles.captionInput}
@@ -174,6 +204,16 @@ const styles = StyleSheet.create({
         height: 80,
         borderRadius: 4,
         backgroundColor: "#F0F0F0",
+    },
+    videoPlayOverlay: {
+        position:'absolute',
+        top:0,
+        left:0,
+        right:0,
+        bottom:0,
+        alignItems:'center',
+        justifyContent:'center',
+        backgroundColor:'rgba(0,0,0,0.25)'
     },
     captionInput: {
         flex: 1,

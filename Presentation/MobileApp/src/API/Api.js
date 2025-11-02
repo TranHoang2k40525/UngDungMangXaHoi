@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
 export const API_BASE_URL = 'http://192.168.1.103:5297'; // Backend đang chạy trên IP này
@@ -99,6 +100,11 @@ const apiCall = async (endpoint, options = {}) => {
   } catch (error) {
     console.error('[API-CALL] API Error:', error);
     
+    // Detect Android native OOM error string and provide a clearer message
+    const msg = String(error?.message || error);
+    if (msg.includes('OutOfMemoryError') || msg.includes('Failed to allocate')) {
+      throw new Error('Thiết bị không đủ bộ nhớ để xử lý tệp lớn. Vui lòng thử nén ảnh/video hoặc dùng tệp nhỏ hơn.');
+    }
     // Xử lý các loại lỗi khác nhau
     if (error.name === 'TypeError' && error.message.includes('Network request failed')) {
       throw new Error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.');
@@ -107,6 +113,24 @@ const apiCall = async (endpoint, options = {}) => {
     } else {
       throw error;
     }
+  }
+};
+
+// Compress an image URI using expo-image-manipulator to avoid large uploads / OOM on Android
+const compressImage = async (uri, maxWidth = 1080, compress = 0.7) => {
+  try {
+    if (!uri) return uri;
+    console.log('[API] compressImage input:', uri);
+    const manip = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ resize: { width: maxWidth } }],
+      { compress, format: ImageManipulator.SaveFormat.JPEG }
+    );
+    console.log('[API] compressImage result:', manip?.uri);
+    return manip?.uri || uri;
+  } catch (e) {
+    console.warn('[API] compressImage failed, fallback to original uri', e);
+    return uri;
   }
 };
 
@@ -221,6 +245,11 @@ export const updateProfile = async (payload) => {
 export const updateAvatar = async ({ uri, name = 'avatar.jpg', type = 'image/jpeg', createPost = false, postCaption = '', postLocation = '', postPrivacy = 'public' }) => {
   const headers = await getAuthHeaders();
   const form = new FormData();
+  // Compress avatar to reduce memory and upload size
+  try {
+    const compressed = await compressImage(uri, 800, 0.75);
+    uri = compressed || uri;
+  } catch (e) { console.warn('[API] updateAvatar compress failed', e); }
   form.append('avatarFile', { uri, name, type });
   form.append('CreatePost', createPost ? 'true' : 'false');
   if (postCaption) form.append('PostCaption', postCaption);
@@ -362,14 +391,25 @@ export const createPost = async ({ images = [], video = null, caption = '', loca
   if (location) form.append('Location', location);
   form.append('Privacy', privacy);
 
-  images.forEach((img, idx) => {
-    // img: { uri, name, type }
-    form.append('Images', {
-      uri: img.uri,
-      name: img.name || `image_${idx}.jpg`,
-      type: img.type || 'image/jpeg',
-    });
-  });
+  // Compress images before append to avoid OOM on Android
+  for (let idx = 0; idx < images.length; idx++) {
+    const img = images[idx];
+    try {
+      const compressed = await compressImage(img.uri, 1080, 0.75);
+      form.append('Images', {
+        uri: compressed || img.uri,
+        name: img.name || `image_${idx}.jpg`,
+        type: img.type || 'image/jpeg',
+      });
+    } catch (e) {
+      console.warn('[API] createPost compress image failed', e);
+      form.append('Images', {
+        uri: img.uri,
+        name: img.name || `image_${idx}.jpg`,
+        type: img.type || 'image/jpeg',
+      });
+    }
+  }
 
   if (video) {
     form.append('Video', {
@@ -399,54 +439,64 @@ export const createPost = async ({ images = [], video = null, caption = '', loca
 };
 
 export const getFeed = async (page = 1, pageSize = 20) => {
-  const res = await fetch(`${API_BASE_URL}/api/posts/feed?page=${page}&pageSize=${pageSize}`);
-  if (!res.ok) throw new Error('Không lấy được feed');
-  return res.json();
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/posts/feed?page=${page}&pageSize=${pageSize}`, {
+    method: 'GET',
+    headers,
+  });
 };
 
 export const getReels = async (page = 1, pageSize = 20) => {
-  const res = await fetch(`${API_BASE_URL}/api/posts/reels?page=${page}&pageSize=${pageSize}`);
-  if (!res.ok) throw new Error('Không lấy được reels');
-  return res.json();
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/posts/reels?page=${page}&pageSize=${pageSize}`, {
+    method: 'GET',
+    headers,
+  });
+};
+
+export const getAllReels = async () => {
+  const headers = await getAuthHeaders();
+  return apiCall('/api/posts/reels/all', {
+    method: 'GET',
+    headers,
+  });
 };
 
 export const getMyPosts = async (page = 1, pageSize = 20) => {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${API_BASE_URL}/api/posts/me?page=${page}&pageSize=${pageSize}` , { headers });
-  if (!res.ok) throw new Error('Không lấy được bài đăng của tôi');
-  return res.json();
+  return apiCall(`/api/posts/me?page=${page}&pageSize=${pageSize}`, {
+    method: 'GET',
+    headers,
+  });
+};
+
+// Lấy bài đăng của 1 user bất kỳ (public/followers/private sẽ do backend lọc theo quyền)
+export const getUserPostsById = async (userId, page = 1, pageSize = 20) => {
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/posts/user/${userId}?page=${page}&pageSize=${pageSize}`, {
+    method: 'GET',
+    headers,
+  });
 };
 
 // Cập nhật quyền riêng tư của bài đăng
 export const updatePostPrivacy = async (postId, privacy) => {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/privacy`, {
+  return apiCall(`/api/posts/${postId}/privacy`, {
     method: 'PATCH',
     headers: { ...headers, 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ Privacy: privacy }),
   });
-  const text = await res.text();
-  let json = null; try { json = text ? JSON.parse(text) : null; } catch {}
-  if (!res.ok) {
-    throw new Error(json?.message || 'Không thể cập nhật quyền riêng tư');
-  }
-  return json; // server trả về post dto
 };
 
 // Cập nhật caption bài đăng
 export const updatePostCaption = async (postId, caption) => {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/caption`, {
+  return apiCall(`/api/posts/${postId}/caption`, {
     method: 'PATCH',
     headers: { ...headers, 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ Caption: caption }),
   });
-  const text = await res.text();
-  let json = null; try { json = text ? JSON.parse(text) : null; } catch {}
-  if (!res.ok) {
-    throw new Error(json?.message || 'Không thể cập nhật caption');
-  }
-  return json;
 };
 
 // Xóa bài đăng

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
     View,
     Text,
@@ -9,19 +9,20 @@ import {
     ScrollView,
     FlatList,
     Platform,
-    PermissionsAndroid,
     Share,
+    KeyboardAvoidingView,
 } from "react-native";
 import { RefreshControl } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { onTabTriple } from '../Utils/TabRefreshEmitter';
 import { useUser } from "../Context/UserContext";
 import * as ImagePicker from "expo-image-picker";
 import CommentsModal from "./CommentsModal";
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getFeed, updatePostPrivacy, updatePostCaption, deletePost, getProfile } from "../API/Api";
+import { getFeed, updatePostPrivacy, updatePostCaption, deletePost, getProfile, getAuthHeaders } from "../API/Api";
 import { Ionicons } from "@expo/vector-icons";
-import { Video } from "expo-av";
+import { Audio, Video, ResizeMode } from "expo-av";
 
 // Dữ liệu stories
 const storiesData = [
@@ -151,6 +152,36 @@ export default function Home() {
     const [captionDraft, setCaptionDraft] = useState("");
     const navigation = useNavigation();
     const route = useRoute();
+    const FEED_CACHE_KEY = 'feedCache_v1';
+    const PAGE_SIZE = 5;
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const listRef = useRef(null);
+    const [authHeaders, setAuthHeaders] = useState(null);
+    // Cấu hình audio để không mất tiếng (kể cả khi iOS ở chế độ im lặng)
+    useEffect(() => {
+        (async () => {
+            try {
+                // Load auth headers once for protected media fetches
+                try { const h = await getAuthHeaders(); setAuthHeaders(h || null); } catch {}
+                await Audio.setAudioModeAsync({
+                    allowsRecordingIOS: false,
+                    staysActiveInBackground: false,
+                    playsInSilentModeIOS: true,
+                    shouldDuckAndroid: true,
+                    playThroughEarpieceAndroid: false,
+                });
+            } catch {}
+        })();
+    }, []);
+
+    // Use original video only: simple URL sanitizer
+    const sanitizeUri = useCallback((u) => {
+        if (!u || typeof u !== 'string') return '';
+        const trimmed = u.trim();
+        try { return encodeURI(trimmed); } catch { return trimmed; }
+    }, []);
 
     useEffect(() => {
         let mounted = true;
@@ -186,13 +217,37 @@ export default function Home() {
                 } catch (e) {
                     console.log('[HOME] getProfile() failed (non-fatal):', e?.message || e);
                 }
-                const data = await getFeed();
+                // Try load cache first for instant UI
+                try {
+                    const raw = await AsyncStorage.getItem(FEED_CACHE_KEY);
+                    if (raw && mounted) {
+                        const cache = JSON.parse(raw);
+                        if (Array.isArray(cache?.items) && cache.items.length > 0) {
+                            const arr = cache.items;
+                            setPosts(arr);
+                            const next = {};
+                            for (const p of arr) {
+                                next[p.id] = {
+                                    liked: false,
+                                    likes: Number(p.likesCount ?? 0),
+                                    shares: Number(p.sharesCount ?? 0),
+                                    comments: Number(p.commentsCount ?? 0),
+                                };
+                            }
+                            setPostStates(next);
+                            setLoading(false);
+                        }
+                    }
+                } catch {}
+
+                // Always fetch fresh page 1
+                const data = await getFeed(1, PAGE_SIZE);
                 if (mounted) {
                     let arr = Array.isArray(data) ? data : [];
-                    // Sort newest-first just in case
                     arr = arr.slice().sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
                     setPosts(arr);
-                    // seed per-post state
+                    setPage(1);
+                    setHasMore(arr.length === PAGE_SIZE);
                     const next = {};
                     for (const p of arr) {
                         next[p.id] = {
@@ -203,6 +258,7 @@ export default function Home() {
                         };
                     }
                     setPostStates(next);
+                    try { await AsyncStorage.setItem(FEED_CACHE_KEY, JSON.stringify({ items: arr, ts: Date.now() })); } catch {}
                 }
             } catch (e) {
                 console.warn('Feed error', e);
@@ -245,7 +301,7 @@ export default function Home() {
 
         try {
             const result = await ImagePicker.launchCameraAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                mediaTypes: ImagePicker.MediaTypeOptions?.Images,
                 quality: 1,
                 allowsEditing: false,
                 exif: false,
@@ -399,10 +455,13 @@ export default function Home() {
     const onRefreshFeed = async () => {
         try {
             setRefreshing(true);
-            const data = await getFeed();
+            const data = await getFeed(1, PAGE_SIZE);
             let arr = Array.isArray(data) ? data : [];
             arr = arr.slice().sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
             setPosts(arr);
+            setPage(1);
+            setHasMore(arr.length === PAGE_SIZE);
+            try { await AsyncStorage.setItem(FEED_CACHE_KEY, JSON.stringify({ items: arr, ts: Date.now() })); } catch {}
         } catch (e) {
             console.warn('Refresh feed error', e);
         } finally {
@@ -410,15 +469,44 @@ export default function Home() {
         }
     };
 
+    // Subscribe to triple-tap refresh from tab bar
+    useEffect(() => {
+        const unsub = onTabTriple('Home', () => {
+            try { onRefreshFeed(); } catch (e) { console.warn('[Home] triple-tap refresh error', e); }
+        });
+        return unsub;
+    }, [onRefreshFeed]);
+
+    const onEndReached = useCallback(async () => {
+        if (loadingMore || !hasMore) return;
+        try {
+            setLoadingMore(true);
+            const data = await getFeed(page + 1, PAGE_SIZE);
+            const arr = Array.isArray(data) ? data : [];
+            setPosts((prev) => {
+                const ids = new Set(prev.map(p => p.id));
+                const merged = [...prev, ...arr.filter(p => !ids.has(p.id))];
+                (async () => { try { await AsyncStorage.setItem(FEED_CACHE_KEY, JSON.stringify({ items: merged, ts: Date.now() })); } catch {} })();
+                return merged;
+            });
+            setPage(prev => prev + 1);
+            setHasMore(arr.length === PAGE_SIZE);
+        } finally {
+            setLoadingMore(false);
+        }
+    }, [loadingMore, hasMore, page]);
+
     // Navigate to full-screen video page with proper initial index
     const openVideoPlayerFor = (post) => {
+        // Danh sách video gốc (chưa sắp xếp) để màn Video tự ưu tiên selectedId + chưa xem + mới nhất
         const videos = posts.filter(pp => (pp.media||[]).some(m => (m.type||'').toLowerCase()==='video'));
-        const initialIndex = videos.findIndex(v => v.id === post.id);
-        navigation.navigate('Video', { videos, initialIndex: Math.max(0, initialIndex) });
+        // Navigate to nested tab if needed
+        navigation.navigate('Video', { videos, selectedId: post.id });
     };
 
     return (
-        <SafeAreaView style={[styles.container, { paddingTop: insets.top }] }>
+        // Chỉ tôn trọng safe-area ở cạnh trên; bỏ cạnh dưới để không tạo dải trắng/đen nằm ngay trên tab bar
+        <SafeAreaView edges={['top']} style={[styles.container, { paddingTop: insets.top }] }>
             {/* Header */}
             <View style={[styles.header, { paddingTop: 4 }]}> 
                 <TouchableOpacity
@@ -467,45 +555,70 @@ export default function Home() {
                 </View>
             </View>
 
-            <ScrollView
-                showsVerticalScrollIndicator={false}
-                // Bỏ hoàn toàn khoảng trắng phía trên tab bar
-                contentContainerStyle={{ paddingBottom: 0 }}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefreshFeed} />}
+            <KeyboardAvoidingView
+                style={{ flex: 1 }}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={(insets?.top || 0) + 56}
             >
-                {/* Stories */}
-                <View style={styles.storiesContainer}>
-                    <FlatList
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        data={storiesData}
-                        keyExtractor={(item) => item.id}
-                        renderItem={({ item }) => (
-                            <StoryItem
-                                id={item.id}
-                                name={item.name}
-                                avatar={item.avatar}
-                                hasStory={item.hasStory}
-                                navigation={navigation}
+            <FlatList
+                ref={listRef}
+                data={posts}
+                keyExtractor={(item) => String(item.id)}
+                showsVerticalScrollIndicator={false}
+                onEndReached={onEndReached}
+                onEndReachedThreshold={0.6}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefreshFeed} />}
+                ListHeaderComponent={
+                    <>
+                        {/* Stories */}
+                        <View style={styles.storiesContainer}>
+                            <FlatList
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                data={storiesData}
+                                keyExtractor={(item) => item.id}
+                                renderItem={({ item }) => (
+                                    <StoryItem
+                                        id={item.id}
+                                        name={item.name}
+                                        avatar={item.avatar}
+                                        hasStory={item.hasStory}
+                                        navigation={navigation}
+                                    />
+                                )}
                             />
-                        )}
-                    />
-                </View>
-
-                {/* Feed posts from API */}
-                {loading ? (
-                    <Text style={{ padding: 16, color: '#666' }}>Đang tải...</Text>
-                ) : (
-                    posts.map((p) => (
-                        <View key={p.id} style={styles.post}>
+                        </View>
+                        {loading && (<Text style={{ padding: 16, color: '#666' }}>Đang tải...</Text>)}
+                    </>
+                }
+                renderItem={({ item: p }) => (
+                    <View style={styles.post}>
                             <View style={styles.postHeader}>
-                                <TouchableOpacity style={styles.postHeaderLeft} onPress={() => navigation.navigate('Profile') /* TODO: navigate to other user's profile */}>
+                                <TouchableOpacity style={styles.postHeaderLeft} onPress={() => {
+                                    const uid = getOwnerId();
+                                    const pid = p?.user?.id != null ? Number(p.user.id) : null;
+                                    if (Number.isFinite(uid) && Number.isFinite(pid) && uid === pid) {
+                                        navigation.navigate('Profile');
+                                    } else {
+                                        navigation.navigate('UserProfilePublic', { userId: pid, username: p.user?.username, avatarUrl: p.user?.avatarUrl });
+                                    }
+                                }}>
                                     <Image
                                         source={{ uri: p.user?.avatarUrl || 'https://i.pravatar.cc/150' }}
                                         style={styles.postAvatar}
                                     />
                                     <View>
-                                        <Text style={styles.postUsername}>{p.user?.username || 'user'}</Text>
+                                        <TouchableOpacity onPress={() => {
+                                            const uid = getOwnerId();
+                                            const pid = p?.user?.id != null ? Number(p.user.id) : null;
+                                            if (Number.isFinite(uid) && Number.isFinite(pid) && uid === pid) {
+                                                navigation.navigate('Profile');
+                                            } else {
+                                                navigation.navigate('UserProfilePublic', { userId: pid, username: p.user?.username, avatarUrl: p.user?.avatarUrl });
+                                            }
+                                        }}>
+                                            <Text style={styles.postUsername}>{p.user?.username || 'user'}</Text>
+                                        </TouchableOpacity>
                                         <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
                                             <Text style={styles.postLocation}>{new Date(p.createdAt).toLocaleString()}</Text>
                                             {!!p.privacy && (
@@ -540,15 +653,24 @@ export default function Home() {
                                         }
                                         if (videos.length > 0) {
                                             const video = videos[0];
+                                            const currentUri = sanitizeUri(video?.url || '');
                                             return (
                                                 <TouchableOpacity activeOpacity={0.9} onPress={() => openVideoPlayerFor(p)}>
                                                     <Video
-                                                        source={{ uri: video.url }}
+                                                        key={`${p?.id ?? 'v'}:${currentUri}`}
+                                                        source={{ uri: currentUri, headers: authHeaders || undefined }}
                                                         style={styles.postImage}
-                                                        resizeMode="cover"
+                                                        resizeMode={ResizeMode.COVER}
                                                         isLooping
                                                         shouldPlay={false}
                                                         useNativeControls={false}
+                                                        isMuted={false}
+                                                        volume={1.0}
+                                                        progressUpdateIntervalMillis={250}
+                                                        usePoster={!!video?.thumbnailUrl}
+                                                        posterSource={video?.thumbnailUrl ? { uri: video.thumbnailUrl } : undefined}
+                                                        onLoad={() => { console.log('[HOME] video preview loaded:', { postId: p.id }); }}
+                                                        onError={(e) => { console.warn('[HOME] video preview error (original only):', { postId: p.id, err: e?.nativeEvent?.error }); }}
                                                     />
                                                     <View style={styles.playOverlay} pointerEvents="none">
                                                         <Ionicons name="play" size={36} color="#fff" />
@@ -629,9 +751,17 @@ export default function Home() {
                                 )}
                             </View>
                         </View>
-                    ))
                 )}
-            </ScrollView>
+                ListFooterComponent={hasMore ? (
+                    <View style={{ paddingVertical: 16, alignItems:'center' }}>
+                        <Text style={{ color:'#666' }}>{loadingMore ? 'Đang tải...' : 'Kéo lên để tải thêm'}</Text>
+                    </View>
+                ) : (
+                    <View style={{ height: 8 }} />
+                )}
+                contentContainerStyle={{ paddingBottom: 0 }}
+            />
+            </KeyboardAvoidingView>
 
             {/* Comments Modal */}
             <CommentsModal

@@ -125,7 +125,7 @@ export default function Editprofile() {
       }
     }
     let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+  mediaTypes: ImagePicker.MediaType?.Images || ImagePicker.MediaTypeOptions?.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 1,
@@ -140,8 +140,8 @@ export default function Editprofile() {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={(insets?.top || 0) + 56}
       >
         {/* Top bar */}
         <View style={[styles.header, { paddingTop: insets.top }] }>
@@ -154,7 +154,10 @@ export default function Editprofile() {
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={{ paddingBottom: (insets.bottom || 0) + 24 }}
+        <ScrollView
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: (insets.bottom || 0) + 24, flexGrow: 1 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async ()=>{
             try {
               setRefreshing(true);

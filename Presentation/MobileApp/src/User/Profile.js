@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -12,11 +12,13 @@ import {
   
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { getMyPosts, getProfile, updateAvatar, API_BASE_URL } from '../API/Api';
 import { useUser } from '../Context/UserContext';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { onTabTriple } from '../Utils/TabRefreshEmitter';
 
 const { width } = Dimensions.get('window');
 const imageSize = (width - 6) / 3;
@@ -30,6 +32,7 @@ const Profile = () => {
   const [profile, setProfile] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [videoThumbs, setVideoThumbs] = useState({}); // { [postId]: uri }
 
   // Build full URL for avatar when API returns relative path
   const getAvatarUri = (p) => {
@@ -60,6 +63,45 @@ const Profile = () => {
     return () => { mounted = false; };
   }, []);
 
+  // subscribe to triple-tap refresh on Profile tab
+  useEffect(() => {
+    const unsub = onTabTriple('Profile', async () => {
+      try {
+        setRefreshing(true);
+        const [p, me] = await Promise.all([getMyPosts(), getProfile()]);
+        setPosts(Array.isArray(p) ? p : []);
+        setProfile(me || null);
+      } catch (e) { console.warn('[Profile] triple refresh', e); }
+      finally { setRefreshing(false); }
+    });
+    return unsub;
+  }, []);
+
+  // Tạo thumbnail cho các bài video để lưới không hiển thị màu đen
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      // Lọc danh sách bài video chưa có thumbnail
+      const targets = (posts || []).filter(
+        (p) => (p.media || []).some((m) => (m.type || '').toLowerCase() === 'video') && !videoThumbs[p.id]
+      );
+      for (const post of targets) {
+        try {
+          const vid = (post.media || []).find((m) => (m.type || '').toLowerCase() === 'video');
+          if (!vid?.url) continue;
+          console.log('[PROFILE] generate thumbnail for postId', post.id);
+          const { uri } = await VideoThumbnails.getThumbnailAsync(vid.url, { time: 1000 });
+          if (alive && uri) {
+            setVideoThumbs((prev) => ({ ...prev, [post.id]: uri }));
+          }
+        } catch (e) {
+          console.warn('[PROFILE] generate thumbnail failed for', post.id, e);
+        }
+      }
+    })();
+    return () => { alive = false; };
+  }, [posts, videoThumbs]);
+
   const handlePickAvatar = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -67,7 +109,7 @@ const Profile = () => {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions?.Images,
       allowsEditing: true,
       aspect: [1,1],
       quality: 0.9,
@@ -93,7 +135,7 @@ const Profile = () => {
   ];
 
   return (
-  <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
+  <SafeAreaView edges={['top']} style={[styles.container, { paddingTop: insets.top }]}> 
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       
       {/* Header */}
@@ -128,7 +170,8 @@ const Profile = () => {
         </View>
       )}
 
-  <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: (insets.bottom || 0) + 16 }}
+  {/* Không cộng thêm insets.bottom để tránh dải trắng nằm trên tab bar */}
+  <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}
     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async ()=>{
       try {
         setRefreshing(true);
@@ -153,15 +196,15 @@ const Profile = () => {
             </TouchableOpacity>
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>54</Text>
+                <Text style={styles.statNumber}>{profile?.postCount ?? posts.length ?? 0}</Text>
                 <Text style={styles.statLabel}>Posts</Text>
               </View>
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>834</Text>
+                <Text style={styles.statNumber}>{profile?.followerCount ?? 0}</Text>
                 <Text style={styles.statLabel}>Followers</Text>
               </View>
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>162</Text>
+                <Text style={styles.statNumber}>{profile?.followingCount ?? 0}</Text>
                 <Text style={styles.statLabel}>Following</Text>
               </View>
             </View>
@@ -228,15 +271,35 @@ const Profile = () => {
             <Text style={{padding:16}}>Chưa có bài đăng</Text>
           ) : (
             posts.map((post) => {
-              const firstImage = (post.media || []).find(m => (m.type||'').toLowerCase() === 'image');
-              if (!firstImage) return (
-                <View key={post.id} style={[styles.postContainer, {justifyContent:'center', alignItems:'center'}]}>
-                  <Text style={{color:'#999'}}>Video</Text>
-                </View>
-              );
+              const images = (post.media || []).filter(m => (m.type||'').toLowerCase() === 'image');
+              const videos = (post.media || []).filter(m => (m.type||'').toLowerCase() === 'video');
+              const isVideo = videos.length > 0 && images.length === 0;
+              const firstImage = images[0];
+              const onPress = () => {
+                if (isVideo) {
+                  const videoPosts = posts.filter(pp => (pp.media||[]).some(mm => (mm.type||'').toLowerCase()==='video'));
+                  navigation.navigate('Video', { videos: videoPosts, selectedId: post.id });
+                } else {
+                  navigation.navigate('PostDetail', { post });
+                }
+              };
+              if (isVideo) {
+                return (
+                  <TouchableOpacity key={post.id} style={styles.postContainer} onPress={onPress}>
+                    <View style={{flex:1}}>
+                      {videoThumbs[post.id] ? (
+                        <Image source={{ uri: videoThumbs[post.id] }} style={styles.postImage} />
+                      ) : (
+                        <View style={[styles.postImage, { backgroundColor:'#000' }]} />
+                      )}
+                      <Ionicons name="play" size={22} color="#fff" style={{ position:'absolute', right:6, bottom:6, opacity:0.9 }} />
+                    </View>
+                  </TouchableOpacity>
+                );
+              }
               return (
-                <TouchableOpacity key={post.id} style={styles.postContainer}>
-                  <Image source={{ uri: firstImage.url }} style={styles.postImage} />
+                <TouchableOpacity key={post.id} style={styles.postContainer} onPress={onPress}>
+                  <Image source={{ uri: firstImage?.url }} style={styles.postImage} />
                 </TouchableOpacity>
               );
             })

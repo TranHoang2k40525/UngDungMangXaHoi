@@ -109,7 +109,11 @@ export default function Thongbao() {
         </TouchableOpacity>
         <TouchableOpacity 
           style={styles.navItem}
-          onPress={() => navigation.navigate('Video')}
+          onPress={() => {
+            const parent = typeof navigation.getParent === 'function' ? navigation.getParent() : null;
+            if (parent && typeof parent.navigate === 'function') parent.navigate('MainTabs', { screen: 'Video' });
+            else navigation.navigate('MainTabs', { screen: 'Video' });
+          }}
         >
           <View style={styles.reelsIconWrapper}>
             <View style={styles.reelsSquare} />

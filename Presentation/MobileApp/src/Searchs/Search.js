@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { onTabTriple } from '../Utils/TabRefreshEmitter';
 
 export default function Search() {
   const [searchText, setSearchText] = useState('');
@@ -39,6 +40,11 @@ export default function Search() {
     // Placeholder: có thể gọi API tìm kiếm nổi bật hoặc gợi ý
     setTimeout(() => setRefreshing(false), 600);
   };
+
+  useEffect(() => {
+    const unsub = onTabTriple('Search', () => { try { onRefresh(); } catch(e){ console.warn('[Search] triple refresh', e); } });
+    return unsub;
+  }, [onRefresh]);
 
   return (
     <View style={styles.container}>
@@ -113,9 +119,7 @@ export default function Search() {
         ) : (
           // Search Results (placeholder)
           <View style={styles.resultsContainer}>
-            <Text style={styles.resultsPlaceholder}>
-              Đang tìm kiếm: "{searchText}"
-            </Text>
+            <Text style={styles.resultsPlaceholder}>{`Đang tìm kiếm: "${searchText}"`}</Text>
           </View>
         )}
       </ScrollView>

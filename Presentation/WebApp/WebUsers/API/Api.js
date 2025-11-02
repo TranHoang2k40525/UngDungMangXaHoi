@@ -1,8 +1,8 @@
-// API Base URL
-const API_BASE_URL = 'http://10.68.31.105:5297';
+// API Base URL (có thể sửa lại IP để trùng MobileApp)
+export const API_BASE_URL = 'http://10.68.31.105:5297';
 
 // Hàm helper để gọi API
-const apiCall = async (endpoint, options = {}) => {
+export const apiCall = async (endpoint, options = {}) => {
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
@@ -163,5 +163,46 @@ const authAPI = {
   }
 };
 
+// User/Profile APIs
+const userAPI = {
+  async getProfile() {
+    const headers = authAPI.getAuthHeaders();
+    const res = await apiCall('/api/users/profile', { method: 'GET', headers });
+    return res?.data || null;
+  },
+  async updateProfile(payload) {
+    const headers = authAPI.getAuthHeaders();
+    return apiCall('/api/users/profile', { method: 'PUT', headers, body: JSON.stringify(payload) });
+  }
+};
+
+// Posts APIs
+const postsAPI = {
+  async getFeed(page = 1, pageSize = 20) {
+    const headers = authAPI.getAuthHeaders();
+    return apiCall(`/api/posts/feed?page=${page}&pageSize=${pageSize}`, { method: 'GET', headers });
+  },
+  async getReels(page = 1, pageSize = 20) {
+    const headers = authAPI.getAuthHeaders();
+    return apiCall(`/api/posts/reels?page=${page}&pageSize=${pageSize}`, { method: 'GET', headers });
+  },
+  async getMyPosts(page = 1, pageSize = 20) {
+    const headers = authAPI.getAuthHeaders();
+    return apiCall(`/api/posts/me?page=${page}&pageSize=${pageSize}`, { method: 'GET', headers });
+  },
+  async getUserPostsById(userId, page = 1, pageSize = 20) {
+    const headers = authAPI.getAuthHeaders();
+    return apiCall(`/api/posts/user/${userId}?page=${page}&pageSize=${pageSize}`, { method: 'GET', headers });
+  },
+  async updatePostPrivacy(postId, privacy) {
+    const headers = { ...authAPI.getAuthHeaders(), 'Content-Type': 'application/json', 'Accept': 'application/json' };
+    return apiCall(`/api/posts/${postId}/privacy`, { method: 'PATCH', headers, body: JSON.stringify({ Privacy: privacy }) });
+  },
+  async updatePostCaption(postId, caption) {
+    const headers = { ...authAPI.getAuthHeaders(), 'Content-Type': 'application/json', 'Accept': 'application/json' };
+    return apiCall(`/api/posts/${postId}/caption`, { method: 'PATCH', headers, body: JSON.stringify({ Caption: caption }) });
+  }
+};
+
 // Export
-export { authAPI };
+export { authAPI, userAPI, postsAPI };
