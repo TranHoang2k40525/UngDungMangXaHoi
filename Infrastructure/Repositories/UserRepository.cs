@@ -128,5 +128,17 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .Include(u => u.Account)
                 .CountAsync(u => u.Account.status == "active");
         }
+
+        public async Task<int> GetFollowersCountAsync(int userId)
+        {
+            // số người theo dõi user này
+            return await _context.Follows.CountAsync(f => f.following_id == userId);
+        }
+
+        public async Task<int> GetFollowingCountAsync(int userId)
+        {
+            // số người user này đang theo dõi
+            return await _context.Follows.CountAsync(f => f.follower_id == userId);
+        }
     }
 }
