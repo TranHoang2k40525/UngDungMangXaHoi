@@ -21,5 +21,8 @@ namespace UngDungMangXaHoi.Domain.Interfaces
         Task<bool> ExistsByUserNameAsync(UserName userName);
         Task<IEnumerable<User>> SearchUsersAsync(string searchTerm, int pageNumber, int pageSize);
         Task<int> GetTotalUsersCountAsync();
+        // Follow counters
+        Task<int> GetFollowersCountAsync(int userId);
+        Task<int> GetFollowingCountAsync(int userId);
     }
 }
