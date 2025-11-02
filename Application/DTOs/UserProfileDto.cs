@@ -24,6 +24,10 @@ namespace UngDungMangXaHoi.Application.DTOs
         public string? Website { get; set; }
         public string AccountStatus { get; set; } = null!;
         public DateTimeOffset CreatedAt { get; set; }
+        // Aggregated counters for UI
+        public int PostCount { get; set; }
+        public int FollowerCount { get; set; }
+        public int FollowingCount { get; set; }
     }
 
     /// <summary>
