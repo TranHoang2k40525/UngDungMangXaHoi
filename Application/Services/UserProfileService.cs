@@ -47,6 +47,10 @@ namespace UngDungMangXaHoi.Application.Services
 
             var account = await _accountRepository.GetByIdAsync(user.account_id);
             if (account == null) return null;
+            // Aggregated counters
+            var postCount = await _postRepository.GetUserPostCountAsync(user.user_id);
+            var followerCount = await _userRepository.GetFollowersCountAsync(user.user_id);
+            var followingCount = await _userRepository.GetFollowingCountAsync(user.user_id);
 
             return new UserProfileDto
             {
@@ -66,8 +70,41 @@ namespace UngDungMangXaHoi.Application.Services
                 Job = user.job,
                 Website = user.website,
                 AccountStatus = account.status,
-                CreatedAt = account.created_at
+                CreatedAt = account.created_at,
+                PostCount = postCount,
+                FollowerCount = followerCount,
+                FollowingCount = followingCount
             };
+        }
+
+        /// <summary>
+        /// Lấy (và tự tạo nếu chưa có) profile theo AccountId trong token
+        /// </summary>
+        public async Task<UserProfileDto?> GetProfileByAccountIdAsync(int accountId)
+        {
+            var account = await _accountRepository.GetByIdAsync(accountId);
+            if (account == null) return null;
+
+            var user = await _userRepository.GetByAccountIdAsync(accountId);
+            if (user == null)
+            {
+                // Tự tạo user mặc định nếu chưa có bản ghi User tương ứng
+                var baseName = account.email?.Value?.Split('@')?.FirstOrDefault() ?? $"user{account.account_id}";
+                var safeUserName = new UserName($"{baseName}_{account.account_id}"); // đảm bảo unique
+
+                user = new User
+                {
+                    account_id = account.account_id,
+                    username = safeUserName,
+                    full_name = baseName,
+                    gender = Gender.Khác,
+                    is_private = false,
+                    date_of_birth = new DateTimeOffset(new DateTime(2000, 1, 1), TimeSpan.Zero),
+                };
+                user = await _userRepository.AddAsync(user);
+            }
+
+            return await GetProfileAsync(user.user_id);
         }
 
         /// <summary>
@@ -92,6 +129,29 @@ namespace UngDungMangXaHoi.Application.Services
 
             await _userRepository.UpdateAsync(user);
             return true;
+        }
+
+        public async Task<bool> UpdateBasicInfoByAccountIdAsync(int accountId, UpdateProfileRequest request)
+        {
+            var user = await _userRepository.GetByAccountIdAsync(accountId);
+            if (user == null)
+            {
+                // Auto-provision nếu thiếu
+                var account = await _accountRepository.GetByIdAsync(accountId);
+                if (account == null) return false;
+                var baseName = account.email?.Value?.Split('@')?.FirstOrDefault() ?? $"user{account.account_id}";
+                var safeUserName = new UserName($"{baseName}_{account.account_id}");
+                user = await _userRepository.AddAsync(new User
+                {
+                    account_id = account.account_id,
+                    username = safeUserName,
+                    full_name = baseName,
+                    gender = Gender.Khác,
+                    is_private = false,
+                    date_of_birth = new DateTimeOffset(new DateTime(2000, 1, 1), TimeSpan.Zero),
+                });
+            }
+            return await UpdateBasicInfoAsync(user.user_id, request);
         }
 
         /// <summary>
@@ -290,8 +350,8 @@ namespace UngDungMangXaHoi.Application.Services
         /// Upload avatar (lưu vào Assets/Images) và option đăng bài
         /// </summary>
         public async Task<(bool Success, string Message, string? AvatarUrl)> UpdateAvatarAsync(
-            int userId, 
-            IFormFile avatarFile, 
+            int userId,
+            IFormFile avatarFile,
             UpdateAvatarRequest request)
         {
             var user = await _userRepository.GetByIdAsync(userId);
@@ -373,6 +433,32 @@ namespace UngDungMangXaHoi.Application.Services
             return (true, "Cập nhật avatar thành công!", avatarUrl);
         }
 
+        public async Task<(bool Success, string Message, string? AvatarUrl)> UpdateAvatarByAccountIdAsync(
+            int accountId,
+            IFormFile avatarFile,
+            UpdateAvatarRequest request)
+        {
+            var user = await _userRepository.GetByAccountIdAsync(accountId);
+            if (user == null)
+            {
+                // Auto-provision nếu thiếu
+                var account = await _accountRepository.GetByIdAsync(accountId);
+                if (account == null) return (false, "Tài khoản không tồn tại!", null);
+                var baseName = account.email?.Value?.Split('@')?.FirstOrDefault() ?? $"user{account.account_id}";
+                var safeUserName = new UserName($"{baseName}_{account.account_id}");
+                user = await _userRepository.AddAsync(new User
+                {
+                    account_id = account.account_id,
+                    username = safeUserName,
+                    full_name = baseName,
+                    gender = Gender.Khác,
+                    is_private = false,
+                    date_of_birth = new DateTimeOffset(new DateTime(2000, 1, 1), TimeSpan.Zero),
+                });
+            }
+            return await UpdateAvatarAsync(user.user_id, avatarFile, request);
+        }
+
         /// <summary>
         /// Gỡ avatar (xóa ảnh đại diện, reset về null)
         /// </summary>
@@ -414,6 +500,17 @@ namespace UngDungMangXaHoi.Application.Services
 
             Console.WriteLine($"[AVATAR] Removed avatar for user {user.username.Value}");
             return (true, "Gỡ avatar thành công!");
+        }
+
+        public async Task<(bool Success, string Message)> RemoveAvatarByAccountIdAsync(int accountId)
+        {
+            var user = await _userRepository.GetByAccountIdAsync(accountId);
+            if (user == null)
+            {
+                // Không có user để gỡ avatar; auto-provision cũng không cần ở đây
+                return (false, "User không tồn tại!");
+            }
+            return await RemoveAvatarAsync(user.user_id);
         }
 
         /// <summary>
