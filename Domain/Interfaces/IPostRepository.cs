@@ -17,6 +17,9 @@ namespace UngDungMangXaHoi.Domain.Interfaces
         // Query helpers
         Task<IEnumerable<Post>> GetFeedAsync(int? currentUserId, int pageNumber, int pageSize);
         Task<IEnumerable<Post>> GetUserPostsAsync(int userId, int pageNumber, int pageSize);
-        Task<IEnumerable<Post>> GetVideoPostsAsync(int pageNumber, int pageSize);
+        Task<IEnumerable<Post>> GetUserPostsForViewerAsync(int userId, int? viewerUserId, int pageNumber, int pageSize);
+        Task<IEnumerable<Post>> GetVideoPostsAsync(int? currentUserId, int pageNumber, int pageSize);
+        Task<IEnumerable<Post>> GetAllVideoPostsAsync(int? currentUserId);
+        Task<int> GetUserPostCountAsync(int userId);
     }
 }
