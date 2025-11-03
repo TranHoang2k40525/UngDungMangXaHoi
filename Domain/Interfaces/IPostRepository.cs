@@ -20,6 +20,7 @@ namespace UngDungMangXaHoi.Domain.Interfaces
         Task<IEnumerable<Post>> GetUserPostsForViewerAsync(int userId, int? viewerUserId, int pageNumber, int pageSize);
         Task<IEnumerable<Post>> GetVideoPostsAsync(int? currentUserId, int pageNumber, int pageSize);
         Task<IEnumerable<Post>> GetAllVideoPostsAsync(int? currentUserId);
+        Task<IEnumerable<Post>> GetFollowingVideoPostsAsync(int currentUserId, int pageNumber, int pageSize);
         Task<int> GetUserPostCountAsync(int userId);
         Task<int> CountPostsByUserIdAsync(int userId);
     }
