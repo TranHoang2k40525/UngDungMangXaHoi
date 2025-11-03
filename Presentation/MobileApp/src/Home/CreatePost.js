@@ -14,10 +14,11 @@ import {
     PermissionsAndroid,
     RefreshControl,
 } from "react-native";
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import * as MediaLibrary from 'expo-media-library';
 import * as ImagePicker from 'expo-image-picker';
+import { VideoView, useVideoPlayer } from 'expo-video';
 
 const { width } = Dimensions.get("window");
 const numColumns = 3;
@@ -30,6 +31,7 @@ const asItem = (asset) => ({ id: asset.id, uri: asset.uri, mediaType: asset.medi
 
 export default function CreatePost() {
     const navigation = useNavigation();
+    const insets = useSafeAreaInsets();
     const [selectedTab, setSelectedTab] = useState("Library");
     const [assets, setAssets] = useState([]); // all device media assets (photo+video)
     const [endCursor, setEndCursor] = useState(null);
@@ -46,6 +48,24 @@ export default function CreatePost() {
     const [showLimitedOverlay, setShowLimitedOverlay] = useState(true); // used as a non-blocking banner now
     const [successToast, setSuccessToast] = useState(null); // string | null
     const [androidAccess, setAndroidAccess] = useState(null); // 'all' | 'limited' | null
+    
+    // Video player for preview (expo-video)
+    const videoPlayer = useVideoPlayer(
+        selectedImage?.mediaType === 'video' || selectedImage?.type === 'video' 
+            ? selectedImage.uri 
+            : null,
+        (player) => {
+            player.loop = true;
+            player.play();
+        }
+    );
+
+    // Update video source when selectedImage changes
+    useEffect(() => {
+        if (selectedImage && (selectedImage.mediaType === 'video' || selectedImage.type === 'video')) {
+            videoPlayer.replace(selectedImage.uri);
+        }
+    }, [selectedImage]);
 
     // Permissions + initial load
     useEffect(() => {
@@ -66,6 +86,8 @@ export default function CreatePost() {
                     if (mounted) setLoading(false);
                     return;
                 }
+                
+                // iOS flow
                 const current = await MediaLibrary.getPermissionsAsync();
                 console.log(`${LOG} getPermissionsAsync (initial iOS) ->`, {
                     status: current?.status,
@@ -73,39 +95,53 @@ export default function CreatePost() {
                     accessPrivileges: current?.accessPrivileges,
                 });
                 if (!mounted) return;
+                
                 setCanAskAgain(current.canAskAgain ?? true);
                 setPermStatus(current.status);
                 if (current.accessPrivileges) {
                     setIosAccess(current.accessPrivileges);
                 }
+                
+                // iOS: Nếu đã có quyền (granted hoặc limited), load ngay
                 if (current.status === 'granted' || current.accessPrivileges === 'limited') {
                     await loadAssets(true);
                     if (mounted) setLoading(false);
                     return;
                 }
-                console.log(`${LOG} requestPermissionsAsync (initial iOS ask) ...`);
-                const ask = await MediaLibrary.requestPermissionsAsync();
-                console.log(`${LOG} requestPermissionsAsync (initial iOS result) ->`, {
-                    status: ask?.status,
-                    canAskAgain: ask?.canAskAgain,
-                    accessPrivileges: ask?.accessPrivileges,
-                });
-                if (!mounted) return;
-                setPermStatus(ask.status);
-                setCanAskAgain(ask.canAskAgain ?? true);
-                if (ask.accessPrivileges) {
-                    setIosAccess(ask.accessPrivileges);
+                
+                // iOS: Nếu chưa có quyền và có thể hỏi, hỏi ngay
+                if (current.canAskAgain !== false) {
+                    console.log(`${LOG} requestPermissionsAsync (initial iOS ask) ...`);
+                    const ask = await MediaLibrary.requestPermissionsAsync();
+                    console.log(`${LOG} requestPermissionsAsync (initial iOS result) ->`, {
+                        status: ask?.status,
+                        canAskAgain: ask?.canAskAgain,
+                        accessPrivileges: ask?.accessPrivileges,
+                    });
+                    if (!mounted) return;
+                    
+                    setPermStatus(ask.status);
+                    setCanAskAgain(ask.canAskAgain ?? true);
+                    if (ask.accessPrivileges) {
+                        setIosAccess(ask.accessPrivileges);
+                    }
+                    
+                    // Nếu user cấp quyền (granted hoặc limited), load assets
+                    if (ask.status === 'granted' || ask.accessPrivileges === 'limited') {
+                        await loadAssets(true);
+                    }
+                } else {
+                    // iOS: Không thể hỏi nữa (user đã từ chối nhiều lần), hiện hướng dẫn mở Settings
+                    console.log(`${LOG} iOS cannot ask again, need to open Settings`);
                 }
-                if (ask.status === 'granted' || ask.accessPrivileges === 'limited') {
-                    await loadAssets(true);
-                }
+                
                 if (mounted) setLoading(false);
             } catch (e) {
                 console.log(`${LOG} ERROR (initial flow)`, e);
-                // Final fallback for Android: suggest settings
                 if (Platform.OS === 'android') {
                     Alert.alert('Không thể kiểm tra quyền', 'Vui lòng mở Cài đặt và cấp quyền Ảnh/Video cho ứng dụng. Sau đó quay lại màn hình này.');
                 } else {
+                    // iOS: Lỗi không mong đợi, hướng dẫn mở Settings
                     Alert.alert('Không thể yêu cầu quyền', 'Vui lòng mở Cài đặt hệ thống để cấp quyền Thư viện/Ảnh cho ứng dụng.');
                 }
                 if (mounted) setLoading(false);
@@ -197,27 +233,33 @@ export default function CreatePost() {
     // Open system photo picker (works without full storage permission on Android 13+ and iOS)
     const openSystemPicker = useCallback(async () => {
         try {
-            // Chọn tất cả loại media với fallback tương thích các phiên bản Expo
-            const pickerMediaTypes = ['images', 'videos'];
+            // iOS và Android: Sử dụng ImagePicker để chọn cả ảnh và video
             const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: pickerMediaTypes,
+                mediaTypes: ImagePicker.MediaTypeOptions.All, // Hỗ trợ cả ảnh và video
                 allowsMultipleSelection: multipleSelectMode,
                 selectionLimit: multipleSelectMode ? 10 : 1,
                 quality: 1,
+                videoQuality: ImagePicker.UIImagePickerControllerQualityType.High, // Chất lượng video cao
+                videoMaxDuration: 60, // Giới hạn video tối đa 60 giây (có thể điều chỉnh)
             });
             if (result.canceled) return;
+            
             const picked = (result.assets || []).map(a => ({
                 id: a.assetId || a.uri,
                 uri: a.uri,
                 mediaType: a.type === 'video' ? 'video' : 'photo',
+                duration: a.duration, // Thời lượng video (nếu có)
             }));
+            
             if (picked.length === 0) return;
+            
             // Rule: nếu có video được chọn, chỉ lấy 1 video; nếu không, cho phép nhiều ảnh theo chế độ hiện tại
             const chosenList = (() => {
                 const vid = picked.find(p => p.mediaType === 'video');
                 if (vid) return [vid];
                 return multipleSelectMode ? picked : [picked[0]];
             })();
+            
             const first = chosenList[0];
             navigation.navigate("SharePost", {
                 selectedImage: first,
@@ -237,7 +279,63 @@ export default function CreatePost() {
                 return;
             }
 
-            // iOS flow using media-library API
+            // iOS: Kiểm tra xem có thể hỏi quyền không
+            const cur = await MediaLibrary.getPermissionsAsync();
+            console.log(`${LOG} iOS manual check before request ->`, {
+                status: cur?.status,
+                canAskAgain: cur?.canAskAgain,
+                accessPrivileges: cur?.accessPrivileges,
+            });
+            
+            // iOS: Nếu không thể hỏi nữa (user đã từ chối nhiều lần), mở Settings
+            if (cur.canAskAgain === false) {
+                console.log(`${LOG} iOS cannot ask again, opening settings directly`);
+                Alert.alert(
+                    'Cần cấp quyền trong Cài đặt',
+                    'Ứng dụng cần quyền truy cập Ảnh để bạn có thể đăng bài. Vui lòng mở Cài đặt > ' + (Platform.OS === 'ios' ? 'Quyền riêng tư' : 'Ứng dụng') + ' > Ảnh và chọn "Tất cả ảnh".',
+                    [
+                        { text: 'Hủy', style: 'cancel' },
+                        { text: 'Mở Cài đặt', onPress: () => Linking.openSettings() },
+                    ]
+                );
+                return;
+            }
+            
+            // iOS: Nếu đã có quyền limited, đề xuất chuyển sang full hoặc chọn thêm ảnh
+            if (cur.accessPrivileges === 'limited') {
+                Alert.alert(
+                    'Đang dùng quyền hạn chế',
+                    'Bạn đang dùng quyền "Ảnh được chọn". Bạn có thể chọn thêm ảnh hoặc chuyển sang "Tất cả ảnh" trong Cài đặt.',
+                    [
+                        { text: 'Hủy', style: 'cancel' },
+                        { 
+                            text: 'Chọn thêm ảnh', 
+                            onPress: async () => {
+                                try {
+                                    if (MediaLibrary.presentPermissionsPickerAsync) {
+                                        await MediaLibrary.presentPermissionsPickerAsync();
+                                        // Reload sau khi user chọn xong
+                                        const newPerm = await MediaLibrary.getPermissionsAsync();
+                                        setIosAccess(newPerm.accessPrivileges || 'limited');
+                                        setLoading(true);
+                                        await loadAssets(true);
+                                        setLoading(false);
+                                        showPermissionSuccess('Đã cập nhật ảnh được chọn.');
+                                    } else {
+                                        Alert.alert('Không hỗ trợ', 'Phiên bản iOS hiện tại không hỗ trợ chọn thêm ảnh.');
+                                    }
+                                } catch (err) {
+                                    console.log(`${LOG} presentPermissionsPickerAsync error`, err);
+                                }
+                            }
+                        },
+                        { text: 'Mở Cài đặt', onPress: () => Linking.openSettings() },
+                    ]
+                );
+                return;
+            }
+
+            // iOS: Request permission
             console.log(`${LOG} requestPermissionsAsync (manual iOS) ...`);
             const res = await MediaLibrary.requestPermissionsAsync();
             console.log(`${LOG} requestPermissionsAsync (manual iOS result) ->`, {
@@ -245,15 +343,19 @@ export default function CreatePost() {
                 canAskAgain: res?.canAskAgain,
                 accessPrivileges: res?.accessPrivileges,
             });
+            
             setPermStatus(res.status);
             setCanAskAgain(res.canAskAgain ?? true);
             if (res.accessPrivileges) {
                 setIosAccess(res.accessPrivileges);
             }
+            
+            // Nếu user cấp quyền (granted hoặc limited)
             if (res.status === 'granted' || res.accessPrivileges === 'limited') {
                 setLoading(true);
                 await loadAssets(true);
                 setLoading(false);
+                
                 if (res.accessPrivileges === 'limited') {
                     showPermissionSuccess('Đã cấp quyền (Ảnh được chọn). Bạn có thể sử dụng thư viện.');
                 } else {
@@ -261,28 +363,32 @@ export default function CreatePost() {
                 }
                 return;
             }
-            // If still denied and cannot ask again, open Settings automatically (iOS)
-            const cur = await MediaLibrary.getPermissionsAsync();
-            if (cur.status !== 'granted' && cur.canAskAgain === false) {
-                console.log(`${LOG} cannot ask again, opening settings`);
+            
+            // Nếu vẫn denied và không thể hỏi nữa
+            if (res.status !== 'granted' && res.canAskAgain === false) {
+                console.log(`${LOG} iOS denied and cannot ask again after manual request`);
                 Alert.alert(
                     'Cần cấp quyền trong Cài đặt',
-                    'Hệ thống đã chặn hộp thoại xin quyền. Mình sẽ mở Cài đặt để bạn cấp quyền Ảnh/Video cho ứng dụng.',
+                    'Bạn đã từ chối quyền truy cập Ảnh. Vui lòng mở Cài đặt để cấp quyền cho ứng dụng.',
                     [
-                        { text: 'Hủy' },
+                        { text: 'Hủy', style: 'cancel' },
                         { text: 'Mở Cài đặt', onPress: () => Linking.openSettings() },
                     ]
                 );
                 return;
             }
-            // Otherwise, prompt the user to try again or go to settings
-            Alert.alert('Chưa có quyền', 'Vui lòng cấp quyền để tiếp tục. Bạn có thể nhấn Cấp quyền lại hoặc Mở Cài đặt.', [
-                { text: 'Để sau' },
-                { text: 'Mở Cài đặt', onPress: () => Linking.openSettings() },
-            ]);
+            
+            // Trường hợp khác (denied nhưng vẫn có thể hỏi)
+            Alert.alert(
+                'Chưa có quyền', 
+                'Vui lòng cấp quyền để tiếp tục. Bạn có thể thử lại hoặc mở Cài đặt.',
+                [
+                    { text: 'Để sau', style: 'cancel' },
+                    { text: 'Mở Cài đặt', onPress: () => Linking.openSettings() },
+                ]
+            );
         } catch (e) {
             console.log(`${LOG} ERROR (manual request)`, e);
-            // Android: nothing else to try here
             Alert.alert('Lỗi', 'Không thể yêu cầu quyền. Vui lòng mở Cài đặt để cấp quyền cho ứng dụng.');
         }
     }, [loadAssets, showPermissionSuccess]);
@@ -341,26 +447,45 @@ export default function CreatePost() {
     }, [assets, selectedTab]);
 
     const handleSelectImage = (item) => {
+        // Kiểm tra nếu là video và có thời lượng
+        const isItemVideo = (item.mediaType === 'video' || item.type === 'video');
+        
         if (multipleSelectMode) {
             const hasVideoSelected = selectedItems.some(i => (i.mediaType === 'video' || i.type === 'video'));
-            const isItemVideo = (item.mediaType === 'video' || item.type === 'video');
 
             // Rule: chỉ cho chọn 1 video hoặc nhiều ảnh; không trộn lẫn để đơn giản
             if (isItemVideo) {
+                // Kiểm tra thời lượng video (nếu có)
+                if (item.duration && item.duration > 60) {
+                    Alert.alert('Video quá dài', `Video này dài ${Math.round(item.duration)}s. Vui lòng chọn video dưới 60 giây.`);
+                    return;
+                }
                 setSelectedItems([item]);
+                setSelectedImage(item); // Cập nhật preview
             } else {
                 if (hasVideoSelected) {
                     setSelectedItems([item]);
+                    setSelectedImage(item);
                 } else {
                     const isSelected = selectedItems.find((i) => i.id === item.id);
                     if (isSelected) {
-                        setSelectedItems(selectedItems.filter((i) => i.id !== item.id));
+                        const newItems = selectedItems.filter((i) => i.id !== item.id);
+                        setSelectedItems(newItems);
+                        if (newItems.length > 0) {
+                            setSelectedImage(newItems[0]);
+                        }
                     } else {
                         setSelectedItems([...selectedItems, item]);
+                        setSelectedImage(item);
                     }
                 }
             }
         } else {
+            // Single select mode
+            if (isItemVideo && item.duration && item.duration > 60) {
+                Alert.alert('Video quá dài', `Video này dài ${Math.round(item.duration)}s. Vui lòng chọn video dưới 60 giây.`);
+                return;
+            }
             setSelectedImage(item);
         }
     };
@@ -391,12 +516,24 @@ export default function CreatePost() {
         const selectionNumber = isSelected ? selectedItems.findIndex((i) => i.id === item.id) + 1 : null;
 
         const isVideo = (item.mediaType === 'video' || item.type === 'video');
+        
+        // Format video duration
+        const formatDuration = (seconds) => {
+            if (!seconds) return '0:00';
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        };
+        
         return (
             <TouchableOpacity style={styles.libraryItem} onPress={() => handleSelectImage(item)}>
                 <Image source={{ uri: item.uri }} style={styles.libraryImage} />
                 {isVideo && (
                     <View style={styles.videoBadge}>
                         <Text style={styles.videoBadgeText}>▶</Text>
+                        {item.duration ? (
+                            <Text style={styles.videoDuration}>{formatDuration(item.duration)}</Text>
+                        ) : null}
                     </View>
                 )}
                 {multipleSelectMode && (
@@ -438,11 +575,30 @@ export default function CreatePost() {
             {/* Preview media */}
             <View style={styles.previewContainer}>
                 {selectedImage ? (
-                    <Image
-                        source={{ uri: selectedImage.uri }}
-                        style={styles.previewImage}
-                        resizeMode="cover"
-                    />
+                    <>
+                        {(selectedImage.mediaType === 'video' || selectedImage.type === 'video') ? (
+                            <>
+                                <VideoView
+                                    player={videoPlayer}
+                                    style={styles.previewImage}
+                                    contentFit="cover"
+                                    nativeControls={true}
+                                    allowsFullscreen={false}
+                                />
+                                {selectedImage.duration && selectedImage.duration > 60 && (
+                                    <View style={styles.warningBanner}>
+                                        <Text style={styles.warningText}>⚠️ Video quá dài ({Math.round(selectedImage.duration)}s). Giới hạn 60s.</Text>
+                                    </View>
+                                )}
+                            </>
+                        ) : (
+                            <Image
+                                source={{ uri: selectedImage.uri }}
+                                style={styles.previewImage}
+                                resizeMode="cover"
+                            />
+                        )}
+                    </>
                 ) : (
                     <View style={[styles.previewImage, {alignItems:'center', justifyContent:'center'}]}>
                         <Text>Chưa chọn media</Text>
@@ -533,10 +689,16 @@ export default function CreatePost() {
                     numColumns={numColumns}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.galleryContainer}
-                    removeClippedSubviews
-                    windowSize={9}
-                    initialNumToRender={24}
-                    maxToRenderPerBatch={24}
+                    removeClippedSubviews={Platform.OS === 'android'}
+                    windowSize={7}
+                    initialNumToRender={18}
+                    maxToRenderPerBatch={18}
+                    updateCellsBatchingPeriod={100}
+                    getItemLayout={(data, index) => ({
+                        length: imageSize,
+                        offset: imageSize * Math.floor(index / numColumns),
+                        index,
+                    })}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
                     onEndReachedThreshold={0.5}
                     onEndReached={async () => {
@@ -573,8 +735,13 @@ export default function CreatePost() {
                         <Text style={styles.permDesc}>
                             {Platform.OS === 'android'
                                 ? 'Trên thiết bị Android khi chạy bằng Expo Go, hãy cấp quyền trong Cài đặt hệ thống cho Expo Go: Ảnh/Video. Sau khi cấp, quay lại màn hình này.'
-                                : 'Hãy cấp quyền để hiển thị thư viện và đăng bài.'}
+                                : 'Hãy cấp quyền để hiển thị thư viện và đăng bài. Bạn có thể chọn "Ảnh được chọn" (hạn chế) hoặc "Tất cả ảnh" (đầy đủ).'}
                         </Text>
+                        {Platform.OS === 'ios' && (
+                            <Text style={styles.permHint}>
+                                💡 Nếu chọn "Ảnh được chọn", bạn vẫn có thể sử dụng ứng dụng với các ảnh/video đã chọn.
+                            </Text>
+                        )}
                         <View style={styles.permActions}>
                             {Platform.OS === 'android' ? (
                                 <>
@@ -634,19 +801,36 @@ export default function CreatePost() {
                                 try {
                                     if (MediaLibrary.presentPermissionsPickerAsync) {
                                         await MediaLibrary.presentPermissionsPickerAsync();
+                                        // Reload sau khi user chọn xong
                                         const p = await MediaLibrary.getPermissionsAsync();
                                         setIosAccess(p.accessPrivileges || iosAccess);
+                                        setLoading(true);
+                                        await loadAssets(true);
+                                        setLoading(false);
+                                        showPermissionSuccess('Đã cập nhật ảnh được chọn.');
                                     } else {
-                                        Alert.alert('Không hỗ trợ', 'Thiết bị/phiên bản hiện tại không hỗ trợ chọn thêm ảnh trong chế độ hạn chế.');
+                                        Alert.alert('Không hỗ trợ', 'Phiên bản iOS hiện tại không hỗ trợ chọn thêm ảnh trong chế độ hạn chế. Vui lòng mở Cài đặt để chuyển sang "Tất cả ảnh".');
                                     }
-                                } catch {}
+                                } catch (err) {
+                                    console.log(`${LOG} presentPermissionsPickerAsync error`, err);
+                                    Alert.alert('Lỗi', 'Không thể mở bộ chọn ảnh. Vui lòng thử lại hoặc mở Cài đặt.');
+                                }
                             }}
                             style={[styles.permBtn, { backgroundColor: '#0095F6' }]}
                         >
                             <Text style={[styles.permBtnText, { color: '#fff' }]}>Chọn thêm ảnh…</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            onPress={() => Linking.openSettings()}
+                            onPress={() => {
+                                Alert.alert(
+                                    'Chuyển sang "Tất cả ảnh"',
+                                    'Mở Cài đặt > Quyền riêng tư > Ảnh > [Tên ứng dụng] và chọn "Tất cả ảnh".',
+                                    [
+                                        { text: 'Hủy', style: 'cancel' },
+                                        { text: 'Mở Cài đặt', onPress: () => Linking.openSettings() },
+                                    ]
+                                );
+                            }}
                             style={[styles.permBtn, { backgroundColor: '#eee' }]}
                         >
                             <Text style={[styles.permBtnText, { color: '#111' }]}>Mở Cài đặt</Text>
@@ -709,6 +893,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         paddingHorizontal: 16,
         paddingVertical: 12,
+        backgroundColor: "#FFFFFF",
         borderBottomWidth: 0.5,
         borderBottomColor: "#DBDBDB",
     },
@@ -743,6 +928,23 @@ const styles = StyleSheet.create({
     previewImage: {
         width: "100%",
         height: "100%",
+        backgroundColor: "#f0f0f0",
+    },
+    warningBanner: {
+        position: 'absolute',
+        top: 8,
+        left: 8,
+        right: 8,
+        backgroundColor: 'rgba(255, 200, 0, 0.9)',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+    },
+    warningText: {
+        color: '#000',
+        fontWeight: '600',
+        fontSize: 12,
+        textAlign: 'center',
     },
     selectMultipleButton: {
         position: "absolute",
@@ -816,15 +1018,23 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: 6,
         left: 6,
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        borderRadius: 10,
-        paddingHorizontal: 6,
-        paddingVertical: 2,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        borderRadius: 12,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
     },
     videoBadgeText: {
         color: '#fff',
         fontWeight: '700',
         fontSize: 12,
+    },
+    videoDuration: {
+        color: '#fff',
+        fontWeight: '600',
+        fontSize: 10,
     },
     selectionIndicator: {
         position: "absolute",
@@ -888,6 +1098,13 @@ const styles = StyleSheet.create({
         color: '#555',
         textAlign: 'center',
         marginBottom: 16,
+    },
+    permHint: {
+        fontSize: 12,
+        color: '#0095F6',
+        textAlign: 'center',
+        marginBottom: 12,
+        fontStyle: 'italic',
     },
     permActions: {
         flexDirection: 'row',
