@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     View,
     Text,
@@ -6,23 +6,50 @@ import {
     TextInput,
     TouchableOpacity,
     StyleSheet,
-    ScrollView,
     FlatList,
     Platform,
+    PermissionsAndroid,
     Share,
     KeyboardAvoidingView,
+    Modal,
+    Alert,
 } from "react-native";
 import { RefreshControl } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { onTabTriple } from '../Utils/TabRefreshEmitter';
 import { useUser } from "../Context/UserContext";
+import { useFollow } from "../Context/FollowContext";
 import * as ImagePicker from "expo-image-picker";
 import CommentsModal from "./CommentsModal";
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getFeed, updatePostPrivacy, updatePostCaption, deletePost, getProfile, getAuthHeaders } from "../API/Api";
+import { getFeed, updatePostPrivacy, updatePostCaption, deletePost, getProfile, followUser, unfollowUser } from "../API/Api";
 import { Ionicons } from "@expo/vector-icons";
-import { Audio, Video, ResizeMode } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
+
+// Component wrapper cho video thumbnail trong feed
+const VideoThumbnail = React.memo(({ videoUrl, style, onPress }) => {
+    const player = useVideoPlayer(videoUrl, (p) => {
+        if (p) {
+            p.muted = true;
+            p.loop = false;
+        }
+    });
+    
+    return (
+        <TouchableOpacity activeOpacity={0.9} onPress={onPress}>
+            <VideoView
+                style={style}
+                player={player}
+                contentFit="cover"
+                nativeControls={false}
+            />
+            <View style={styles.playOverlay} pointerEvents="none">
+                <Ionicons name="play" size={36} color="#fff" />
+            </View>
+        </TouchableOpacity>
+    );
+});
 
 // Dữ liệu stories
 const storiesData = [
@@ -134,6 +161,7 @@ const PostImagesCarousel = ({ images = [] }) => {
 export default function Home() {
     const insets = useSafeAreaInsets();
     const BOTTOM_NAV_HEIGHT = 0; // dùng tab bar toàn cục, không thêm padding dưới
+    const { markAsFollowed, markAsUnfollowed, isFollowed } = useFollow();
     // Per-post local UI state (likes/shares/comments counts)
     const [postStates, setPostStates] = useState({}); // { [postId]: { liked, likes, shares, comments } }
     const [activeCommentsPostId, setActiveCommentsPostId] = useState(null);
@@ -142,6 +170,11 @@ export default function Home() {
     const [loading, setLoading] = useState(true);
     const [currentUserId, setCurrentUserId] = useState(null); // lưu dạng number khi có thể
     const [refreshing, setRefreshing] = useState(false);
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [hasMorePosts, setHasMorePosts] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const flatListRef = React.useRef(null);
     // 3-dots menu & privacy sheet
     const [optionsPostId, setOptionsPostId] = useState(null);
     const [showOptions, setShowOptions] = useState(false);
@@ -152,36 +185,6 @@ export default function Home() {
     const [captionDraft, setCaptionDraft] = useState("");
     const navigation = useNavigation();
     const route = useRoute();
-    const FEED_CACHE_KEY = 'feedCache_v1';
-    const PAGE_SIZE = 5;
-    const [page, setPage] = useState(1);
-    const [hasMore, setHasMore] = useState(true);
-    const [loadingMore, setLoadingMore] = useState(false);
-    const listRef = useRef(null);
-    const [authHeaders, setAuthHeaders] = useState(null);
-    // Cấu hình audio để không mất tiếng (kể cả khi iOS ở chế độ im lặng)
-    useEffect(() => {
-        (async () => {
-            try {
-                // Load auth headers once for protected media fetches
-                try { const h = await getAuthHeaders(); setAuthHeaders(h || null); } catch {}
-                await Audio.setAudioModeAsync({
-                    allowsRecordingIOS: false,
-                    staysActiveInBackground: false,
-                    playsInSilentModeIOS: true,
-                    shouldDuckAndroid: true,
-                    playThroughEarpieceAndroid: false,
-                });
-            } catch {}
-        })();
-    }, []);
-
-    // Use original video only: simple URL sanitizer
-    const sanitizeUri = useCallback((u) => {
-        if (!u || typeof u !== 'string') return '';
-        const trimmed = u.trim();
-        try { return encodeURI(trimmed); } catch { return trimmed; }
-    }, []);
 
     useEffect(() => {
         let mounted = true;
@@ -217,37 +220,16 @@ export default function Home() {
                 } catch (e) {
                     console.log('[HOME] getProfile() failed (non-fatal):', e?.message || e);
                 }
-                // Try load cache first for instant UI
-                try {
-                    const raw = await AsyncStorage.getItem(FEED_CACHE_KEY);
-                    if (raw && mounted) {
-                        const cache = JSON.parse(raw);
-                        if (Array.isArray(cache?.items) && cache.items.length > 0) {
-                            const arr = cache.items;
-                            setPosts(arr);
-                            const next = {};
-                            for (const p of arr) {
-                                next[p.id] = {
-                                    liked: false,
-                                    likes: Number(p.likesCount ?? 0),
-                                    shares: Number(p.sharesCount ?? 0),
-                                    comments: Number(p.commentsCount ?? 0),
-                                };
-                            }
-                            setPostStates(next);
-                            setLoading(false);
-                        }
-                    }
-                } catch {}
-
-                // Always fetch fresh page 1
-                const data = await getFeed(1, PAGE_SIZE);
+                // Load first page of feed
+                const data = await getFeed(1, 10);
                 if (mounted) {
                     let arr = Array.isArray(data) ? data : [];
+                    // Sort newest-first just in case
                     arr = arr.slice().sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
                     setPosts(arr);
-                    setPage(1);
-                    setHasMore(arr.length === PAGE_SIZE);
+                    setCurrentPage(1);
+                    setHasMorePosts(arr.length >= 10);
+                    // seed per-post state
                     const next = {};
                     for (const p of arr) {
                         next[p.id] = {
@@ -258,7 +240,6 @@ export default function Home() {
                         };
                     }
                     setPostStates(next);
-                    try { await AsyncStorage.setItem(FEED_CACHE_KEY, JSON.stringify({ items: arr, ts: Date.now() })); } catch {}
                 }
             } catch (e) {
                 console.warn('Feed error', e);
@@ -301,7 +282,7 @@ export default function Home() {
 
         try {
             const result = await ImagePicker.launchCameraAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions?.Images,
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 quality: 1,
                 allowsEditing: false,
                 exif: false,
@@ -372,6 +353,21 @@ export default function Home() {
         const pidRaw = post?.user?.id;
         const pid = pidRaw != null ? Number(pidRaw) : null;
         return Number.isFinite(uid) && Number.isFinite(pid) && uid === pid;
+    };
+
+    const handleFollow = async (post) => {
+        const targetUserId = post?.user?.id;
+        if (!targetUserId) return;
+        
+        try {
+            await followUser(targetUserId);
+            console.log('[HOME] Followed user:', targetUserId);
+            // Mark as followed in global context (đồng bộ với Video và Profile)
+            markAsFollowed(targetUserId);
+        } catch (e) {
+            console.warn('[HOME] Follow error:', e);
+            Alert.alert('Lỗi', e.message || 'Không thể theo dõi người dùng');
+        }
     };
 
     const openOptionsFor = (post) => {
@@ -455,17 +451,76 @@ export default function Home() {
     const onRefreshFeed = async () => {
         try {
             setRefreshing(true);
-            const data = await getFeed(1, PAGE_SIZE);
+            // Reset về page 1
+            const data = await getFeed(1, 10);
             let arr = Array.isArray(data) ? data : [];
             arr = arr.slice().sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
             setPosts(arr);
-            setPage(1);
-            setHasMore(arr.length === PAGE_SIZE);
-            try { await AsyncStorage.setItem(FEED_CACHE_KEY, JSON.stringify({ items: arr, ts: Date.now() })); } catch {}
+            setCurrentPage(1);
+            setHasMorePosts(arr.length >= 10);
+            // Seed per-post state
+            const next = {};
+            for (const p of arr) {
+                next[p.id] = {
+                    liked: false,
+                    likes: Number(p.likesCount ?? 0),
+                    shares: Number(p.sharesCount ?? 0),
+                    comments: Number(p.commentsCount ?? 0),
+                };
+            }
+            setPostStates(next);
+            // Scroll to top
+            setTimeout(() => {
+                flatListRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+            }, 100);
         } catch (e) {
             console.warn('Refresh feed error', e);
         } finally {
             setRefreshing(false);
+        }
+    };
+
+    // Load more posts when scroll to end
+    const loadMorePosts = async () => {
+        if (loadingMore || !hasMorePosts) return;
+        
+        try {
+            setLoadingMore(true);
+            const nextPage = currentPage + 1;
+            const data = await getFeed(nextPage, 10);
+            let arr = Array.isArray(data) ? data : [];
+            
+            if (arr.length === 0) {
+                setHasMorePosts(false);
+                return;
+            }
+            
+            arr = arr.slice().sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+            
+            // Merge with existing posts
+            setPosts(prev => [...prev, ...arr]);
+            setCurrentPage(nextPage);
+            setHasMorePosts(arr.length >= 10);
+            
+            // Update post states for new posts
+            setPostStates(prev => {
+                const next = {...prev};
+                for (const p of arr) {
+                    if (!next[p.id]) {
+                        next[p.id] = {
+                            liked: false,
+                            likes: Number(p.likesCount ?? 0),
+                            shares: Number(p.sharesCount ?? 0),
+                            comments: Number(p.commentsCount ?? 0),
+                        };
+                    }
+                }
+                return next;
+            });
+        } catch (e) {
+            console.warn('Load more posts error', e);
+        } finally {
+            setLoadingMore(false);
         }
     };
 
@@ -477,38 +532,18 @@ export default function Home() {
         return unsub;
     }, [onRefreshFeed]);
 
-    const onEndReached = useCallback(async () => {
-        if (loadingMore || !hasMore) return;
-        try {
-            setLoadingMore(true);
-            const data = await getFeed(page + 1, PAGE_SIZE);
-            const arr = Array.isArray(data) ? data : [];
-            setPosts((prev) => {
-                const ids = new Set(prev.map(p => p.id));
-                const merged = [...prev, ...arr.filter(p => !ids.has(p.id))];
-                (async () => { try { await AsyncStorage.setItem(FEED_CACHE_KEY, JSON.stringify({ items: merged, ts: Date.now() })); } catch {} })();
-                return merged;
-            });
-            setPage(prev => prev + 1);
-            setHasMore(arr.length === PAGE_SIZE);
-        } finally {
-            setLoadingMore(false);
-        }
-    }, [loadingMore, hasMore, page]);
-
     // Navigate to full-screen video page with proper initial index
     const openVideoPlayerFor = (post) => {
         // Danh sách video gốc (chưa sắp xếp) để màn Video tự ưu tiên selectedId + chưa xem + mới nhất
         const videos = posts.filter(pp => (pp.media||[]).some(m => (m.type||'').toLowerCase()==='video'));
-        // Navigate to nested tab if needed
         navigation.navigate('Video', { videos, selectedId: post.id });
     };
 
     return (
         // Chỉ tôn trọng safe-area ở cạnh trên; bỏ cạnh dưới để không tạo dải trắng/đen nằm ngay trên tab bar
-        <SafeAreaView edges={['top']} style={[styles.container, { paddingTop: insets.top }] }>
+        <SafeAreaView edges={['top']} style={styles.container}>
             {/* Header */}
-            <View style={[styles.header, { paddingTop: 4 }]}> 
+            <View style={styles.header}> 
                 <TouchableOpacity
                     style={styles.navItem}
                     onPress={handleCameraPress}
@@ -555,41 +590,55 @@ export default function Home() {
                 </View>
             </View>
 
-            <KeyboardAvoidingView
-                style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={(insets?.top || 0) + 56}
-            >
             <FlatList
-                ref={listRef}
-                data={posts}
-                keyExtractor={(item) => String(item.id)}
+                ref={flatListRef}
                 showsVerticalScrollIndicator={false}
-                onEndReached={onEndReached}
-                onEndReachedThreshold={0.6}
+                data={posts}
+                keyExtractor={(item) => item.id.toString()}
+                contentContainerStyle={{ paddingBottom: 0 }}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefreshFeed} />}
-                ListHeaderComponent={
-                    <>
-                        {/* Stories */}
-                        <View style={styles.storiesContainer}>
-                            <FlatList
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                data={storiesData}
-                                keyExtractor={(item) => item.id}
-                                renderItem={({ item }) => (
-                                    <StoryItem
-                                        id={item.id}
-                                        name={item.name}
-                                        avatar={item.avatar}
-                                        hasStory={item.hasStory}
-                                        navigation={navigation}
-                                    />
-                                )}
-                            />
+                // Performance optimizations
+                windowSize={5}
+                initialNumToRender={3}
+                maxToRenderPerBatch={3}
+                removeClippedSubviews={true}
+                updateCellsBatchingPeriod={50}
+                // Infinite scroll
+                onEndReached={loadMorePosts}
+                onEndReachedThreshold={0.5}
+                ListFooterComponent={() => {
+                    if (!loadingMore) return null;
+                    return (
+                        <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                            <Text style={{ color: '#999' }}>Đang tải thêm...</Text>
                         </View>
-                        {loading && (<Text style={{ padding: 16, color: '#666' }}>Đang tải...</Text>)}
-                    </>
+                    );
+                }}
+                ListHeaderComponent={() => (
+                    <View style={styles.storiesContainer}>
+                        <FlatList
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            data={storiesData}
+                            keyExtractor={(item) => item.id}
+                            renderItem={({ item }) => (
+                                <StoryItem
+                                    id={item.id}
+                                    name={item.name}
+                                    avatar={item.avatar}
+                                    hasStory={item.hasStory}
+                                    navigation={navigation}
+                                />
+                            )}
+                        />
+                    </View>
+                )}
+                ListEmptyComponent={() => 
+                    loading ? (
+                        <Text style={{ padding: 16, color: '#666' }}>Đang tải...</Text>
+                    ) : (
+                        <Text style={{ padding: 16, color: '#666' }}>Chưa có bài viết nào</Text>
+                    )
                 }
                 renderItem={({ item: p }) => (
                     <View style={styles.post}>
@@ -631,9 +680,11 @@ export default function Home() {
                                     </View>
                                 </TouchableOpacity>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                    <TouchableOpacity style={styles.followBtn} onPress={() => { /* TODO: follow */ }}>
-                                        <Text style={styles.followBtnText}>Theo dõi</Text>
-                                    </TouchableOpacity>
+                                    {!isOwner(p) && !isFollowed(p?.user?.id) && (
+                                        <TouchableOpacity style={styles.followBtn} onPress={() => handleFollow(p)}>
+                                            <Text style={styles.followBtnText}>Theo dõi</Text>
+                                        </TouchableOpacity>
+                                    )}
                                     <TouchableOpacity onPress={() => openOptionsFor(p)}>
                                         <Text style={styles.moreIcon}>⋯</Text>
                                     </TouchableOpacity>
@@ -653,29 +704,12 @@ export default function Home() {
                                         }
                                         if (videos.length > 0) {
                                             const video = videos[0];
-                                            const currentUri = sanitizeUri(video?.url || '');
                                             return (
-                                                <TouchableOpacity activeOpacity={0.9} onPress={() => openVideoPlayerFor(p)}>
-                                                    <Video
-                                                        key={`${p?.id ?? 'v'}:${currentUri}`}
-                                                        source={{ uri: currentUri, headers: authHeaders || undefined }}
-                                                        style={styles.postImage}
-                                                        resizeMode={ResizeMode.COVER}
-                                                        isLooping
-                                                        shouldPlay={false}
-                                                        useNativeControls={false}
-                                                        isMuted={false}
-                                                        volume={1.0}
-                                                        progressUpdateIntervalMillis={250}
-                                                        usePoster={!!video?.thumbnailUrl}
-                                                        posterSource={video?.thumbnailUrl ? { uri: video.thumbnailUrl } : undefined}
-                                                        onLoad={() => { console.log('[HOME] video preview loaded:', { postId: p.id }); }}
-                                                        onError={(e) => { console.warn('[HOME] video preview error (original only):', { postId: p.id, err: e?.nativeEvent?.error }); }}
-                                                    />
-                                                    <View style={styles.playOverlay} pointerEvents="none">
-                                                        <Ionicons name="play" size={36} color="#fff" />
-                                                    </View>
-                                                </TouchableOpacity>
+                                                <VideoThumbnail
+                                                    videoUrl={video.url}
+                                                    style={styles.postImage}
+                                                    onPress={() => openVideoPlayerFor(p)}
+                                                />
                                             );
                                         }
                                         return (
@@ -720,48 +754,76 @@ export default function Home() {
                                 <Text style={styles.likeCount}>
                                     {(postStates[p.id]?.likes ?? 0).toLocaleString()} lượt thích • {(postStates[p.id]?.shares ?? 0).toLocaleString()} lượt chia sẻ
                                 </Text>
-                                {editingCaptionPostId === p.id ? (
-                                    <View style={{ marginTop: 6 }}>
-                                        <Text
-                                            style={[styles.captionText, { marginBottom: 8 }]}
-                                        >Chỉnh sửa caption</Text>
-                                        <View style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8 }}>
-                                            <TextInput
-                                                style={{ padding: 10, color: '#111827', maxHeight: 120 }}
-                                                value={captionDraft}
-                                                onChangeText={setCaptionDraft}
-                                                multiline
-                                                placeholder="Nhập caption..."
-                                            />
-                                        </View>
-                                        {/* Simple inline controls */}
-                                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
-                                            <TouchableOpacity style={styles.primaryBtn} onPress={submitCaptionEdit}>
-                                                <Text style={styles.primaryBtnText}>Lưu</Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity style={styles.secondaryBtn} onPress={closeAllOverlays}>
-                                                <Text style={styles.secondaryBtnText}>Hủy</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
-                                ) : (
-                                    !!p.caption && (
-                                        <Text style={styles.captionText}>{p.caption}</Text>
-                                    )
+                                {!!p.caption && (
+                                    <Text style={styles.captionText}>{p.caption}</Text>
                                 )}
                             </View>
                         </View>
                 )}
-                ListFooterComponent={hasMore ? (
-                    <View style={{ paddingVertical: 16, alignItems:'center' }}>
-                        <Text style={{ color:'#666' }}>{loadingMore ? 'Đang tải...' : 'Kéo lên để tải thêm'}</Text>
-                    </View>
-                ) : (
-                    <View style={{ height: 8 }} />
-                )}
-                contentContainerStyle={{ paddingBottom: 0 }}
             />
-            </KeyboardAvoidingView>
+
+            {/* Edit Caption Modal */}
+            <Modal
+                visible={editingCaptionPostId !== null}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={closeAllOverlays}
+            >
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={styles.modalContainer}
+                >
+                    <TouchableOpacity 
+                        activeOpacity={1} 
+                        style={styles.modalOverlay} 
+                        onPress={closeAllOverlays}
+                    >
+                        <TouchableOpacity 
+                            activeOpacity={1} 
+                            style={styles.editCaptionSheet}
+                            onPress={(e) => e.stopPropagation()}
+                        >
+                            <View style={styles.sheetHeader}>
+                                <Text style={styles.sheetTitle}>Chỉnh sửa caption</Text>
+                                <TouchableOpacity onPress={closeAllOverlays} style={styles.closeButton}>
+                                    <Text style={styles.closeButtonText}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+                            
+                            <View style={styles.editCaptionContent}>
+                                <TextInput
+                                    style={styles.captionTextInput}
+                                    value={captionDraft}
+                                    onChangeText={setCaptionDraft}
+                                    multiline
+                                    placeholder="Nhập caption..."
+                                    placeholderTextColor="#999"
+                                    autoFocus
+                                    maxLength={2200}
+                                />
+                                <Text style={styles.charCounter}>
+                                    {captionDraft.length}/2200
+                                </Text>
+                            </View>
+                            
+                            <View style={styles.editCaptionActions}>
+                                <TouchableOpacity 
+                                    style={[styles.actionButton, styles.cancelButton]} 
+                                    onPress={closeAllOverlays}
+                                >
+                                    <Text style={styles.cancelButtonText}>Hủy</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                    style={[styles.actionButton, styles.saveButton]} 
+                                    onPress={submitCaptionEdit}
+                                >
+                                    <Text style={styles.saveButtonText}>Lưu</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </TouchableOpacity>
+                    </TouchableOpacity>
+                </KeyboardAvoidingView>
+            </Modal>
 
             {/* Comments Modal */}
             <CommentsModal
@@ -1157,5 +1219,95 @@ const styles = StyleSheet.create({
         borderColor: '#111827',
         borderTopColor: 'transparent',
         // simple CSS-like spinner animation is not available; this is a placeholder
-    }
+    },
+    // Edit Caption Modal Styles
+    modalContainer: {
+        flex: 1,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-end',
+    },
+    editCaptionSheet: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+        maxHeight: '80%',
+    },
+    sheetHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#e5e7eb',
+    },
+    closeButton: {
+        width: 32,
+        height: 32,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 16,
+        backgroundColor: '#f3f4f6',
+    },
+    closeButtonText: {
+        fontSize: 18,
+        color: '#111827',
+        fontWeight: '600',
+    },
+    editCaptionContent: {
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        minHeight: 200,
+    },
+    captionTextInput: {
+        fontSize: 16,
+        color: '#111827',
+        textAlignVertical: 'top',
+        minHeight: 150,
+        maxHeight: 300,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: '#d1d5db',
+        borderRadius: 12,
+        backgroundColor: '#f9fafb',
+    },
+    charCounter: {
+        fontSize: 12,
+        color: '#9ca3af',
+        marginTop: 8,
+        textAlign: 'right',
+    },
+    editCaptionActions: {
+        flexDirection: 'row',
+        paddingHorizontal: 20,
+        paddingTop: 16,
+        gap: 12,
+    },
+    actionButton: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    cancelButton: {
+        backgroundColor: '#f3f4f6',
+    },
+    cancelButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#6b7280',
+    },
+    saveButton: {
+        backgroundColor: '#0095F6',
+    },
+    saveButtonText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#fff',
+    },
 });
