@@ -24,5 +24,9 @@ namespace UngDungMangXaHoi.Domain.Interfaces
         // Follow counters
         Task<int> GetFollowersCountAsync(int userId);
         Task<int> GetFollowingCountAsync(int userId);
+        // Follow operations
+        Task<bool> IsFollowingAsync(int followerId, int followingId);
+        Task FollowUserAsync(int followerId, int followingId);
+        Task UnfollowUserAsync(int followerId, int followingId);
     }
 }
