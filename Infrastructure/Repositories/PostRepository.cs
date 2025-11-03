@@ -163,6 +163,38 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public async Task<IEnumerable<Post>> GetFollowingVideoPostsAsync(int currentUserId, int pageNumber, int pageSize)
+        {
+            // Lấy video posts từ những người mà currentUser đang follow
+            // Lấy danh sách user_id mà currentUser đang follow
+            var followingUserIds = await _context.Follows
+                .Where(f => f.follower_id == currentUserId)
+                .Select(f => f.following_id)
+                .ToListAsync();
+
+            if (!followingUserIds.Any())
+            {
+                return new List<Post>(); // Không follow ai, trả về rỗng
+            }
+
+            // Lấy video posts từ những người đang follow
+            return await _context.Posts
+                .AsNoTracking()
+                .Include(p => p.User)
+                .Include(p => p.Media)
+                .Where(p => p.is_visible
+                    && followingUserIds.Contains(p.user_id) // Chỉ lấy từ người đang follow
+                    && p.Media.Any(m => m.media_type.ToLower() == "video")
+                    && (
+                        p.privacy.ToLower() == "public"
+                        || p.privacy.ToLower() == "followers" // Vì đã follow nên được xem
+                    ))
+                .OrderByDescending(p => p.created_at)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+        }
+
         public async Task<int> GetUserPostCountAsync(int userId)
         {
             return await _context.Posts.CountAsync(p => p.is_visible && p.user_id == userId);
