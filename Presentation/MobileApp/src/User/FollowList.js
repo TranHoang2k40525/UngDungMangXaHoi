@@ -4,10 +4,12 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { API_BASE_URL, getFollowers, getFollowing } from '../API/Api';
+import { useUser } from '../Context/UserContext';
 
 export default function FollowList() {
   const route = useRoute();
   const navigation = useNavigation();
+  const { user: currentUser } = useUser(); // Lấy thông tin user hiện tại
   const { userId, type, username } = route.params; // type: 'followers' | 'following'
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -45,24 +47,40 @@ export default function FollowList() {
     return () => { alive = false; };
   }, [userId, type]);
 
-  const renderUser = ({ item }) => (
-    <TouchableOpacity
-      style={styles.userItem}
-      onPress={() => navigation.push('UserProfilePublic', { userId: item.userId })}
-    >
-      {getAvatarUri(item.avatarUrl) ? (
-        <Image source={{ uri: getAvatarUri(item.avatarUrl) }} style={styles.avatar} />
-      ) : (
-        <View style={[styles.avatar, styles.avatarPlaceholder]}>
-          <Ionicons name="person" size={24} color="#9ca3af" />
+  const renderUser = ({ item }) => {
+    // Kiểm tra nếu user click vào chính mình
+    const isCurrentUser = currentUser && item.userId === currentUser.id;
+    
+    return (
+      <TouchableOpacity
+        style={styles.userItem}
+        onPress={() => {
+          if (isCurrentUser) {
+            // Nếu là chính mình, chuyển về Profile (trang Tab)
+            navigation.navigate('ProfileTab');
+          } else {
+            // Nếu là người khác, mở UserProfilePublic
+            navigation.push('UserProfilePublic', { userId: item.userId });
+          }
+        }}
+      >
+        {getAvatarUri(item.avatarUrl) ? (
+          <Image source={{ uri: getAvatarUri(item.avatarUrl) }} style={styles.avatar} />
+        ) : (
+          <View style={[styles.avatar, styles.avatarPlaceholder]}>
+            <Ionicons name="person" size={24} color="#9ca3af" />
+          </View>
+        )}
+        <View style={styles.userInfo}>
+          <Text style={styles.username}>
+            {item.username}
+            {isCurrentUser && <Text style={styles.youBadge}> (Bạn)</Text>}
+          </Text>
+          <Text style={styles.fullName}>{item.fullName || ''}</Text>
         </View>
-      )}
-      <View style={styles.userInfo}>
-        <Text style={styles.username}>{item.username}</Text>
-        <Text style={styles.fullName}>{item.fullName || ''}</Text>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
@@ -155,6 +173,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111827',
     marginBottom: 2,
+  },
+  youBadge: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#0095F6',
   },
   fullName: {
     fontSize: 13,

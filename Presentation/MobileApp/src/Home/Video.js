@@ -13,6 +13,8 @@ import {
   KeyboardAvoidingView,
   Modal,
   Alert,
+  TouchableWithoutFeedback,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +26,7 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useUser } from '../Context/UserContext';
 import { useFollow } from '../Context/FollowContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Slider from '@react-native-community/slider';
 
 // Component wrapper cho mỗi video item để dùng useVideoPlayer hook
 const ReelVideoPlayer = React.memo(({ 
@@ -34,7 +37,7 @@ const ReelVideoPlayer = React.memo(({
   isFocused,
   onError,
   onPlaybackStatusUpdate,
-  onTogglePlayPause,
+  on3TapDetected,
   index
 }) => {
   const player = useVideoPlayer(videoUri, (player) => {
@@ -43,13 +46,26 @@ const ReelVideoPlayer = React.memo(({
     player.muted = false;
   });
 
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [playbackRate, setPlaybackRate] = useState(1.0);
+  const [showProgressBar, setShowProgressBar] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  
+  const longPressTimerRef = useRef(null);
+  const progressIntervalRef = useRef(null);
+  const hideProgressTimerRef = useRef(null);
+
   // Control play/pause based on active state
   useEffect(() => {
     if (!player) return;
     
     try {
       if (isActive && isFocused) {
-        player.play();
+        if (isPlaying) {
+          player.play();
+        }
       } else {
         player.pause();
       }
@@ -57,18 +73,191 @@ const ReelVideoPlayer = React.memo(({
       // Ignore errors from already released players
       console.log('[ReelVideoPlayer] Play/pause error (ignored):', error.message);
     }
-  }, [isActive, isFocused, player]);
+  }, [isActive, isFocused, player, isPlaying]);
+
+  // Update playback rate
+  useEffect(() => {
+    if (player && isActive) {
+      try {
+        player.playbackRate = playbackRate;
+      } catch (error) {
+        console.log('[ReelVideoPlayer] Playback rate error:', error);
+      }
+    }
+  }, [player, playbackRate, isActive]);
+
+  // Track video progress
+  useEffect(() => {
+    if (!player || !isActive || !isFocused) return;
+
+    const interval = setInterval(() => {
+      try {
+        if (player.currentTime !== undefined && player.duration !== undefined) {
+          setCurrentTime(player.currentTime);
+          setDuration(player.duration);
+        }
+      } catch (error) {
+        // Ignore
+      }
+    }, 100);
+
+    progressIntervalRef.current = interval;
+    return () => clearInterval(interval);
+  }, [player, isActive, isFocused]);
+
+  // Handle tap to pause/play
+  const handleTap = () => {
+    const newPlayingState = !isPlaying;
+    setIsPlaying(newPlayingState);
+    
+    try {
+      if (newPlayingState) {
+        player.play();
+      } else {
+        player.pause();
+      }
+    } catch (error) {
+      console.log('[ReelVideoPlayer] Toggle play error:', error);
+    }
+  };
+
+  // Handle long press for 2x speed
+  const handlePressIn = () => {
+    longPressTimerRef.current = setTimeout(() => {
+      setPlaybackRate(2.0);
+    }, 1000); // 1 second
+  };
+
+  const handlePressOut = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+    }
+    setPlaybackRate(1.0);
+  };
+
+  // Handle tap on bottom to show progress bar
+  const handleBottomTap = (evt) => {
+    // Check for 3-tap first
+    if (on3TapDetected && on3TapDetected()) {
+      return; // 3-tap consumed, don't do anything else
+    }
+
+    const { locationY } = evt.nativeEvent;
+    const screenHeight = height;
+    const bottomThreshold = screenHeight * 0.8; // bottom 20%
+
+    if (locationY > bottomThreshold) {
+      setShowProgressBar(true);
+      
+      // Auto hide after 3 seconds
+      if (hideProgressTimerRef.current) {
+        clearTimeout(hideProgressTimerRef.current);
+      }
+      hideProgressTimerRef.current = setTimeout(() => {
+        if (!isDragging) {
+          setShowProgressBar(false);
+        }
+      }, 3000);
+    } else {
+      handleTap();
+    }
+  };
+
+  // Handle slider value change (seeking)
+  const handleSliderValueChange = (value) => {
+    setIsDragging(true);
+    setCurrentTime(value);
+  };
+
+  const handleSlidingComplete = (value) => {
+    setIsDragging(false);
+    try {
+      player.currentTime = value;
+    } catch (error) {
+      console.log('[ReelVideoPlayer] Seek error:', error);
+    }
+
+    // Auto hide after 3 seconds
+    if (hideProgressTimerRef.current) {
+      clearTimeout(hideProgressTimerRef.current);
+    }
+    hideProgressTimerRef.current = setTimeout(() => {
+      setShowProgressBar(false);
+    }, 3000);
+  };
+
+  // Cleanup timers
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+      if (hideProgressTimerRef.current) {
+        clearTimeout(hideProgressTimerRef.current);
+      }
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
+  }, []);
 
   return (
-    <VideoView
-      player={player}
-      style={StyleSheet.absoluteFillObject}
-      contentFit="contain"
-      nativeControls={false}
-      onError={onError}
-    />
+    <View style={StyleSheet.absoluteFillObject}>
+      <VideoView
+        player={player}
+        style={StyleSheet.absoluteFillObject}
+        contentFit="contain"
+        nativeControls={false}
+        onError={onError}
+      />
+
+      {/* Touchable overlay cho gesture */}
+      <TouchableWithoutFeedback
+        onPress={handleBottomTap}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+      >
+        <View style={StyleSheet.absoluteFillObject} />
+      </TouchableWithoutFeedback>
+
+      {/* Speed indicator */}
+      {playbackRate > 1 && (
+        <View style={styles.speedIndicator} pointerEvents="none">
+          <Text style={styles.speedText}>{playbackRate}x</Text>
+        </View>
+      )}
+
+      {/* Progress bar */}
+      {showProgressBar && duration > 0 && (
+        <View style={styles.progressBarContainer} pointerEvents="box-none">
+          <View style={styles.timeLabels}>
+            <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
+            <Text style={styles.timeText}>{formatTime(duration)}</Text>
+          </View>
+          <Slider
+            style={styles.progressSlider}
+            value={currentTime}
+            minimumValue={0}
+            maximumValue={duration}
+            minimumTrackTintColor="#FFFFFF"
+            maximumTrackTintColor="rgba(255, 255, 255, 0.3)"
+            thumbTintColor="#FFFFFF"
+            onValueChange={handleSliderValueChange}
+            onSlidingComplete={handleSlidingComplete}
+          />
+        </View>
+      )}
+    </View>
   );
 });
+
+// Helper function to format time (seconds to MM:SS)
+const formatTime = (seconds) => {
+  if (isNaN(seconds) || seconds === null || seconds === undefined) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
 
 export default function Reels() {
   const insets = useSafeAreaInsets();
@@ -102,6 +291,7 @@ export default function Reels() {
   const [showBigHeart, setShowBigHeart] = useState(false);
   const [captionLinesShown, setCaptionLinesShown] = useState({}); // {index: number}
   const [captionTotalLines, setCaptionTotalLines] = useState({}); // {index: number}
+  const [heartAnimationIndex, setHeartAnimationIndex] = useState(null); // Track which video shows heart
   const tabBarHeight = useBottomTabBarHeight?.() || 56;
   const [viewportHeight, setViewportHeight] = useState(0); // chiều cao thực vùng cuộn giữa header và tab bar
   const WATCHED_KEY = 'watchedVideoIds';
@@ -505,64 +695,61 @@ export default function Reels() {
     return chosenBase + (chosenBase.includes('?') ? '&' : '?') + 'ts=' + ts + '&rt=' + rt;
   })();
 
+  // Handle 3-tap detection for heart animation
+  const handle3TapDetection = () => {
+    const now = Date.now();
+    // lưu times trong 350ms window
+    tapTimesRef.current = (tapTimesRef.current || []).filter(t => now - t < 350);
+    tapTimesRef.current.push(now);
+    // nếu 3 tap trong cửa sổ -> thả cảm xúc
+    if (tapTimesRef.current.length >= 3) {
+      tapTimesRef.current = [];
+      if (tapTimerRef.current) { clearTimeout(tapTimerRef.current); tapTimerRef.current = null; }
+      setHeartAnimationIndex(index);
+      setTimeout(() => setHeartAnimationIndex(null), 700);
+      return true; // consumed
+    }
+    return false; // not consumed, let it pass through
+  };
+
     return (
       <View style={[styles.reel, { height }]}> 
         {videoMedia?.url ? (
           <>
-            <ReelVideoPlayer
-              videoUri={videoUri}
-              authHeaders={authHeaders}
-              height={height}
-              isActive={index === activeIndex}
-              isFocused={isFocused}
-              index={index}
-              onError={(e) => {
-                console.warn('[REELS] video error index', index, e);
-                try {
-                  // Nếu còn phương án nguồn kế tiếp, chuyển sang ngay để thử
-                  const hasNext = (candidates && (sIdx + 1) < candidates.length);
-                  if (hasNext) {
-                    setSourceIndexMap((prev) => ({ ...prev, [item?.id]: sIdx + 1 }));
-                    bumpRetryTokenNow(item?.id);
-                  } else {
-                    // Hết phương án → dùng cơ chế retry theo backoff
+            {/* Gesture detection layer - must be on top but use pointerEvents carefully */}
+            <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
+              <ReelVideoPlayer
+                videoUri={videoUri}
+                authHeaders={authHeaders}
+                height={height}
+                isActive={index === activeIndex}
+                isFocused={isFocused}
+                index={index}
+                on3TapDetected={handle3TapDetection}
+                onError={(e) => {
+                  console.warn('[REELS] video error index', index, e);
+                  try {
+                    // Nếu còn phương án nguồn kế tiếp, chuyển sang ngay để thử
+                    const hasNext = (candidates && (sIdx + 1) < candidates.length);
+                    if (hasNext) {
+                      setSourceIndexMap((prev) => ({ ...prev, [item?.id]: sIdx + 1 }));
+                      bumpRetryTokenNow(item?.id);
+                    } else {
+                      // Hết phương án → dùng cơ chế retry theo backoff
+                      scheduleRetry(item?.id, index);
+                    }
+                  } catch {
                     scheduleRetry(item?.id, index);
                   }
-                } catch {
-                  scheduleRetry(item?.id, index);
-                }
-              }}
-              onPlaybackStatusUpdate={(status) => {
-                try {
-                  if (status?.isPlaying) clearRetry(item?.id);
-                } catch {}
-              }}
-              onTogglePlayPause={() => {
-                // Handled by tap gesture below
-              }}
-            />
-            {/* Lớp chạm toàn màn hình: 1 chạm pause/play, 3 chạm thả cảm xúc */}
-            <TouchableOpacity
-              activeOpacity={1}
-              style={StyleSheet.absoluteFill}
-              onPress={() => {
-                const now = Date.now();
-                // lưu times trong 400ms
-                tapTimesRef.current = (tapTimesRef.current || []).filter(t => now - t < 350);
-                tapTimesRef.current.push(now);
-                // nếu 3 tap trong cửa sổ -> thả cảm xúc
-                if (tapTimesRef.current.length >= 3) {
-                  tapTimesRef.current = [];
-                  if (tapTimerRef.current) { clearTimeout(tapTimerRef.current); tapTimerRef.current = null; }
-                  setShowBigHeart(true);
-                  setTimeout(() => setShowBigHeart(false), 700);
-                  return;
-                }
-                // Note: Tap-to-play/pause removed as expo-video doesn't support imperative control the same way
-                // Users can still triple-tap for heart animation
-              }}
-            />
-            {showBigHeart && (
+                }}
+                onPlaybackStatusUpdate={(status) => {
+                  try {
+                    if (status?.isPlaying) clearRetry(item?.id);
+                  } catch {}
+                }}
+              />
+            </View>
+            {heartAnimationIndex === index && (
               <View pointerEvents="none" style={styles.bigHeartWrap}>
                 <Ionicons name="heart" size={96} color="#fff" style={{ opacity: 0.9 }} />
               </View>
@@ -573,8 +760,8 @@ export default function Reels() {
             <Text style={{ color: '#fff' }}>Không có video</Text>
           </View>
         )}
-        {/* Overlay UI */}
-  <View style={[styles.overlay, { paddingBottom: 12 }] }>
+        {/* Overlay UI - Positioned 30px from bottom */}
+        <View style={[styles.overlay, { bottom: 30 }]} pointerEvents="box-none">
           <TouchableOpacity
             activeOpacity={0.8}
             style={styles.userRow}
@@ -1015,7 +1202,7 @@ const styles = StyleSheet.create({
   captionUser: {
     color: '#fff',
     fontWeight: '800',
-    marginBottom: 2,
+    marginBottom: 0,
   },
   captionText: {
     color: '#fff',
@@ -1213,5 +1400,57 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
   },
+  // Video interaction styles
+  speedIndicator: {
+    position: 'absolute',
+    top: '45%',
+    left: '45%',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    zIndex: 100,
+  },
+  speedText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  pauseIndicator: {
+    position: 'absolute',
+    top: '45%',
+    left: '45%',
+    zIndex: 100,
+  },
+  progressBarContainer: {
+    position: 'absolute',
+    bottom: -5,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    zIndex: 100,
+  },
+  progressSlider: {
+    width: '100%',
+    height: 40,
+  },
+  timeLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    marginBottom: -20,
+  },
+  timeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
 });
  
+
