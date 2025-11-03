@@ -251,6 +251,25 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             return Ok(posts.Select(MapPostToDto));
         }
 
+        [HttpGet("reels/following")]
+        public async Task<IActionResult> GetFollowingReels([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        {
+            var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
+            {
+                return Unauthorized(new { message = "Token không hợp lệ!" });
+            }
+
+            var currentUser = await _userRepository.GetByAccountIdAsync(accountId);
+            if (currentUser == null)
+            {
+                return Unauthorized(new { message = "Người dùng không tồn tại!" });
+            }
+
+            var posts = await _postRepository.GetFollowingVideoPostsAsync(currentUser.user_id, Math.Max(1, page), Math.Clamp(pageSize, 1, 50));
+            return Ok(posts.Select(MapPostToDto));
+        }
+
         [HttpGet("me")]
         public async Task<IActionResult> GetMyPosts([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
