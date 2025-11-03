@@ -28,5 +28,7 @@ namespace UngDungMangXaHoi.Domain.Interfaces
         Task<bool> IsFollowingAsync(int followerId, int followingId);
         Task FollowUserAsync(int followerId, int followingId);
         Task UnfollowUserAsync(int followerId, int followingId);
+        Task<IEnumerable<object>> GetFollowersListAsync(int userId);
+        Task<IEnumerable<object>> GetFollowingListAsync(int userId);
     }
 }
