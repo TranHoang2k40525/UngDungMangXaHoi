@@ -140,5 +140,77 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
             // số người user này đang theo dõi
             return await _context.Follows.CountAsync(f => f.follower_id == userId);
         }
+
+        public async Task<bool> IsFollowingAsync(int followerId, int followingId)
+        {
+            return await _context.Follows
+                .AnyAsync(f => f.follower_id == followerId && f.following_id == followingId);
+        }
+
+        public async Task FollowUserAsync(int followerId, int followingId)
+        {
+            // Kiểm tra xem đã follow chưa
+            var exists = await IsFollowingAsync(followerId, followingId);
+            if (!exists)
+            {
+                var follow = new Follow
+                {
+                    follower_id = followerId,
+                    following_id = followingId,
+                    created_at = DateTime.UtcNow
+                };
+                _context.Follows.Add(follow);
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        public async Task UnfollowUserAsync(int followerId, int followingId)
+        {
+            var follow = await _context.Follows
+                .FirstOrDefaultAsync(f => f.follower_id == followerId && f.following_id == followingId);
+            if (follow != null)
+            {
+                _context.Follows.Remove(follow);
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        public async Task<IEnumerable<object>> GetFollowersListAsync(int userId)
+        {
+            // Get users who follow this userId
+            var followers = await _context.Follows
+                .Where(f => f.following_id == userId)
+                .Join(_context.Users.Include(u => u.Account),
+                    follow => follow.follower_id,
+                    user => user.user_id,
+                    (follow, user) => new
+                    {
+                        userId = user.user_id,
+                        username = user.username.Value,
+                        fullName = user.full_name,
+                        avatarUrl = user.avatar_url != null ? user.avatar_url.Value : null
+                    })
+                .ToListAsync();
+            return followers;
+        }
+
+        public async Task<IEnumerable<object>> GetFollowingListAsync(int userId)
+        {
+            // Get users that this userId is following
+            var following = await _context.Follows
+                .Where(f => f.follower_id == userId)
+                .Join(_context.Users.Include(u => u.Account),
+                    follow => follow.following_id,
+                    user => user.user_id,
+                    (follow, user) => new
+                    {
+                        userId = user.user_id,
+                        username = user.username.Value,
+                        fullName = user.full_name,
+                        avatarUrl = user.avatar_url != null ? user.avatar_url.Value : null
+                    })
+                .ToListAsync();
+            return following;
+        }
     }
 }
