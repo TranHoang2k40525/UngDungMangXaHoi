@@ -10,19 +10,30 @@ import {
     KeyboardAvoidingView,
     Platform,
 } from "react-native";
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { createPost } from "../API/Api";
-import { Video, ResizeMode } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
 
 export default function SharePost() {
     const navigation = useNavigation();
     const route = useRoute();
+    const insets = useSafeAreaInsets();
     const { selectedImage, selectedImages = [] } = route.params || {};
 
     const [caption, setCaption] = useState("");
     const [privacy, setPrivacy] = useState("public");
     const [loading, setLoading] = useState(false);
+
+    // Tạo video player cho preview nếu là video
+    const isVideo = (selectedImage?.mediaType === 'video' || selectedImage?.type === 'video');
+    const uri = selectedImage?.uri || selectedImage;
+    const videoPlayer = useVideoPlayer(isVideo ? uri : null, (player) => {
+        if (player && isVideo) {
+            player.loop = false;
+            player.muted = true;
+        }
+    });
 
     const handleShare = async () => {
         try {
@@ -58,7 +69,7 @@ export default function SharePost() {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView edges={['top']} style={styles.container}>
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -71,31 +82,22 @@ export default function SharePost() {
             </View>
 
             <KeyboardAvoidingView
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
+                behavior={Platform.OS === "ios" ? "padding" : undefined}
                 style={styles.content}
+                keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
             >
                 <ScrollView showsVerticalScrollIndicator={false}>
                     {/* Preview và Caption */}
                     <View style={styles.postPreview}>
                         {(() => {
-                            const isVideo = (selectedImage?.mediaType === 'video' || selectedImage?.type === 'video');
-                            const uri = selectedImage?.uri || selectedImage;
-                            if (isVideo) {
+                            if (isVideo && videoPlayer) {
                                 return (
                                     <View style={{ position:'relative' }}>
-                                        <Video
-                                            source={{ uri }}
+                                        <VideoView
                                             style={styles.previewImage}
-                                            resizeMode={ResizeMode.COVER}
-                                            shouldPlay={false}
-                                            isLooping
-                                            useNativeControls={false}
-                                            isMuted={false}
-                                            volume={1.0}
-                                            onError={(e) => {
-                                                console.warn('[SHARE] preview video error', e);
-                                                // No fallback per constraints; consider re-encoding source if persistent
-                                            }}
+                                            player={videoPlayer}
+                                            contentFit="cover"
+                                            nativeControls={false}
                                         />
                                         <View style={styles.videoPlayOverlay} pointerEvents="none">
                                             <Text style={{ color:'#fff', fontWeight:'800', fontSize:18 }}>▶</Text>
@@ -175,6 +177,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         paddingHorizontal: 16,
         paddingVertical: 12,
+        backgroundColor: "#FFFFFF",
         borderBottomWidth: 0.5,
         borderBottomColor: "#DBDBDB",
     },
