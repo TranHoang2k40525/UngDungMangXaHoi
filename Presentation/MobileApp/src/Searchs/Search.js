@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,9 +10,7 @@ import {
   ScrollView,
   RefreshControl,
   Platform,
-  Image,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { onTabTriple } from '../Utils/TabRefreshEmitter';
 
@@ -33,7 +31,6 @@ export default function Search() {
     setSearchHistory([]);
   };
 
-  const navigation = useNavigation();
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
     setRefreshing(true);
