@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity, FlatList, TextInput, RefreshControl, KeyboardAvoidingView, Platform, PixelRatio } from 'react-native';
+import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity, FlatList, TextInput, RefreshControl } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { Video, ResizeMode } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { getUserPostsById, updatePostCaption, updatePostPrivacy, deletePost } from '../API/Api';
 import { useUser } from '../Context/UserContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -85,45 +85,13 @@ export default function PostDetail() {
   const image = useMemo(() => (post?.media||[]).find(m => (m.type||'').toLowerCase()==='image'), [post]);
   const video = useMemo(() => (post?.media||[]).find(m => (m.type||'').toLowerCase()==='video'), [post]);
 
-  // Adaptive quality helpers (match Reels/Home logic)
-  const isLowEndDevice = useMemo(() => {
-    try {
-      const ratio = PixelRatio.get?.() || 1;
-      const androidVer = Platform.OS === 'android' ? Number(Platform.Version) : 0;
-      return Platform.OS === 'android' && (androidVer <= 31 || ratio <= 2);
-    } catch { return Platform.OS === 'android'; }
-  }, []);
-
-  const isCloudinaryUrl = useMemo(() => (u) => {
-    if (!u || typeof u !== 'string') return false;
-    return /\bres\.cloudinary\.com\b|\bcloudinary\.com\b/.test(u) && /\/upload\//.test(u);
-  }, []);
-
-  const buildCloudinary = useMemo(() => (u, transforms) => {
-    try {
-      const idx = u.indexOf('/upload/'); if (idx === -1) return u;
-      const head = u.slice(0, idx + '/upload/'.length);
-      const tail = u.slice(idx + '/upload/'.length);
-      const t = Array.isArray(transforms) ? transforms.filter(Boolean).join(',') : String(transforms || '').trim();
-      if (!t) return u;
-      return `${head}${t}/${tail}`;
-    } catch { return u; }
-  }, []);
-
-  const makeCandidates = useMemo(() => (uri) => {
-    if (!uri) return [];
-    if (isCloudinaryUrl(uri)) {
-      const original = uri;
-      const hq = buildCloudinary(uri, ['f_mp4','vc_h264:high','q_auto:good','w_720','br_2000k','ac_128k']);
-      const mid = buildCloudinary(uri, ['f_mp4','vc_h264:main','q_auto:good','w_640','br_1200k','ac_96k']);
-      const low = buildCloudinary(uri, ['f_mp4','vc_h264:baseline','q_auto:eco','w_480','br_700k','ac_64k']);
-      const ultra = buildCloudinary(uri, ['f_mp4','vc_h264:baseline','q_auto:low','w_360','br_400k','ac_48k']);
-      return [original, hq, mid, low, ultra].filter((v, i, arr) => v && arr.indexOf(v) === i);
+  // Tạo video player cho main post nếu có video
+  const videoPlayer = useVideoPlayer(video?.url || null, (player) => {
+    if (player && video) {
+      player.loop = false;
+      player.muted = false;
     }
-    return [uri];
-  }, [isCloudinaryUrl, buildCloudinary]);
-
-  const [activeVideoUri, setActiveVideoUri] = useState(null);
+  });
 
   const closeAllOverlays = () => {
     setShowOptions(false);
@@ -163,11 +131,6 @@ export default function PostDetail() {
         <View style={{ width: 32 }} />
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={(insets?.top || 0) + 56}
-      >
       {/* Post content like Home */}
       <View style={styles.post}>
         <View style={styles.postHeader}>
@@ -194,36 +157,13 @@ export default function PostDetail() {
         <View style={styles.postImageContainer}>
           {image ? (
             <Image source={{ uri: image.url }} style={styles.postImage} />
-          ) : video ? (
+          ) : video && videoPlayer ? (
             <View>
-              <Video
-                source={{ uri: activeVideoUri || (()=>{
-                  const c = makeCandidates(video.url);
-                  const startIdx = isLowEndDevice ? Math.min(2, c.length - 1) : 0;
-                  const u = c[startIdx] || video.url;
-                  // prime state for subsequent onError fallbacks
-                  if (!activeVideoUri) setTimeout(() => setActiveVideoUri(u), 0);
-                  return u;
-                })() }}
-                style={styles.postImage}
-                resizeMode={ResizeMode.COVER}
-                shouldPlay={false}
-                useNativeControls={true}
-                isLooping={false}
-                isMuted={false}
-                volume={1.0}
-                onError={(e) => {
-                  try {
-                    console.warn('[POSTDETAIL] video error, fallback');
-                    const c = makeCandidates(video.url);
-                    const cur = activeVideoUri || video.url;
-                    const idxNow = Math.max(0, c.indexOf(cur));
-                    for (let nxt = idxNow + 1; nxt < c.length; nxt++) {
-                      const nextUri = c[nxt];
-                      if (nextUri && nextUri !== cur) { setActiveVideoUri(nextUri); break; }
-                    }
-                  } catch {}
-                }}
+              <VideoView 
+                style={styles.postImage} 
+                player={videoPlayer}
+                contentFit="cover"
+                nativeControls={true}
               />
             </View>
           ) : (
@@ -263,7 +203,7 @@ export default function PostDetail() {
             <TouchableOpacity style={styles.gridTile} onPress={() => {
               if (vid) {
                 const videoPosts = otherPosts.filter(pp => (pp.media||[]).some(mm => (mm.type||'').toLowerCase()==='video'));
-                navigation.navigate('MainTabs', { screen: 'Video', params: { videos: (videoPosts.length ? videoPosts : [item]), selectedId: item.id } });
+                navigation.navigate('Video', { videos: videoPosts.length ? videoPosts : [item], selectedId: item.id });
               } else {
                 setPost(item);
               }
@@ -280,7 +220,6 @@ export default function PostDetail() {
         }}
         ListHeaderComponent={<View />}
       />
-      </KeyboardAvoidingView>
 
       {/* Options overlay */}
       {showOptions && (
