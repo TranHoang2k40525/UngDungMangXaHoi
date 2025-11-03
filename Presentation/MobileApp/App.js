@@ -4,6 +4,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { UserProvider, useUser } from "./src/Context/UserContext";
+import { FollowProvider } from "./src/Context/FollowContext";
 import Login from "./src/Auth/Login";
 import SignUp from "./src/Auth/SignUp";
 import VerifyOtp from "./src/Auth/VerifyOtp";
@@ -23,6 +24,7 @@ import Messenger from "./src/Messegers/Messenger";
 import Search from "./src/Searchs/Search";
 import Profile from "./src/User/Profile";
 import UserProfilePublic from "./src/User/UserProfilePublic";
+import FollowList from "./src/User/FollowList";
 import PostDetail from "./src/Home/PostDetail";
 import Editprofile from "./src/User/Editprofile";
 import PhotoPreview from "./src/User/PhotoPreview";
@@ -231,6 +233,7 @@ function AppNavigator() {
                         <Stack.Screen name="SharePost" component={SharePost} />
                         <Stack.Screen name="PostDetail" component={PostDetail} />
                         <Stack.Screen name="UserProfilePublic" component={UserProfilePublic} />
+                        <Stack.Screen name="FollowList" component={FollowList} />
                         <Stack.Screen
                             name="CommentsModal"
                             component={CommentsModal}
@@ -272,9 +275,11 @@ function AppNavigator() {
 export default function App() {
     return (
         <UserProvider>
-            <SafeAreaProvider>
-                <AppNavigator />
-            </SafeAreaProvider>
+            <FollowProvider>
+                <SafeAreaProvider>
+                    <AppNavigator />
+                </SafeAreaProvider>
+            </FollowProvider>
         </UserProvider>
     );
 }
