@@ -167,5 +167,10 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         {
             return await _context.Posts.CountAsync(p => p.is_visible && p.user_id == userId);
         }
+
+        public async Task<int> CountPostsByUserIdAsync(int userId)
+        {
+            return await _context.Posts.CountAsync(p => p.is_visible && p.user_id == userId);
+        }
     }
 }
