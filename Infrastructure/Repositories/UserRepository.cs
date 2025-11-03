@@ -8,6 +8,9 @@ using UngDungMangXaHoi.Domain.Interfaces;
 using UngDungMangXaHoi.Domain.ValueObjects;
 using UngDungMangXaHoi.Infrastructure.Persistence;
 
+#pragma warning disable CS8604 // Possible null reference argument for parameter
+#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type
+
 namespace UngDungMangXaHoi.Infrastructure.Repositories
 {
     public class UserRepository : IUserRepository
@@ -26,11 +29,18 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .FirstOrDefaultAsync(u => u.user_id == id);
         }
 
+        public async Task<User?> GetByAccountIdAsync(int accountId)
+        {
+            return await _context.Users
+                .Include(u => u.Account)
+                .FirstOrDefaultAsync(u => u.account_id == accountId);
+        }
+
         public async Task<User?> GetByEmailAsync(Email email)
         {
             return await _context.Users
                 .Include(u => u.Account)
-                .FirstOrDefaultAsync(u => u.Account.email.Value == email.Value);
+                .FirstOrDefaultAsync(u => u.Account.email != null && u.Account.email!.Value.ToLower() == email!.Value.ToLower());
         }
 
         public async Task<User?> GetByUserNameAsync(UserName userName)
@@ -89,7 +99,7 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
 
         public async Task<bool> ExistsByEmailAsync(Email email)
         {
-            return await _context.Accounts.AnyAsync(a => a.email.Value == email.Value);
+            return await _context.Accounts.AnyAsync(a => a.email != null && a.email!.Value.ToLower() == email!.Value.ToLower());
         }
 
         public async Task<bool> ExistsByUserNameAsync(UserName userName)
@@ -102,8 +112,8 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
             var query = _context.Users
                 .Include(u => u.Account)
                 .Where(u => u.Account.status == "active" &&
-                    (u.full_name.Contains(searchTerm) ||
-                     u.username.Value.Contains(searchTerm)));
+                    (u.full_name.ToLower().Contains(searchTerm.ToLower()) ||
+                     u.username.Value.ToLower().Contains(searchTerm.ToLower())));
 
             return await query
                 .OrderBy(u => u.full_name)
@@ -117,6 +127,90 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
             return await _context.Users
                 .Include(u => u.Account)
                 .CountAsync(u => u.Account.status == "active");
+        }
+
+        public async Task<int> GetFollowersCountAsync(int userId)
+        {
+            // số người theo dõi user này
+            return await _context.Follows.CountAsync(f => f.following_id == userId);
+        }
+
+        public async Task<int> GetFollowingCountAsync(int userId)
+        {
+            // số người user này đang theo dõi
+            return await _context.Follows.CountAsync(f => f.follower_id == userId);
+        }
+
+        public async Task<bool> IsFollowingAsync(int followerId, int followingId)
+        {
+            return await _context.Follows
+                .AnyAsync(f => f.follower_id == followerId && f.following_id == followingId);
+        }
+
+        public async Task FollowUserAsync(int followerId, int followingId)
+        {
+            // Kiểm tra xem đã follow chưa
+            var exists = await IsFollowingAsync(followerId, followingId);
+            if (!exists)
+            {
+                var follow = new Follow
+                {
+                    follower_id = followerId,
+                    following_id = followingId,
+                    created_at = DateTime.UtcNow
+                };
+                _context.Follows.Add(follow);
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        public async Task UnfollowUserAsync(int followerId, int followingId)
+        {
+            var follow = await _context.Follows
+                .FirstOrDefaultAsync(f => f.follower_id == followerId && f.following_id == followingId);
+            if (follow != null)
+            {
+                _context.Follows.Remove(follow);
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        public async Task<IEnumerable<object>> GetFollowersListAsync(int userId)
+        {
+            // Get users who follow this userId
+            var followers = await _context.Follows
+                .Where(f => f.following_id == userId)
+                .Join(_context.Users.Include(u => u.Account),
+                    follow => follow.follower_id,
+                    user => user.user_id,
+                    (follow, user) => new
+                    {
+                        userId = user.user_id,
+                        username = user.username.Value,
+                        fullName = user.full_name,
+                        avatarUrl = user.avatar_url != null ? user.avatar_url.Value : null
+                    })
+                .ToListAsync();
+            return followers;
+        }
+
+        public async Task<IEnumerable<object>> GetFollowingListAsync(int userId)
+        {
+            // Get users that this userId is following
+            var following = await _context.Follows
+                .Where(f => f.follower_id == userId)
+                .Join(_context.Users.Include(u => u.Account),
+                    follow => follow.following_id,
+                    user => user.user_id,
+                    (follow, user) => new
+                    {
+                        userId = user.user_id,
+                        username = user.username.Value,
+                        fullName = user.full_name,
+                        avatarUrl = user.avatar_url != null ? user.avatar_url.Value : null
+                    })
+                .ToListAsync();
+            return following;
         }
     }
 }

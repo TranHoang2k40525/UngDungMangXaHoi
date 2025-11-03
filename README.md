@@ -148,12 +148,22 @@ dotnet run --project Presentation/WebAPI
 - `GET /api/user/profile` - Lấy thông tin profile (cần authentication)
 - `PUT /api/user/profile` - Cập nhật profile (cần authentication)
 
-### Post Management
-- `POST /api/post` - Tạo bài viết mới (cần authentication)
-- `GET /api/post/feed` - Lấy feed (cần authentication)
-- `GET /api/post/{id}` - Lấy chi tiết bài viết
-- `PUT /api/post/{id}` - Cập nhật bài viết (cần authentication)
-- `DELETE /api/post/{id}` - Xóa bài viết (cần authentication)
+### Media & Posts (implemented)
+- `POST /api/posts` (auth) — Tạo bài viết có kèm media (multipart/form-data)
+  - Form fields:
+    - `Caption` (string, optional)
+    - `Location` (string, optional)
+    - `Privacy` (string: `public` | `private` | `followers`)
+    - `Images` (file[], nhiều ảnh, các đuôi: .jpg/.jpeg/.png/.gif/.webp)
+    - `Video` (file, tối đa 100MB, đuôi: .mp4/.mov/.m4v/.avi/.wmv/.mkv)
+  - Lưu trữ file:
+    - Ảnh: `Presentation/WebAPI/Assets/Images/{username}_{random}.ext`
+    - Video: `Presentation/WebAPI/Assets/Videos/{username}_{random}.ext`
+    - Trong DB lưu CHỈ tên file (vd: `hoang_abcd1234.jpg`)
+- `GET /api/posts/feed` — Lấy feed public + bài của chính mình
+- `GET /api/posts/reels` — Lấy danh sách bài có video (public)
+- `GET /api/posts/me` (auth) — Lấy bài đăng của chính mình
+- Static files served under `/Assets/*` (ví dụ ảnh: `/Assets/Images/{fileName}`)
 
 ### Comment Management
 - `POST /api/comment` - Thêm bình luận (cần authentication)

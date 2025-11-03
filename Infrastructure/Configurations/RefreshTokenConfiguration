@@ -1,0 +1,47 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using UngDungMangXaHoi.Domain.Entities;
+
+namespace UngDungMangXaHoi.Infrastructure.Configurations
+{
+    public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
+    {
+        public void Configure(EntityTypeBuilder<RefreshToken> builder)
+        {
+            builder.ToTable("RefreshTokens");
+            builder.HasKey(t => t.token_id);
+
+            builder.Property(t => t.token_id)
+                   .ValueGeneratedOnAdd();
+
+            builder.Property(t => t.account_id)
+                   .IsRequired();
+
+            builder.Property(t => t.refresh_token)
+                   .IsRequired()
+                   .HasMaxLength(1000);
+
+            builder.Property(t => t.expires_at)
+                   .IsRequired()
+                   .HasConversion(
+                       v => v.DateTime,
+                       v => new DateTimeOffset(v, TimeSpan.Zero));
+
+            builder.Property(t => t.created_at)
+                   .IsRequired()
+                   .HasDefaultValueSql("GETDATE()")
+                   .HasConversion(
+                       v => v.DateTime,
+                       v => new DateTimeOffset(v, TimeSpan.Zero));
+
+            // Cấu hình mối quan hệ với Account
+            builder.HasOne(t => t.Account)
+                   .WithMany()
+                   .HasForeignKey(t => t.account_id)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            // Index
+            builder.HasIndex(t => t.account_id);
+        }
+    }
+}

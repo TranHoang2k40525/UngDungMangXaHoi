@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xác thực OTP - Ứng dụng mạng xã hội</title>
+    <link rel="stylesheet" href="Styles/auth.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="signup.html" class="back-link">←</a>
+            <h1>XÁC THỰC OTP</h1>
+        </div>
+        
+        <form id="verifyForm">
+            <div class="form-group">
+                <label>Nhập mã OTP đã gửi đến email của bạn:</label>
+                <input type="text" id="otp" maxlength="6" placeholder="000000" required />
+            </div>
+            
+            <button type="submit" class="btn" id="verifyBtn">Xác thực</button>
+            
+            <div class="form-group">
+                <button type="button" class="btn-secondary" id="resendBtn" disabled>
+                    Gửi lại mã (<span id="countdown">60</span>s)
+                </button>
+            </div>
+            
+            <div id="msg" style="min-height: 18px; margin-top: 12px; color: var(--muted);"></div>
+        </form>
+        
+        <div class="footer">
+            <p>Quay lại <a href="signup.html">đăng ký</a></p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="Context/UserContext.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

@@ -11,18 +11,30 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
         }
 
         // DbSets
-        public DbSet<Account> Accounts { get; set; }
-        public DbSet<User> Users { get; set; }
-        public DbSet<Admin> Admins { get; set; }
-        public DbSet<OTP> OTPs { get; set; }
+    public DbSet<Account> Accounts { get; set; } = null!;
+    public DbSet<User> Users { get; set; } = null!;
+    public DbSet<Admin> Admins { get; set; } = null!;
+    public DbSet<OTP> OTPs { get; set; } = null!;
+    public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
+    public DbSet<LoginHistory> LoginHistory { get; set; } = null!;
+    public DbSet<Post> Posts { get; set; } = null!;
+    public DbSet<PostMedia> PostMedia { get; set; } = null!;
+    public DbSet<Follow> Follows { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
             // Apply configurations
-            modelBuilder.ApplyConfiguration(new UserConfiguration());
             modelBuilder.ApplyConfiguration(new AccountConfiguration());
+            modelBuilder.ApplyConfiguration(new UserConfiguration());
+            modelBuilder.ApplyConfiguration(new AdminConfiguration());
+            modelBuilder.ApplyConfiguration(new OTPConfiguration());
+            modelBuilder.ApplyConfiguration(new RefreshTokenConfiguration());
+            modelBuilder.ApplyConfiguration(new LoginHistoryConfiguration());
+            modelBuilder.ApplyConfiguration(new PostConfiguration());
+            modelBuilder.ApplyConfiguration(new PostMediaConfiguration());
+            modelBuilder.ApplyConfiguration(new FollowConfiguration());
         }
     }
 }

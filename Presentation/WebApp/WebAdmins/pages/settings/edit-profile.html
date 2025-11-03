@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Chỉnh sửa thông tin - Admin</title>
+  <link rel="stylesheet" href="../../styles.css">
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="brand">MediaLite Admin</div>
+      <div class="nav-list">
+        <a class="nav-item" href="../home/home.html">Trang chủ Admin</a>
+        <a class="nav-item" href="../users/users.html">Quản lý người dùng</a>
+        <a class="nav-item" href="../moderation/moderation.html">Kiểm duyệt nội dung</a>
+        <a class="nav-item" href="../reports/reports.html">Báo cáo vi phạm</a>
+        <a class="nav-item" href="../ai/ai.html">Hệ thống AI</a>
+        <a class="nav-item" href="../analytics/analytics.html">Thống kê & Phân tích</a>
+        <a class="nav-item active" href="settings.html">Cài đặt</a>
+      </div>
+      <div class="sidebar-footer">
+        <!-- Avatar + Account Info -->
+        <div style="padding: 16px; border-top: 1px solid rgba(255,255,255,0.1); margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <img id="sidebarAvatar" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect fill='%236366F1' width='40' height='40'/%3E%3Ctext fill='%23fff' x='50%25' y='50%25' text-anchor='middle' dy='.3em' font-size='16' font-weight='600'%3EA%3C/text%3E%3C/svg%3E" 
+                 alt="Avatar" 
+                 style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid #fff;">
+            <div style="flex: 1; min-width: 0;">
+              <div id="sidebarFullName" style="color: #fff; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                Loading...
+              </div>
+              <div id="sidebarEmail" style="color: rgba(255,255,255,0.7); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                ...
+              </div>
+            </div>
+          </div>
+        </div>
+        <a class="nav-item" href="#" id="logoutBtn">Logout</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <button onclick="history.back()" class="back-arrow" style="position:static;margin-bottom:16px;">←</button>
+      
+      <div class="card p-4">
+        <div style="margin-bottom:24px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h2 style="margin:0;color:#111827;font-size:24px;font-weight:700">Thông tin cá nhân</h2>
+            <p style="color:#6B7280;margin-top:8px">Xem và cập nhật thông tin của bạn</p>
+          </div>
+          <button type="button" id="editBtn" class="btn-primary" style="height: 40px; padding: 0 24px;">
+            Chỉnh sửa
+          </button>
+        </div>
+
+        <form id="profileForm">
+          <!-- Avatar Upload -->
+          <div style="margin-bottom: 24px; text-align: center;">
+            <div style="position: relative; display: inline-block;">
+              <img id="avatarPreview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect fill='%23E5E7EB' width='120' height='120'/%3E%3Ctext fill='%236B7280' x='50%25' y='50%25' text-anchor='middle' dy='.3em' font-size='48' font-weight='600'%3E%3F%3C/text%3E%3C/svg%3E" 
+                   alt="Avatar" 
+                   style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 4px solid #E5E7EB;">
+              <label for="avatarInput" id="avatarUploadBtn" style="position: absolute; bottom: 0; right: 0; background: #6366F1; color: white; width: 36px; height: 36px; border-radius: 50%; display: none; align-items: center; justify-content: center; cursor: pointer; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 5v14M5 12h14"/>
+                </svg>
+              </label>
+              <input type="file" id="avatarInput" accept="image/*" style="display: none;" disabled>
+            </div>
+          </div>
+
+          <!-- Basic Info -->
+          <div style="margin-bottom: 16px;">
+            <h3 style="color: #111827; font-size: 16px; font-weight: 600; margin-bottom: 12px;">Thông tin cơ bản</h3>
+          </div>
+          
+          <div class="form-row">
+            <input type="text" id="fullName" class="form-control" placeholder="Họ và tên *" required readonly>
+            <input type="text" id="email" class="form-control" placeholder="Email" disabled readonly style="background:#F3F4F6">
+          </div>
+          
+          <div class="form-row">
+            <input type="tel" id="phone" class="form-control" placeholder="Số điện thoại" readonly>
+            <input type="date" id="dateOfBirth" class="form-control" readonly>
+          </div>
+
+          <div class="form-row">
+            <select id="gender" class="form-control" style="height:46px;border-radius:10px" disabled>
+              <option value="">Giới tính</option>
+              <option value="Nam">Nam</option>
+              <option value="Nữ">Nữ</option>
+              <option value="Khác">Khác</option>
+            </select>
+            <select id="adminLevel" class="form-control" style="height:46px;border-radius:10px" disabled>
+              <option value="">Cấp quản trị</option>
+              <option value="super_admin">Super Admin</option>
+              <option value="admin">Admin</option>
+              <option value="moderator">Moderator</option>
+            </select>
+          </div>
+          
+          <!-- Additional Info -->
+          <div style="margin: 24px 0 16px;">
+            <h3 style="color: #111827; font-size: 16px; font-weight: 600; margin-bottom: 12px;">Thông tin bổ sung</h3>
+          </div>
+          
+          <div class="form-row">
+            <input type="text" id="job" class="form-control" placeholder="Nghề nghiệp" readonly>
+            <input type="text" id="website" class="form-control" placeholder="Website" readonly>
+          </div>
+          
+          <input type="text" id="address" class="form-control" placeholder="Địa chỉ" readonly>
+          <input type="text" id="hometown" class="form-control" placeholder="Quê quán" readonly>
+          <textarea id="bio" class="form-control" placeholder="Giới thiệu bản thân" rows="4" style="resize:vertical" readonly></textarea>
+          
+          <!-- Privacy -->
+          <div style="margin: 24px 0 16px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;" id="privacyLabel">
+              <input type="checkbox" id="isPrivate" style="width: 18px; height: 18px; cursor: pointer;" disabled>
+              <span style="color: #374151; font-size: 14px;">Đặt tài khoản ở chế độ riêng tư</span>
+            </label>
+          </div>
+          
+          <div class="auth-btn-wrap" style="margin-top:20px; display:none" id="submitBtnWrap">
+            <button type="submit" class="btn-primary" id="submitBtn" style="width:100%">Cập nhật thông tin</button>
+          </div>
+          <div id="msg" style="min-height:18px;margin-top:12px;color:var(--muted)"></div>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { authAPI, adminAPI } from '../../API/Api.js';
+    
+    // Kiểm tra đăng nhập
+    if (!authAPI.isAuthenticated()) {
+      window.location.href = '../auth/login.html';
+    }
+    
+    let currentAvatarUrl = '';
+    let avatarChanged = false; // Track nếu avatar đã thay đổi
+    let isEditMode = false; // Track edit mode
+    
+    // Toggle edit mode
+    document.getElementById('editBtn').addEventListener('click', () => {
+      isEditMode = !isEditMode;
+      const editBtn = document.getElementById('editBtn');
+      const submitBtnWrap = document.getElementById('submitBtnWrap');
+      const avatarUploadBtn = document.getElementById('avatarUploadBtn');
+      const avatarInput = document.getElementById('avatarInput');
+      
+      if (isEditMode) {
+        // Switch to edit mode
+        editBtn.textContent = 'Hủy';
+        editBtn.style.background = '#EF4444';
+        submitBtnWrap.style.display = 'block';
+        avatarUploadBtn.style.display = 'flex';
+        avatarInput.disabled = false;
+        
+        // Enable all inputs except email and adminLevel
+        document.getElementById('fullName').removeAttribute('readonly');
+        document.getElementById('phone').removeAttribute('readonly');
+        document.getElementById('dateOfBirth').removeAttribute('readonly');
+        document.getElementById('gender').removeAttribute('disabled');
+        document.getElementById('job').removeAttribute('readonly');
+        document.getElementById('website').removeAttribute('readonly');
+        document.getElementById('address').removeAttribute('readonly');
+        document.getElementById('hometown').removeAttribute('readonly');
+        document.getElementById('bio').removeAttribute('readonly');
+        document.getElementById('isPrivate').removeAttribute('disabled');
+        
+      } else {
+        // Return to view mode (reload page)
+        window.location.reload();
+      }
+    });
+    
+    // Load thông tin profile
+    async function loadProfile() {
+      try {
+        const profile = await adminAPI.getProfile();
+        
+        // Load form fields
+        document.getElementById('fullName').value = profile.fullName || '';
+        document.getElementById('email').value = profile.email || '';
+        document.getElementById('phone').value = profile.phone || '';
+        
+        if (profile.dateOfBirth) {
+          const date = new Date(profile.dateOfBirth);
+          document.getElementById('dateOfBirth').value = date.toISOString().split('T')[0];
+        }
+        
+        document.getElementById('gender').value = profile.gender || '';
+        document.getElementById('job').value = profile.job || '';
+        document.getElementById('address').value = profile.address || '';
+        document.getElementById('hometown').value = profile.hometown || '';
+        document.getElementById('website').value = profile.website || '';
+        document.getElementById('bio').value = profile.bio || '';
+        document.getElementById('adminLevel').value = profile.adminLevel || '';
+        document.getElementById('isPrivate').checked = profile.isPrivate || false;
+        
+        // Load avatar with SVG fallback
+        currentAvatarUrl = profile.avatarUrl || '';
+        const firstLetter = (profile.fullName || 'A').charAt(0).toUpperCase();
+        const defaultAvatar = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect fill='%236366F1' width='120' height='120'/%3E%3Ctext fill='white' x='50%25' y='50%25' text-anchor='middle' dy='.3em' font-size='48' font-weight='600'%3E${firstLetter}%3C/text%3E%3C/svg%3E`;
+        const avatarUrl = currentAvatarUrl || defaultAvatar;
+        document.getElementById('avatarPreview').src = avatarUrl;
+        
+        // Load sidebar info
+        updateSidebarInfo(profile);
+        
+      } catch (error) {
+        console.error('Lỗi khi tải thông tin:', error);
+        document.getElementById('msg').textContent = 'Lỗi khi tải thông tin: ' + error.message;
+        document.getElementById('msg').style.color = 'red';
+      }
+    }
+    
+    // Cập nhật thông tin sidebar
+    function updateSidebarInfo(profile) {
+      const sidebarAvatar = document.getElementById('sidebarAvatar');
+      const sidebarFullName = document.getElementById('sidebarFullName');
+      const sidebarEmail = document.getElementById('sidebarEmail');
+      
+      const firstLetter = (profile.fullName || 'A').charAt(0).toUpperCase();
+      const defaultAvatar = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect fill='%236366F1' width='40' height='40'/%3E%3Ctext fill='white' x='50%25' y='50%25' text-anchor='middle' dy='.3em' font-size='20' font-weight='600'%3E${firstLetter}%3C/text%3E%3C/svg%3E`;
+      
+      if (sidebarAvatar) {
+        sidebarAvatar.src = profile.avatarUrl || defaultAvatar;
+      }
+      if (sidebarFullName) {
+        sidebarFullName.textContent = profile.fullName || 'Admin User';
+      }
+      if (sidebarEmail) {
+        sidebarEmail.textContent = profile.email || '';
+      }
+    }
+    
+    // Chuyển file ảnh thành Base64
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+    
+    // Compress ảnh nếu quá lớn
+    async function compressImage(file, maxWidth = 400, maxHeight = 400, quality = 0.8) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            
+            // Tính toán kích thước mới giữ tỷ lệ
+            if (width > height) {
+              if (width > maxWidth) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+              }
+            } else {
+              if (height > maxHeight) {
+                width = (width * maxHeight) / height;
+                height = maxHeight;
+              }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Convert to Base64
+            const base64 = canvas.toDataURL('image/jpeg', quality);
+            resolve(base64);
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    
+    // Xử lý upload avatar
+    document.getElementById('avatarInput').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      // Kiểm tra kích thước file (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File ảnh quá lớn! Vui lòng chọn ảnh dưới 5MB.');
+        e.target.value = ''; // Reset input
+        return;
+      }
+      
+      // Kiểm tra định dạng
+      if (!file.type.startsWith('image/')) {
+        alert('Vui lòng chọn file ảnh (JPG, PNG)');
+        e.target.value = '';
+        return;
+      }
+      
+      try {
+        // Hiển thị loading
+        const preview = document.getElementById('avatarPreview');
+        const originalSrc = preview.src;
+        preview.style.opacity = '0.5';
+        
+        // Compress ảnh và chuyển thành Base64
+        const base64 = await compressImage(file, 400, 400, 0.8);
+        
+        // Preview ảnh
+        preview.src = base64;
+        preview.style.opacity = '1';
+        
+        // Lưu vào biến để submit sau
+        currentAvatarUrl = base64;
+        avatarChanged = true;
+        
+        console.log('✅ Ảnh đã được chọn và compress:', {
+          originalSize: (file.size / 1024).toFixed(2) + ' KB',
+          base64Size: (base64.length / 1024).toFixed(2) + ' KB',
+          format: file.type
+        });
+        
+      } catch (error) {
+        console.error('Lỗi khi xử lý ảnh:', error);
+        alert('Lỗi khi xử lý ảnh. Vui lòng thử lại.');
+        e.target.value = '';
+      }
+    });
+    
+    // Load profile khi trang được tải
+    loadProfile();
+    
+    // Xử lý submit form
+    document.getElementById('profileForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const submitBtn = document.getElementById('submitBtn');
+      const msg = document.getElementById('msg');
+      const originalText = submitBtn.textContent;
+      
+      try {
+        submitBtn.textContent = avatarChanged ? 'Đang tải ảnh lên...' : 'Đang cập nhật...';
+        submitBtn.disabled = true;
+        msg.textContent = '';
+        
+        const formData = {
+          FullName: document.getElementById('fullName').value,
+          Phone: document.getElementById('phone').value,
+          DateOfBirth: document.getElementById('dateOfBirth').value,
+          Gender: document.getElementById('gender').value,
+          Job: document.getElementById('job').value,
+          Address: document.getElementById('address').value,
+          Hometown: document.getElementById('hometown').value,
+          Website: document.getElementById('website').value,
+          Bio: document.getElementById('bio').value,
+          IsPrivate: document.getElementById('isPrivate').checked,
+          AvatarUrl: currentAvatarUrl // Gửi Base64 hoặc URL hiện tại
+        };
+        
+        console.log('📤 Đang gửi dữ liệu:', {
+          ...formData,
+          AvatarUrl: avatarChanged ? 'Base64 image (compressed)' : 'Unchanged'
+        });
+        
+        const result = await adminAPI.updateProfile(formData);
+        
+        msg.textContent = result.message || 'Cập nhật thông tin thành công!';
+        msg.style.color = 'green';
+        
+        // Reset avatar changed flag
+        avatarChanged = false;
+        
+        // Reload profile để cập nhật sidebar
+        await loadProfile();
+        
+        console.log('✅ Cập nhật thành công!');
+        
+        // Tự động chuyển về chế độ xem sau khi cập nhật thành công
+        setTimeout(() => {
+          isEditMode = false;
+          const editBtn = document.getElementById('editBtn');
+          const submitBtnWrap = document.getElementById('submitBtnWrap');
+          const avatarUploadBtn = document.getElementById('avatarUploadBtn');
+          const avatarInput = document.getElementById('avatarInput');
+          
+          // Switch back to view mode
+          editBtn.textContent = 'Chỉnh sửa';
+          editBtn.style.background = '#6366F1';
+          submitBtnWrap.style.display = 'none';
+          avatarUploadBtn.style.display = 'none';
+          avatarInput.disabled = true;
+          
+          // Disable all inputs
+          document.getElementById('fullName').setAttribute('readonly', 'readonly');
+          document.getElementById('phone').setAttribute('readonly', 'readonly');
+          document.getElementById('dateOfBirth').setAttribute('readonly', 'readonly');
+          document.getElementById('gender').setAttribute('disabled', 'disabled');
+          document.getElementById('job').setAttribute('readonly', 'readonly');
+          document.getElementById('website').setAttribute('readonly', 'readonly');
+          document.getElementById('address').setAttribute('readonly', 'readonly');
+          document.getElementById('hometown').setAttribute('readonly', 'readonly');
+          document.getElementById('bio').setAttribute('readonly', 'readonly');
+          document.getElementById('isPrivate').setAttribute('disabled', 'disabled');
+          
+          // Xóa thông báo sau khi chuyển về view mode
+          msg.textContent = '';
+        }, 1500);
+        
+      } catch (error) {
+        console.error('❌ Lỗi cập nhật:', error);
+        msg.textContent = 'Lỗi: ' + error.message;
+        msg.style.color = 'red';
+      } finally {
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
+      }
+    });
+    
+    // Xử lý logout
+    document.getElementById('logoutBtn').addEventListener('click', async (e) => {
+      e.preventDefault();
+      await authAPI.logout();
+      window.location.href = '../auth/login.html';
+    });
+  </script>
+</body>
+</html>

@@ -27,7 +27,14 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         public async Task<OTP?> GetByAccountIdAsync(int accountId, string purpose)
         {
             return await _context.OTPs
-                .FirstOrDefaultAsync(o => o.account_id == accountId && o.purpose == purpose && !o.used && o.expires_at > DateTime.UtcNow);
+                .FirstOrDefaultAsync(o => o.account_id == accountId && o.purpose == purpose && !o.used && o.expires_at > DateTimeOffset.UtcNow);
+        }
+
+        public async Task<OTP?> GetVerifiedOtpAsync(int accountId, string purpose)
+        {
+            // Lấy OTP đã verify (used = true) và chưa hết hạn
+            return await _context.OTPs
+                .FirstOrDefaultAsync(o => o.account_id == accountId && o.purpose == purpose && o.used && o.expires_at > DateTimeOffset.UtcNow);
         }
 
         public async Task UpdateAsync(OTP otp)
@@ -49,7 +56,7 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         public async Task<int> GetFailedAttemptsAsync(int accountId, string purpose)
         {
             return await _context.OTPs
-                .CountAsync(o => o.account_id == accountId && o.purpose == purpose && o.created_at > DateTime.UtcNow.AddMinutes(-2));
+                .CountAsync(o => o.account_id == accountId && o.purpose == purpose && o.created_at > DateTimeOffset.UtcNow.AddMinutes(-2));
         }
     }
 }

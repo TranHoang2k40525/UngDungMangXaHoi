@@ -16,8 +16,8 @@ namespace UngDungMangXaHoi.WebAPI.Middlewares
 
         public async Task InvokeAsync(HttpContext context)
         {
-            var path = context.Request.Path.Value.ToLower();
-            var accountType = context.User.FindFirst("account_type")?.Value;
+            var path = context.Request.Path.Value?.ToLower() ?? "";
+            var accountType = context.User.FindFirst("account_type")?.Value ?? string.Empty;
 
             if (path.StartsWith("/api/admin") && accountType != "Admin")
             {

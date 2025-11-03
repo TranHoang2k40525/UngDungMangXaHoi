@@ -7,6 +7,7 @@ namespace UngDungMangXaHoi.Domain.Interfaces
     {
         Task<OTP> AddAsync(OTP otp);
         Task<OTP?> GetByAccountIdAsync(int accountId, string purpose);
+        Task<OTP?> GetVerifiedOtpAsync(int accountId, string purpose);
         Task UpdateAsync(OTP otp);
         Task DeleteAsync(int otpId);
         Task<int> GetFailedAttemptsAsync(int accountId, string purpose);

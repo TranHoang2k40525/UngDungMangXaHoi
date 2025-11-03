@@ -8,8 +8,8 @@ namespace UngDungMangXaHoi.Domain.ValueObjects
         public string Value { get; private set; }
 
         private static readonly Regex UserNameRegex = new Regex(
-            @"^[a-zA-Z0-9_]{3,20}$",
-            RegexOptions.Compiled);
+            @"^[\p{L}\p{N}_]{3,20}$",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         public UserName(string value)
         {
@@ -27,7 +27,7 @@ namespace UngDungMangXaHoi.Domain.ValueObjects
 
         public override string ToString() => Value;
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (obj is UserName other)
                 return Value == other.Value;

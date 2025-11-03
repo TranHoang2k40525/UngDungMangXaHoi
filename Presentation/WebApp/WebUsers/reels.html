@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reels</title>
+  <link rel="stylesheet" href="Styles/style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    body { background:#000; color:#fff; margin:0; }
+    .container { max-width: 580px; margin:0 auto; height:100vh; overflow-y:auto; scroll-snap-type:y mandatory; }
+    .reel { position:relative; height:100vh; scroll-snap-align:start; }
+    .reel video { width:100%; height:100%; object-fit:contain; background:#000; }
+    .meta { position:absolute; left:12px; bottom:90px; right:12px; font-size:14px; }
+    .actions { position:absolute; right:12px; bottom:120px; display:flex; flex-direction:column; gap:16px; }
+    .actions button { background:rgba(255,255,255,0.1); border:0; color:#fff; border-radius:999px; width:44px; height:44px; cursor:pointer; }
+    .header { position:fixed; top:0; left:0; right:0; height:52px; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.45); z-index:10; }
+    .back { position:absolute; left:10px; background:none; border:0; color:#fff; font-size:18px; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div class="header"><button class="back" onclick="history.back()">←</button> Reels</div>
+  <div class="container" id="container"></div>
+
+  <script src="Context/UserContext.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

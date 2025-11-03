@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập - Ứng dụng mạng xã hội</title>
+    <link rel="stylesheet" href="Styles/auth.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ĐĂNG NHẬP</h1>
+        </div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label>Email hoặc Số điện thoại:</label>
+                <input type="text" id="identifier" required />
+            </div>
+            
+            <div class="form-group">
+                <label>Mật khẩu:</label>
+                <div style="position: relative;">
+                    <input type="password" id="password" required />
+                    <button type="button" id="togglePassword" style="position: absolute; right: 12px; top: 8px; border: none; background: none; color: #9ca3af;">👁️</button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <a href="forgot-password.html" class="forgot-link">Quên mật khẩu?</a>
+            </div>
+            
+            <button type="submit" class="btn" id="loginBtn">Đăng nhập</button>
+            
+            <div id="msg" style="min-height: 18px; margin-top: 12px; color: var(--muted);"></div>
+        </form>
+        
+        <div class="footer">
+            <p>Chưa có tài khoản? <a href="signup.html">Đăng ký</a></p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="Context/UserContext.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

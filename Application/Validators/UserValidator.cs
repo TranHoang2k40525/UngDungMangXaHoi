@@ -6,12 +6,12 @@ namespace UngDungMangXaHoi.Application.Validators
 {
     public class RegisterUserRequest
     {
-        public string Username { get; set; }
-        public string FullName { get; set; }
+        public string Username { get; set; } = null!;
+        public string FullName { get; set; } = null!;
         public DateTime DateOfBirth { get; set; }
-        public string Email { get; set; }
-        public string Phone { get; set; }
-        public string Password { get; set; }
+        public string Email { get; set; } = null!;
+        public string Phone { get; set; } = null!;
+        public string Password { get; set; } = null!;
         public Gender Gender { get; set; }
     }
 
@@ -21,7 +21,8 @@ namespace UngDungMangXaHoi.Application.Validators
         {
             RuleFor(x => x.Username)
                 .NotEmpty().WithMessage("Username is required.")
-                .Length(3, 50).WithMessage("Username must be between 3 and 50 characters.");
+                .Length(3, 20).WithMessage("Username must be between 3 and 20 characters.")
+                .Matches(@"^[\p{L}\p{N}_]{3,20}$").WithMessage("Username must contain only letters, numbers, and underscores.");
 
             RuleFor(x => x.FullName)
                 .NotEmpty().WithMessage("Full name is required.")
@@ -37,7 +38,7 @@ namespace UngDungMangXaHoi.Application.Validators
 
             RuleFor(x => x.Phone)
                 .NotEmpty().WithMessage("Phone number is required.")
-                .Matches(@"^\+?[1-9]\d{1,14}$").WithMessage("Invalid phone number format.");
+                .Matches(@"^+?\d{10,15}$").WithMessage("Invalid phone number format.");
 
             RuleFor(x => x.Password)
                 .NotEmpty().WithMessage("Password is required.")
