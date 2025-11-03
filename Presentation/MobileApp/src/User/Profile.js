@@ -35,12 +35,17 @@ const Profile = () => {
   const [videoThumbs, setVideoThumbs] = useState({}); // { [postId]: uri }
 
   // Build full URL for avatar when API returns relative path
-  const getAvatarUri = (p) => {
-    const raw = p?.avatarUrl;
-    if (!raw) return 'https://i.pravatar.cc/150';
-    if (raw.startsWith('http')) return raw;
-    return `${API_BASE_URL}${raw}`;
-  };
+  const getAvatarUri = useMemo(() => {
+    return (p) => {
+      const raw = p?.avatarUrl;
+      if (!raw) return 'https://i.pravatar.cc/150';
+      if (raw.startsWith('http')) return raw;
+      return `${API_BASE_URL}${raw}`;
+    };
+  }, []);
+
+  // Memoize avatar URI để tránh tính toán lại mỗi lần render
+  const avatarUri = useMemo(() => getAvatarUri(profile), [profile]);
 
   useEffect(() => {
     let mounted = true;
@@ -85,14 +90,26 @@ const Profile = () => {
       const targets = (posts || []).filter(
         (p) => (p.media || []).some((m) => (m.type || '').toLowerCase() === 'video') && !videoThumbs[p.id]
       );
-      for (const post of targets) {
+      
+      if (targets.length === 0) return; // Không có video mới cần tạo thumbnail
+      
+      // Tạo thumbnail tuần tự với delay để tránh blocking UI
+      for (let i = 0; i < targets.length; i++) {
+        if (!alive) break;
+        
+        const post = targets[i];
         try {
           const vid = (post.media || []).find((m) => (m.type || '').toLowerCase() === 'video');
           if (!vid?.url) continue;
-          console.log('[PROFILE] generate thumbnail for postId', post.id);
+          
           const { uri } = await VideoThumbnails.getThumbnailAsync(vid.url, { time: 1000 });
           if (alive && uri) {
             setVideoThumbs((prev) => ({ ...prev, [post.id]: uri }));
+          }
+          
+          // Delay nhỏ giữa các video để không block UI
+          if (i < targets.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 100));
           }
         } catch (e) {
           console.warn('[PROFILE] generate thumbnail failed for', post.id, e);
@@ -100,7 +117,7 @@ const Profile = () => {
       }
     })();
     return () => { alive = false; };
-  }, [posts, videoThumbs]);
+  }, [posts]); // Chỉ chạy khi posts thay đổi, không phụ thuộc videoThumbs
 
   const handlePickAvatar = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -190,7 +207,7 @@ const Profile = () => {
           <View style={styles.profileHeader}>
             <TouchableOpacity onPress={handlePickAvatar} activeOpacity={0.8}>
               <Image
-                source={{ uri: getAvatarUri(profile) }}
+                source={{ uri: avatarUri }}
                 style={styles.profileImage}
               />
             </TouchableOpacity>
@@ -199,14 +216,28 @@ const Profile = () => {
                 <Text style={styles.statNumber}>{profile?.postCount ?? posts.length ?? 0}</Text>
                 <Text style={styles.statLabel}>Posts</Text>
               </View>
-              <View style={styles.statItem}>
+              <TouchableOpacity 
+                style={styles.statItem}
+                onPress={() => navigation.navigate('FollowList', { 
+                  userId: profile?.userId, 
+                  type: 'followers',
+                  username: profile?.username 
+                })}
+              >
                 <Text style={styles.statNumber}>{profile?.followerCount ?? 0}</Text>
                 <Text style={styles.statLabel}>Followers</Text>
-              </View>
-              <View style={styles.statItem}>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.statItem}
+                onPress={() => navigation.navigate('FollowList', { 
+                  userId: profile?.userId, 
+                  type: 'following',
+                  username: profile?.username 
+                })}
+              >
                 <Text style={styles.statNumber}>{profile?.followingCount ?? 0}</Text>
                 <Text style={styles.statLabel}>Following</Text>
-              </View>
+              </TouchableOpacity>
             </View>
           </View>
 
