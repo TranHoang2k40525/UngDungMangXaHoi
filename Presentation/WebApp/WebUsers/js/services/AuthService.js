@@ -10,9 +10,10 @@ class AuthService {
       const result = await this.userContext.login(credentials);
       if (result.success) {
         // Lưu thông tin user vào localStorage
-        localStorage.setItem('userInfo', JSON.stringify(result.data));
+        const user = result.data?.user || null;
+        if (user) localStorage.setItem('userInfo', JSON.stringify(user));
         localStorage.setItem('isAuthenticated', 'true');
-        return { success: true, data: result.data };
+        return { success: true, data: user };
       } else {
         return { success: false, error: result.error };
       }
@@ -37,9 +38,10 @@ class AuthService {
       const result = await this.userContext.verifyOtp(otpData);
       if (result.success) {
         // Lưu thông tin user vào localStorage
-        localStorage.setItem('userInfo', JSON.stringify(result.data));
+        const user = result.data?.user || null;
+        if (user) localStorage.setItem('userInfo', JSON.stringify(user));
         localStorage.setItem('isAuthenticated', 'true');
-        return { success: true, data: result.data };
+        return { success: true, data: user };
       } else {
         return { success: false, error: result.error };
       }

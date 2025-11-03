@@ -113,7 +113,7 @@ const apiCall = async (endpoint, options = {}) => {
     } else {
       throw error;
     }
-  }
+  } 
 };
 
 // Compress an image URI using expo-image-manipulator to avoid large uploads / OOM on Android
@@ -462,6 +462,15 @@ export const getAllReels = async () => {
   });
 };
 
+// Get reels from users that current user is following
+export const getFollowingReels = async (page = 1, pageSize = 20) => {
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/posts/reels/following?page=${page}&pageSize=${pageSize}`, {
+    method: 'GET',
+    headers,
+  });
+};
+
 export const getMyPosts = async (page = 1, pageSize = 20) => {
   const headers = await getAuthHeaders();
   return apiCall(`/api/posts/me?page=${page}&pageSize=${pageSize}`, {
@@ -477,6 +486,54 @@ export const getUserPostsById = async (userId, page = 1, pageSize = 20) => {
     method: 'GET',
     headers,
   });
+};
+
+// Lấy thông tin profile public của user khác
+export const getUserProfile = async (userId) => {
+  const headers = await getAuthHeaders();
+  const result = await apiCall(`/api/users/${userId}/profile`, {
+    method: 'GET',
+    headers,
+  });
+  return result?.data || null;
+};
+
+// Follow user
+export const followUser = async (userId) => {
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/users/${userId}/follow`, {
+    method: 'POST',
+    headers,
+  });
+};
+
+// Unfollow user
+export const unfollowUser = async (userId) => {
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/users/${userId}/follow`, {
+    method: 'DELETE',
+    headers,
+  });
+};
+
+// Get followers list
+export const getFollowers = async (userId) => {
+  const headers = await getAuthHeaders();
+  const result = await apiCall(`/api/users/${userId}/followers`, {
+    method: 'GET',
+    headers,
+  });
+  return result?.data || [];
+};
+
+// Get following list
+export const getFollowing = async (userId) => {
+  const headers = await getAuthHeaders();
+  const result = await apiCall(`/api/users/${userId}/following`, {
+    method: 'GET',
+    headers,
+  });
+  return result?.data || [];
 };
 
 // Cập nhật quyền riêng tư của bài đăng

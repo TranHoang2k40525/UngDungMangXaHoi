@@ -57,7 +57,11 @@ class WebApp {
       'reset-password': 'js/pages/ResetPasswordPage.js',
       'change-password': 'js/pages/ChangePasswordPage.js',
       'change-password-otp': 'js/pages/ChangePasswordPage.js',
-      'home': 'js/pages/HomePage.js'
+      'home': 'js/pages/HomePage.js',
+      'profile': 'js/pages/ProfilePage.js',
+      'create-post': 'js/pages/CreatePostPage.js',
+  'reels': 'js/pages/ReelsPage.js',
+  'edit-profile': 'js/pages/EditProfilePage.js'
     };
 
     const scriptPath = pageScripts[currentPage];
@@ -89,7 +93,11 @@ class WebApp {
       'reset-password': 'reset-password',
       'change-password': 'change-password',
       'change-password-otp': 'change-password',
-      'index': 'home'
+      'index': 'home',
+      'profile': 'profile',
+      'create-post': 'create-post',
+      'reels': 'reels',
+      'edit-profile': 'edit-profile'
     };
 
     return pageMap[filename] || 'home';
