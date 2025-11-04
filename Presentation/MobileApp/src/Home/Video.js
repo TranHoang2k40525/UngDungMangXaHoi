@@ -266,6 +266,10 @@ export default function Reels() {
   const isFocused = useIsFocused();
   const { markAsFollowed, markAsUnfollowed, isFollowed } = useFollow();
   
+  // Get userId from route params for user-specific video filtering
+  const filterUserId = route.params?.userId;
+  const filterUsername = route.params?.username;
+  
   // Tab state: 'reels' or 'following'
   const [activeTab, setActiveTab] = useState('reels');
   
@@ -502,31 +506,41 @@ export default function Reels() {
   }, []);
 
   const fetchPage = useCallback(async (pageNo = 1, { refresh = false, ensureSelected = null, ensureFromParams = null, tab = 'reels' } = {}) => {
-    console.log(`[REELS] fetchPage - page ${pageNo}, refresh: ${refresh}, tab: ${tab}`);
+    console.log(`[REELS] fetchPage - page ${pageNo}, refresh: ${refresh}, tab: ${tab}, filterUserId: ${filterUserId}, ensureSelected: ${ensureSelected}`);
     // Load videos with pagination based on active tab
     const pageSize = 10;
     const fetchFn = tab === 'following' ? getFollowingReels : getReels;
     const data = await fetchFn(pageNo, pageSize).catch((e) => { console.warn(`${tab} fetch error`, e); return []; });
     let arr = Array.isArray(data) ? data : [];
     
-    // If we must ensure a selected clip appears first and it's not in arr, try to inject from params fallback
-    if (ensureSelected != null && pageNo === 1) {
-      const foundIdx = arr.findIndex(p => p?.id === ensureSelected);
-      if (foundIdx >= 0) {
-        const sel = arr.splice(foundIdx, 1)[0];
-        arr = [sel, ...arr];
-      } else if (ensureFromParams) {
-        const found = (Array.isArray(ensureFromParams) ? ensureFromParams : []).find(p => p?.id === ensureSelected);
-        if (found) {
-          arr = [found, ...arr];
-        }
-      }
+    // Filter by userId if filterUserId is present (user-specific mode)
+    if (filterUserId != null) {
+      arr = arr.filter(reel => Number(reel?.user?.id) === Number(filterUserId));
     }
+    
+    // Don't reorder! Keep videos in their original positions
+    // If ensureSelected is provided, we'll scroll to it after setting reels
     
     if (refresh) {
       setReels(arr);
       setCurrentPage(1);
       setHasMoreReels(arr.length >= pageSize);
+      
+      // If we have a selected video, find its index and scroll to it
+      if (ensureSelected != null) {
+        const selectedIndex = arr.findIndex(p => p?.id === ensureSelected);
+        if (selectedIndex >= 0) {
+          // Scroll to the selected video after a short delay
+          setTimeout(() => {
+            listRef.current?.scrollToIndex?.({ 
+              index: selectedIndex, 
+              animated: false 
+            });
+            setActiveIndex(selectedIndex);
+          }, 100);
+        }
+      }
+      
       // cache after refresh
       try { await AsyncStorage.setItem(`${REELS_CACHE_KEY}_${tab}`, JSON.stringify({ items: arr, ts: Date.now() })); } catch {}
     } else {
@@ -539,7 +553,7 @@ export default function Reels() {
       setCurrentPage(pageNo);
       setHasMoreReels(arr.length >= pageSize);
     }
-  }, [mergeUniqueById]);
+  }, [mergeUniqueById, filterUserId]);
 
   // Initial load
   useEffect(() => {
@@ -557,6 +571,20 @@ export default function Reels() {
             if (Array.isArray(cache?.items) && cache.items.length > 0) {
               setReels(cache.items);
               setLoading(false);
+              
+              // If we have a selectedId, scroll to it immediately
+              if (selectedId != null) {
+                const selectedIndex = cache.items.findIndex(p => p?.id === selectedId);
+                if (selectedIndex >= 0) {
+                  setTimeout(() => {
+                    listRef.current?.scrollToIndex?.({ 
+                      index: selectedIndex, 
+                      animated: false 
+                    });
+                    setActiveIndex(selectedIndex);
+                  }, 100);
+                }
+              }
             }
           }
         } catch {}
@@ -568,6 +596,21 @@ export default function Reels() {
     })();
     return () => { mounted = false; };
   }, []); // Chỉ chạy 1 lần khi mount
+  
+  // Handle when selectedId changes (when navigating from Home/Profile with a specific video)
+  useEffect(() => {
+    const selectedId = route?.params?.selectedId;
+    if (selectedId != null && reels.length > 0) {
+      const selectedIndex = reels.findIndex(p => p?.id === selectedId);
+      if (selectedIndex >= 0 && selectedIndex !== activeIndex) {
+        listRef.current?.scrollToIndex?.({ 
+          index: selectedIndex, 
+          animated: false 
+        });
+        setActiveIndex(selectedIndex);
+      }
+    }
+  }, [route?.params?.selectedId, reels]);
 
   // Reload when tab changes
   useEffect(() => {
@@ -586,6 +629,10 @@ export default function Reels() {
     const unsub = require('../Utils/TabRefreshEmitter').onTabTriple('Video', async () => {
       try {
         setLoading(true);
+        // Clear userId filter when triple-tapping to show all videos
+        if (filterUserId != null) {
+          navigation.setParams({ userId: undefined, username: undefined });
+        }
         await fetchPage(1, { refresh: true, tab: activeTab });
         // Scroll to top
         setTimeout(() => {
@@ -595,7 +642,7 @@ export default function Reels() {
       finally { setLoading(false); }
     });
     return unsub;
-  }, [fetchPage, activeTab]);
+  }, [fetchPage, activeTab, filterUserId, navigation]);
 
   // Load more reels when scroll to end
   const loadMoreReels = useCallback(async () => {
@@ -765,24 +812,104 @@ export default function Reels() {
           <TouchableOpacity
             activeOpacity={0.8}
             style={styles.userRow}
-            onPress={() => navigation.navigate('UserProfilePublic', { userId: item?.user?.id, username: item?.user?.username, avatarUrl: item?.user?.avatarUrl })}
+            onPress={() => {
+              const uid = getOwnerId();
+              const pid = item?.user?.id != null ? Number(item.user.id) : null;
+              if (Number.isFinite(uid) && Number.isFinite(pid) && uid === pid) {
+                navigation.navigate('Profile');
+              } else {
+                navigation.navigate('UserProfilePublic', { 
+                  userId: item?.user?.id, 
+                  username: item?.user?.username, 
+                  avatarUrl: item?.user?.avatarUrl 
+                });
+              }
+            }}
           >
-            {item?.user?.avatarUrl ? (
-              <Image source={{ uri: item.user.avatarUrl }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatarPlaceholder} />
-            )}
-            <Text style={styles.username}>@{item?.user?.username || 'user'}</Text>
+            <TouchableOpacity
+              onPress={() => {
+                const uid = getOwnerId();
+                const pid = item?.user?.id != null ? Number(item.user.id) : null;
+                if (Number.isFinite(uid) && Number.isFinite(pid) && uid === pid) {
+                  navigation.navigate('Profile');
+                } else {
+                  navigation.navigate('UserProfilePublic', { 
+                    userId: item?.user?.id, 
+                    username: item?.user?.username, 
+                    avatarUrl: item?.user?.avatarUrl 
+                  });
+                }
+              }}
+            >
+              {item?.user?.avatarUrl ? (
+                <Image source={{ uri: item.user.avatarUrl }} style={styles.avatar} />
+              ) : (
+                <View style={styles.avatarPlaceholder} />
+              )}
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  const uid = getOwnerId();
+                  const pid = item?.user?.id != null ? Number(item.user.id) : null;
+                  if (Number.isFinite(uid) && Number.isFinite(pid) && uid === pid) {
+                    navigation.navigate('Profile');
+                  } else {
+                    navigation.navigate('UserProfilePublic', { 
+                      userId: item?.user?.id, 
+                      username: item?.user?.username, 
+                      avatarUrl: item?.user?.avatarUrl 
+                    });
+                  }
+                }}
+              >
+                <Text style={styles.username}>@{item?.user?.username || 'user'}</Text>
+              </TouchableOpacity>
+              
+              {/* Tagged Users */}
+              {item.tags && item.tags.length > 0 && (
+                <View style={styles.taggedUsersRow}>
+                  <Text style={styles.taggedLabel}>với </Text>
+                  {item.tags.map((tag, idx) => {
+                    const uid = getOwnerId();
+                    const isCurrentUser = Number(tag.id) === Number(uid);
+                    return (
+                      <React.Fragment key={tag.id}>
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (isCurrentUser) {
+                              navigation.navigate('Profile');
+                            } else {
+                              navigation.navigate('UserProfilePublic', { 
+                                userId: tag.id, 
+                                username: tag.username, 
+                                avatarUrl: tag.avatarUrl 
+                              });
+                            }
+                          }}
+                        >
+                          <Text style={styles.taggedUsername}>
+                            {isCurrentUser ? 'bạn' : `@${tag.username}`}
+                          </Text>
+                        </TouchableOpacity>
+                        {idx < item.tags.length - 1 && <Text style={styles.taggedLabel}>, </Text>}
+                      </React.Fragment>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
             {!isOwner(item) && !isFollowed(item?.user?.id) && (
               <TouchableOpacity style={styles.followBtn} onPress={() => handleFollow(item)}>
                 <Text style={styles.followText}>Theo dõi</Text>
               </TouchableOpacity>
             )}
           </TouchableOpacity>
-          {/* Caption hiển thị 2 dòng, bấm "Xem thêm" +10 dòng mỗi lần; khi đủ thì hiện "Ẩn nội dung" */}
+          
+          {/* Caption with clickable @mentions */}
           {!!item.caption && (
             <View style={styles.captionWrap}>
-              {/* Hidden full-text to measure total lines accurately (avoid numberOfLines clipping) */}
+              {/* Hidden full-text to measure total lines accurately */}
               <Text
                 style={[styles.captionText, styles.hiddenMeasure]}
                 onTextLayout={(e) => {
@@ -795,12 +922,42 @@ export default function Reels() {
                 {item.caption}
               </Text>
 
-              {/* Visible caption with collapsible lines */}
+              {/* Visible caption with collapsible lines and clickable mentions */}
               <Text
                 style={styles.captionText}
                 numberOfLines={captionLinesShown[index] ?? 2}
               >
-                {item.caption}
+                {item.caption.split(/(@\w+)/g).map((part, partIndex) => {
+                  if (part.startsWith('@')) {
+                    const username = part.substring(1);
+                    const uid = getOwnerId();
+                    const mentionedUser = item.mentions?.find(m => m.username === username);
+                    const isCurrentUser = mentionedUser && Number(mentionedUser.id) === Number(uid);
+                    
+                    return (
+                      <Text
+                        key={`${index}-${partIndex}`}
+                        style={styles.mentionText}
+                        onPress={() => {
+                          if (mentionedUser) {
+                            if (isCurrentUser) {
+                              navigation.navigate('Profile');
+                            } else {
+                              navigation.navigate('UserProfilePublic', {
+                                userId: mentionedUser.id,
+                                username: mentionedUser.username,
+                                avatarUrl: mentionedUser.avatarUrl
+                              });
+                            }
+                          }
+                        }}
+                      >
+                        {isCurrentUser ? 'bạn' : part}
+                      </Text>
+                    );
+                  }
+                  return part;
+                })}
               </Text>
               {(() => {
                 const shown = captionLinesShown[index] ?? 2;
@@ -849,6 +1006,10 @@ export default function Reels() {
   const onRefresh = async () => {
     try {
       setRefreshing(true);
+      // Clear userId filter when refreshing to show all videos
+      if (filterUserId != null) {
+        navigation.setParams({ userId: undefined, username: undefined });
+      }
       await fetchPage(1, { refresh: true, ensureSelected: selectedIdRef.current, ensureFromParams: route?.params?.videos, tab: activeTab });
       // Scroll to top
       setTimeout(() => {
@@ -1088,25 +1249,44 @@ export default function Reels() {
       {/* Header overlay - transparent with tabs */}
       <View style={styles.header}>
         <View style={styles.tabContainer}>
-          <TouchableOpacity 
-            style={styles.tab} 
-            onPress={() => setActiveTab('reels')}
-          >
-            <Text style={[styles.tabText, activeTab === 'reels' && styles.activeTabText]}>
-              Reels
-            </Text>
-            {activeTab === 'reels' && <View style={styles.tabIndicator} />}
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.tab} 
-            onPress={() => setActiveTab('following')}
-          >
-            <Text style={[styles.tabText, activeTab === 'following' && styles.activeTabText]}>
-              Bạn bè
-            </Text>
-            {activeTab === 'following' && <View style={styles.tabIndicator} />}
-          </TouchableOpacity>
+          {filterUserId ? (
+            // User-specific mode: Show username and back button
+            <View style={styles.userModeHeader}>
+              <TouchableOpacity 
+                style={styles.backButton}
+                onPress={() => {
+                  // Quay về trang trước đó
+                  navigation.goBack();
+                }}
+              >
+                <Ionicons name="arrow-back" size={24} color="#fff" />
+              </TouchableOpacity>
+              <Text style={styles.userModeTitle}>@{filterUsername || 'User'}</Text>
+            </View>
+          ) : (
+            // Normal mode: Show tabs
+            <>
+              <TouchableOpacity 
+                style={styles.tab} 
+                onPress={() => setActiveTab('reels')}
+              >
+                <Text style={[styles.tabText, activeTab === 'reels' && styles.activeTabText]}>
+                  Reels
+                </Text>
+                {activeTab === 'reels' && <View style={styles.tabIndicator} />}
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.tab} 
+                onPress={() => setActiveTab('following')}
+              >
+                <Text style={[styles.tabText, activeTab === 'following' && styles.activeTabText]}>
+                  Bạn bè
+                </Text>
+                {activeTab === 'following' && <View style={styles.tabIndicator} />}
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </View>
     </SafeAreaView>
@@ -1132,6 +1312,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingHorizontal: 16,
     paddingTop: 8,
+  },
+  userModeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    width: '100%',
+  },
+  userModeTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    marginLeft: 12,
   },
   tab: {
     flex: 1,
@@ -1268,6 +1461,25 @@ const styles = StyleSheet.create({
   username: {
     color: '#fff',
     fontWeight: '700',
+  },
+  taggedUsersRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  taggedLabel: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 13,
+  },
+  taggedUsername: {
+    color: '#0095F6',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  mentionText: {
+    color: '#0095F6',
+    fontWeight: '600',
   },
   followBtn: {
     marginLeft: 8,

@@ -198,8 +198,16 @@ export default function UserProfilePublic() {
   const onPressPost = (post) => {
     const isVideo = (post.media||[]).some(m => (m.type||'').toLowerCase()==='video');
     if (isVideo) {
-      const videoPosts = posts.filter(pp => (pp.media||[]).some(mm => (mm.type||'').toLowerCase()==='video'));
-      navigation.navigate('MainTabs', { screen: 'Video', params: { videos: videoPosts, selectedId: post.id } });
+      // Navigate to MainTabs, then to Video tab with selectedId to show the exact video clicked
+      navigation.navigate('MainTabs', { 
+        screen: 'Video',
+        params: {
+          selectedId: post.id,
+          userId: profile?.userId || userId,
+          username: profile?.username || 'user',
+          avatarUrl: profile?.avatarUrl || null
+        }
+      });
     } else {
       navigation.navigate('PostDetail', { post });
     }
