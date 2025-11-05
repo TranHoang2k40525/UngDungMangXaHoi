@@ -1,78 +1,65 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading.Tasks;
+using CloudinaryDotNet;
+using CloudinaryDotNet.Actions;
 
 namespace UngDungMangXaHoi.Infrastructure.ExternalServices
 {
     public class CloudinaryService
     {
-        private readonly string _cloudName;
-        private readonly string _apiKey;
-        private readonly string _apiSecret;
+        private readonly Cloudinary _cloudinary;
 
         public CloudinaryService(string cloudName, string apiKey, string apiSecret)
         {
-            _cloudName = cloudName;
-            _apiKey = apiKey;
-            _apiSecret = apiSecret;
+            var account = new Account(cloudName, apiKey, apiSecret);
+            _cloudinary = new Cloudinary(account);
         }
 
-        public async Task<string> UploadImageAsync(Stream imageStream, string fileName)
+        // ✅ Upload ảnh
+        public async Task<string> UploadImageAsync(Stream fileStream, string fileName)
         {
-            // TODO: Implement Cloudinary image upload
-            // This is a placeholder implementation
-            await Task.CompletedTask;
-            
-            // Simulate upload delay
-            await Task.Delay(1000);
-            
-            // Return a mock URL
-            return $"https://res.cloudinary.com/{_cloudName}/image/upload/v{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}/{fileName}";
+            var uploadParams = new ImageUploadParams
+            {
+                File = new FileDescription(fileName, fileStream),
+                Folder = "uploads"
+            };
+
+            var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+            return uploadResult.SecureUrl?.ToString() ?? "";
         }
 
-        public async Task<string> UploadVideoAsync(Stream videoStream, string fileName)
+        // ✅ Upload video
+        public async Task<string> UploadVideoAsync(Stream fileStream, string fileName)
         {
-            // TODO: Implement Cloudinary video upload
-            // This is a placeholder implementation
-            await Task.CompletedTask;
-            
-            // Simulate upload delay
-            await Task.Delay(2000);
-            
-            // Return a mock URL
-            return $"https://res.cloudinary.com/{_cloudName}/video/upload/v{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}/{fileName}";
+            var uploadParams = new VideoUploadParams
+            {
+                File = new FileDescription(fileName, fileStream),
+                Folder = "videos"
+            };
+
+            var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+            return uploadResult.SecureUrl?.ToString() ?? "";
         }
 
-        public async Task<bool> DeleteImageAsync(string publicId)
+        // 🆕 ✅ Upload media (tự nhận biết loại file)
+        public async Task<string> UploadMediaAsync(Stream fileStream, string fileName, string mediaType)
         {
-            // TODO: Implement Cloudinary image deletion
-            // This is a placeholder implementation
-            await Task.CompletedTask;
-            return true;
+            if (mediaType == "video")
+                return await UploadVideoAsync(fileStream, fileName);
+            else
+                return await UploadImageAsync(fileStream, fileName);
         }
 
-        public async Task<bool> DeleteVideoAsync(string publicId)
+        // 🆕 ✅ Xoá media theo publicId (Cloudinary trả về id khi upload)
+        public async Task<bool> DeleteMediaAsync(string publicId, string mediaType)
         {
-            // TODO: Implement Cloudinary video deletion
-            // This is a placeholder implementation
-            await Task.CompletedTask;
-            return true;
-        }
+            DeletionParams delParams = new(publicId);
+            DeletionResult result;
 
-        public string GetOptimizedImageUrl(string publicId, int width = 800, int height = 600, string quality = "auto")
-        {
-            // TODO: Implement Cloudinary URL transformation
-            // This is a placeholder implementation
-            return $"https://res.cloudinary.com/{_cloudName}/image/upload/w_{width},h_{height},q_{quality}/{publicId}";
-        }
+            if (mediaType == "video")
+                result = await _cloudinary.DestroyAsync(new DeletionParams(publicId) { ResourceType = ResourceType.Video });
+            else
+                result = await _cloudinary.DestroyAsync(delParams);
 
-        public string GetOptimizedVideoUrl(string publicId, int width = 1280, int height = 720)
-        {
-            // TODO: Implement Cloudinary video URL transformation
-            // This is a placeholder implementation
-            return $"https://res.cloudinary.com/{_cloudName}/video/upload/w_{width},h_{height}/{publicId}";
+            return result.Result == "ok";
         }
     }
 }
-
