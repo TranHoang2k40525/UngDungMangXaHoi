@@ -308,8 +308,13 @@ const Profile = () => {
               const firstImage = images[0];
               const onPress = () => {
                 if (isVideo) {
-                  const videoPosts = posts.filter(pp => (pp.media||[]).some(mm => (mm.type||'').toLowerCase()==='video'));
-                  navigation.navigate('Video', { videos: videoPosts, selectedId: post.id });
+                  // Navigate directly to Video tab with selectedId to show the exact video clicked
+                  navigation.navigate('Video', {
+                    selectedId: post.id,
+                    userId: post.user?.id || user?.id,
+                    username: post.user?.username || user?.username,
+                    avatarUrl: post.user?.avatarUrl || user?.avatarUrl
+                  });
                 } else {
                   navigation.navigate('PostDetail', { post });
                 }

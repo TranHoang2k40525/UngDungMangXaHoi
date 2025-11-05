@@ -39,7 +39,7 @@ const Tab = createBottomTabNavigator();
 
 function TabProfileIcon({ focused }) {
     const { user } = useUser();
-    const size = focused ? 26 : 24;
+    const size = focused ? 30 : 30;
     const borderColor = focused ? "#000" : "#9CA3AF";
     let uri = user?.avatarUrl || user?.AvatarUrl || null;
     if (uri && !uri.startsWith("http")) {
@@ -111,65 +111,81 @@ function MainTabs() {
     const bottomInset = insets?.bottom || 0;
     return (
         <Tab.Navigator
-            screenOptions={({ route }) => ({
-                headerShown: false,
-                tabBarShowLabel: false,
-                tabBarHideOnKeyboard: true,
-                // Custom tabBarButton to detect triple-tap and emit a refresh event
-                tabBarButton: (props) => {
-                    // route is closed-over from screenOptions
-                    return <TabBarButton {...props} route={route} />;
-                },
-                // Ensure the tab bar clears device navigation area by including bottom safe-area inset
-                tabBarStyle: {
-                    height: baseHeight + bottomInset,
-                    paddingBottom: bottomInset, // chỉ đệm đúng phần safe-area, không thêm khoảng trắng
-                    paddingTop: 1,
-                    borderTopColor: "#DBDBDB",
-                    borderTopWidth: StyleSheet.hairlineWidth,
-                    backgroundColor: "#FFFFFF",
-                },
-                tabBarIcon: ({ focused, color, size }) => {
-                    switch (route.name) {
-                        case "Home":
-                            return (
-                                <Ionicons
-                                    name={focused ? "home" : "home-outline"}
-                                    size={24}
-                                    color={focused ? "#000" : "#9CA3AF"}
-                                />
-                            );
-                        case "Search":
-                            return (
-                                <Ionicons
-                                    name={focused ? "search" : "search-outline"}
-                                    size={24}
-                                    color={focused ? "#000" : "#9CA3AF"}
-                                />
-                            );
-                        case "CreatePost":
-                            return (
-                                <Ionicons
-                                    name={focused ? "add-circle" : "add-circle-outline"}
-                                    size={26}
-                                    color={focused ? "#000" : "#9CA3AF"}
-                                />
-                            );
-                        case "Video":
-                            return (
-                                <Ionicons
-                                    name={focused ? "play-circle" : "play-circle-outline"}
-                                    size={26}
-                                    color={focused ? "#000" : "#9CA3AF"}
-                                />
-                            );
-                        case "Profile":
-                            return <TabProfileIcon focused={focused} />;
-                        default:
-                            return null;
-                    }
-                },
-            })}
+            id="MainTabs"
+            screenOptions={({ route, navigation }) => {
+                // Check if current route is Video to invert colors
+                const state = navigation.getState();
+                const currentRoute = state?.routes[state.index];
+                const isVideoRoute = currentRoute?.name === 'Video';
+                
+                // Inverted colors for Video tab
+                const bgColor = isVideoRoute ? '#000000' : '#FFFFFF';
+                const borderColor = isVideoRoute ? 'rgba(255,255,255,0.1)' : '#DBDBDB';
+                const focusedColor = isVideoRoute ? '#FFFFFF' : '#000000';
+                const unfocusedColor = isVideoRoute ? 'rgba(255,255,255,0.6)' : '#9CA3AF';
+                
+                return {
+                    headerShown: false,
+                    tabBarShowLabel: false,
+                    tabBarHideOnKeyboard: true,
+                    // Custom tabBarButton to detect triple-tap and emit a refresh event
+                    tabBarButton: (props) => {
+                        // route is closed-over from screenOptions
+                        return <TabBarButton {...props} route={route} />;
+                    },
+                    // Ensure the tab bar clears device navigation area by including bottom safe-area inset
+                    tabBarStyle: {
+                        height: baseHeight + bottomInset,
+                        paddingBottom: bottomInset,
+                        paddingTop: 1,
+                        borderTopColor: borderColor,
+                        borderTopWidth: StyleSheet.hairlineWidth,
+                        backgroundColor: bgColor,
+                    },
+                    tabBarIcon: ({ focused, color, size }) => {
+                        const iconFocusedColor = focused ? focusedColor : unfocusedColor;
+                        
+                        switch (route.name) {
+                            case "Home":
+                                return (
+                                    <Ionicons
+                                        name={focused ? "home" : "home-outline"}
+                                        size={28}
+                                        color={iconFocusedColor}
+                                    />
+                                );
+                            case "Search":
+                                return (
+                                    <Ionicons
+                                        name={focused ? "search" : "search-outline"}
+                                        size={28}
+                                        color={iconFocusedColor}
+                                    />
+                                );
+                            case "CreatePost":
+                                return (
+                                    <Ionicons
+                                        name={focused ? "add-circle" : "add-circle-outline"}
+                                        size={30}
+                                        color={iconFocusedColor}
+                                    />
+                                );
+                            case "Video":
+                                return (
+                                    <Ionicons
+                                        name={focused ? "play-circle" : "play-circle-outline"}
+                                        size={30}
+                                        color={iconFocusedColor}
+                                    />
+                                );
+                            case "Profile":
+                                return <TabProfileIcon focused={focused} />;
+                            default:
+                                return null;
+                        }
+                    },
+                };
+            }}
         >
             <Tab.Screen name="Home" component={Home} />
             <Tab.Screen name="Search" component={Search} />

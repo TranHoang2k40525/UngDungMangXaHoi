@@ -56,8 +56,8 @@ export default function FollowList() {
         style={styles.userItem}
         onPress={() => {
           if (isCurrentUser) {
-            // Nếu là chính mình, chuyển về Profile (trang Tab)
-            navigation.navigate('ProfileTab');
+            // Nếu là chính mình, chuyển về Profile
+            navigation.navigate('Profile');
           } else {
             // Nếu là người khác, mở UserProfilePublic
             navigation.push('UserProfilePublic', { userId: item.userId });

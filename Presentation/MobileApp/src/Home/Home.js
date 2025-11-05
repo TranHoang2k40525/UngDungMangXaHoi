@@ -793,6 +793,18 @@ export default function Home() {
     return unsub;
   }, [onRefreshFeed]);
 
+    // Navigate to full-screen video page with proper initial index
+    const openVideoPlayerFor = (post) => {
+        // Danh sách video gốc (chưa sắp xếp) để màn Video tự ưu tiên selectedId + chưa xem + mới nhất
+        const videos = posts.filter(pp => (pp.media||[]).some(m => (m.type||'').toLowerCase()==='video'));
+        // Pass userId to show only that user's videos
+        navigation.navigate('Video', { 
+            videos, 
+            selectedId: post.id,
+            userId: post.user?.id,
+            username: post.user?.username 
+        });
+    };
   // Navigate to full-screen video page with proper initial index
   const openVideoPlayerFor = (post) => {
     // Danh sách video gốc (chưa sắp xếp) để màn Video tự ưu tiên selectedId + chưa xem + mới nhất
@@ -1111,6 +1123,86 @@ export default function Home() {
               {/* Right-side placeholder (bookmark, etc.) could go here */}
             </View>
 
+                            <View style={styles.postStats}>
+                                {/* Likes and shares summary */}
+                                <Text style={styles.likeCount}>
+                                    {(postStates[p.id]?.likes ?? 0).toLocaleString()} lượt thích • {(postStates[p.id]?.shares ?? 0).toLocaleString()} lượt chia sẻ
+                                </Text>
+                                
+                                {/* Tagged Users */}
+                                {p.tags && p.tags.length > 0 && (
+                                    <View style={styles.taggedUsersContainer}>
+                                        <Text style={styles.taggedLabel}>với </Text>
+                                        {p.tags.map((tag, index) => {
+                                            const uid = getOwnerId();
+                                            const isCurrentUser = Number(tag.id) === Number(uid);
+                                            return (
+                                                <React.Fragment key={tag.id}>
+                                                    <TouchableOpacity
+                                                        onPress={() => {
+                                                            if (isCurrentUser) {
+                                                                navigation.navigate('Profile');
+                                                            } else {
+                                                                navigation.navigate('UserProfilePublic', { 
+                                                                    userId: tag.id, 
+                                                                    username: tag.username, 
+                                                                    avatarUrl: tag.avatarUrl 
+                                                                });
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Text style={styles.taggedUsername}>
+                                                            {isCurrentUser ? 'bạn' : `@${tag.username}`}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                    {index < p.tags.length - 1 && <Text style={styles.taggedLabel}>, </Text>}
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </View>
+                                )}
+                                
+                                {/* Caption with clickable @mentions */}
+                                {!!p.caption && (
+                                    <Text style={styles.captionText}>
+                                        {p.caption.split(/(@\w+)/g).map((part, index) => {
+                                            if (part.startsWith('@')) {
+                                                const username = part.substring(1);
+                                                const uid = getOwnerId();
+                                                // Check if mentioned user is current user
+                                                const mentionedUser = p.mentions?.find(m => m.username === username);
+                                                const isCurrentUser = mentionedUser && Number(mentionedUser.id) === Number(uid);
+                                                
+                                                return (
+                                                    <Text
+                                                        key={index}
+                                                        style={styles.mentionText}
+                                                        onPress={() => {
+                                                            if (mentionedUser) {
+                                                                if (isCurrentUser) {
+                                                                    navigation.navigate('Profile');
+                                                                } else {
+                                                                    navigation.navigate('UserProfilePublic', {
+                                                                        userId: mentionedUser.id,
+                                                                        username: mentionedUser.username,
+                                                                        avatarUrl: mentionedUser.avatarUrl
+                                                                    });
+                                                                }
+                                                            }
+                                                        }}
+                                                    >
+                                                        {isCurrentUser ? 'bạn' : part}
+                                                    </Text>
+                                                );
+                                            }
+                                            return part;
+                                        })}
+                                    </Text>
+                                )}
+                            </View>
+                        </View>
+                )}
+            />
             <View style={styles.postStats}>
               {/* Top reactions + Likes and shares summary */}
               <View
@@ -1357,6 +1449,436 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: "#FFFFFF",
+    },
+    header: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: 0.5,
+        borderBottomColor: "#DBDBDB",
+        zIndex: 1,
+    },
+    logo: {
+        fontSize: 24,
+        fontWeight: "700",
+        letterSpacing: -0.5,
+    },
+    headerRight: {
+        flexDirection: "row",
+        gap: 20,
+    },
+    headerIconWrapper: {
+        width: 26,
+        height: 26,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    heartIconHeader: {
+        width: 24,
+        height: 24,
+        position: "relative",
+    },
+    cameraIconImage: {
+        width: 29,
+        height: 29,
+    },
+    homeIconImage: {
+        width: 30,
+        height: 30,
+        borderRadius: 0,
+    },
+    storiesContainer: {
+        paddingVertical: 12,
+        borderBottomWidth: 0.5,
+        borderBottomColor: "#DBDBDB",
+    },
+    storyItem: {
+        alignItems: "center",
+        marginLeft: 12,
+    },
+    storyAvatarContainer: {
+        padding: 2,
+        borderRadius: 40,
+    },
+    storyAvatarBorder: {
+        borderWidth: 2.5,
+        borderColor: "#E1306C",
+    },
+    storyAvatar: {
+        width: 62,
+        height: 62,
+        borderRadius: 31,
+        borderWidth: 3,
+        borderColor: "#FFFFFF",
+    },
+    storyName: {
+        fontSize: 12,
+        marginTop: 4,
+        color: "#262626",
+    },
+    post: {
+        marginBottom: 16,
+    },
+    postHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+    },
+    postHeaderLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+    },
+    postAvatar: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+    },
+    postUsername: {
+        fontSize: 13,
+        fontWeight: "600",
+        color: "#262626",
+    },
+    postLocation: {
+        fontSize: 11,
+        color: "#262626",
+    },
+    privacyPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 8,
+        backgroundColor: '#F3F4F6',
+    },
+    privacyText: {
+        color: '#374151',
+        fontSize: 11,
+        textTransform: 'capitalize',
+    },
+    moreIcon: {
+        fontSize: 24,
+        fontWeight: "700",
+        color: "#262626",
+    },
+    postImageContainer: {
+        position: "relative",
+    },
+    postImage: {
+        width: "100%",
+        height: 400,
+        backgroundColor: "#F0F0F0",
+    },
+    playOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.15)'
+    },
+    imageCounter: {
+        position: "absolute",
+        top: 12,
+        right: 12,
+        backgroundColor: "rgba(0, 0, 0, 0.6)",
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    imageCounterText: {
+        color: "#FFFFFF",
+        fontSize: 12,
+        fontWeight: "600",
+    },
+    dotsContainer: {
+        position: "absolute",
+        bottom: 12,
+        left: 0,
+        right: 0,
+        flexDirection: "row",
+        justifyContent: "center",
+        gap: 6,
+    },
+    dot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: "rgba(255, 255, 255, 0.5)",
+    },
+    dotActive: {
+        backgroundColor: "#FFFFFF",
+    },
+    postActions: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        paddingHorizontal: 12,
+        paddingVertical: 12,
+        alignItems: "center",
+    },
+    postActionsLeft: {
+        flexDirection: "row",
+        gap: 16,
+        alignItems: "center",
+    },
+    heartIconPost: {
+        fontSize: 35,
+        color: "#DEDED6",
+        marginTop: -4,
+    },
+    heartIconPostFilled: {
+        fontSize: 35,
+        color: "#ED4956",
+        marginTop: -4,
+    },
+    followBtn: {
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderWidth: 1,
+        borderColor: '#dbdbdb',
+        borderRadius: 6,
+    },
+    followBtnText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#111827',
+    },
+    commentIconWrapper: {
+        width: 26,
+        height: 26,
+        justifyContent: "center",
+        alignItems: "center",
+        position: "relative",
+    },
+    commentBubble: {
+        width: 24,
+        height: 24,
+        borderWidth: 2.5,
+        borderColor: "#000",
+        borderRadius: 12,
+        borderTopLeftRadius: 0,
+    },
+    commentCount: {
+        position: "absolute",
+        top: -4,
+        right: -4,
+        backgroundColor: "#ED4956",
+        color: "#FFFFFF",
+        fontSize: 10,
+        fontWeight: "600",
+        borderRadius: 6,
+        paddingHorizontal: 3,
+        paddingVertical: 1,
+    },
+    postStats: {
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+    },
+    likeCount: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#262626",
+        marginBottom: 4,
+    },
+    captionText: {
+        fontSize: 14,
+        color: '#111827',
+        lineHeight: 20,
+    },
+    taggedUsersContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        marginTop: 4,
+        marginBottom: 4,
+    },
+    taggedLabel: {
+        fontSize: 14,
+        color: '#666',
+    },
+    taggedUsername: {
+        fontSize: 14,
+        color: '#0095F6',
+        fontWeight: '600',
+    },
+    mentionText: {
+        color: '#0095F6',
+        fontWeight: '600',
+    },
+    commentCountText: {
+        fontSize: 12,
+        color: "#8E8E8E",
+    },
+    // bottom nav styles removed (now handled by tab navigator)
+    overlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        justifyContent: 'flex-end',
+    },
+    sheet: {
+        backgroundColor: '#fff',
+        padding: 16,
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
+        paddingBottom: Platform.OS === 'ios' ? 50 : 30,
+    },
+    sheetTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        marginBottom: 8,
+    },
+    sheetItem: {
+        paddingVertical: 12,
+        borderTopWidth: 1,
+        borderTopColor: '#e5e7eb',
+    },
+    sheetItemText: {
+        fontSize: 16,
+        color: '#111827',
+    },
+    primaryBtn: {
+        backgroundColor: '#111827',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 8,
+    },
+    primaryBtnText: {
+        color: '#fff',
+        fontWeight: '600',
+    },
+    secondaryBtn: {
+        backgroundColor: '#f3f4f6',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 8,
+    },
+    secondaryBtnText: {
+        color: '#111827',
+        fontWeight: '600',
+    },
+    busyOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(255,255,255,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    spinner: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        borderWidth: 4,
+        borderColor: '#111827',
+        borderTopColor: 'transparent',
+        // simple CSS-like spinner animation is not available; this is a placeholder
+    },
+    // Edit Caption Modal Styles
+    modalContainer: {
+        flex: 1,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-end',
+    },
+    editCaptionSheet: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+        maxHeight: '110%',
+    },
+    sheetHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#e5e7eb',
+    },
+    closeButton: {
+        width: 32,
+        height: 32,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 16,
+        backgroundColor: '#f3f4f6',
+    },
+    closeButtonText: {
+        fontSize: 18,
+        color: '#111827',
+        fontWeight: '600',
+    },
+    editCaptionContent: {
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        minHeight: 200,
+    },
+    captionTextInput: {
+        fontSize: 16,
+        color: '#111827',
+        textAlignVertical: 'top',
+        minHeight: 150,
+        maxHeight: 300,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: '#d1d5db',
+        borderRadius: 12,
+        backgroundColor: '#f9fafb',
+    },
+    charCounter: {
+        fontSize: 12,
+        color: '#9ca3af',
+        marginTop: 8,
+        textAlign: 'right',
+    },
+    editCaptionActions: {
+        flexDirection: 'row',
+        paddingHorizontal: 20,
+        paddingTop: 16,
+        gap: 12,
+    },
+    actionButton: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    cancelButton: {
+        backgroundColor: '#f3f4f6',
+    },
+    cancelButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#6b7280',
+    },
+    saveButton: {
+        backgroundColor: '#0095F6',
+    },
+    saveButtonText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#fff',
+    },
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
