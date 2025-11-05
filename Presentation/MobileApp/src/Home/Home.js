@@ -536,7 +536,13 @@ export default function Home() {
     const openVideoPlayerFor = (post) => {
         // Danh sách video gốc (chưa sắp xếp) để màn Video tự ưu tiên selectedId + chưa xem + mới nhất
         const videos = posts.filter(pp => (pp.media||[]).some(m => (m.type||'').toLowerCase()==='video'));
-        navigation.navigate('Video', { videos, selectedId: post.id });
+        // Pass userId to show only that user's videos
+        navigation.navigate('Video', { 
+            videos, 
+            selectedId: post.id,
+            userId: post.user?.id,
+            username: post.user?.username 
+        });
     };
 
     return (
@@ -754,6 +760,7 @@ export default function Home() {
                                 <Text style={styles.likeCount}>
                                     {(postStates[p.id]?.likes ?? 0).toLocaleString()} lượt thích • {(postStates[p.id]?.shares ?? 0).toLocaleString()} lượt chia sẻ
                                 </Text>
+<<<<<<< HEAD
                                 {/* View all comments link */}
                                 {(postStates[p.id]?.comments ?? 0) > 0 && (
                                     <TouchableOpacity onPress={() => onOpenComments(p.id)} style={{ marginTop: 4 }}>
@@ -762,8 +769,78 @@ export default function Home() {
                                         </Text>
                                     </TouchableOpacity>
                                 )}
+=======
+                                
+                                {/* Tagged Users */}
+                                {p.tags && p.tags.length > 0 && (
+                                    <View style={styles.taggedUsersContainer}>
+                                        <Text style={styles.taggedLabel}>với </Text>
+                                        {p.tags.map((tag, index) => {
+                                            const uid = getOwnerId();
+                                            const isCurrentUser = Number(tag.id) === Number(uid);
+                                            return (
+                                                <React.Fragment key={tag.id}>
+                                                    <TouchableOpacity
+                                                        onPress={() => {
+                                                            if (isCurrentUser) {
+                                                                navigation.navigate('Profile');
+                                                            } else {
+                                                                navigation.navigate('UserProfilePublic', { 
+                                                                    userId: tag.id, 
+                                                                    username: tag.username, 
+                                                                    avatarUrl: tag.avatarUrl 
+                                                                });
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Text style={styles.taggedUsername}>
+                                                            {isCurrentUser ? 'bạn' : `@${tag.username}`}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                    {index < p.tags.length - 1 && <Text style={styles.taggedLabel}>, </Text>}
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </View>
+                                )}
+                                
+                                {/* Caption with clickable @mentions */}
+>>>>>>> backup/rebase-20251105151448
                                 {!!p.caption && (
-                                    <Text style={styles.captionText}>{p.caption}</Text>
+                                    <Text style={styles.captionText}>
+                                        {p.caption.split(/(@\w+)/g).map((part, index) => {
+                                            if (part.startsWith('@')) {
+                                                const username = part.substring(1);
+                                                const uid = getOwnerId();
+                                                // Check if mentioned user is current user
+                                                const mentionedUser = p.mentions?.find(m => m.username === username);
+                                                const isCurrentUser = mentionedUser && Number(mentionedUser.id) === Number(uid);
+                                                
+                                                return (
+                                                    <Text
+                                                        key={index}
+                                                        style={styles.mentionText}
+                                                        onPress={() => {
+                                                            if (mentionedUser) {
+                                                                if (isCurrentUser) {
+                                                                    navigation.navigate('Profile');
+                                                                } else {
+                                                                    navigation.navigate('UserProfilePublic', {
+                                                                        userId: mentionedUser.id,
+                                                                        username: mentionedUser.username,
+                                                                        avatarUrl: mentionedUser.avatarUrl
+                                                                    });
+                                                                }
+                                                            }
+                                                        }}
+                                                    >
+                                                        {isCurrentUser ? 'bạn' : part}
+                                                    </Text>
+                                                );
+                                            }
+                                            return part;
+                                        })}
+                                    </Text>
                                 )}
                             </View>
                         </View>
@@ -1178,6 +1255,26 @@ const styles = StyleSheet.create({
         color: '#111827',
         lineHeight: 20,
     },
+    taggedUsersContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        marginTop: 4,
+        marginBottom: 4,
+    },
+    taggedLabel: {
+        fontSize: 14,
+        color: '#666',
+    },
+    taggedUsername: {
+        fontSize: 14,
+        color: '#0095F6',
+        fontWeight: '600',
+    },
+    mentionText: {
+        color: '#0095F6',
+        fontWeight: '600',
+    },
     commentCountText: {
         fontSize: 12,
         color: "#8E8E8E",
@@ -1197,6 +1294,7 @@ const styles = StyleSheet.create({
         padding: 16,
         borderTopLeftRadius: 16,
         borderTopRightRadius: 16,
+        paddingBottom: Platform.OS === 'ios' ? 50 : 30,
     },
     sheetTitle: {
         fontSize: 16,
@@ -1265,7 +1363,7 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-        maxHeight: '80%',
+        maxHeight: '110%',
     },
     sheetHeader: {
         flexDirection: 'row',
