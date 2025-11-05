@@ -1,8 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as ImageManipulator from 'expo-image-manipulator';
 
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
-export const API_BASE_URL = 'http://192.168.1.103:5297'; // Backend đang chạy trên IP này
+export const API_BASE_URL = 'http://192.168.100.184:5297'; // Backend đang chạy trên IP này
 
 // Hàm helper để gọi API
 const apiCall = async (endpoint, options = {}) => {
@@ -100,11 +99,6 @@ const apiCall = async (endpoint, options = {}) => {
   } catch (error) {
     console.error('[API-CALL] API Error:', error);
     
-    // Detect Android native OOM error string and provide a clearer message
-    const msg = String(error?.message || error);
-    if (msg.includes('OutOfMemoryError') || msg.includes('Failed to allocate')) {
-      throw new Error('Thiết bị không đủ bộ nhớ để xử lý tệp lớn. Vui lòng thử nén ảnh/video hoặc dùng tệp nhỏ hơn.');
-    }
     // Xử lý các loại lỗi khác nhau
     if (error.name === 'TypeError' && error.message.includes('Network request failed')) {
       throw new Error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.');
@@ -113,24 +107,6 @@ const apiCall = async (endpoint, options = {}) => {
     } else {
       throw error;
     }
-  } 
-};
-
-// Compress an image URI using expo-image-manipulator to avoid large uploads / OOM on Android
-const compressImage = async (uri, maxWidth = 1080, compress = 0.7) => {
-  try {
-    if (!uri) return uri;
-    console.log('[API] compressImage input:', uri);
-    const manip = await ImageManipulator.manipulateAsync(
-      uri,
-      [{ resize: { width: maxWidth } }],
-      { compress, format: ImageManipulator.SaveFormat.JPEG }
-    );
-    console.log('[API] compressImage result:', manip?.uri);
-    return manip?.uri || uri;
-  } catch (e) {
-    console.warn('[API] compressImage failed, fallback to original uri', e);
-    return uri;
   }
 };
 
@@ -245,11 +221,6 @@ export const updateProfile = async (payload) => {
 export const updateAvatar = async ({ uri, name = 'avatar.jpg', type = 'image/jpeg', createPost = false, postCaption = '', postLocation = '', postPrivacy = 'public' }) => {
   const headers = await getAuthHeaders();
   const form = new FormData();
-  // Compress avatar to reduce memory and upload size
-  try {
-    const compressed = await compressImage(uri, 800, 0.75);
-    uri = compressed || uri;
-  } catch (e) { console.warn('[API] updateAvatar compress failed', e); }
   form.append('avatarFile', { uri, name, type });
   form.append('CreatePost', createPost ? 'true' : 'false');
   if (postCaption) form.append('PostCaption', postCaption);
@@ -391,25 +362,14 @@ export const createPost = async ({ images = [], video = null, caption = '', loca
   if (location) form.append('Location', location);
   form.append('Privacy', privacy);
 
-  // Compress images before append to avoid OOM on Android
-  for (let idx = 0; idx < images.length; idx++) {
-    const img = images[idx];
-    try {
-      const compressed = await compressImage(img.uri, 1080, 0.75);
-      form.append('Images', {
-        uri: compressed || img.uri,
-        name: img.name || `image_${idx}.jpg`,
-        type: img.type || 'image/jpeg',
-      });
-    } catch (e) {
-      console.warn('[API] createPost compress image failed', e);
-      form.append('Images', {
-        uri: img.uri,
-        name: img.name || `image_${idx}.jpg`,
-        type: img.type || 'image/jpeg',
-      });
-    }
-  }
+  images.forEach((img, idx) => {
+    // img: { uri, name, type }
+    form.append('Images', {
+      uri: img.uri,
+      name: img.name || `image_${idx}.jpg`,
+      type: img.type || 'image/jpeg',
+    });
+  });
 
   if (video) {
     form.append('Video', {
@@ -439,121 +399,54 @@ export const createPost = async ({ images = [], video = null, caption = '', loca
 };
 
 export const getFeed = async (page = 1, pageSize = 20) => {
-  const headers = await getAuthHeaders();
-  return apiCall(`/api/posts/feed?page=${page}&pageSize=${pageSize}`, {
-    method: 'GET',
-    headers,
-  });
+  const res = await fetch(`${API_BASE_URL}/api/posts/feed?page=${page}&pageSize=${pageSize}`);
+  if (!res.ok) throw new Error('Không lấy được feed');
+  return res.json();
 };
 
 export const getReels = async (page = 1, pageSize = 20) => {
-  const headers = await getAuthHeaders();
-  return apiCall(`/api/posts/reels?page=${page}&pageSize=${pageSize}`, {
-    method: 'GET',
-    headers,
-  });
-};
-
-export const getAllReels = async () => {
-  const headers = await getAuthHeaders();
-  return apiCall('/api/posts/reels/all', {
-    method: 'GET',
-    headers,
-  });
-};
-
-// Get reels from users that current user is following
-export const getFollowingReels = async (page = 1, pageSize = 20) => {
-  const headers = await getAuthHeaders();
-  return apiCall(`/api/posts/reels/following?page=${page}&pageSize=${pageSize}`, {
-    method: 'GET',
-    headers,
-  });
+  const res = await fetch(`${API_BASE_URL}/api/posts/reels?page=${page}&pageSize=${pageSize}`);
+  if (!res.ok) throw new Error('Không lấy được reels');
+  return res.json();
 };
 
 export const getMyPosts = async (page = 1, pageSize = 20) => {
   const headers = await getAuthHeaders();
-  return apiCall(`/api/posts/me?page=${page}&pageSize=${pageSize}`, {
-    method: 'GET',
-    headers,
-  });
-};
-
-// Lấy bài đăng của 1 user bất kỳ (public/followers/private sẽ do backend lọc theo quyền)
-export const getUserPostsById = async (userId, page = 1, pageSize = 20) => {
-  const headers = await getAuthHeaders();
-  return apiCall(`/api/posts/user/${userId}?page=${page}&pageSize=${pageSize}`, {
-    method: 'GET',
-    headers,
-  });
-};
-
-// Lấy thông tin profile public của user khác
-export const getUserProfile = async (userId) => {
-  const headers = await getAuthHeaders();
-  const result = await apiCall(`/api/users/${userId}/profile`, {
-    method: 'GET',
-    headers,
-  });
-  return result?.data || null;
-};
-
-// Follow user
-export const followUser = async (userId) => {
-  const headers = await getAuthHeaders();
-  return apiCall(`/api/users/${userId}/follow`, {
-    method: 'POST',
-    headers,
-  });
-};
-
-// Unfollow user
-export const unfollowUser = async (userId) => {
-  const headers = await getAuthHeaders();
-  return apiCall(`/api/users/${userId}/follow`, {
-    method: 'DELETE',
-    headers,
-  });
-};
-
-// Get followers list
-export const getFollowers = async (userId) => {
-  const headers = await getAuthHeaders();
-  const result = await apiCall(`/api/users/${userId}/followers`, {
-    method: 'GET',
-    headers,
-  });
-  return result?.data || [];
-};
-
-// Get following list
-export const getFollowing = async (userId) => {
-  const headers = await getAuthHeaders();
-  const result = await apiCall(`/api/users/${userId}/following`, {
-    method: 'GET',
-    headers,
-  });
-  return result?.data || [];
+  const res = await fetch(`${API_BASE_URL}/api/posts/me?page=${page}&pageSize=${pageSize}` , { headers });
+  if (!res.ok) throw new Error('Không lấy được bài đăng của tôi');
+  return res.json();
 };
 
 // Cập nhật quyền riêng tư của bài đăng
 export const updatePostPrivacy = async (postId, privacy) => {
   const headers = await getAuthHeaders();
-  return apiCall(`/api/posts/${postId}/privacy`, {
+  const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/privacy`, {
     method: 'PATCH',
     headers: { ...headers, 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ Privacy: privacy }),
   });
+  const text = await res.text();
+  let json = null; try { json = text ? JSON.parse(text) : null; } catch {}
+  if (!res.ok) {
+    throw new Error(json?.message || 'Không thể cập nhật quyền riêng tư');
+  }
+  return json; // server trả về post dto
 };
 
 // Cập nhật caption bài đăng
 export const updatePostCaption = async (postId, caption) => {
   const headers = await getAuthHeaders();
-  return apiCall(`/api/posts/${postId}/caption`, {
+  const res = await fetch(`${API_BASE_URL}/api/posts/${postId}/caption`, {
     method: 'PATCH',
     headers: { ...headers, 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ Caption: caption }),
   });
+  const text = await res.text();
+  let json = null; try { json = text ? JSON.parse(text) : null; } catch {}
+  if (!res.ok) {
+    throw new Error(json?.message || 'Không thể cập nhật caption');
+  }
+  return json;
 };
 
 // Xóa bài đăng
@@ -567,6 +460,82 @@ export const deletePost = async (postId) => {
     const text = await res.text();
     let json = null; try { json = text ? JSON.parse(text) : null; } catch {}
     throw new Error(json?.message || 'Không thể xóa bài đăng');
+  }
+  return true;
+};
+
+// =================== STORIES APIs ===================
+// Create story (multipart/form-data): Media (file), MediaType (image|video), Privacy
+export const createStory = async ({ media, mediaType = 'image', privacy = 'public', userId = null }) => {
+  const headers = await getAuthHeaders();
+  const form = new FormData();
+  form.append('MediaType', mediaType);
+  form.append('Privacy', privacy);
+  if (userId) form.append('UserId', String(userId));
+  if (media) {
+    form.append('Media', {
+      uri: media.uri,
+      name: media.name || (mediaType === 'video' ? 'story_video.mp4' : 'story_image.jpg'),
+      type: media.type || (mediaType === 'video' ? 'video/mp4' : 'image/jpeg'),
+    });
+  }
+
+  const res = await fetch(`${API_BASE_URL}/api/stories`, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      Accept: 'application/json',
+    },
+    body: form,
+  });
+
+  const text = await res.text();
+  console.log('[createStory] response status:', res.status);
+  console.log('[createStory] response text:', text);
+  let json = null; try { json = text ? JSON.parse(text) : null; } catch (e) { console.warn('[createStory] failed to parse json', e); }
+  if (!res.ok) {
+    // Provide detailed error in client logs to help diagnose 404/500
+    const serverMsg = json?.message || json?.Message || text || `Tạo story thất bại (${res.status})`;
+    throw new Error(serverMsg);
+  }
+  return json;
+};
+
+export const getUserStories = async (userId) => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/stories/user/${userId}`, { headers });
+  if (!res.ok) throw new Error('Không lấy được stories của user');
+  return res.json();
+};
+
+export const getFeedStories = async () => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/stories/feed`, { headers });
+  if (!res.ok) throw new Error('Không lấy được feed stories');
+  return res.json();
+};
+
+export const viewStory = async (storyId) => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/stories/${storyId}/view`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) throw new Error('Không ghi được lượt xem');
+  return res.json();
+};
+
+export const deleteStory = async (storyId) => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/stories/${storyId}`, {
+    method: 'DELETE',
+    headers: { ...headers, Accept: 'application/json' },
+  });
+  if (!res.ok && res.status !== 204) {
+    const text = await res.text();
+    let json = null; try { json = text ? JSON.parse(text) : null; } catch {}
+    throw new Error(json?.message || 'Không thể xóa story');
   }
   return true;
 };
