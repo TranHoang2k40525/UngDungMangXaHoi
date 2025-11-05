@@ -38,6 +38,10 @@ namespace UngDungMangXaHoi.Infrastructure.Configurations
                 .HasColumnName("is_visible")
                 .HasDefaultValue(true);
 
+            builder.Property(p => p.CommentsCount)
+                .HasColumnName("CommentsCount")
+                .HasDefaultValue(0);
+
             // Store DateTimeOffset as datetime2 in SQL to avoid casting issues
             builder.Property(p => p.created_at)
                 .IsRequired()
