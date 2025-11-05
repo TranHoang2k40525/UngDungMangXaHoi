@@ -31,17 +31,25 @@ builder.Services.AddSwaggerGen(options =>
     options.CustomSchemaIds(type => (type.FullName ?? type.Name).Replace("+", "."));
 });
 
-// Database configuration - ƯU TIÊN .env, fallback appsettings.json
-var sqlServer = Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost";
-var sqlPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "1433";
-var sqlUser = Environment.GetEnvironmentVariable("DB_USER") ?? "sa";
-var sqlPass = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "123456789";
-var sqlDb = Environment.GetEnvironmentVariable("DB_NAME") ?? "ungdungmangxahoiv_2";
-var sqlTrust = Environment.GetEnvironmentVariable("SQLSERVER_TRUST_CERT") ?? "true";
+// Database configuration - ƯU TIÊN appsettings.json, fallback .env
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
-var connectionString = $"Server={sqlServer},{sqlPort};Database={sqlDb};User Id={sqlUser};Password={sqlPass};TrustServerCertificate={sqlTrust};";
-
-Console.WriteLine($"[DB CONFIG] Server: {sqlServer}:{sqlPort}, Database: {sqlDb}");
+// Chỉ dùng env vars nếu connection string không có trong appsettings.json
+if (string.IsNullOrEmpty(connectionString))
+{
+    var sqlServer = Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost";
+    var sqlPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "1433";
+    var sqlUser = Environment.GetEnvironmentVariable("DB_USER") ?? "sa";
+    var sqlPass = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "123456789";
+    var sqlDb = Environment.GetEnvironmentVariable("DB_NAME") ?? "ungdungmangxahoiv_2";
+    var sqlTrust = Environment.GetEnvironmentVariable("SQLSERVER_TRUST_CERT") ?? "true";
+    connectionString = $"Server={sqlServer},{sqlPort};Database={sqlDb};User Id={sqlUser};Password={sqlPass};TrustServerCertificate={sqlTrust};";
+    Console.WriteLine($"[DB CONFIG] Using ENV: Server: {sqlServer}:{sqlPort}, Database: {sqlDb}");
+}
+else
+{
+    Console.WriteLine($"[DB CONFIG] Using appsettings.json: {connectionString}");
+}
 
 builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(connectionString));
 
@@ -91,6 +99,9 @@ builder.Services.AddScoped<IOTPRepository, OTPRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<ILoginHistoryRepository, LoginHistoryRepository>();
 builder.Services.AddScoped<IPostRepository, PostRepository>();
+builder.Services.AddScoped<IReactionRepository, ReactionRepository>();
+builder.Services.AddScoped<IShareRepository, ShareRepository>();
+builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 
 // Services
 builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
@@ -100,6 +111,10 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, EmailService>();
 builder.Services.AddScoped<UserProfileService>();
 builder.Services.AddScoped<VideoTranscodeService>();
+builder.Services.AddScoped<ReactionService>();
+builder.Services.AddScoped<ShareService>();
+builder.Services.AddScoped<NotificationManagementService>();
+builder.Services.AddScoped<IRealTimeNotificationService, UngDungMangXaHoi.Presentation.WebAPI.Hubs.SignalRNotificationService>();
 
 // External Services
 builder.Services.AddScoped<CloudinaryService>(provider =>
@@ -119,14 +134,18 @@ builder.Services.AddScoped<RegisterUser>();
 builder.Services.AddScoped<LoginUser>();
 builder.Services.AddScoped<UpdateProfile>();
 
-// CORS
+// SignalR
+builder.Services.AddSignalR();
+
+// CORS - Cập nhật để hỗ trợ SignalR
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins("http://localhost:3000", "http://localhost:5173") // Thêm origin của frontend
               .AllowAnyMethod()
-              .AllowAnyHeader();
+              .AllowAnyHeader()
+              .AllowCredentials(); // Quan trọng cho SignalR
     });
 });
 
@@ -175,5 +194,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<UngDungMangXaHoi.Presentation.WebAPI.Hubs.NotificationHub>("/hubs/notifications");
 
 app.Run();

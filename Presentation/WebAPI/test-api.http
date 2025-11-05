@@ -1,0 +1,49 @@
+### TEST 1: Login để lấy JWT Token
+POST http://localhost:5297/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "yourpassword"
+}
+
+### TEST 2: Thả Reaction
+POST http://localhost:5297/api/reactions
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "postId": 1,
+  "reactionType": 1
+}
+
+### TEST 3: Lấy tổng hợp Reactions
+GET http://localhost:5297/api/reactions/post/1/summary
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+### TEST 4: Chia sẻ bài viết
+POST http://localhost:5297/api/shares
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "postId": 1,
+  "caption": "Bài hay quá!",
+  "privacy": "public"
+}
+
+### TEST 5: Lấy số lượng shares
+GET http://localhost:5297/api/shares/post/1/count
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+### TEST 6: Lấy thông báo
+GET http://localhost:5297/api/notifications/summary
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+### TEST 7: Lấy thông báo chưa đọc
+GET http://localhost:5297/api/notifications/unread
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+### TEST 8: Đánh dấu tất cả đã đọc
+PATCH http://localhost:5297/api/notifications/read-all
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
