@@ -368,3 +368,63 @@ CREATE INDEX IX_Posts_UserId_Created ON Posts (user_id, created_at DESC);
 -- Tạo index trên privacy để lọc theo quyền riêng tư nhanh
 CREATE INDEX IX_Posts_Privacy ON Posts (privacy);
 GO  -- Kết thúc batch cuối cùng
+
+/* =====================================================================
+   BẢNG MỚI: REACTIONS, SHARES, NOTIFICATIONS (CHO TÍNH NĂNG REAL-TIME)
+   ===================================================================== */
+
+-- Tạo bảng Reactions: Lưu trạng thái cảm xúc của user trên bài đăng
+CREATE TABLE Reactions (
+    reaction_id INT IDENTITY PRIMARY KEY,  -- ID tự tăng, khóa chính
+    post_id INT NOT NULL FOREIGN KEY REFERENCES Posts(post_id) ON DELETE CASCADE,  -- Bài đăng được thả cảm xúc
+    user_id INT NOT NULL FOREIGN KEY REFERENCES Users(user_id) ON DELETE CASCADE,  -- User thả cảm xúc
+    reaction_type INT NOT NULL,  -- Loại cảm xúc (1=Like, 2=Love, 3=Haha, 4=Wow, 5=Sad, 6=Angry)
+    created_at DATETIME DEFAULT GETDATE(),  -- Thời gian tạo
+    updated_at DATETIME DEFAULT GETDATE(),  -- Thời gian cập nhật (nếu đổi cảm xúc)
+    CONSTRAINT UQ_Reactions_PostUser UNIQUE(post_id, user_id)  -- Một user chỉ thả 1 cảm xúc/bài
+);
+
+-- Tạo index trên post_id để lấy tất cả cảm xúc của 1 bài nhanh
+CREATE INDEX IX_Reactions_PostId ON Reactions(post_id);
+-- Tạo index trên user_id để lấy lịch sử cảm xúc của user
+CREATE INDEX IX_Reactions_UserId ON Reactions(user_id);
+-- Tạo index ghép để count theo loại cảm xúc
+CREATE INDEX IX_Reactions_PostId_Type ON Reactions(post_id, reaction_type);
+
+-- Tạo bảng Shares: Lưu hành động chia sẻ bài đăng
+CREATE TABLE Shares (
+    share_id INT IDENTITY PRIMARY KEY,  -- ID tự tăng, khóa chính
+    post_id INT NOT NULL FOREIGN KEY REFERENCES Posts(post_id) ON DELETE CASCADE,  -- Bài đăng được share
+    user_id INT NOT NULL FOREIGN KEY REFERENCES Users(user_id) ON DELETE CASCADE,  -- User share bài
+    caption NVARCHAR(500) NULL,  -- Caption khi share (có thể rỗng)
+    privacy NVARCHAR(20) DEFAULT 'public',  -- Quyền riêng tư ('public', 'private', 'followers')
+    created_at DATETIME DEFAULT GETDATE()  -- Thời gian share
+);
+
+-- Tạo index trên post_id để count số lượt share
+CREATE INDEX IX_Shares_PostId ON Shares(post_id);
+-- Tạo index trên user_id để lấy lịch sử share của user
+CREATE INDEX IX_Shares_UserId ON Shares(user_id);
+-- Tạo index ghép theo thời gian để sort
+CREATE INDEX IX_Shares_PostId_CreatedAt ON Shares(post_id, created_at DESC);
+
+-- Tạo bảng Notifications: Lưu thông báo cho user (reactions, shares, comments, follows, mentions)
+CREATE TABLE Notifications (
+    notification_id INT IDENTITY PRIMARY KEY,  -- ID tự tăng, khóa chính
+    user_id INT NOT NULL FOREIGN KEY REFERENCES Users(user_id) ON DELETE CASCADE,  -- User nhận thông báo
+    sender_id INT NULL FOREIGN KEY REFERENCES Users(user_id),  -- User tạo hành động (NULL nếu system)
+    post_id INT NULL FOREIGN KEY REFERENCES Posts(post_id) ON DELETE CASCADE,  -- Bài đăng liên quan (NULL nếu không liên quan)
+    type INT NOT NULL,  -- Loại thông báo (1=Reaction, 2=Share, 3=Comment, 4=Follow, 5=Mention)
+    content NVARCHAR(500) NOT NULL,  -- Nội dung thông báo chi tiết
+    is_read BIT DEFAULT 0,  -- Đã đọc chưa (0=chưa, 1=đã đọc)
+    created_at DATETIME DEFAULT GETDATE()  -- Thời gian tạo
+);
+
+-- Tạo index ghép trên user_id và is_read để lấy thông báo chưa đọc nhanh
+CREATE INDEX IX_Notifications_UserId_IsRead ON Notifications(user_id, is_read);
+-- Tạo index ghép theo thời gian để sort
+CREATE INDEX IX_Notifications_UserId_CreatedAt ON Notifications(user_id, created_at DESC);
+-- Tạo index trên post_id để lấy thông báo theo bài
+CREATE INDEX IX_Notifications_PostId ON Notifications(post_id);
+
+GO  -- Kết thúc batch cuối cùng
