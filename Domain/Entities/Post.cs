@@ -14,6 +14,7 @@ namespace UngDungMangXaHoi.Domain.Entities
         public string? location { get; set; }
         public string privacy { get; set; } = "public";  // public/private/followers
         public bool is_visible { get; set; } = true;
+        public int CommentsCount { get; set; } = 0;  // Số lượng comments
         public DateTimeOffset created_at { get; set; }
 
         // Navigation
