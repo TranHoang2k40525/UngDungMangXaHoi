@@ -6,20 +6,24 @@ using Microsoft.IdentityModel.Tokens;
 using UngDungMangXaHoi.Domain.Entities;
 using Microsoft.Extensions.Configuration;
 using System.Collections.Generic;
+using UngDungMangXaHoi.Domain.Interfaces;
+using System.Threading.Tasks;
 
 namespace UngDungMangXaHoi.Infrastructure.Services
 {
     public class JwtTokenService
     {
         private readonly IConfiguration _configuration;
+        private readonly IUserRepository _userRepository;
         private readonly string _accessSecret;
         private readonly string _refreshSecret;
         private readonly string _issuer;
         private readonly string _audience;
 
-        public JwtTokenService(IConfiguration configuration)
+        public JwtTokenService(IConfiguration configuration, IUserRepository userRepository)
         {
             _configuration = configuration;
+            _userRepository = userRepository;
             
             // ƯU TIÊN đọc từ Environment Variables (.env file), fallback sang appsettings.json
             _accessSecret = Environment.GetEnvironmentVariable("JWT_ACCESS_SECRET") 
@@ -52,6 +56,7 @@ namespace UngDungMangXaHoi.Infrastructure.Services
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, account.account_id.ToString()),
+                new Claim("account_id", account.account_id.ToString()),
                 new Claim(ClaimTypes.Email, account.email?.Value ?? string.Empty),
                 new Claim(ClaimTypes.Role, account.account_type.ToString()),
                 new Claim("account_type", account.account_type.ToString())
@@ -83,6 +88,7 @@ namespace UngDungMangXaHoi.Infrastructure.Services
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, account.account_id.ToString()),
+                new Claim("account_id", account.account_id.ToString()),
                 new Claim("account_type", account.account_type.ToString())
             };
 
