@@ -20,6 +20,10 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
     public DbSet<Post> Posts { get; set; } = null!;
     public DbSet<PostMedia> PostMedia { get; set; } = null!;
     public DbSet<Follow> Follows { get; set; } = null!;
+    public DbSet<Comment> Comments { get; set; } = null!;
+    public DbSet<CommentLike> CommentLikes { get; set; } = null!;
+    public DbSet<CommentEditHistory> CommentEditHistories { get; set; } = null!;
+    public DbSet<CommentMention> CommentMentions { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -35,6 +39,10 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new PostConfiguration());
             modelBuilder.ApplyConfiguration(new PostMediaConfiguration());
             modelBuilder.ApplyConfiguration(new FollowConfiguration());
+            modelBuilder.ApplyConfiguration(new CommentConfiguration());
+            modelBuilder.ApplyConfiguration(new CommentLikeConfiguration());
+            modelBuilder.ApplyConfiguration(new CommentEditHistoryConfiguration());
+            modelBuilder.ApplyConfiguration(new CommentMentionConfiguration());
         }
     }
 }
