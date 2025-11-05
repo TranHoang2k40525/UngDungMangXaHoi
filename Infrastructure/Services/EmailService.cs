@@ -133,5 +133,12 @@ namespace UngDungMangXaHoi.Infrastructure.Services
 
             await Task.Run(() => client.Send(mail));
         }
+
+        public async Task SendMentionNotificationAsync(int mentionedUserId, string mentionerUsername, int postId, int commentId)
+        {
+            // Email notification for mentions (optional)
+            System.Console.WriteLine($"[Email] Would send mention email to user {mentionedUserId}");
+            await Task.CompletedTask;
+        }
     }
 }
