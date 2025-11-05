@@ -367,4 +367,265 @@ CREATE TABLE ModerationLogs (
 CREATE INDEX IX_Posts_UserId_Created ON Posts (user_id, created_at DESC);
 -- Tạo index trên privacy để lọc theo quyền riêng tư nhanh
 CREATE INDEX IX_Posts_Privacy ON Posts (privacy);
+
+
+
 GO  -- Kết thúc batch cuối cùng
+
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID('Comments') 
+    AND name = 'mentioned_user_ids'
+)
+BEGIN
+    ALTER TABLE Comments
+    ADD mentioned_user_ids NVARCHAR(500) NULL;  -- CSV string: "1,2,3" cho user IDs được mention
+    PRINT '✓ Đã thêm cột: mentioned_user_ids';
+END
+ELSE
+    PRINT '○ Cột mentioned_user_ids đã tồn tại';
+GO
+
+-- Kiểm tra và thêm cột Hashtags (lưu danh sách hashtag)
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID('Comments') 
+    AND name = 'hashtags'
+)
+BEGIN
+    ALTER TABLE Comments
+    ADD hashtags NVARCHAR(500) NULL;  -- CSV string: "instagram,travel,food"
+    PRINT '✓ Đã thêm cột: hashtags';
+END
+ELSE
+    PRINT '○ Cột hashtags đã tồn tại';
+GO
+
+-- Kiểm tra và thêm cột LikesCount (đếm số lượt like)
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID('Comments') 
+    AND name = 'likes_count'
+)
+BEGIN
+    ALTER TABLE Comments
+    ADD likes_count INT NOT NULL DEFAULT 0;  -- Mặc định 0 likes
+    PRINT '✓ Đã thêm cột: likes_count';
+END
+ELSE
+    PRINT '○ Cột likes_count đã tồn tại';
+GO
+
+-- Kiểm tra và thêm cột RepliesCount (đếm số lượng reply)
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID('Comments') 
+    AND name = 'replies_count'
+)
+BEGIN
+    ALTER TABLE Comments
+    ADD replies_count INT NOT NULL DEFAULT 0;  -- Mặc định 0 replies
+    PRINT '✓ Đã thêm cột: replies_count';
+END
+ELSE
+    PRINT '○ Cột replies_count đã tồn tại';
+GO
+
+-- Kiểm tra và thêm cột UpdatedAt (thời gian cập nhật)
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID('Comments') 
+    AND name = 'updated_at'
+)
+BEGIN
+    ALTER TABLE Comments
+    ADD updated_at DATETIME NULL;  -- NULL nếu chưa update
+    PRINT '✓ Đã thêm cột: updated_at';
+END
+ELSE
+    PRINT '○ Cột updated_at đã tồn tại';
+GO
+
+-- Kiểm tra và thêm cột IsDeleted (soft delete)
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID('Comments') 
+    AND name = 'is_deleted'
+)
+BEGIN
+    ALTER TABLE Comments
+    ADD is_deleted BIT NOT NULL DEFAULT 0;  -- 0=hiển thị, 1=đã xóa (soft delete)
+    PRINT '✓ Đã thêm cột: is_deleted';
+END
+ELSE
+    PRINT '○ Cột is_deleted đã tồn tại';
+GO
+
+-- Mở rộng cột content từ 500 sang 2000 ký tự
+IF EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID('Comments') 
+    AND name = 'content'
+    AND max_length = 1000  -- nvarchar(500) = 1000 bytes
+)
+BEGIN
+    ALTER TABLE Comments
+    ALTER COLUMN content NVARCHAR(2000);  -- Tăng lên 2000 ký tự
+    PRINT '✓ Đã mở rộng cột content lên 2000 ký tự';
+END
+ELSE
+    PRINT '○ Cột content đã có kích thước phù hợp hoặc lớn hơn';
+GO
+
+-- Tạo index cho các cột mới (nếu chưa tồn tại)
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Comments_IsDeleted' AND object_id = OBJECT_ID('Comments'))
+BEGIN
+    CREATE INDEX IX_Comments_IsDeleted ON Comments(is_deleted);
+    PRINT '✓ Đã tạo index: IX_Comments_IsDeleted';
+END
+ELSE
+    PRINT '○ Index IX_Comments_IsDeleted đã tồn tại';
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Comments_LikesCount' AND object_id = OBJECT_ID('Comments'))
+BEGIN
+    CREATE INDEX IX_Comments_LikesCount ON Comments(likes_count DESC);
+    PRINT '✓ Đã tạo index: IX_Comments_LikesCount';
+END
+ELSE
+    PRINT '○ Index IX_Comments_LikesCount đã tồn tại';
+GO
+
+-- Cập nhật existing records với giá trị mặc định
+UPDATE Comments
+SET 
+    likes_count = ISNULL(likes_count, 0),
+    replies_count = ISNULL(replies_count, 0),
+    is_deleted = ISNULL(is_deleted, 0)
+WHERE 
+    likes_count IS NULL 
+    OR replies_count IS NULL 
+    OR is_deleted IS NULL;
+
+PRINT '✓ Đã cập nhật giá trị mặc định cho các bản ghi hiện có';
+GO
+
+-- Hiển thị cấu trúc bảng Comments sau khi cập nhật
+PRINT '';
+PRINT '===============================================';
+PRINT 'CẤU TRÚC BẢNG COMMENTS SAU KHI CẬP NHẬT:';
+PRINT '===============================================';
+SELECT 
+    COLUMN_NAME as [Tên Cột],
+    DATA_TYPE as [Kiểu Dữ Liệu],
+    CHARACTER_MAXIMUM_LENGTH as [Độ Dài],
+    IS_NULLABLE as [Nullable],
+    COLUMN_DEFAULT as [Giá Trị Mặc Định]
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME = 'Comments'
+ORDER BY ORDINAL_POSITION;
+GO
+
+
+
+-- Kiểm tra và thêm cột CommentsCount
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID('Posts') 
+    AND name = 'CommentsCount'
+)
+BEGIN
+    ALTER TABLE Posts
+    ADD CommentsCount INT NOT NULL DEFAULT 0;
+    PRINT '✓ Đã thêm cột CommentsCount vào bảng Posts';
+END
+ELSE
+    PRINT '○ Cột CommentsCount đã tồn tại';
+GO
+
+-- Cập nhật giá trị CommentsCount từ dữ liệu hiện có
+UPDATE Posts
+SET CommentsCount = (
+    SELECT COUNT(*)
+    FROM Comments
+    WHERE Comments.post_id = Posts.post_id
+      AND Comments.parent_comment_id IS NULL
+      AND Comments.is_deleted = 0
+);
+
+PRINT '✓ Đã cập nhật CommentsCount cho tất cả posts hiện có';
+GO
+
+-- Tạo index để tăng tốc query
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Posts_CommentsCount' AND object_id = OBJECT_ID('Posts'))
+BEGIN
+    CREATE INDEX IX_Posts_CommentsCount ON Posts(CommentsCount DESC);
+    PRINT '✓ Đã tạo index IX_Posts_CommentsCount';
+END
+ELSE
+    PRINT '○ Index IX_Posts_CommentsCount đã tồn tại';
+GO
+
+-- Hiển thị kết quả
+PRINT '';
+PRINT '===============================================';
+PRINT 'KẾT QUẢ:';
+PRINT '===============================================';
+SELECT 
+    post_id,
+    CommentsCount,
+    created_at
+FROM Posts
+ORDER BY post_id;
+GO
+
+
+
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[CommentEditHistories]') AND type in (N'U'))
+BEGIN
+    CREATE TABLE [dbo].[CommentEditHistories] (
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [CommentId] INT NOT NULL,
+        [OldContent] NVARCHAR(MAX) NOT NULL,
+        [NewContent] NVARCHAR(MAX) NOT NULL,
+        [EditedAt] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        CONSTRAINT [FK_CommentEditHistories_Comments_CommentId] FOREIGN KEY ([CommentId])
+            REFERENCES [dbo].[Comments] ([comment_id]) ON DELETE CASCADE
+    );
+    
+    CREATE INDEX [IX_CommentEditHistories_CommentId] ON [dbo].[CommentEditHistories] ([CommentId]);
+    CREATE INDEX [IX_CommentEditHistories_EditedAt] ON [dbo].[CommentEditHistories] ([EditedAt]);
+    
+    PRINT 'CommentEditHistories table created successfully';
+END
+ELSE
+BEGIN
+    PRINT 'CommentEditHistories table already exists';
+END
+GO
+
+-- Create CommentMentions table
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[CommentMentions]') AND type in (N'U'))
+BEGIN
+    CREATE TABLE [dbo].[CommentMentions] (
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [CommentId] INT NOT NULL,
+        [MentionedUserId] INT NOT NULL,
+        [CreatedAt] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        CONSTRAINT [FK_CommentMentions_Comments_CommentId] FOREIGN KEY ([CommentId])
+            REFERENCES [dbo].[Comments] ([comment_id]) ON DELETE CASCADE,
+        CONSTRAINT [FK_CommentMentions_Users_MentionedUserId] FOREIGN KEY ([MentionedUserId])
+            REFERENCES [dbo].[Users] ([user_id]) ON DELETE NO ACTION
+    );
+    
+    CREATE INDEX [IX_CommentMentions_CommentId] ON [dbo].[CommentMentions] ([CommentId]);
+    CREATE INDEX [IX_CommentMentions_MentionedUserId] ON [dbo].[CommentMentions] ([MentionedUserId]);
+    
+    PRINT 'CommentMentions table created successfully';
+END
+ELSE
+BEGIN
+    PRINT 'CommentMentions table already exists';
+END
+GO
