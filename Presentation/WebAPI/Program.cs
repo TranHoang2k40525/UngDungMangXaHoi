@@ -8,30 +8,38 @@ using UngDungMangXaHoi.Infrastructure.Repositories;
 using UngDungMangXaHoi.Infrastructure.Services;
 using UngDungMangXaHoi.Infrastructure.ExternalServices;
 using UngDungMangXaHoi.Application.Services;
+using UngDungMangXaHoi.WebAPI.Services;
 using UngDungMangXaHoi.Application.UseCases.Users;
 using UngDungMangXaHoi.Domain.Interfaces;
-using System.Text.Json.Serialization; // Thêm namespace này
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Load .env as early as possible
+// ======================================
+// 1️⃣ Load biến môi trường từ file .env
+// ======================================
 Env.TraversePath().Load();
 
-// Add services to the container.
+// ======================================
+// 2️⃣ Add Controllers & Swagger
+// ======================================
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()); // Thêm dòng này
+        // Serialize Enum dạng string thay vì số
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    // Use full type name (replace '+' from nested types) to generate unique schema ids
     options.CustomSchemaIds(type => (type.FullName ?? type.Name).Replace("+", "."));
 });
 
-// Database configuration - ƯU TIÊN .env, fallback appsettings.json
+// ======================================
+// 3️⃣ Database Configuration (ưu tiên .env)
+// ======================================
 var sqlServer = Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost";
 var sqlPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "1433";
 var sqlUser = Environment.GetEnvironmentVariable("DB_USER") ?? "sa";
@@ -39,27 +47,34 @@ var sqlPass = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "123456789";
 var sqlDb = Environment.GetEnvironmentVariable("DB_NAME") ?? "ungdungmangxahoiv_2";
 var sqlTrust = Environment.GetEnvironmentVariable("SQLSERVER_TRUST_CERT") ?? "true";
 
-var connectionString = $"Server={sqlServer},{sqlPort};Database={sqlDb};User Id={sqlUser};Password={sqlPass};TrustServerCertificate={sqlTrust};";
+var connectionString =
+    $"Server={sqlServer},{sqlPort};Database={sqlDb};User Id={sqlUser};Password={sqlPass};TrustServerCertificate={sqlTrust};";
 
-Console.WriteLine($"[DB CONFIG] Server: {sqlServer}:{sqlPort}, Database: {sqlDb}");
+Console.WriteLine($"[DB CONFIG] ✅ Server: {sqlServer}:{sqlPort}, Database: {sqlDb}");
 
-builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(connectionString));
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(connectionString));
 
-// JWT Authentication - ƯU TIÊN .env, fallback appsettings.json
-var jwtAccessSecret = Environment.GetEnvironmentVariable("JWT_ACCESS_SECRET") 
-    ?? builder.Configuration["JwtSettings:AccessSecret"] 
-    ?? "kkwefihewofjevwljflwljgjewjwjegljlwflwflew";
-    
-var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER") 
-    ?? builder.Configuration["JwtSettings:Issuer"] 
-    ?? "UngDungMangXaHoi";
-    
-var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") 
-    ?? builder.Configuration["JwtSettings:Audience"] 
-    ?? "UngDungMangXaHoi";
+// ======================================
+// 4️⃣ JWT Authentication Configuration
+// ======================================
+var jwtAccessSecret =
+    Environment.GetEnvironmentVariable("JWT_ACCESS_SECRET") ??
+    builder.Configuration["JwtSettings:AccessSecret"] ??
+    "kkwefihewofjevwljflwljgjewjwjegljlwflwflew";
 
-Console.WriteLine($"[JWT AUTH] AccessSecret length: {jwtAccessSecret.Length}");
-Console.WriteLine($"[JWT AUTH] Issuer: {jwtIssuer}, Audience: {jwtAudience}");
+var jwtIssuer =
+    Environment.GetEnvironmentVariable("JWT_ISSUER") ??
+    builder.Configuration["JwtSettings:Issuer"] ??
+    "UngDungMangXaHoi";
+
+var jwtAudience =
+    Environment.GetEnvironmentVariable("JWT_AUDIENCE") ??
+    builder.Configuration["JwtSettings:Audience"] ??
+    "UngDungMangXaHoi";
+
+Console.WriteLine($"[JWT AUTH] ✅ AccessSecret length: {jwtAccessSecret.Length}");
+Console.WriteLine($"[JWT AUTH] ✅ Issuer: {jwtIssuer}, Audience: {jwtAudience}");
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -83,7 +98,9 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("AdminOnly", policy => policy.RequireClaim("account_type", "Admin"));
 });
 
-// Repositories
+// ======================================
+// 5️⃣ Đăng ký Repository
+// ======================================
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 builder.Services.AddScoped<IAdminRepository, AdminRepository>();
@@ -91,35 +108,53 @@ builder.Services.AddScoped<IOTPRepository, OTPRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<ILoginHistoryRepository, LoginHistoryRepository>();
 builder.Services.AddScoped<IPostRepository, PostRepository>();
+builder.Services.AddScoped<IStoryRepository, StoryRepository>();
 
-// Services
+// ======================================
+// 6️⃣ Đăng ký Service
+// ======================================
+builder.Services.AddScoped<StoryService>();
 builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddScoped<ITokenService, AuthService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, EmailService>();
 builder.Services.AddScoped<UserProfileService>();
-builder.Services.AddScoped<VideoTranscodeService>();
+builder.Services.AddScoped<JwtTokenService>();
 
-// External Services
+// Dịch vụ chạy nền để dọn Story hết hạn
+builder.Services.AddHostedService<ExpiredStoriesCleanupService>();
+
+// ======================================
+// 7️⃣ Cloudinary Service (ưu tiên .env)
+// ======================================
 builder.Services.AddScoped<CloudinaryService>(provider =>
 {
-    var config = builder.Configuration.GetSection("Cloudinary");
-    return new CloudinaryService(
-        config["CloudName"] ?? "",
-        config["ApiKey"] ?? "",
-        config["ApiSecret"] ?? ""
-    );
+    var cloudName = Environment.GetEnvironmentVariable("CLOUDINARY_CLOUD_NAME")
+                    ?? builder.Configuration["Cloudinary:CloudName"]
+                    ?? "";
+    var apiKey = Environment.GetEnvironmentVariable("CLOUDINARY_API_KEY")
+                 ?? builder.Configuration["Cloudinary:ApiKey"]
+                 ?? "";
+    var apiSecret = Environment.GetEnvironmentVariable("CLOUDINARY_API_SECRET")
+                    ?? builder.Configuration["Cloudinary:ApiSecret"]
+                    ?? "";
+
+    Console.WriteLine($"[CLOUDINARY] ✅ Using cloud: {cloudName}");
+
+    return new CloudinaryService(cloudName, apiKey, apiSecret);
 });
 
-// Đăng ký JwtTokenService
-builder.Services.AddScoped<JwtTokenService>();
-// Use Cases
+// ======================================
+// 8️⃣ Use Case Layer
+// ======================================
 builder.Services.AddScoped<RegisterUser>();
 builder.Services.AddScoped<LoginUser>();
 builder.Services.AddScoped<UpdateProfile>();
 
-// CORS
+// ======================================
+// 9️⃣ CORS
+// ======================================
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -130,47 +165,37 @@ builder.Services.AddCors(options =>
     });
 });
 
+// ======================================
+// 🔟 Build App
+// ======================================
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// ======================================
+// 🔹 Middleware Pipeline
+// ======================================
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// app.UseHttpsRedirection(); // Comment out for development
+// app.UseHttpsRedirection(); // Bỏ qua trong dev
+
 app.UseCors("AllowAll");
-// Serve static files from Assets folder (Images, Videos) with Range support and proper content types
+
+// Serve thư mục Assets (ảnh/video upload)
 var assetsPath = Path.Combine(Directory.GetCurrentDirectory(), "Assets");
 if (!Directory.Exists(assetsPath))
 {
     Directory.CreateDirectory(assetsPath);
 }
-var contentTypeProvider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
-// Ensure common video types are mapped
-contentTypeProvider.Mappings[".mp4"] = "video/mp4";
-contentTypeProvider.Mappings[".m4v"] = "video/mp4";
-contentTypeProvider.Mappings[".mov"] = "video/quicktime";
-contentTypeProvider.Mappings[".webm"] = "video/webm";
-contentTypeProvider.Mappings[".mkv"] = "video/x-matroska";
 
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(assetsPath),
-    RequestPath = "/Assets",
-    ContentTypeProvider = contentTypeProvider,
-    ServeUnknownFileTypes = true,
-    OnPrepareResponse = ctx =>
-    {
-        // Add Accept-Ranges and Cache-Control for smoother playback
-        ctx.Context.Response.Headers["Accept-Ranges"] = "bytes";
-        if (!ctx.Context.Response.Headers.ContainsKey("Cache-Control"))
-        {
-            ctx.Context.Response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
-        }
-    }
+    RequestPath = "/Assets"
 });
+
 app.UseAuthentication();
 app.UseAuthorization();
 
