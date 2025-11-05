@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImageManipulator from 'expo-image-manipulator';
 
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
-export const API_BASE_URL = 'http://192.168.1.103:5297'; // Backend đang chạy trên IP này
+export const API_BASE_URL = 'http://192.168.0.102:5297'; // Backend đang chạy trên IP này
 
 // Hàm helper để gọi API
 const apiCall = async (endpoint, options = {}) => {
@@ -225,11 +225,29 @@ export const logout = async () => {
 // =================== PROFILE APIs ===================
 export const getProfile = async () => {
   const headers = await getAuthHeaders();
+  const token = await AsyncStorage.getItem('accessToken');
+  console.log('[API] getProfile - Token (first 50 chars):', token?.substring(0, 50));
+  
   const result = await apiCall('/api/users/profile', {
     method: 'GET',
     headers,
   });
   // API trả { message, data }
+  console.log('[API] getProfile - Response data:', JSON.stringify(result?.data).substring(0, 200));
+  return result?.data || null;
+};
+
+export const getProfileByUsername = async (username) => {
+  console.log('[API] getProfileByUsername - Username:', username);
+  
+  const result = await apiCall(`/api/users/profile/by-username/${encodeURIComponent(username)}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  
+  console.log('[API] getProfileByUsername - Response:', JSON.stringify(result?.data).substring(0, 200));
   return result?.data || null;
 };
 
@@ -569,4 +587,80 @@ export const deletePost = async (postId) => {
     throw new Error(json?.message || 'Không thể xóa bài đăng');
   }
   return true;
+};
+
+// ==================== COMMENTS API ====================
+
+// Lấy danh sách comments của 1 bài đăng
+export const getComments = async (postId, page = 1, pageSize = 50) => {
+  const headers = await getAuthHeaders();
+  const result = await apiCall(`/api/comments/post/${postId}?page=${page}&pageSize=${pageSize}`, {
+    method: 'GET',
+    headers,
+  });
+  // Backend trả về: { success, comments, totalCount, page, pageSize }
+  return result;
+};
+
+// Thêm comment mới
+export const addComment = async (postId, content, parentCommentId = null) => {
+  const headers = await getAuthHeaders();
+  const result = await apiCall(`/api/comments`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      PostId: postId,
+      Content: content,
+      ParentCommentId: parentCommentId,
+    }),
+  });
+  // Backend trả về: { success, message, comment }
+  return result;
+};
+
+// Like comment (POST)
+export const likeComment = async (commentId) => {
+  const headers = await getAuthHeaders();
+  const result = await apiCall(`/api/comments/${commentId}/like`, {
+    method: 'POST',
+    headers,
+  });
+  // Backend trả về: { success, message, likesCount }
+  return result;
+};
+
+// Unlike comment (DELETE)
+export const unlikeComment = async (commentId) => {
+  const headers = await getAuthHeaders();
+  const result = await apiCall(`/api/comments/${commentId}/like`, {
+    method: 'DELETE',
+    headers,
+  });
+  // Backend trả về: { success, message, likesCount }
+  return result;
+};
+
+// Xóa comment
+export const deleteComment = async (commentId) => {
+  const headers = await getAuthHeaders();
+  const result = await apiCall(`/api/comments/${commentId}`, {
+    method: 'DELETE',
+    headers,
+  });
+  // Backend trả về: { success, message, commentId, postId }
+  return result;
+};
+
+// Cập nhật comment
+export const updateComment = async (commentId, content) => {
+  const headers = await getAuthHeaders();
+  const result = await apiCall(`/api/comments/${commentId}`, {
+    method: 'PUT',
+    headers: { ...headers, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      Content: content,
+    }),
+  });
+  // Backend trả về: { success, message, comment }
+  return result;
 };
