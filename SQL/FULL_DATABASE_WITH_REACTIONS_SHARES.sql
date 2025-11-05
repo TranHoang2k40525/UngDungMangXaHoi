@@ -1,10 +1,13 @@
-﻿-- Tạo database chính cho ứng dụng mạng xã hội
-CREATE DATABASE ungdungmangxahoiv_2;
-GO  -- Kết thúc batch lệnh, thực thi lệnh trước
-
--- Chọn database vừa tạo để thực hiện các lệnh tiếp theo
-USE ungdungmangxahoiv_2;
-GO  -- Kết thúc batch
+-- =====================================================================
+-- SCRIPT TẠO BẢNG CHO DATABASE: ungdungmangxahoiv_2
+-- Bao gồm: Tất cả bảng gốc + Reactions + Shares + Notifications
+-- Tương thích với HeidiSQL
+-- 
+-- HƯỚNG DẪN:
+-- 1. Tạo database "ungdungmangxahoiv_2" trong HeidiSQL trước
+-- 2. Chọn database đó (click vào tên database)
+-- 3. Chạy script này (F9)
+-- =====================================================================
 
 /* ==========================
    BẢNG TÀI KHOẢN CHUNG & XÁC THỰC
@@ -304,27 +307,6 @@ CREATE TABLE SearchHistory (
 CREATE INDEX IX_SearchHistory_UserId ON SearchHistory (user_id);
 
 /* ==========================
-   BẢNG THÔNG BÁO (THÊM CONTENT)
-   Phần này tạo bảng cho thông báo in-app/push
-========================== */
--- Tạo bảng Notifications: Quản lý thông báo (like, comment, follow...)
-CREATE TABLE Notifications (
-    notification_id INT IDENTITY PRIMARY KEY,  -- ID tự tăng, khóa chính
-    user_id INT FOREIGN KEY REFERENCES Users(user_id),  -- Người nhận thông báo (user thường)
-    sender_id INT FOREIGN KEY REFERENCES Users(user_id),  -- Người tạo hành động (user thường)
-    type NVARCHAR(50),  -- Loại thông báo ('like', 'comment', 'follow'...)
-    reference_id INT,  -- ID liên quan (post_id, comment_id..., có thể rỗng)
-    content NVARCHAR(500) NOT NULL,  -- Nội dung chi tiết thông báo (bắt buộc, e.g., "Bạn có like mới")
-    is_read BIT DEFAULT 0,  -- Cờ đã đọc (0=chưa)
-    created_at DATETIME DEFAULT GETDATE()  -- Thời gian tạo
-);
-
--- Tạo index ghép trên user_id và is_read để lấy thông báo chưa đọc nhanh
-CREATE INDEX IX_Notifications_UserId_IsRead ON Notifications (user_id, is_read);
--- Tạo index trên created_at (DESC) để sắp xếp thông báo theo thời gian
-CREATE INDEX IX_Notifications_Created ON Notifications (created_at DESC);
-
-/* ==========================
    BẢNG AI MODERATION (CHỈNH FK SANG ACCOUNTS)
    Phần này tạo bảng cho kiểm duyệt nội dung AI và nhật ký
 ========================== */
@@ -367,7 +349,7 @@ CREATE TABLE ModerationLogs (
 CREATE INDEX IX_Posts_UserId_Created ON Posts (user_id, created_at DESC);
 -- Tạo index trên privacy để lọc theo quyền riêng tư nhanh
 CREATE INDEX IX_Posts_Privacy ON Posts (privacy);
-GO  -- Kết thúc batch cuối cùng
+
 
 /* =====================================================================
    BẢNG MỚI: REACTIONS, SHARES, NOTIFICATIONS (CHO TÍNH NĂNG REAL-TIME)
@@ -427,4 +409,3 @@ CREATE INDEX IX_Notifications_UserId_CreatedAt ON Notifications(user_id, created
 -- Tạo index trên post_id để lấy thông báo theo bài
 CREATE INDEX IX_Notifications_PostId ON Notifications(post_id);
 
-GO  -- Kết thúc batch cuối cùng
