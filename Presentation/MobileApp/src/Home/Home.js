@@ -6,123 +6,24 @@ import {
     TextInput,
     TouchableOpacity,
     StyleSheet,
+    ScrollView,
     FlatList,
     Platform,
     PermissionsAndroid,
     Share,
-    KeyboardAvoidingView,
-    Modal,
-    Alert,
 } from "react-native";
+import { StoryItem, StoryAddItem } from './StoryComponents';
 import { RefreshControl } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { onTabTriple } from '../Utils/TabRefreshEmitter';
 import { useUser } from "../Context/UserContext";
-import { useFollow } from "../Context/FollowContext";
 import * as ImagePicker from "expo-image-picker";
 import CommentsModal from "./CommentsModal";
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getFeed, updatePostPrivacy, updatePostCaption, deletePost, getProfile, followUser, unfollowUser } from "../API/Api";
+import { getFeed, updatePostPrivacy, updatePostCaption, deletePost, getProfile, API_BASE_URL } from "../API/Api";
 import { Ionicons } from "@expo/vector-icons";
-import { VideoView, useVideoPlayer } from "expo-video";
-
-// Component wrapper cho video thumbnail trong feed
-const VideoThumbnail = React.memo(({ videoUrl, style, onPress }) => {
-    const player = useVideoPlayer(videoUrl, (p) => {
-        if (p) {
-            p.muted = true;
-            p.loop = false;
-        }
-    });
-    
-    return (
-        <TouchableOpacity activeOpacity={0.9} onPress={onPress}>
-            <VideoView
-                style={style}
-                player={player}
-                contentFit="cover"
-                nativeControls={false}
-            />
-            <View style={styles.playOverlay} pointerEvents="none">
-                <Ionicons name="play" size={36} color="#fff" />
-            </View>
-        </TouchableOpacity>
-    );
-});
-
-// Dữ liệu stories
-const storiesData = [
-    {
-        id: "1",
-        name: "Hoàng",
-        avatar: require("../Assets/trai.png"),
-        hasStory: true,
-    },
-    {
-        id: "2",
-        name: "Quân",
-        avatar: require("../Assets/noo.png"),
-        hasStory: true,
-    },
-    {
-        id: "3",
-        name: "Trang",
-        avatar: require("../Assets/gai2.png"),
-        hasStory: true,
-    },
-    {
-        id: "4",
-        name: "Vinh",
-        avatar: require("../Assets/meo.png"),
-        hasStory: true,
-    },
-    {
-        id: "5",
-        name: "Linh",
-        avatar: require("../Assets/gai1.png"),
-        hasStory: false,
-    },
-    {
-        id: "6",
-        name: "Việt",
-        avatar: require("../Assets/embe.png"),
-        hasStory: true,
-    },
-    {
-        id: "7",
-        name: "Tùng",
-        avatar: require("../Assets/sontung.png"),
-        hasStory: false,
-    },
-];
-
-// Component Story Item
-const StoryItem = ({ id, name, avatar, hasStory, navigation }) => {
-    const handleStoryPress = () => {
-        if (hasStory) {
-            navigation.navigate("StoryViewer", {
-                storyId: id,
-                userName: name,
-                userAvatar: avatar,
-            });
-        }
-    };
-
-    return (
-        <TouchableOpacity style={styles.storyItem} onPress={handleStoryPress}>
-            <View
-                style={[
-                    styles.storyAvatarContainer,
-                    hasStory && styles.storyAvatarBorder,
-                ]}
-            >
-                <Image source={avatar} style={styles.storyAvatar} />
-            </View>
-            <Text style={styles.storyName}>{name}</Text>
-        </TouchableOpacity>
-    );
-};
+import { Video } from "expo-av";
+import { Alert } from 'react-native';
 
 // Carousel for multiple images like Instagram
 const PostImagesCarousel = ({ images = [] }) => {
@@ -160,76 +61,228 @@ const PostImagesCarousel = ({ images = [] }) => {
 
 export default function Home() {
     const insets = useSafeAreaInsets();
-    const BOTTOM_NAV_HEIGHT = 0; // dùng tab bar toàn cục, không thêm padding dưới
-    const { markAsFollowed, markAsUnfollowed, isFollowed } = useFollow();
-    // Per-post local UI state (likes/shares/comments counts)
-    const [postStates, setPostStates] = useState({}); // { [postId]: { liked, likes, shares, comments } }
+    const BOTTOM_NAV_HEIGHT = 0;
+    const [postStates, setPostStates] = useState({});
     const [activeCommentsPostId, setActiveCommentsPostId] = useState(null);
     const [showComments, setShowComments] = useState(false);
     const [posts, setPosts] = useState([]);
+    const [myStorySlot, setMyStorySlot] = useState({ 
+        id: 'me', 
+        name: 'Tin của bạn', 
+        avatar: require('../Assets/trai.png'), 
+        hasStory: false,
+        storyData: null 
+    });
     const [loading, setLoading] = useState(true);
-    const [currentUserId, setCurrentUserId] = useState(null); // lưu dạng number khi có thể
+    const [currentUserId, setCurrentUserId] = useState(null);
     const [refreshing, setRefreshing] = useState(false);
-    // Pagination state
-    const [currentPage, setCurrentPage] = useState(1);
-    const [hasMorePosts, setHasMorePosts] = useState(true);
-    const [loadingMore, setLoadingMore] = useState(false);
-    const flatListRef = React.useRef(null);
-    // 3-dots menu & privacy sheet
     const [optionsPostId, setOptionsPostId] = useState(null);
     const [showOptions, setShowOptions] = useState(false);
     const [showPrivacySheet, setShowPrivacySheet] = useState(false);
     const [busy, setBusy] = useState(false);
-    // Inline caption edit state
     const [editingCaptionPostId, setEditingCaptionPostId] = useState(null);
     const [captionDraft, setCaptionDraft] = useState("");
     const navigation = useNavigation();
     const route = useRoute();
+    const { user: ctxUser } = useUser();
 
+    // Function to load user avatar and info
+    const loadUserAvatar = async () => {
+        try {
+            const userStr = await AsyncStorage.getItem('userInfo');
+            if (userStr) {
+                const user = JSON.parse(userStr);
+                const rawAvatar = user?.avatarUrl ?? user?.avatar_url ?? null;
+                const avatarUri = rawAvatar ? 
+                    (String(rawAvatar).startsWith('http') ? rawAvatar : `${API_BASE_URL}${rawAvatar}`) 
+                    : null;
+                
+                setMyStorySlot(prev => ({ 
+                    ...prev, 
+                    name: user?.username || prev.name, 
+                    avatar: avatarUri ? { uri: avatarUri } : require('../Assets/trai.png')
+                }));
+                
+                console.log('[HOME] Avatar updated:', avatarUri);
+                
+                // Also update story data with new avatar
+                const savedStories = await AsyncStorage.getItem('currentUserStories');
+                if (savedStories) {
+                    let storiesArray = JSON.parse(savedStories);
+                    // Update userAvatar in all stories
+                    storiesArray = storiesArray.map(story => ({
+                        ...story,
+                        userAvatar: avatarUri,
+                        userName: user?.username || story.userName
+                    }));
+                    await AsyncStorage.setItem('currentUserStories', JSON.stringify(storiesArray));
+                    
+                    setMyStorySlot(prev => ({
+                        ...prev,
+                        storyData: storiesArray
+                    }));
+                }
+            }
+        } catch (e) {
+            console.warn('[HOME] Error loading user avatar:', e);
+        }
+    };
+
+    // Function to check and update current user's story status
+    const checkUserStory = async (userId) => {
+        try {
+            console.log('[HOME] Checking stories for user:', userId);
+            
+            // ✅ Load array stories từ AsyncStorage
+            const savedStories = await AsyncStorage.getItem('currentUserStories');
+            if (savedStories) {
+                let storiesArray = JSON.parse(savedStories);
+                
+                // Lọc bỏ stories đã hết hạn 24h
+                const now = Date.now();
+                const validStories = storiesArray.filter(s => {
+                    const age = now - new Date(s.createdAt).getTime();
+                    return age < 24 * 60 * 60 * 1000;
+                });
+                
+                if (validStories.length > 0) {
+                    console.log('[HOME] Found', validStories.length, 'valid stories from AsyncStorage');
+                    
+                    // Update lại AsyncStorage nếu đã lọc bỏ stories cũ
+                    if (validStories.length !== storiesArray.length) {
+                        await AsyncStorage.setItem('currentUserStories', JSON.stringify(validStories));
+                    }
+                    
+                    setMyStorySlot(prev => ({
+                        ...prev,
+                        hasStory: true,
+                        id: 'me',
+                        storyData: validStories
+                    }));
+                    return;
+                } else {
+                    // Tất cả stories đã hết hạn
+                    console.log('[HOME] All stories expired, removing from AsyncStorage');
+                    await AsyncStorage.removeItem('currentUserStories');
+                    setMyStorySlot(prev => ({ 
+                        ...prev, 
+                        hasStory: false,
+                        storyData: null 
+                    }));
+                    return;
+                }
+            }
+            
+            // ✅ Nếu không có trong AsyncStorage, gọi API
+            const response = await fetch(`${API_BASE_URL}/api/stories/user/${userId}/active`);
+            
+            if (!response.ok) {
+                console.log('[HOME] No active stories found from API');
+                setMyStorySlot(prev => ({ 
+                    ...prev, 
+                    hasStory: false,
+                    storyData: null 
+                }));
+                return;
+            }
+
+            const data = await response.json();
+            console.log('[HOME] Stories from API:', data);
+            
+            // ✅ API có thể trả về array hoặc single object
+            let storiesFromAPI = [];
+            if (data?.data) {
+                storiesFromAPI = Array.isArray(data.data) ? data.data : [data.data];
+            }
+            
+            if (storiesFromAPI.length > 0) {
+                const storyDataArray = storiesFromAPI.map(story => ({
+                    id: story.id,
+                    mediaUrl: story.mediaUrl,
+                    mediaType: story.mediaType,
+                    userName: story.userName,
+                    userAvatar: story.userAvatar,
+                    createdAt: story.createdAt,
+                    viewCount: story.viewCount || 0
+                }));
+                
+                setMyStorySlot(prev => ({
+                    ...prev,
+                    hasStory: true,
+                    id: 'me',
+                    storyData: storyDataArray
+                }));
+                
+                // Lưu vào AsyncStorage
+                await AsyncStorage.setItem('currentUserStories', JSON.stringify(storyDataArray));
+                console.log('[HOME] Loaded', storyDataArray.length, 'stories from API');
+            } else {
+                setMyStorySlot(prev => ({ 
+                    ...prev, 
+                    hasStory: false,
+                    storyData: null 
+                }));
+            }
+        } catch (error) {
+            console.error('[HOME] Error checking user stories:', error);
+        }
+    };
+
+
+
+    // Load user info and initial data
     useEffect(() => {
         let mounted = true;
         (async () => {
             try {
-                // Load current user id from storage to enable owner-only options
+                // Load current user id from storage
                 try {
                     const userStr = await AsyncStorage.getItem('userInfo');
                     if (userStr) {
                         const user = JSON.parse(userStr);
                         const raw = user?.user_id ?? user?.userId ?? user?.UserId ?? user?.id ?? null;
                         const uidNum = raw != null ? Number(raw) : null;
-                        if (mounted) setCurrentUserId(Number.isFinite(uidNum) ? uidNum : null);
-                        console.log('[HOME] AsyncStorage userInfo ->', { raw, uidNum });
+                        
+                        if (mounted && Number.isFinite(uidNum)) {
+                            setCurrentUserId(uidNum);
+                            console.log('[HOME] User ID set from AsyncStorage:', uidNum);
+                            
+                            // Load user's story
+                            await checkUserStory(uidNum);
+                        }
+                        
+                        // Update myStorySlot avatar/name
+                        if (mounted) {
+                            await loadUserAvatar();
+                        }
                     }
-                } catch {}
-                // Attempt to cross-check with profile API (best-effort)
+                } catch (e) {
+                    console.warn('[HOME] Error loading user from AsyncStorage:', e);
+                }
+                
+                // Cross-check with profile API
                 try {
                     const prof = await getProfile();
-                    // API trả camelCase (userId). Fallback: UserId.
                     const profId = prof?.userId ?? prof?.UserId;
                     if (profId != null) {
                         const uid = Number(profId);
-                        if (Number.isFinite(uid)) {
-                            if (mounted) setCurrentUserId(uid);
-                            console.log('[HOME] getProfile() -> userId set:', uid);
-                        } else {
-                            console.log('[HOME] getProfile() -> invalid userId:', profId);
+                        if (Number.isFinite(uid) && mounted) {
+                            setCurrentUserId(uid);
+                            console.log('[HOME] User ID set from getProfile:', uid);
                         }
-                    } else {
-                        console.log('[HOME] getProfile() -> no userId on payload');
                     }
                 } catch (e) {
                     console.log('[HOME] getProfile() failed (non-fatal):', e?.message || e);
                 }
-                // Load first page of feed
-                const data = await getFeed(1, 10);
+                
+                // Load feed
+                const data = await getFeed();
                 if (mounted) {
                     let arr = Array.isArray(data) ? data : [];
-                    // Sort newest-first just in case
                     arr = arr.slice().sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
                     setPosts(arr);
-                    setCurrentPage(1);
-                    setHasMorePosts(arr.length >= 10);
-                    // seed per-post state
+                    
+                    // Seed per-post state
                     const next = {};
                     for (const p of arr) {
                         next[p.id] = {
@@ -242,7 +295,7 @@ export default function Home() {
                     setPostStates(next);
                 }
             } catch (e) {
-                console.warn('Feed error', e);
+                console.warn('[HOME] Feed error', e);
             } finally {
                 if (mounted) setLoading(false);
             }
@@ -250,30 +303,91 @@ export default function Home() {
         return () => { mounted = false; };
     }, []);
 
-    // Refresh feed if a parent navigates with { refresh: true }
+    // Listen for story creation from CreateStory screen
     useEffect(() => {
-        const unsubscribe = navigation.addListener('focus', () => {
+        if (route.params?.createdStory && route.params?.newStory) {
+            const story = route.params.newStory;
+            console.log('[HOME] Received new story from CreateStory:', story);
+            
+            const newStoryData = {
+                id: story.id,
+                mediaUrl: story.mediaUrl,
+                mediaType: story.mediaType,
+                createdAt: story.createdAt,
+                userName: story.userName,
+                userAvatar: story.userAvatar,
+                viewCount: 0
+            };
+            
+            // ✅ Thêm story mới vào array thay vì ghi đè
+            (async () => {
+                try {
+                    const savedStories = await AsyncStorage.getItem('currentUserStories');
+                    let storiesArray = savedStories ? JSON.parse(savedStories) : [];
+                    
+                    // Loại bỏ stories đã hết hạn 24h
+                    const now = Date.now();
+                    storiesArray = storiesArray.filter(s => {
+                        const age = now - new Date(s.createdAt).getTime();
+                        return age < 24 * 60 * 60 * 1000;
+                    });
+                    
+                    // Thêm story mới vào đầu array
+                    storiesArray.unshift(newStoryData);
+                    
+                    // Lưu lại
+                    await AsyncStorage.setItem('currentUserStories', JSON.stringify(storiesArray));
+                    console.log('[HOME] Added new story to array, total:', storiesArray.length);
+                    
+                    // Update UI
+                    setMyStorySlot(prev => ({
+                        ...prev,
+                        id: 'me',
+                        hasStory: true,
+                        storyData: storiesArray
+                    }));
+                } catch (e) {
+                    console.warn('[HOME] Failed to save story array:', e);
+                }
+            })();
+
+            // Clear params
+            navigation.setParams({
+                createdStory: undefined,
+                newStory: undefined,
+                timestamp: undefined
+            });
+        }
+    }, [route.params?.timestamp]);
+
+    // Refresh feed when screen focuses + reload avatar
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('focus', async () => {
+            console.log('[HOME] Screen focused');
+            
+            // ✅ Reload avatar mỗi khi focus (để cập nhật nếu đổi từ Profile)
+            await loadUserAvatar();
+            
+            // Refresh feed if requested
             if (route?.params?.refresh) {
-                onRefreshFeed();
-                try { navigation.setParams({ refresh: false }); } catch {}
+                await onRefreshFeed();
+                try { 
+                    navigation.setParams({ refresh: false }); 
+                } catch {}
             }
         });
         return unsubscribe;
     }, [navigation, route?.params?.refresh]);
 
-    // Log ownership mapping whenever posts or user changes
+    // Reload story whenever currentUserId changes
     useEffect(() => {
-        const uid = getOwnerId();
-        console.log('[HOME] Current userId used for ownership:', uid, 'Context:', ctxUser?.user_id ?? ctxUser?.UserId ?? ctxUser?.id, 'State:', currentUserId);
-        posts.forEach(p => {
-            const pid = p?.user?.id != null ? Number(p.user.id) : null;
-            const own = Number.isFinite(uid) && Number.isFinite(pid) && uid === pid;
-            console.log('[HOME] Post ownership check ->', { postId: p.id, postUserId: pid, isOwner: own });
-        });
-    }, [posts, currentUserId, ctxUser]);
+        if (currentUserId != null && Number.isFinite(currentUserId)) {
+            console.log('[HOME] CurrentUserId changed, reloading story:', currentUserId);
+            checkUserStory(currentUserId);
+        }
+    }, [currentUserId]);
 
     const handleCameraPress = async () => {
-        // Request camera permissions using Expo ImagePicker
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== "granted") {
             console.log("Camera permission not granted");
@@ -281,14 +395,15 @@ export default function Home() {
         }
 
         try {
-            const result = await ImagePicker.launchCameraAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            const cameraOpts = {
                 quality: 1,
                 allowsEditing: false,
                 exif: false,
-            });
+                mediaTypes: ImagePicker.MediaTypeOptions.Images
+            };
 
-            // Newer Expo ImagePicker returns { canceled, assets }
+            const result = await ImagePicker.launchCameraAsync(cameraOpts);
+
             if (result.canceled) return;
             const uri = result.assets && result.assets.length > 0 ? result.assets[0].uri : result.uri;
             if (uri) {
@@ -332,15 +447,12 @@ export default function Home() {
     };
 
     const onRepost = (postId) => {
-        // Stub: later hook to real repost flow
         setPostStates((prev) => {
             const cur = prev[postId] || { liked: false, likes: 0, shares: 0, comments: 0 };
             return { ...prev, [postId]: { ...cur, shares: cur.shares + 1 } };
         });
     };
 
-    // Ưu tiên lấy user id từ UserContext, fallback sang state đọc từ AsyncStorage
-    const { user: ctxUser } = useUser();
     const getOwnerId = () => {
         const fromCtx = ctxUser?.user_id ?? ctxUser?.userId ?? ctxUser?.UserId ?? ctxUser?.id;
         const n1 = fromCtx != null ? Number(fromCtx) : null;
@@ -348,6 +460,7 @@ export default function Home() {
         const n2 = currentUserId != null ? Number(currentUserId) : null;
         return Number.isFinite(n2) ? n2 : null;
     };
+
     const isOwner = (post) => {
         const uid = getOwnerId();
         const pidRaw = post?.user?.id;
@@ -355,25 +468,10 @@ export default function Home() {
         return Number.isFinite(uid) && Number.isFinite(pid) && uid === pid;
     };
 
-    const handleFollow = async (post) => {
-        const targetUserId = post?.user?.id;
-        if (!targetUserId) return;
-        
-        try {
-            await followUser(targetUserId);
-            console.log('[HOME] Followed user:', targetUserId);
-            // Mark as followed in global context (đồng bộ với Video và Profile)
-            markAsFollowed(targetUserId);
-        } catch (e) {
-            console.warn('[HOME] Follow error:', e);
-            Alert.alert('Lỗi', e.message || 'Không thể theo dõi người dùng');
-        }
-    };
-
     const openOptionsFor = (post) => {
         const uid = getOwnerId();
         const pid = post?.user?.id != null ? Number(post.user.id) : null;
-        console.log('[HOME] Open options for post', post.id, 'ownerId:', uid, 'postUserId:', pid, 'isOwner:', Number.isFinite(uid) && Number.isFinite(pid) && uid === pid);
+        console.log('[HOME] Open options for post', post.id, 'ownerId:', uid, 'postUserId:', pid);
         setOptionsPostId(post.id);
         setShowOptions(true);
         setShowPrivacySheet(false);
@@ -405,7 +503,6 @@ export default function Home() {
     const startEditCaption = (post) => {
         setEditingCaptionPostId(post.id);
         setCaptionDraft(post.caption || "");
-        // Keep options open to allow cancel by tapping outside
     };
 
     const submitCaptionEdit = async () => {
@@ -424,14 +521,15 @@ export default function Home() {
 
     const confirmDelete = async () => {
         if (!optionsPostId) return;
-        const { Alert } = require('react-native');
         Alert.alert(
             'Xóa bài đăng',
             'Bạn có chắc muốn xóa bài đăng này?',
             [
                 { text: 'Hủy', style: 'cancel' },
                 {
-                    text: 'Xóa', style: 'destructive', onPress: async () => {
+                    text: 'Xóa', 
+                    style: 'destructive', 
+                    onPress: async () => {
                         try {
                             setBusy(true);
                             await deletePost(optionsPostId);
@@ -451,115 +549,97 @@ export default function Home() {
     const onRefreshFeed = async () => {
         try {
             setRefreshing(true);
-            // Reset về page 1
-            const data = await getFeed(1, 10);
+            console.log('[HOME] Refreshing feed...');
+            
+            // Reload feed
+            const data = await getFeed();
             let arr = Array.isArray(data) ? data : [];
             arr = arr.slice().sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
             setPosts(arr);
-            setCurrentPage(1);
-            setHasMorePosts(arr.length >= 10);
-            // Seed per-post state
-            const next = {};
-            for (const p of arr) {
-                next[p.id] = {
-                    liked: false,
-                    likes: Number(p.likesCount ?? 0),
-                    shares: Number(p.sharesCount ?? 0),
-                    comments: Number(p.commentsCount ?? 0),
-                };
-            }
-            setPostStates(next);
-            // Scroll to top
-            setTimeout(() => {
-                flatListRef.current?.scrollToOffset?.({ offset: 0, animated: true });
-            }, 100);
+
+            // ✅ Reload avatar khi refresh
+            await loadUserAvatar();
+            
+            console.log('[HOME] Feed refreshed successfully');
         } catch (e) {
-            console.warn('Refresh feed error', e);
+            console.warn('[HOME] Refresh feed error', e);
         } finally {
             setRefreshing(false);
         }
     };
 
-    // Load more posts when scroll to end
-    const loadMorePosts = async () => {
-        if (loadingMore || !hasMorePosts) return;
-        
+    const openVideoPlayerFor = (post) => {
+        const videos = posts.filter(pp => (pp.media||[]).some(m => (m.type||'').toLowerCase()==='video'));
+        const initialIndex = videos.findIndex(v => v.id === post.id);
+        navigation.navigate('Video', { videos, initialIndex: Math.max(0, initialIndex) });
+    };
+
+    const handleAddStory = async () => {
         try {
-            setLoadingMore(true);
-            const nextPage = currentPage + 1;
-            const data = await getFeed(nextPage, 10);
-            let arr = Array.isArray(data) ? data : [];
-            
-            if (arr.length === 0) {
-                setHasMorePosts(false);
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+                console.log('Media library permission not granted');
                 return;
             }
+
+            const libOpts = {
+                quality: 0.9,
+                mediaTypes: ImagePicker.MediaTypeOptions.Videos
+            };
+
+            const result = await ImagePicker.launchImageLibraryAsync(libOpts);
+            if (result.canceled) return;
             
-            arr = arr.slice().sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+            const asset = result.assets && result.assets.length > 0 ? result.assets[0] : null;
+            const uri = asset?.uri || result.uri;
+            if (!uri) return;
+
+            // Check video duration
+            let durationSec = null;
+            if (asset?.duration != null) {
+                durationSec = asset.duration > 1000 ? Math.round(asset.duration / 1000) : asset.duration;
+            } else if (asset?.durationMillis != null) {
+                durationSec = Math.round(asset.durationMillis / 1000);
+            } else if (result.duration != null) {
+                durationSec = result.duration > 1000 ? Math.round(result.duration / 1000) : result.duration;
+            } else if (result.durationMillis != null) {
+                durationSec = Math.round(result.durationMillis / 1000);
+            }
             
-            // Merge with existing posts
-            setPosts(prev => [...prev, ...arr]);
-            setCurrentPage(nextPage);
-            setHasMorePosts(arr.length >= 10);
+            console.log('[HOME] Video duration:', durationSec, 'seconds');
             
-            // Update post states for new posts
-            setPostStates(prev => {
-                const next = {...prev};
-                for (const p of arr) {
-                    if (!next[p.id]) {
-                        next[p.id] = {
-                            liked: false,
-                            likes: Number(p.likesCount ?? 0),
-                            shares: Number(p.sharesCount ?? 0),
-                            comments: Number(p.commentsCount ?? 0),
-                        };
-                    }
-                }
-                return next;
-            });
+            if (durationSec != null && durationSec > 30) {
+                Alert.alert(
+                    'Video quá dài', 
+                    `Video dài ${Math.floor(durationSec/60)}:${String(durationSec%60).padStart(2,'0')}. Vui lòng chọn video có độ dài tối đa 30 giây.`
+                );
+                return;
+            }
+
+            const filename = asset?.fileName || uri.split('/').pop();
+            const fileObj = { 
+                uri, 
+                name: filename, 
+                type: asset?.type === 'video' || asset?.mediaType === 'video' ? 'video/mp4' : (asset?.type || 'application/octet-stream') 
+            };
+
+            navigation.navigate('CreateStory', { media: fileObj });
         } catch (e) {
-            console.warn('Load more posts error', e);
-        } finally {
-            setLoadingMore(false);
+            console.warn('[HOME] handleAddStory error', e?.message || e);
         }
     };
 
-    // Subscribe to triple-tap refresh from tab bar
-    useEffect(() => {
-        const unsub = onTabTriple('Home', () => {
-            try { onRefreshFeed(); } catch (e) { console.warn('[Home] triple-tap refresh error', e); }
-        });
-        return unsub;
-    }, [onRefreshFeed]);
-
-    // Navigate to full-screen video page with proper initial index
-    const openVideoPlayerFor = (post) => {
-        // Danh sách video gốc (chưa sắp xếp) để màn Video tự ưu tiên selectedId + chưa xem + mới nhất
-        const videos = posts.filter(pp => (pp.media||[]).some(m => (m.type||'').toLowerCase()==='video'));
-        // Pass userId to show only that user's videos
-        navigation.navigate('Video', { 
-            videos, 
-            selectedId: post.id,
-            userId: post.user?.id,
-            username: post.user?.username 
-        });
-    };
-
     return (
-        // Chỉ tôn trọng safe-area ở cạnh trên; bỏ cạnh dưới để không tạo dải trắng/đen nằm ngay trên tab bar
-        <SafeAreaView edges={['top']} style={styles.container}>
+        <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
             {/* Header */}
-            <View style={styles.header}> 
+            <View style={[styles.header, { paddingTop: 4 }]}> 
                 <TouchableOpacity
                     style={styles.navItem}
                     onPress={handleCameraPress}
                 >
                     <Image
                         source={require("../Assets/icons8-camera-50.png")}
-                        style={[
-                            styles.cameraIconImage,
-                            { width: 29, height: 29 },
-                        ]}
+                        style={[styles.cameraIconImage, { width: 29, height: 29 }]}
                     />
                 </TouchableOpacity>
 
@@ -575,10 +655,7 @@ export default function Home() {
                     >
                         <Image
                             source={require("../Assets/icons8-notification-48.png")}
-                            style={[
-                                styles.homeIconImage,
-                                { width: 30, height: 30 },
-                            ]}
+                            style={[styles.homeIconImage, { width: 30, height: 30 }]}
                         />
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -587,98 +664,69 @@ export default function Home() {
                     >
                         <Image
                             source={require("../Assets/icons8-facebook-messenger-50.png")}
-                            style={[
-                                styles.homeIconImage,
-                                { width: 30, height: 30 },
-                            ]}
+                            style={[styles.homeIconImage, { width: 30, height: 30 }]}
                         />
                     </TouchableOpacity>
                 </View>
             </View>
 
-            <FlatList
-                ref={flatListRef}
+            <ScrollView
                 showsVerticalScrollIndicator={false}
-                data={posts}
-                keyExtractor={(item) => item.id.toString()}
                 contentContainerStyle={{ paddingBottom: 0 }}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefreshFeed} />}
-                // Performance optimizations
-                windowSize={5}
-                initialNumToRender={3}
-                maxToRenderPerBatch={3}
-                removeClippedSubviews={true}
-                updateCellsBatchingPeriod={50}
-                // Infinite scroll
-                onEndReached={loadMorePosts}
-                onEndReachedThreshold={0.5}
-                ListFooterComponent={() => {
-                    if (!loadingMore) return null;
-                    return (
-                        <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-                            <Text style={{ color: '#999' }}>Đang tải thêm...</Text>
-                        </View>
-                    );
-                }}
-                ListHeaderComponent={() => (
-                    <View style={styles.storiesContainer}>
-                        <FlatList
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            data={storiesData}
-                            keyExtractor={(item) => item.id}
-                            renderItem={({ item }) => (
+            >
+                {/* Stories */}
+                <View style={styles.storiesContainer}>
+                    <FlatList
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        data={[{ id: 'add' }, myStorySlot]}
+                        keyExtractor={(item) => String(item.id)}
+                        renderItem={({ item }) => (
+                            item.id === 'add' ? (
+                                <StoryAddItem onPress={handleAddStory} />
+                            ) : (
                                 <StoryItem
                                     id={item.id}
-                                    name={item.name}
-                                    avatar={item.avatar}
-                                    hasStory={item.hasStory}
+                                    name={item.name || myStorySlot.name}
+                                    avatar={item.avatar || myStorySlot.avatar}
+                                    hasStory={Boolean(item.hasStory)}
+                                    storyData={item.storyData || myStorySlot.storyData}
                                     navigation={navigation}
                                 />
-                            )}
-                        />
-                    </View>
-                )}
-                ListEmptyComponent={() => 
-                    loading ? (
-                        <Text style={{ padding: 16, color: '#666' }}>Đang tải...</Text>
-                    ) : (
-                        <Text style={{ padding: 16, color: '#666' }}>Chưa có bài viết nào</Text>
-                    )
-                }
-                renderItem={({ item: p }) => (
-                    <View style={styles.post}>
+                            )
+                        )}
+                    />
+                </View>
+
+                {/* Feed posts */}
+                {loading ? (
+                    <Text style={{ padding: 16, color: '#666' }}>Đang tải...</Text>
+                ) : (
+                    posts.map((p) => (
+                        <View key={p.id} style={styles.post}>
                             <View style={styles.postHeader}>
-                                <TouchableOpacity style={styles.postHeaderLeft} onPress={() => {
-                                    const uid = getOwnerId();
-                                    const pid = p?.user?.id != null ? Number(p.user.id) : null;
-                                    if (Number.isFinite(uid) && Number.isFinite(pid) && uid === pid) {
-                                        navigation.navigate('Profile');
-                                    } else {
-                                        navigation.navigate('UserProfilePublic', { userId: pid, username: p.user?.username, avatarUrl: p.user?.avatarUrl });
-                                    }
-                                }}>
+                                <TouchableOpacity 
+                                    style={styles.postHeaderLeft} 
+                                    onPress={() => navigation.navigate('Profile')}
+                                >
                                     <Image
                                         source={{ uri: p.user?.avatarUrl || 'https://i.pravatar.cc/150' }}
                                         style={styles.postAvatar}
                                     />
                                     <View>
-                                        <TouchableOpacity onPress={() => {
-                                            const uid = getOwnerId();
-                                            const pid = p?.user?.id != null ? Number(p.user.id) : null;
-                                            if (Number.isFinite(uid) && Number.isFinite(pid) && uid === pid) {
-                                                navigation.navigate('Profile');
-                                            } else {
-                                                navigation.navigate('UserProfilePublic', { userId: pid, username: p.user?.username, avatarUrl: p.user?.avatarUrl });
-                                            }
-                                        }}>
-                                            <Text style={styles.postUsername}>{p.user?.username || 'user'}</Text>
-                                        </TouchableOpacity>
+                                        <Text style={styles.postUsername}>{p.user?.username || 'user'}</Text>
                                         <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
-                                            <Text style={styles.postLocation}>{new Date(p.createdAt).toLocaleString()}</Text>
+                                            <Text style={styles.postLocation}>
+                                                {new Date(p.createdAt).toLocaleString(undefined, { hour12: false })}
+                                            </Text>
                                             {!!p.privacy && (
                                                 <View style={styles.privacyPill}>
-                                                    <Ionicons name={p.privacy==='private' ? 'lock-closed' : p.privacy==='followers' ? 'people' : 'earth'} size={12} color="#374151" />
+                                                    <Ionicons 
+                                                        name={p.privacy==='private' ? 'lock-closed' : p.privacy==='followers' ? 'people' : 'earth'} 
+                                                        size={12} 
+                                                        color="#374151" 
+                                                    />
                                                     <Text style={styles.privacyText}>{p.privacy}</Text>
                                                 </View>
                                             )}
@@ -686,13 +734,11 @@ export default function Home() {
                                     </View>
                                 </TouchableOpacity>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                    {!isOwner(p) && !isFollowed(p?.user?.id) && (
-                                        <TouchableOpacity style={styles.followBtn} onPress={() => handleFollow(p)}>
-                                            <Text style={styles.followBtnText}>Theo dõi</Text>
-                                        </TouchableOpacity>
-                                    )}
+                                    <TouchableOpacity style={styles.followBtn}>
+                                        <Text style={styles.followBtnText}>Theo dõi</Text>
+                                    </TouchableOpacity>
                                     <TouchableOpacity onPress={() => openOptionsFor(p)}>
-                                        <Text style={styles.moreIcon}>⋯</Text>
+                                        <Text style={styles.moreIcon}>⋮</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -711,11 +757,19 @@ export default function Home() {
                                         if (videos.length > 0) {
                                             const video = videos[0];
                                             return (
-                                                <VideoThumbnail
-                                                    videoUrl={video.url}
-                                                    style={styles.postImage}
-                                                    onPress={() => openVideoPlayerFor(p)}
-                                                />
+                                                <TouchableOpacity activeOpacity={0.9} onPress={() => openVideoPlayerFor(p)}>
+                                                    <Video
+                                                        source={{ uri: video.url }}
+                                                        style={styles.postImage}
+                                                        resizeMode="cover"
+                                                        isLooping
+                                                        shouldPlay={false}
+                                                        useNativeControls={false}
+                                                    />
+                                                    <View style={styles.playOverlay} pointerEvents="none">
+                                                        <Ionicons name="play" size={36} color="#fff" />
+                                                    </View>
+                                                </TouchableOpacity>
                                             );
                                         }
                                         return (
@@ -741,9 +795,14 @@ export default function Home() {
                                             color={postStates[p.id]?.liked ? '#ED4956' : '#262626'}
                                         />
                                     </TouchableOpacity>
-                                    <TouchableOpacity style={{flexDirection:'row', alignItems:'center'}} onPress={() => onOpenComments(p.id)}>
+                                    <TouchableOpacity 
+                                        style={{flexDirection:'row', alignItems:'center'}} 
+                                        onPress={() => onOpenComments(p.id)}
+                                    >
                                         <Ionicons name="chatbubble-outline" size={26} color="#262626" />
-                                        <Text style={{ marginLeft: 6, color:'#262626', fontWeight:'600' }}>{postStates[p.id]?.comments ?? 0}</Text>
+                                        <Text style={{ marginLeft: 6, color:'#262626', fontWeight:'600' }}>
+                                            {postStates[p.id]?.comments ?? 0}
+                                        </Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={() => onRepost(p.id)}>
                                         <Ionicons name="repeat-outline" size={28} color="#262626" />
@@ -752,7 +811,6 @@ export default function Home() {
                                         <Ionicons name="paper-plane-outline" size={26} color="#262626" />
                                     </TouchableOpacity>
                                 </View>
-                                {/* Right-side placeholder (bookmark, etc.) could go here */}
                             </View>
 
                             <View style={styles.postStats}>
@@ -760,144 +818,40 @@ export default function Home() {
                                 <Text style={styles.likeCount}>
                                     {(postStates[p.id]?.likes ?? 0).toLocaleString()} lượt thích • {(postStates[p.id]?.shares ?? 0).toLocaleString()} lượt chia sẻ
                                 </Text>
-                                
-                                {/* Tagged Users */}
-                                {p.tags && p.tags.length > 0 && (
-                                    <View style={styles.taggedUsersContainer}>
-                                        <Text style={styles.taggedLabel}>với </Text>
-                                        {p.tags.map((tag, index) => {
-                                            const uid = getOwnerId();
-                                            const isCurrentUser = Number(tag.id) === Number(uid);
-                                            return (
-                                                <React.Fragment key={tag.id}>
-                                                    <TouchableOpacity
-                                                        onPress={() => {
-                                                            if (isCurrentUser) {
-                                                                navigation.navigate('Profile');
-                                                            } else {
-                                                                navigation.navigate('UserProfilePublic', { 
-                                                                    userId: tag.id, 
-                                                                    username: tag.username, 
-                                                                    avatarUrl: tag.avatarUrl 
-                                                                });
-                                                            }
-                                                        }}
-                                                    >
-                                                        <Text style={styles.taggedUsername}>
-                                                            {isCurrentUser ? 'bạn' : `@${tag.username}`}
-                                                        </Text>
-                                                    </TouchableOpacity>
-                                                    {index < p.tags.length - 1 && <Text style={styles.taggedLabel}>, </Text>}
-                                                </React.Fragment>
-                                            );
-                                        })}
+                                {editingCaptionPostId === p.id ? (
+                                    <View style={{ marginTop: 6 }}>
+                                        <Text
+                                            style={[styles.captionText, { marginBottom: 8 }]}
+                                        >Chỉnh sửa caption</Text>
+                                        <View style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8 }}>
+                                            <TextInput
+                                                style={{ padding: 10, color: '#111827', maxHeight: 120 }}
+                                                value={captionDraft}
+                                                onChangeText={setCaptionDraft}
+                                                multiline
+                                                placeholder="Nhập caption..."
+                                            />
+                                        </View>
+                                        {/* Simple inline controls */}
+                                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+                                            <TouchableOpacity style={styles.primaryBtn} onPress={submitCaptionEdit}>
+                                                <Text style={styles.primaryBtnText}>Lưu</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={styles.secondaryBtn} onPress={closeAllOverlays}>
+                                                <Text style={styles.secondaryBtnText}>Hủy</Text>
+                                            </TouchableOpacity>
+                                        </View>
                                     </View>
-                                )}
-                                
-                                {/* Caption with clickable @mentions */}
-                                {!!p.caption && (
-                                    <Text style={styles.captionText}>
-                                        {p.caption.split(/(@\w+)/g).map((part, index) => {
-                                            if (part.startsWith('@')) {
-                                                const username = part.substring(1);
-                                                const uid = getOwnerId();
-                                                // Check if mentioned user is current user
-                                                const mentionedUser = p.mentions?.find(m => m.username === username);
-                                                const isCurrentUser = mentionedUser && Number(mentionedUser.id) === Number(uid);
-                                                
-                                                return (
-                                                    <Text
-                                                        key={index}
-                                                        style={styles.mentionText}
-                                                        onPress={() => {
-                                                            if (mentionedUser) {
-                                                                if (isCurrentUser) {
-                                                                    navigation.navigate('Profile');
-                                                                } else {
-                                                                    navigation.navigate('UserProfilePublic', {
-                                                                        userId: mentionedUser.id,
-                                                                        username: mentionedUser.username,
-                                                                        avatarUrl: mentionedUser.avatarUrl
-                                                                    });
-                                                                }
-                                                            }
-                                                        }}
-                                                    >
-                                                        {isCurrentUser ? 'bạn' : part}
-                                                    </Text>
-                                                );
-                                            }
-                                            return part;
-                                        })}
-                                    </Text>
+                                ) : (
+                                    !!p.caption && (
+                                        <Text style={styles.captionText}>{p.caption}</Text>
+                                    )
                                 )}
                             </View>
                         </View>
+                    ))
                 )}
-            />
-
-            {/* Edit Caption Modal */}
-            <Modal
-                visible={editingCaptionPostId !== null}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={closeAllOverlays}
-            >
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={styles.modalContainer}
-                >
-                    <TouchableOpacity 
-                        activeOpacity={1} 
-                        style={styles.modalOverlay} 
-                        onPress={closeAllOverlays}
-                    >
-                        <TouchableOpacity 
-                            activeOpacity={1} 
-                            style={styles.editCaptionSheet}
-                            onPress={(e) => e.stopPropagation()}
-                        >
-                            <View style={styles.sheetHeader}>
-                                <Text style={styles.sheetTitle}>Chỉnh sửa caption</Text>
-                                <TouchableOpacity onPress={closeAllOverlays} style={styles.closeButton}>
-                                    <Text style={styles.closeButtonText}>✕</Text>
-                                </TouchableOpacity>
-                            </View>
-                            
-                            <View style={styles.editCaptionContent}>
-                                <TextInput
-                                    style={styles.captionTextInput}
-                                    value={captionDraft}
-                                    onChangeText={setCaptionDraft}
-                                    multiline
-                                    placeholder="Nhập caption..."
-                                    placeholderTextColor="#999"
-                                    autoFocus
-                                    maxLength={2200}
-                                />
-                                <Text style={styles.charCounter}>
-                                    {captionDraft.length}/2200
-                                </Text>
-                            </View>
-                            
-                            <View style={styles.editCaptionActions}>
-                                <TouchableOpacity 
-                                    style={[styles.actionButton, styles.cancelButton]} 
-                                    onPress={closeAllOverlays}
-                                >
-                                    <Text style={styles.cancelButtonText}>Hủy</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity 
-                                    style={[styles.actionButton, styles.saveButton]} 
-                                    onPress={submitCaptionEdit}
-                                >
-                                    <Text style={styles.saveButtonText}>Lưu</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </TouchableOpacity>
-                    </TouchableOpacity>
-                </KeyboardAvoidingView>
-            </Modal>
+            </ScrollView>
 
             {/* Comments Modal */}
             <CommentsModal
@@ -928,10 +882,10 @@ export default function Home() {
                                     </>
                                 );
                             }
-                            // Not owner: show limited actions (UI only)
+                            // Not owner: show limited actions
                             return (
                                 <>
-                                    <TouchableOpacity style={styles.sheetItem} onPress={() => { /* TODO: report */ closeAllOverlays(); }}>
+                                    <TouchableOpacity style={styles.sheetItem} onPress={() => { closeAllOverlays(); }}>
                                         <Text style={styles.sheetItemText}>Báo cáo</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity style={[styles.sheetItem, { borderTopWidth: 0 }]} onPress={() => { setPosts(prev => prev.filter(p => p.id !== optionsPostId)); closeAllOverlays(); }}>
@@ -968,8 +922,6 @@ export default function Home() {
                     <View style={styles.spinner} />
                 </View>
             )}
-
-            {/* Bottom tab bar is now global in App.js */}
         </SafeAreaView>
     );
 }
@@ -1017,6 +969,9 @@ const styles = StyleSheet.create({
         width: 30,
         height: 30,
         borderRadius: 0,
+    },
+    navItem: {
+        padding: 4,
     },
     storiesContainer: {
         paddingVertical: 12,
@@ -1157,16 +1112,6 @@ const styles = StyleSheet.create({
         gap: 16,
         alignItems: "center",
     },
-    heartIconPost: {
-        fontSize: 35,
-        color: "#DEDED6",
-        marginTop: -4,
-    },
-    heartIconPostFilled: {
-        fontSize: 35,
-        color: "#ED4956",
-        marginTop: -4,
-    },
     followBtn: {
         paddingHorizontal: 10,
         paddingVertical: 6,
@@ -1178,33 +1123,6 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
         color: '#111827',
-    },
-    commentIconWrapper: {
-        width: 26,
-        height: 26,
-        justifyContent: "center",
-        alignItems: "center",
-        position: "relative",
-    },
-    commentBubble: {
-        width: 24,
-        height: 24,
-        borderWidth: 2.5,
-        borderColor: "#000",
-        borderRadius: 12,
-        borderTopLeftRadius: 0,
-    },
-    commentCount: {
-        position: "absolute",
-        top: -4,
-        right: -4,
-        backgroundColor: "#ED4956",
-        color: "#FFFFFF",
-        fontSize: 10,
-        fontWeight: "600",
-        borderRadius: 6,
-        paddingHorizontal: 3,
-        paddingVertical: 1,
     },
     postStats: {
         paddingHorizontal: 12,
@@ -1221,31 +1139,6 @@ const styles = StyleSheet.create({
         color: '#111827',
         lineHeight: 20,
     },
-    taggedUsersContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        marginTop: 4,
-        marginBottom: 4,
-    },
-    taggedLabel: {
-        fontSize: 14,
-        color: '#666',
-    },
-    taggedUsername: {
-        fontSize: 14,
-        color: '#0095F6',
-        fontWeight: '600',
-    },
-    mentionText: {
-        color: '#0095F6',
-        fontWeight: '600',
-    },
-    commentCountText: {
-        fontSize: 12,
-        color: "#8E8E8E",
-    },
-    // bottom nav styles removed (now handled by tab navigator)
     overlay: {
         position: 'absolute',
         top: 0,
@@ -1260,7 +1153,6 @@ const styles = StyleSheet.create({
         padding: 16,
         borderTopLeftRadius: 16,
         borderTopRightRadius: 16,
-        paddingBottom: Platform.OS === 'ios' ? 50 : 30,
     },
     sheetTitle: {
         fontSize: 16,
@@ -1313,96 +1205,27 @@ const styles = StyleSheet.create({
         borderWidth: 4,
         borderColor: '#111827',
         borderTopColor: 'transparent',
-        // simple CSS-like spinner animation is not available; this is a placeholder
     },
-    // Edit Caption Modal Styles
-    modalContainer: {
-        flex: 1,
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'flex-end',
-    },
-    editCaptionSheet: {
+    addStoryAvatar: {
         backgroundColor: '#fff',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-        maxHeight: '110%',
-    },
-    sheetHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#e5e7eb',
-    },
-    closeButton: {
-        width: 32,
-        height: 32,
+        width: 62,
+        height: 62,
+        borderRadius: 31,
         justifyContent: 'center',
         alignItems: 'center',
-        borderRadius: 16,
-        backgroundColor: '#f3f4f6',
     },
-    closeButtonText: {
-        fontSize: 18,
-        color: '#111827',
-        fontWeight: '600',
-    },
-    editCaptionContent: {
-        paddingHorizontal: 20,
-        paddingVertical: 16,
-        minHeight: 200,
-    },
-    captionTextInput: {
-        fontSize: 16,
-        color: '#111827',
-        textAlignVertical: 'top',
-        minHeight: 150,
-        maxHeight: 300,
-        padding: 12,
-        borderWidth: 1,
-        borderColor: '#d1d5db',
-        borderRadius: 12,
-        backgroundColor: '#f9fafb',
-    },
-    charCounter: {
-        fontSize: 12,
-        color: '#9ca3af',
-        marginTop: 8,
-        textAlign: 'right',
-    },
-    editCaptionActions: {
-        flexDirection: 'row',
-        paddingHorizontal: 20,
-        paddingTop: 16,
-        gap: 12,
-    },
-    actionButton: {
-        flex: 1,
-        paddingVertical: 14,
-        borderRadius: 12,
-        alignItems: 'center',
+    plusCircle: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: '#111827',
         justifyContent: 'center',
+        alignItems: 'center',
     },
-    cancelButton: {
-        backgroundColor: '#f3f4f6',
-    },
-    cancelButtonText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#6b7280',
-    },
-    saveButton: {
-        backgroundColor: '#0095F6',
-    },
-    saveButtonText: {
-        fontSize: 16,
-        fontWeight: '700',
+    plusText: {
         color: '#fff',
+        fontSize: 22,
+        lineHeight: 22,
+        fontWeight: '700',
     },
 });
