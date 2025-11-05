@@ -87,7 +87,20 @@ export default function SharePost() {
                 keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
             >
                 <ScrollView showsVerticalScrollIndicator={false}>
-                    {/* Preview và Caption */}
+                    {/* Caption Input - Đặt trước ảnh/video */}
+                    <View style={styles.captionContainer}>
+                        <TextInput
+                            style={styles.captionInput}
+                            placeholder="Thêm chú thích..."
+                            placeholderTextColor="#999"
+                            multiline
+                            value={caption}
+                            onChangeText={setCaption}
+                            maxLength={2200}
+                        />
+                    </View>
+
+                    {/* Preview ảnh/video - Đặt sau caption */}
                     <View style={styles.postPreview}>
                         {(() => {
                             if (isVideo && videoPlayer) {
@@ -196,6 +209,10 @@ const styles = StyleSheet.create({
     },
     content: {
         flex: 1,
+    },
+    captionContainer: {
+        padding: 16,
+        backgroundColor: '#FFFFFF',
     },
     postPreview: {
         flexDirection: "row",

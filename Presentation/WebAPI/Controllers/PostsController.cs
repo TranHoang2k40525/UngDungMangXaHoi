@@ -349,6 +349,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 location = p.location,
                 privacy = p.privacy,
                 createdAt = p.created_at,
+                commentsCount = p.CommentsCount,
                 user = new
                 {
                     id = p.User?.user_id,

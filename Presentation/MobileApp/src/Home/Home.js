@@ -754,6 +754,14 @@ export default function Home() {
                                 <Text style={styles.likeCount}>
                                     {(postStates[p.id]?.likes ?? 0).toLocaleString()} lượt thích • {(postStates[p.id]?.shares ?? 0).toLocaleString()} lượt chia sẻ
                                 </Text>
+                                {/* View all comments link */}
+                                {(postStates[p.id]?.comments ?? 0) > 0 && (
+                                    <TouchableOpacity onPress={() => onOpenComments(p.id)} style={{ marginTop: 4 }}>
+                                        <Text style={styles.viewCommentsText}>
+                                            Xem tất cả {(postStates[p.id]?.comments ?? 0).toLocaleString()} bình luận
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
                                 {!!p.caption && (
                                     <Text style={styles.captionText}>{p.caption}</Text>
                                 )}
@@ -829,7 +837,25 @@ export default function Home() {
             <CommentsModal
                 visible={showComments}
                 onClose={() => setShowComments(false)}
+                postId={activeCommentsPostId}
                 commentsCount={activeCommentsPostId ? (postStates[activeCommentsPostId]?.comments ?? 0) : 0}
+                onCommentAdded={(delta = 1) => {
+                    // delta = 1 for add, -1 for delete, or pass count directly
+                    if (activeCommentsPostId) {
+                        setPostStates(prev => {
+                            const cur = prev[activeCommentsPostId] || { liked: false, likes: 0, shares: 0, comments: 0 };
+                            return {
+                                ...prev,
+                                [activeCommentsPostId]: { 
+                                    ...cur, 
+                                    comments: typeof delta === 'number' && delta < 0 
+                                        ? Math.max(0, cur.comments + delta)  // Subtract for delete
+                                        : cur.comments + (delta || 1)  // Add for create
+                                }
+                            };
+                        });
+                    }
+                }}
             />
 
             {/* Options overlay */}
@@ -1140,6 +1166,11 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: "600",
         color: "#262626",
+        marginBottom: 4,
+    },
+    viewCommentsText: {
+        fontSize: 14,
+        color: "#8E8E8E",
         marginBottom: 4,
     },
     captionText: {

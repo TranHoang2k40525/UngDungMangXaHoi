@@ -421,12 +421,33 @@ export default function CreatePost() {
             first: pageSize,
             after: reset ? undefined : endCursor || undefined,
         });
-        setAssets(prev => reset ? res.assets.map(asItem) : [...prev, ...res.assets.map(asItem)]);
+        
+        // Convert ph:// URIs to local file URIs
+        const processedAssets = await Promise.all(
+            res.assets.map(async (asset) => {
+                try {
+                    // Get asset info to get local URI
+                    const assetInfo = await MediaLibrary.getAssetInfoAsync(asset.id);
+                    return {
+                        id: asset.id,
+                        uri: assetInfo.localUri || assetInfo.uri || asset.uri,
+                        mediaType: asset.mediaType,
+                        duration: asset.duration,
+                    };
+                } catch (error) {
+                    console.log(`${LOG} Error getting asset info for ${asset.id}:`, error);
+                    // Fallback to original asset
+                    return asItem(asset);
+                }
+            })
+        );
+        
+        setAssets(prev => reset ? processedAssets : [...prev, ...processedAssets]);
         setEndCursor(res.endCursor || null);
         setHasNextPage(!!res.hasNextPage);
         // Set default preview
-        if (reset && res.assets.length > 0) {
-            const first = asItem(res.assets[0]);
+        if (reset && processedAssets.length > 0) {
+            const first = processedAssets[0];
             setSelectedImage(first);
         }
     };

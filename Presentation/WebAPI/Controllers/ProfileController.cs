@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using UngDungMangXaHoi.Application.DTOs;
 using UngDungMangXaHoi.Application.Services;
+using UngDungMangXaHoi.Domain.Interfaces;
 
 namespace UngDungMangXaHoi.WebAPI.Controllers
 {
@@ -16,10 +17,12 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
     public class ProfileController : ControllerBase
     {
         private readonly UserProfileService _profileService;
+        private readonly IUserRepository _userRepository;
 
-        public ProfileController(UserProfileService profileService)
+        public ProfileController(UserProfileService profileService, IUserRepository userRepository)
         {
             _profileService = profileService;
+            _userRepository = userRepository;
         }
 
         /// <summary>
@@ -30,15 +33,22 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         {
             try
             {
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-                if (userIdClaim == null)
+                var accountIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (accountIdClaim == null)
                 {
                     return Unauthorized(new { message = "Token không hợp lệ!" });
                 }
 
-                // Trong JwtTokenService, NameIdentifier chứa account_id
-                var accountId = int.Parse(userIdClaim.Value);
+                // JWT token now stores account_id in NameIdentifier
+                var accountId = int.Parse(accountIdClaim.Value);
+                Console.WriteLine($"[PROFILE-DEBUG] Token contains accountId: {accountId}");
+                
                 var profile = await _profileService.GetProfileByAccountIdAsync(accountId);
+                
+                if (profile != null)
+                {
+                    Console.WriteLine($"[PROFILE-DEBUG] Returning profile: userId={profile.UserId}, username={profile.Username}, accountId={profile.AccountId}, email={profile.Email}");
+                }
 
                 if (profile == null)
                 {
@@ -59,6 +69,47 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         }
 
         /// <summary>
+        /// GET /api/users/profile/by-username/{username} - Lấy profile của user theo username
+        /// </summary>
+        [HttpGet("by-username/{username}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetProfileByUsername(string username)
+        {
+            try
+            {
+                Console.WriteLine($"[PROFILE-DEBUG] GetProfileByUsername: {username}");
+                
+                // Tìm user theo username - dùng ValueObject UserName
+                var userName = new UngDungMangXaHoi.Domain.ValueObjects.UserName(username);
+                var user = await _userRepository.GetByUserNameAsync(userName);
+                if (user == null)
+                {
+                    return NotFound(new { message = $"Không tìm thấy user với username: {username}" });
+                }
+
+                // Lấy profile qua account_id
+                var profile = await _profileService.GetProfileByAccountIdAsync(user.account_id);
+                if (profile == null)
+                {
+                    return NotFound(new { message = "Không tìm thấy profile!" });
+                }
+
+                Console.WriteLine($"[PROFILE-DEBUG] Found profile: userId={profile.UserId}, username={profile.Username}, accountId={profile.AccountId}");
+
+                return Ok(new
+                {
+                    message = "Lấy thông tin profile thành công!",
+                    data = profile
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[PROFILE] GET BY USERNAME ERROR: {ex.Message}");
+                return StatusCode(500, new { message = "Có lỗi xảy ra!", error = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// PUT /api/users/profile - Cập nhật thông tin cơ bản (không cần OTP)
         /// Body: { fullName, gender, bio, isPrivate, dateOfBirth, address, hometown, job, website }
         /// </summary>
@@ -67,13 +118,13 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         {
             try
             {
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-                if (userIdClaim == null)
+                var accountIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (accountIdClaim == null)
                 {
                     return Unauthorized(new { message = "Token không hợp lệ!" });
                 }
 
-                var accountId = int.Parse(userIdClaim.Value);
+                var accountId = int.Parse(accountIdClaim.Value);
                 var success = await _profileService.UpdateBasicInfoByAccountIdAsync(accountId, request);
 
                 if (!success)
@@ -238,13 +289,13 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                     return BadRequest(new { message = "Vui lòng chọn file ảnh!" });
                 }
 
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-                if (userIdClaim == null)
+                var accountIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (accountIdClaim == null)
                 {
                     return Unauthorized(new { message = "Token không hợp lệ!" });
                 }
 
-                var accountId = int.Parse(userIdClaim.Value);
+                var accountId = int.Parse(accountIdClaim.Value);
                 var (success, message, avatarUrl) = await _profileService.UpdateAvatarByAccountIdAsync(accountId, avatarFile, request);
 
                 if (!success)
@@ -273,13 +324,13 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         {
             try
             {
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-                if (userIdClaim == null)
+                var accountIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (accountIdClaim == null)
                 {
                     return Unauthorized(new { message = "Token không hợp lệ!" });
                 }
 
-                var accountId = int.Parse(userIdClaim.Value);
+                var accountId = int.Parse(accountIdClaim.Value);
                 var (success, message) = await _profileService.RemoveAvatarByAccountIdAsync(accountId);
 
                 if (!success)

@@ -12,6 +12,7 @@ using UngDungMangXaHoi.Application.UseCases.Users;
 using UngDungMangXaHoi.Domain.Interfaces;
 using System.Text.Json.Serialization; // Thêm namespace này
 using Microsoft.Extensions.FileProviders;
+using UngDungMangXaHoi.WebAPI.Infrastructure; // Thêm cho UtcDateTimeConverter
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,8 +23,17 @@ Env.TraversePath().Load();
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()); // Thêm dòng này
+        // Configure JSON serialization to use camelCase for property names
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        // Đảm bảo DateTime luôn serialize với UTC timezone (thêm 'Z' suffix)
+        options.JsonSerializerOptions.Converters.Add(new UtcDateTimeConverter());
+        options.JsonSerializerOptions.Converters.Add(new UtcNullableDateTimeConverter());
     });
+
+// Add SignalR for real-time comments
+builder.Services.AddSignalR();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -91,6 +101,7 @@ builder.Services.AddScoped<IOTPRepository, OTPRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<ILoginHistoryRepository, LoginHistoryRepository>();
 builder.Services.AddScoped<IPostRepository, PostRepository>();
+builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 
 // Services
 builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
@@ -100,6 +111,7 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, EmailService>();
 builder.Services.AddScoped<UserProfileService>();
 builder.Services.AddScoped<VideoTranscodeService>();
+builder.Services.AddScoped<CommentService>();
 
 // External Services
 builder.Services.AddScoped<CloudinaryService>(provider =>
@@ -175,5 +187,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Map SignalR Hub
+app.MapHub<UngDungMangXaHoi.WebAPI.Hubs.CommentHub>("/hubs/comments");
 
 app.Run();

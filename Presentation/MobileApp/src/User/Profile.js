@@ -13,9 +13,9 @@ import {
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import * as VideoThumbnails from 'expo-video-thumbnails';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
-import { getMyPosts, getProfile, updateAvatar, API_BASE_URL } from '../API/Api';
+import { getMyPosts, getProfile, getProfileByUsername, updateAvatar, API_BASE_URL } from '../API/Api';
 import { useUser } from '../Context/UserContext';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { onTabTriple } from '../Utils/TabRefreshEmitter';
@@ -25,6 +25,7 @@ const imageSize = (width - 6) / 3;
 
 const Profile = () => {
   const navigation = useNavigation();
+  const route = useRoute();
   const insets = useSafeAreaInsets();
   const { logout } = useUser();
   const [posts, setPosts] = useState([]);
@@ -33,6 +34,10 @@ const Profile = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [videoThumbs, setVideoThumbs] = useState({}); // { [postId]: uri }
+  
+  // Lấy username từ route params (nếu đang xem profile của người khác)
+  const { username } = route.params || {};
+  const isViewingOwnProfile = !username;
 
   // Build full URL for avatar when API returns relative path
   const getAvatarUri = useMemo(() => {
@@ -51,22 +56,35 @@ const Profile = () => {
     let mounted = true;
     (async () => {
       try {
-        const [p, me] = await Promise.all([
-          getMyPosts(),
-          getProfile(),
-        ]);
-        if (mounted) {
-          setPosts(Array.isArray(p) ? p : []);
-          setProfile(me || null);
+        console.log('[Profile] Loading profile, username:', username, 'isViewingOwnProfile:', isViewingOwnProfile);
+        
+        if (isViewingOwnProfile) {
+          // Xem profile của chính mình
+          const [p, me] = await Promise.all([
+            getMyPosts(),
+            getProfile(),
+          ]);
+          if (mounted) {
+            setPosts(Array.isArray(p) ? p : []);
+            setProfile(me || null);
+          }
+        } else {
+          // Xem profile của người khác thông qua @mention
+          const otherUserProfile = await getProfileByUsername(username);
+          if (mounted) {
+            setProfile(otherUserProfile || null);
+            // TODO: Load posts của user khác (cần API mới)
+            setPosts([]);
+          }
         }
       } catch (e) {
-        console.warn('My posts error', e);
+        console.warn('[Profile] Load error:', e);
       } finally {
         if (mounted) setLoading(false);
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [username, isViewingOwnProfile]);
 
   // subscribe to triple-tap refresh on Profile tab
   useEffect(() => {
@@ -158,10 +176,10 @@ const Profile = () => {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          {profile?.isPrivate ? (
+          {profile?.isPrivate || profile?.IsPrivate ? (
             <Ionicons name="lock-closed" size={16} color="#000" />
           ) : null}
-          <Text style={styles.username}>{profile?.username || 'username'}</Text>
+          <Text style={styles.username}>{profile?.username || profile?.Username || 'username'}</Text>
           <Ionicons name="chevron-down" size={16} color="#000" style={styles.chevron} />
         </View>
         <View style={styles.headerRight}>
@@ -213,38 +231,38 @@ const Profile = () => {
             </TouchableOpacity>
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{profile?.postCount ?? posts.length ?? 0}</Text>
+                <Text style={styles.statNumber}>{profile?.postCount ?? profile?.PostCount ?? posts.length ?? 0}</Text>
                 <Text style={styles.statLabel}>Posts</Text>
               </View>
               <TouchableOpacity 
                 style={styles.statItem}
                 onPress={() => navigation.navigate('FollowList', { 
-                  userId: profile?.userId, 
+                  userId: profile?.userId || profile?.UserId, 
                   type: 'followers',
-                  username: profile?.username 
+                  username: profile?.username || profile?.Username 
                 })}
               >
-                <Text style={styles.statNumber}>{profile?.followerCount ?? 0}</Text>
+                <Text style={styles.statNumber}>{profile?.followerCount ?? profile?.FollowerCount ?? 0}</Text>
                 <Text style={styles.statLabel}>Followers</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.statItem}
                 onPress={() => navigation.navigate('FollowList', { 
-                  userId: profile?.userId, 
+                  userId: profile?.userId || profile?.UserId, 
                   type: 'following',
-                  username: profile?.username 
+                  username: profile?.username || profile?.Username 
                 })}
               >
-                <Text style={styles.statNumber}>{profile?.followingCount ?? 0}</Text>
+                <Text style={styles.statNumber}>{profile?.followingCount ?? profile?.FollowingCount ?? 0}</Text>
                 <Text style={styles.statLabel}>Following</Text>
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={styles.bioSection}>
-            <Text style={styles.bioName}>{profile?.fullName || ''}</Text>
-            {!!profile?.bio && <Text style={styles.bioText}>{profile.bio}</Text>}
-            {!!profile?.website && <Text style={styles.bioText}>{profile.website}</Text>}
+            <Text style={styles.bioName}>{profile?.fullName || profile?.FullName || ''}</Text>
+            {!!(profile?.bio || profile?.Bio) && <Text style={styles.bioText}>{profile?.bio || profile?.Bio}</Text>}
+            {!!(profile?.website || profile?.Website) && <Text style={styles.bioText}>{profile?.website || profile?.Website}</Text>}
           </View>
 
           <View style={styles.buttonContainer}>
