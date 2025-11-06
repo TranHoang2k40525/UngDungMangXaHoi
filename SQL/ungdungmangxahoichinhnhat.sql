@@ -409,16 +409,7 @@ CREATE INDEX IX_Shares_UserId ON Shares(user_id);
 CREATE INDEX IX_Shares_PostId_CreatedAt ON Shares(post_id, created_at DESC);
 
 -- Tạo bảng Notifications: Lưu thông báo cho user (reactions, shares, comments, follows, mentions)
-CREATE TABLE Notifications (
-    notification_id INT IDENTITY PRIMARY KEY,  -- ID tự tăng, khóa chính
-    user_id INT NOT NULL FOREIGN KEY REFERENCES Users(user_id) ON DELETE CASCADE,  -- User nhận thông báo
-    sender_id INT NULL FOREIGN KEY REFERENCES Users(user_id),  -- User tạo hành động (NULL nếu system)
-    post_id INT NULL FOREIGN KEY REFERENCES Posts(post_id) ON DELETE CASCADE,  -- Bài đăng liên quan (NULL nếu không liên quan)
-    type INT NOT NULL,  -- Loại thông báo (1=Reaction, 2=Share, 3=Comment, 4=Follow, 5=Mention)
-    content NVARCHAR(500) NOT NULL,  -- Nội dung thông báo chi tiết
-    is_read BIT DEFAULT 0,  -- Đã đọc chưa (0=chưa, 1=đã đọc)
-    created_at DATETIME DEFAULT GETDATE()  -- Thời gian tạo
-);
+
 
 -- Tạo index ghép trên user_id và is_read để lấy thông báo chưa đọc nhanh
 CREATE INDEX IX_Notifications_UserId_IsRead ON Notifications(user_id, is_read);
