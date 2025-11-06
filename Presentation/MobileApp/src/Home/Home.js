@@ -37,6 +37,7 @@ import {
   unfollowUser,
   addReaction,
   getReactionSummary,
+  getCommentCount,
 } from "../API/Api";
 import { Ionicons } from "@expo/vector-icons";
 import { VideoView, useVideoPlayer } from "expo-video";
@@ -1295,11 +1296,23 @@ export default function Home() {
       <CommentsModal
         visible={showComments}
         onClose={() => setShowComments(false)}
-        commentsCount={
-          activeCommentsPostId
-            ? postStates[activeCommentsPostId]?.comments ?? 0
-            : 0
-        }
+        postId={activeCommentsPostId}
+        navigation={navigation}
+        onCommentAdded={async (postId) => {
+          // Update comment count sau khi thêm comment
+          try {
+            const newCount = await getCommentCount(postId);
+            setPostStates((prev) => ({
+              ...prev,
+              [postId]: {
+                ...prev[postId],
+                comments: newCount,
+              },
+            }));
+          } catch (error) {
+            console.error("[Home] Update comment count error:", error);
+          }
+        }}
       />
 
       {/* Options overlay */}

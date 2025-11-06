@@ -6,7 +6,7 @@ import { Platform } from "react-native";
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
 // Nếu test trên máy tính: dùng localhost
 // Nếu test trên điện thoại thật: dùng IP của máy tính (xem bằng ipconfig)
-export const API_BASE_URL = "http://192.168.1.103:5297"; // Backend đang chạy trên IP máy tính
+export const API_BASE_URL = "http://192.168.10.180:5297"; // Backend đang chạy trên IP máy tính
 
 // Hàm helper để gọi API
 const apiCall = async (endpoint, options = {}) => {
@@ -703,4 +703,109 @@ export const getReactionSummary = async (postId) => {
       Accept: "application/json",
     },
   });
+};
+
+// ====== COMMENTS API ======
+// Lấy danh sách comments của bài đăng
+export const getComments = async (postId, page = 1, pageSize = 20) => {
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/comments/${postId}?page=${page}&pageSize=${pageSize}`, {
+    method: "GET",
+    headers: {
+      ...headers,
+      Accept: "application/json",
+    },
+  });
+};
+
+// Lấy số lượng comments của bài đăng
+export const getCommentCount = async (postId) => {
+  const headers = await getAuthHeaders();
+  const result = await apiCall(`/api/comments/${postId}/count`, {
+    method: "GET",
+    headers: {
+      ...headers,
+      Accept: "application/json",
+    },
+  });
+  return result?.count || 0;
+};
+
+// Thêm comment mới
+export const addComment = async (postId, content, parentCommentId = null) => {
+  const headers = await getAuthHeaders();
+  return apiCall("/api/comments", {
+    method: "POST",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ postId, content, parentCommentId }),
+  });
+};
+
+// Sửa comment
+export const updateComment = async (commentId, content) => {
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/comments/${commentId}`, {
+    method: "PUT",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ content }),
+  });
+};
+
+// Xóa comment
+export const deleteComment = async (commentId) => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/comments/${commentId}`, {
+    method: "DELETE",
+    headers: { ...headers, Accept: "application/json" },
+  });
+  if (!res.ok && res.status !== 204) {
+    const text = await res.text();
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {}
+    throw new Error(json?.message || "Không thể xóa comment");
+  }
+  return true;
+};
+
+// Thêm reaction cho comment
+// reactionType: "Like", "Love", "Haha", "Wow", "Sad", "Angry" (string, not number)
+export const addCommentReaction = async (commentId, reactionType = "Like") => {
+  const headers = await getAuthHeaders();
+  return apiCall("/api/comments/reactions", {
+    method: "POST",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ commentId, reactionType }),
+  });
+};
+
+// Xóa reaction khỏi comment
+export const removeCommentReaction = async (commentId) => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/comments/${commentId}/react`, {
+    method: "DELETE",
+    headers: { ...headers, Accept: "application/json" },
+  });
+  if (!res.ok && res.status !== 204) {
+    const text = await res.text();
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {}
+    throw new Error(json?.message || "Không thể xóa reaction");
+  }
+  return true;
 };
