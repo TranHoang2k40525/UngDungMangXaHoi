@@ -50,6 +50,13 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .FirstOrDefaultAsync(u => u.username.Value == userName.Value);
         }
 
+        public async Task<User?> GetByUsernameAsync(string username)
+        {
+            return await _context.Users
+                .Include(u => u.Account)
+                .FirstOrDefaultAsync(u => u.username != null && u.username.Value.ToLower() == username.ToLower());
+        }
+
         public async Task<IEnumerable<User>> GetAllAsync()
         {
             return await _context.Users

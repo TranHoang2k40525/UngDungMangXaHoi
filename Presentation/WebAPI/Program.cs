@@ -12,6 +12,7 @@ using UngDungMangXaHoi.Application.UseCases.Users;
 using UngDungMangXaHoi.Domain.Interfaces;
 using System.Text.Json.Serialization; // Thêm namespace này
 using Microsoft.Extensions.FileProviders;
+using UngDungMangXaHoi.Presentation.WebAPI.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -102,6 +103,7 @@ builder.Services.AddScoped<IPostRepository, PostRepository>();
 builder.Services.AddScoped<IReactionRepository, ReactionRepository>();
 builder.Services.AddScoped<IShareRepository, ShareRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 
 // Services
 builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
@@ -114,6 +116,7 @@ builder.Services.AddScoped<VideoTranscodeService>();
 builder.Services.AddScoped<ReactionService>();
 builder.Services.AddScoped<ShareService>();
 builder.Services.AddScoped<NotificationManagementService>();
+builder.Services.AddScoped<CommentService>();
 builder.Services.AddScoped<IRealTimeNotificationService, UngDungMangXaHoi.Presentation.WebAPI.Hubs.SignalRNotificationService>();
 
 // External Services
@@ -195,5 +198,6 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<UngDungMangXaHoi.Presentation.WebAPI.Hubs.NotificationHub>("/hubs/notifications");
+app.MapHub<CommentHub>("/hubs/comments");
 
 app.Run();
