@@ -172,6 +172,21 @@ CREATE TABLE CommentLikes (
     UNIQUE(comment_id, user_id)  -- Ràng buộc tránh like trùng
 );
 
+-- Tạo bảng CommentMentions: Lưu các @mention trong bình luận
+CREATE TABLE CommentMentions (
+    comment_mention_id INT IDENTITY PRIMARY KEY,  -- ID tự tăng, khóa chính
+    comment_id INT FOREIGN KEY REFERENCES Comments(comment_id) ON DELETE CASCADE,  -- Bình luận chứa mention
+    mentioned_account_id INT FOREIGN KEY REFERENCES Accounts(account_id) ON DELETE NO ACTION,  -- Tài khoản được mention
+    start_position INT NOT NULL,  -- Vị trí bắt đầu của @mention trong text (để highlight)
+    length INT NOT NULL,  -- Độ dài của @mention text
+    created_at DATETIME DEFAULT GETDATE()  -- Thời gian tạo mention
+);
+
+-- Tạo index trên comment_id để lấy mentions của một bình luận
+CREATE INDEX IX_CommentMentions_CommentId ON CommentMentions (comment_id);
+-- Tạo index trên mentioned_account_id để lấy các bình luận mention một user
+CREATE INDEX IX_CommentMentions_MentionedAccountId ON CommentMentions (mentioned_account_id);
+
 /* ==========================
    BẢNG THEO DÕI (FOLLOW)
    Phần này tạo bảng cho follow và close friends
