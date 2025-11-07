@@ -13,13 +13,14 @@ import {
   KeyboardAvoidingView,
   Modal,
   Alert,
+  ScrollView,
 } from "react-native";
 import { RefreshControl } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { onTabTriple } from "../Utils/TabRefreshEmitter";
+import { StoryItem, StoryAddItem } from './StoryComponents';
 import { useUser } from "../Context/UserContext";
-import { useFollow } from "../Context/FollowContext";
 import * as ImagePicker from "expo-image-picker";
 import CommentsModal from "./CommentsModal";
 import ReactionPicker from "./ReactionPicker";
@@ -38,10 +39,10 @@ import {
   addReaction,
   getReactionSummary,
   getCommentCount,
+  API_BASE_URL,
 } from "../API/Api";
 import { Ionicons } from "@expo/vector-icons";
 import { VideoView, useVideoPlayer } from "expo-video";
-
 // Component wrapper cho video thumbnail trong feed
 const VideoThumbnail = React.memo(({ videoUrl, style, onPress }) => {
   const player = useVideoPlayer(videoUrl, (p) => {
@@ -50,7 +51,6 @@ const VideoThumbnail = React.memo(({ videoUrl, style, onPress }) => {
       p.loop = false;
     }
   });
-
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={onPress}>
       <VideoView
@@ -65,80 +65,6 @@ const VideoThumbnail = React.memo(({ videoUrl, style, onPress }) => {
     </TouchableOpacity>
   );
 });
-
-// Dữ liệu stories
-const storiesData = [
-  {
-    id: "1",
-    name: "Hoàng",
-    avatar: require("../Assets/trai.png"),
-    hasStory: true,
-  },
-  {
-    id: "2",
-    name: "Quân",
-    avatar: require("../Assets/noo.png"),
-    hasStory: true,
-  },
-  {
-    id: "3",
-    name: "Trang",
-    avatar: require("../Assets/gai2.png"),
-    hasStory: true,
-  },
-  {
-    id: "4",
-    name: "Vinh",
-    avatar: require("../Assets/meo.png"),
-    hasStory: true,
-  },
-  {
-    id: "5",
-    name: "Linh",
-    avatar: require("../Assets/gai1.png"),
-    hasStory: false,
-  },
-  {
-    id: "6",
-    name: "Việt",
-    avatar: require("../Assets/embe.png"),
-    hasStory: true,
-  },
-  {
-    id: "7",
-    name: "Tùng",
-    avatar: require("../Assets/sontung.png"),
-    hasStory: false,
-  },
-];
-
-// Component Story Item
-const StoryItem = ({ id, name, avatar, hasStory, navigation }) => {
-  const handleStoryPress = () => {
-    if (hasStory) {
-      navigation.navigate("StoryViewer", {
-        storyId: id,
-        userName: name,
-        userAvatar: avatar,
-      });
-    }
-  };
-
-  return (
-    <TouchableOpacity style={styles.storyItem} onPress={handleStoryPress}>
-      <View
-        style={[
-          styles.storyAvatarContainer,
-          hasStory && styles.storyAvatarBorder,
-        ]}
-      >
-        <Image source={avatar} style={styles.storyAvatar} />
-      </View>
-      <Text style={styles.storyName}>{name}</Text>
-    </TouchableOpacity>
-  );
-};
-
 // Carousel for multiple images like Instagram
 const PostImagesCarousel = ({ images = [] }) => {
   const [index, setIndex] = useState(0);
@@ -174,7 +100,6 @@ const PostImagesCarousel = ({ images = [] }) => {
     </View>
   );
 };
-
 // Helper function to get emoji from reaction type
 const getReactionEmoji = (reactionType) => {
   switch (reactionType) {
@@ -194,7 +119,6 @@ const getReactionEmoji = (reactionType) => {
       return "❤️";
   }
 };
-
 export default function Home() {
   const insets = useSafeAreaInsets();
   const BOTTOM_NAV_HEIGHT = 0; // dùng tab bar toàn cục, không thêm padding dưới
@@ -204,6 +128,13 @@ export default function Home() {
   const [activeCommentsPostId, setActiveCommentsPostId] = useState(null);
   const [showComments, setShowComments] = useState(false);
   const [posts, setPosts] = useState([]);
+  const [myStorySlot, setMyStorySlot] = useState({
+    id: 'me',
+    name: 'Tin của bạn',
+    avatar: require('../Assets/trai.png'),
+    hasStory: false,
+    storyData: null
+  });
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState(null); // lưu dạng number khi có thể
   const [refreshing, setRefreshing] = useState(false);
@@ -229,7 +160,137 @@ export default function Home() {
   const longPressTimer = useRef(null);
   const navigation = useNavigation();
   const route = useRoute();
-
+  const { user: ctxUser } = useUser();
+  // Stories data for header: add slot + my story
+  const storiesData = useMemo(() => [
+    { id: 'add', name: 'Thêm vào chuyện của bạn', avatar: null, hasStory: false, storyData: null },
+    myStorySlot
+  ], [myStorySlot]);
+  // Function to load user avatar and info
+  const loadUserAvatar = async () => {
+    try {
+      const userStr = await AsyncStorage.getItem('userInfo');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        const rawAvatar = user?.avatarUrl ?? user?.avatar_url ?? null;
+        const avatarUri = rawAvatar ?
+          (String(rawAvatar).startsWith('http') ? rawAvatar : `${API_BASE_URL}${rawAvatar}`)
+          : null;
+        setMyStorySlot(prev => ({
+          ...prev,
+          name: user?.username || prev.name,
+          avatar: avatarUri ? { uri: avatarUri } : require('../Assets/trai.png')
+        }));
+        console.log('[HOME] Avatar updated:', avatarUri);
+        // Also update story data with new avatar
+        const savedStories = await AsyncStorage.getItem('currentUserStories');
+        if (savedStories) {
+          let storiesArray = JSON.parse(savedStories);
+          // Update userAvatar in all stories
+          storiesArray = storiesArray.map(story => ({
+            ...story,
+            userAvatar: avatarUri,
+            userName: user?.username || story.userName
+          }));
+          await AsyncStorage.setItem('currentUserStories', JSON.stringify(storiesArray));
+          setMyStorySlot(prev => ({
+            ...prev,
+            storyData: storiesArray
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn('[HOME] Error loading user avatar:', e);
+    }
+  };
+  // Function to check and update current user's story status
+  const checkUserStory = async (userId) => {
+    try {
+      console.log('[HOME] Checking stories for user:', userId);
+      // ✅ Load array stories từ AsyncStorage
+      const savedStories = await AsyncStorage.getItem('currentUserStories');
+      if (savedStories) {
+        let storiesArray = JSON.parse(savedStories);
+        // Lọc bỏ stories đã hết hạn 24h
+        const now = Date.now();
+        const validStories = storiesArray.filter(s => {
+          const age = now - new Date(s.createdAt).getTime();
+          return age < 24 * 60 * 60 * 1000;
+        });
+        if (validStories.length > 0) {
+          console.log('[HOME] Found', validStories.length, 'valid stories from AsyncStorage');
+          // Update lại AsyncStorage nếu đã lọc bỏ stories cũ
+          if (validStories.length !== storiesArray.length) {
+            await AsyncStorage.setItem('currentUserStories', JSON.stringify(validStories));
+          }
+          setMyStorySlot(prev => ({
+            ...prev,
+            hasStory: true,
+            id: 'me',
+            storyData: validStories
+          }));
+          return;
+        } else {
+          // Tất cả stories đã hết hạn
+          console.log('[HOME] All stories expired, removing from AsyncStorage');
+          await AsyncStorage.removeItem('currentUserStories');
+          setMyStorySlot(prev => ({
+            ...prev,
+            hasStory: false,
+            storyData: null
+          }));
+          return;
+        }
+      }
+      // ✅ Nếu không có trong AsyncStorage, gọi API
+      const response = await fetch(`${API_BASE_URL}/api/stories/user/${userId}/active`);
+      if (!response.ok) {
+        console.log('[HOME] No active stories found from API');
+        setMyStorySlot(prev => ({
+          ...prev,
+          hasStory: false,
+          storyData: null
+        }));
+        return;
+      }
+      const data = await response.json();
+      console.log('[HOME] Stories from API:', data);
+      // ✅ API có thể trả về array hoặc single object
+      let storiesFromAPI = [];
+      if (data?.data) {
+        storiesFromAPI = Array.isArray(data.data) ? data.data : [data.data];
+      }
+      if (storiesFromAPI.length > 0) {
+        const storyDataArray = storiesFromAPI.map(story => ({
+          id: story.id,
+          mediaUrl: story.mediaUrl,
+          mediaType: story.mediaType,
+          userName: story.userName,
+          userAvatar: story.userAvatar,
+          createdAt: story.createdAt,
+          viewCount: story.viewCount || 0
+        }));
+        setMyStorySlot(prev => ({
+          ...prev,
+          hasStory: true,
+          id: 'me',
+          storyData: storyDataArray
+        }));
+        // Lưu vào AsyncStorage
+        await AsyncStorage.setItem('currentUserStories', JSON.stringify(storyDataArray));
+        console.log('[HOME] Loaded', storyDataArray.length, 'stories from API');
+      } else {
+        setMyStorySlot(prev => ({
+          ...prev,
+          hasStory: false,
+          storyData: null
+        }));
+      }
+    } catch (error) {
+      console.error('[HOME] Error checking user stories:', error);
+    }
+  };
+  // Load user info and initial data
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -245,8 +306,12 @@ export default function Home() {
             if (mounted)
               setCurrentUserId(Number.isFinite(uidNum) ? uidNum : null);
             console.log("[HOME] AsyncStorage userInfo ->", { raw, uidNum });
+            // Load user's story
+            await checkUserStory(uidNum);
+            // Update myStorySlot avatar/name
+            await loadUserAvatar();
           }
-        } catch {}
+        } catch { }
         // Attempt to cross-check with profile API (best-effort)
         try {
           const prof = await getProfile();
@@ -280,7 +345,6 @@ export default function Home() {
           setPosts(arr);
           setCurrentPage(1);
           setHasMorePosts(arr.length >= 10);
-
           // Load reactions for each post
           const next = {};
           for (const p of arr) {
@@ -290,7 +354,6 @@ export default function Home() {
                 .sort((a, b) => b.count - a.count)
                 .slice(0, 3)
                 .map((r) => r.reactionType);
-
               next[p.id] = {
                 liked: reactionData?.userReaction != null,
                 likes: Number(reactionData?.totalReactions ?? 0),
@@ -321,16 +384,66 @@ export default function Home() {
         if (mounted) setLoading(false);
       }
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
-
-  // Refresh feed if a parent navigates with { refresh: true }
+  // Listen for story creation from CreateStory screen
   useEffect(() => {
-    const unsubscribe = navigation.addListener("focus", () => {
+    if (route.params?.createdStory && route.params?.newStory) {
+      const story = route.params.newStory;
+      console.log('[HOME] Received new story from CreateStory:', story);
+      const newStoryData = {
+        id: story.id,
+        mediaUrl: story.mediaUrl,
+        mediaType: story.mediaType,
+        createdAt: story.createdAt,
+        userName: story.userName,
+        userAvatar: story.userAvatar,
+        viewCount: 0
+      };
+      // ✅ Thêm story mới vào array thay vì ghi đè
+      (async () => {
+        try {
+          const savedStories = await AsyncStorage.getItem('currentUserStories');
+          let storiesArray = savedStories ? JSON.parse(savedStories) : [];
+          // Loại bỏ stories đã hết hạn 24h
+          const now = Date.now();
+          storiesArray = storiesArray.filter(s => {
+            const age = now - new Date(s.createdAt).getTime();
+            return age < 24 * 60 * 60 * 1000;
+          });
+          // Thêm story mới vào đầu array
+          storiesArray.unshift(newStoryData);
+          // Lưu lại
+          await AsyncStorage.setItem('currentUserStories', JSON.stringify(storiesArray));
+          console.log('[HOME] Added new story to array, total:', storiesArray.length);
+          // Update UI
+          setMyStorySlot(prev => ({
+            ...prev,
+            id: 'me',
+            hasStory: true,
+            storyData: storiesArray
+          }));
+        } catch (e) {
+          console.warn('[HOME] Failed to save story array:', e);
+        }
+      })();
+      // Clear params
+      navigation.setParams({
+        createdStory: undefined,
+        newStory: undefined,
+        timestamp: undefined
+      });
+    }
+  }, [route.params?.timestamp]);
+  // Refresh feed when screen focuses + reload avatar
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', async () => {
+      console.log('[HOME] Screen focused');
+      // ✅ Reload avatar mỗi khi focus (để cập nhật nếu đổi từ Profile)
+      await loadUserAvatar();
+      // Refresh feed if requested
       if (route?.params?.refresh) {
-        onRefreshFeed();
+        await onRefreshFeed();
         try {
           navigation.setParams({ refresh: false });
         } catch {}
@@ -338,7 +451,13 @@ export default function Home() {
     });
     return unsubscribe;
   }, [navigation, route?.params?.refresh]);
-
+  // Reload story whenever currentUserId changes
+  useEffect(() => {
+    if (currentUserId != null && Number.isFinite(currentUserId)) {
+      console.log('[HOME] CurrentUserId changed, reloading story:', currentUserId);
+      checkUserStory(currentUserId);
+    }
+  }, [currentUserId]);
   // Log ownership mapping whenever posts or user changes
   useEffect(() => {
     const uid = getOwnerId();
@@ -360,7 +479,6 @@ export default function Home() {
       });
     });
   }, [posts, currentUserId, ctxUser]);
-
   const handleCameraPress = async () => {
     // Request camera permissions using Expo ImagePicker
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -368,7 +486,6 @@ export default function Home() {
       console.log("Camera permission not granted");
       return;
     }
-
     try {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -376,7 +493,6 @@ export default function Home() {
         allowsEditing: false,
         exif: false,
       });
-
       // Newer Expo ImagePicker returns { canceled, assets }
       if (result.canceled) return;
       const uri =
@@ -390,12 +506,55 @@ export default function Home() {
       console.log("Camera error:", err);
     }
   };
-
+  const handleAddStory = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('Media library permission not granted');
+        return;
+      }
+      const libOpts = {
+        quality: 0.9,
+        mediaTypes: ImagePicker.MediaTypeOptions.All // Hỗ trợ cả image và video
+      };
+      const result = await ImagePicker.launchImageLibraryAsync(libOpts);
+      if (result.canceled) return;
+      const asset = result.assets && result.assets.length > 0 ? result.assets[0] : null;
+      const uri = asset?.uri || result.uri;
+      if (!uri) return;
+      // Check video duration if video
+      let durationSec = null;
+      if (asset?.duration != null) {
+        durationSec = asset.duration > 1000 ? Math.round(asset.duration / 1000) : asset.duration;
+      } else if (asset?.durationMillis != null) {
+        durationSec = Math.round(asset.durationMillis / 1000);
+      } else if (result.duration != null) {
+        durationSec = result.duration > 1000 ? Math.round(result.duration / 1000) : result.duration;
+      } else if (result.durationMillis != null) {
+        durationSec = Math.round(result.durationMillis / 1000);
+      }
+      if (durationSec != null && durationSec > 30) {
+        Alert.alert(
+          'Video quá dài',
+          `Video dài ${Math.floor(durationSec/60)}:${String(durationSec%60).padStart(2,'0')}. Vui lòng chọn video có độ dài tối đa 30 giây.`
+        );
+        return;
+      }
+      const filename = asset?.fileName || uri.split('/').pop();
+      const fileObj = {
+        uri,
+        name: filename,
+        type: asset?.type === 'video' || asset?.mediaType === 'video' ? 'video/mp4' : (asset?.type || 'application/octet-stream')
+      };
+      navigation.navigate('CreateStory', { media: fileObj });
+    } catch (e) {
+      console.warn('[HOME] handleAddStory error', e?.message || e);
+    }
+  };
   const onToggleLike = (postId) => {
     // Quick like (tap) - default to Like type (1)
     handleReaction(postId, 1);
   };
-
   const handleReaction = async (postId, reactionType) => {
     try {
       // Optimistic UI update
@@ -426,10 +585,8 @@ export default function Home() {
           },
         };
       });
-
       // Call API
       await addReaction(postId, reactionType);
-
       // Reload reaction summary to get accurate counts and top reactions
       try {
         const reactionData = await getReactionSummary(postId);
@@ -437,7 +594,6 @@ export default function Home() {
           .sort((a, b) => b.count - a.count)
           .slice(0, 3)
           .map((r) => r.reactionType);
-
         setPostStates((prev) => ({
           ...prev,
           [postId]: {
@@ -452,7 +608,6 @@ export default function Home() {
       } catch (err) {
         console.error("Error loading reaction summary:", err);
       }
-
       // Hide reaction picker if open
       setShowReactionPicker(null);
     } catch (error) {
@@ -472,9 +627,7 @@ export default function Home() {
       });
     }
   };
-
   const likeButtonRefs = useRef({});
-
   const onLongPressLike = (postId) => {
     const buttonRef = likeButtonRefs.current[postId];
     if (buttonRef) {
@@ -487,12 +640,10 @@ export default function Home() {
       });
     }
   };
-
   const onOpenComments = (postId) => {
     setActiveCommentsPostId(postId);
     setShowComments(true);
   };
-
   const onShare = async (post) => {
     try {
       const firstMedia = (post.media || [])[0];
@@ -517,7 +668,6 @@ export default function Home() {
       // ignore
     }
   };
-
   const onRepost = (postId) => {
     // Stub: later hook to real repost flow
     setPostStates((prev) => {
@@ -530,9 +680,7 @@ export default function Home() {
       return { ...prev, [postId]: { ...cur, shares: cur.shares + 1 } };
     });
   };
-
   // Ưu tiên lấy user id từ UserContext, fallback sang state đọc từ AsyncStorage
-  const { user: ctxUser } = useUser();
   const getOwnerId = () => {
     const fromCtx =
       ctxUser?.user_id ?? ctxUser?.userId ?? ctxUser?.UserId ?? ctxUser?.id;
@@ -547,11 +695,9 @@ export default function Home() {
     const pid = pidRaw != null ? Number(pidRaw) : null;
     return Number.isFinite(uid) && Number.isFinite(pid) && uid === pid;
   };
-
   const handleFollow = async (post) => {
     const targetUserId = post?.user?.id;
     if (!targetUserId) return;
-
     try {
       await followUser(targetUserId);
       console.log("[HOME] Followed user:", targetUserId);
@@ -562,7 +708,6 @@ export default function Home() {
       Alert.alert("Lỗi", e.message || "Không thể theo dõi người dùng");
     }
   };
-
   const openOptionsFor = (post) => {
     const uid = getOwnerId();
     const pid = post?.user?.id != null ? Number(post.user.id) : null;
@@ -581,7 +726,6 @@ export default function Home() {
     setShowPrivacySheet(false);
     setEditingCaptionPostId(null);
   };
-
   const closeAllOverlays = () => {
     setShowOptions(false);
     setShowPrivacySheet(false);
@@ -589,7 +733,6 @@ export default function Home() {
     setEditingCaptionPostId(null);
     setCaptionDraft("");
   };
-
   const pickPrivacy = async (privacyKey) => {
     if (!optionsPostId) return;
     try {
@@ -609,13 +752,11 @@ export default function Home() {
       setBusy(false);
     }
   };
-
   const startEditCaption = (post) => {
     setEditingCaptionPostId(post.id);
     setCaptionDraft(post.caption || "");
     // Keep options open to allow cancel by tapping outside
   };
-
   const submitCaptionEdit = async () => {
     if (!editingCaptionPostId) return;
     try {
@@ -638,7 +779,6 @@ export default function Home() {
       setBusy(false);
     }
   };
-
   const confirmDelete = async () => {
     if (!optionsPostId) return;
     const { Alert } = require("react-native");
@@ -662,7 +802,6 @@ export default function Home() {
       },
     ]);
   };
-
   const onRefreshFeed = async () => {
     try {
       setRefreshing(true);
@@ -684,7 +823,6 @@ export default function Home() {
             .sort((a, b) => b.count - a.count)
             .slice(0, 3)
             .map((r) => r.reactionType);
-
           next[p.id] = {
             liked: reactionData?.userReaction != null,
             likes: Number(reactionData?.totalReactions ?? 0),
@@ -711,37 +849,33 @@ export default function Home() {
       setTimeout(() => {
         flatListRef.current?.scrollToOffset?.({ offset: 0, animated: true });
       }, 100);
+      // Reload avatar khi refresh
+      await loadUserAvatar();
     } catch (e) {
       console.warn("Refresh feed error", e);
     } finally {
       setRefreshing(false);
     }
   };
-
   // Load more posts when scroll to end
   const loadMorePosts = async () => {
     if (loadingMore || !hasMorePosts) return;
-
     try {
       setLoadingMore(true);
       const nextPage = currentPage + 1;
       const data = await getFeed(nextPage, 10);
       let arr = Array.isArray(data) ? data : [];
-
       if (arr.length === 0) {
         setHasMorePosts(false);
         return;
       }
-
       arr = arr
         .slice()
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
       // Merge with existing posts
       setPosts((prev) => [...prev, ...arr]);
       setCurrentPage(nextPage);
       setHasMorePosts(arr.length >= 10);
-
       // Update post states for new posts with reactions
       const newStates = {};
       for (const p of arr) {
@@ -751,7 +885,6 @@ export default function Home() {
             .sort((a, b) => b.count - a.count)
             .slice(0, 3)
             .map((r) => r.reactionType);
-
           newStates[p.id] = {
             liked: reactionData?.userReaction != null,
             likes: Number(reactionData?.totalReactions ?? 0),
@@ -773,7 +906,6 @@ export default function Home() {
           };
         }
       }
-
       setPostStates((prev) => ({ ...prev, ...newStates }));
     } catch (e) {
       console.warn("Load more posts error", e);
@@ -781,7 +913,6 @@ export default function Home() {
       setLoadingMore(false);
     }
   };
-
   // Subscribe to triple-tap refresh from tab bar
   useEffect(() => {
     const unsub = onTabTriple("Home", () => {
@@ -793,7 +924,6 @@ export default function Home() {
     });
     return unsub;
   }, [onRefreshFeed]);
-
   // Navigate to full-screen video page with proper initial index
   const openVideoPlayerFor = (post) => {
     // Danh sách video gốc (chưa sắp xếp) để màn Video tự ưu tiên selectedId + chưa xem + mới nhất
@@ -808,8 +938,6 @@ export default function Home() {
       username: post.user?.username,
     });
   };
-  // Navigate to full-screen video page with proper initial index
-
   return (
     // Chỉ tôn trọng safe-area ở cạnh trên; bỏ cạnh dưới để không tạo dải trắng/đen nằm ngay trên tab bar
     <SafeAreaView edges={["top"]} style={styles.container}>
@@ -821,9 +949,7 @@ export default function Home() {
             style={[styles.cameraIconImage, { width: 29, height: 29 }]}
           />
         </TouchableOpacity>
-
         <Text style={styles.logo}>MediaLite</Text>
-
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.headerIconWrapper}>
             <View style={styles.heartIconHeader} />
@@ -848,7 +974,6 @@ export default function Home() {
           </TouchableOpacity>
         </View>
       </View>
-
       <FlatList
         ref={flatListRef}
         showsVerticalScrollIndicator={false}
@@ -883,13 +1008,18 @@ export default function Home() {
               data={storiesData}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
-                <StoryItem
-                  id={item.id}
-                  name={item.name}
-                  avatar={item.avatar}
-                  hasStory={item.hasStory}
-                  navigation={navigation}
-                />
+                item.id === 'add' ? (
+                  <StoryAddItem onPress={handleAddStory} />
+                ) : (
+                  <StoryItem
+                    id={item.id}
+                    name={item.name}
+                    avatar={item.avatar}
+                    hasStory={item.hasStory}
+                    storyData={item.storyData}
+                    navigation={navigation}
+                  />
+                )
               )}
             />
           </View>
@@ -974,8 +1104,8 @@ export default function Home() {
                             p.privacy === "private"
                               ? "lock-closed"
                               : p.privacy === "followers"
-                              ? "people"
-                              : "earth"
+                                ? "people"
+                                : "earth"
                           }
                           size={12}
                           color="#374151"
@@ -1002,7 +1132,6 @@ export default function Home() {
                 </TouchableOpacity>
               </View>
             </View>
-
             <View style={styles.postImageContainer}>
               {p.media && p.media.length > 0 ? (
                 (() => {
@@ -1057,8 +1186,7 @@ export default function Home() {
                 </View>
               )}
             </View>
-
-            {/* Actions */}
+            {/* Actions */ }
             <View style={styles.postActions}>
               <View style={styles.postActionsLeft}>
                 <View
@@ -1118,7 +1246,6 @@ export default function Home() {
               </View>
               {/* Right-side placeholder (bookmark, etc.) could go here */}
             </View>
-
             <View style={styles.postStats}>
               {/* Top reactions + Likes and shares summary */}
               <View
@@ -1144,7 +1271,6 @@ export default function Home() {
                   sẻ
                 </Text>
               </View>
-
               {/* Tagged Users */}
               {p.tags && p.tags.length > 0 && (
                 <View style={styles.taggedUsersContainer}>
@@ -1179,7 +1305,6 @@ export default function Home() {
                   })}
                 </View>
               )}
-
               {/* Caption with clickable @mentions */}
               {!!p.caption && (
                 <Text style={styles.captionText}>
@@ -1194,7 +1319,6 @@ export default function Home() {
                       const isCurrentUser =
                         mentionedUser &&
                         Number(mentionedUser.id) === Number(uid);
-
                       return (
                         <Text
                           key={index}
@@ -1222,11 +1346,10 @@ export default function Home() {
                 </Text>
               )}
             </View>
-          </View>
+          </View >
         )}
       />
-
-      {/* Edit Caption Modal */}
+      {/* Edit Caption Modal */ }
       <Modal
         visible={editingCaptionPostId !== null}
         transparent={true}
@@ -1256,7 +1379,6 @@ export default function Home() {
                   <Text style={styles.closeButtonText}>✕</Text>
                 </TouchableOpacity>
               </View>
-
               <View style={styles.editCaptionContent}>
                 <TextInput
                   style={styles.captionTextInput}
@@ -1272,7 +1394,6 @@ export default function Home() {
                   {captionDraft.length}/2200
                 </Text>
               </View>
-
               <View style={styles.editCaptionActions}>
                 <TouchableOpacity
                   style={[styles.actionButton, styles.cancelButton]}
@@ -1291,8 +1412,7 @@ export default function Home() {
           </TouchableOpacity>
         </KeyboardAvoidingView>
       </Modal>
-
-      {/* Comments Modal */}
+      {/* Comments Modal */ }
       <CommentsModal
         visible={showComments}
         onClose={() => setShowComments(false)}
@@ -1314,142 +1434,144 @@ export default function Home() {
           }
         }}
       />
-
-      {/* Options overlay */}
-      {showOptions && (
-        <TouchableOpacity
-          activeOpacity={1}
-          style={styles.overlay}
-          onPress={closeAllOverlays}
-        >
+      {/* Options overlay */ }
+      {
+        showOptions && (
           <TouchableOpacity
-            activeOpacity={0.95}
-            style={styles.sheet}
-            onPress={(e) => e.stopPropagation()}
+            activeOpacity={1}
+            style={styles.overlay}
+            onPress={closeAllOverlays}
           >
-            <Text style={styles.sheetTitle}>Tùy chọn</Text>
-            {(() => {
-              const post = posts.find((x) => x.id === optionsPostId);
-              if (post && isOwner(post)) {
+            <TouchableOpacity
+              activeOpacity={0.95}
+              style={styles.sheet}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <Text style={styles.sheetTitle}>Tùy chọn</Text>
+              {(() => {
+                const post = posts.find((x) => x.id === optionsPostId);
+                if (post && isOwner(post)) {
+                  return (
+                    <>
+                      <TouchableOpacity
+                        style={styles.sheetItem}
+                        onPress={() => setShowPrivacySheet(true)}
+                      >
+                        <Text style={styles.sheetItemText}>
+                          Chỉnh sửa quyền riêng tư
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.sheetItem}
+                        onPress={() => startEditCaption(post)}
+                      >
+                        <Text style={styles.sheetItemText}>
+                          Chỉnh sửa bài đăng
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.sheetItem, { borderTopWidth: 0 }]}
+                        onPress={confirmDelete}
+                      >
+                        <Text
+                          style={[styles.sheetItemText, { color: "#dc2626" }]}
+                        >
+                          Xóa bài đăng
+                        </Text>
+                      </TouchableOpacity>
+                    </>
+                  );
+                }
+                // Not owner: show limited actions (UI only)
                 return (
                   <>
                     <TouchableOpacity
                       style={styles.sheetItem}
-                      onPress={() => setShowPrivacySheet(true)}
+                      onPress={() => {
+                        /* TODO: report */ closeAllOverlays();
+                      }}
                     >
-                      <Text style={styles.sheetItemText}>
-                        Chỉnh sửa quyền riêng tư
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.sheetItem}
-                      onPress={() => startEditCaption(post)}
-                    >
-                      <Text style={styles.sheetItemText}>
-                        Chỉnh sửa bài đăng
-                      </Text>
+                      <Text style={styles.sheetItemText}>Báo cáo</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.sheetItem, { borderTopWidth: 0 }]}
-                      onPress={confirmDelete}
+                      onPress={() => {
+                        setPosts((prev) =>
+                          prev.filter((p) => p.id !== optionsPostId)
+                        );
+                        closeAllOverlays();
+                      }}
                     >
-                      <Text
-                        style={[styles.sheetItemText, { color: "#dc2626" }]}
-                      >
-                        Xóa bài đăng
-                      </Text>
+                      <Text style={styles.sheetItemText}>Ẩn bài viết</Text>
                     </TouchableOpacity>
                   </>
                 );
-              }
-              // Not owner: show limited actions (UI only)
-              return (
-                <>
-                  <TouchableOpacity
-                    style={styles.sheetItem}
-                    onPress={() => {
-                      /* TODO: report */ closeAllOverlays();
-                    }}
-                  >
-                    <Text style={styles.sheetItemText}>Báo cáo</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.sheetItem, { borderTopWidth: 0 }]}
-                    onPress={() => {
-                      setPosts((prev) =>
-                        prev.filter((p) => p.id !== optionsPostId)
-                      );
-                      closeAllOverlays();
-                    }}
-                  >
-                    <Text style={styles.sheetItemText}>Ẩn bài viết</Text>
-                  </TouchableOpacity>
-                </>
-              );
-            })()}
+              })()}
+            </TouchableOpacity>
           </TouchableOpacity>
-        </TouchableOpacity>
-      )}
-
-      {/* Privacy choices overlay */}
-      {showOptions && showPrivacySheet && (
-        <TouchableOpacity
-          activeOpacity={1}
-          style={styles.overlay}
-          onPress={closeAllOverlays}
-        >
+        )
+      }
+      {/* Privacy choices overlay */ }
+      {
+        showOptions && showPrivacySheet && (
           <TouchableOpacity
-            activeOpacity={0.95}
-            style={styles.sheet}
-            onPress={(e) => e.stopPropagation()}
+            activeOpacity={1}
+            style={styles.overlay}
+            onPress={closeAllOverlays}
           >
-            <Text style={styles.sheetTitle}>Chọn quyền riêng tư</Text>
-            {[
-              { k: "public", label: "Public" },
-              { k: "followers", label: "Followers" },
-              { k: "private", label: "Private" },
-            ].map((opt) => (
-              <TouchableOpacity
-                key={opt.k}
-                style={styles.sheetItem}
-                onPress={() => pickPrivacy(opt.k)}
-              >
-                <Text style={styles.sheetItemText}>{opt.label}</Text>
-              </TouchableOpacity>
-            ))}
+            <TouchableOpacity
+              activeOpacity={0.95}
+              style={styles.sheet}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <Text style={styles.sheetTitle}>Chọn quyền riêng tư</Text>
+              {[
+                { k: "public", label: "Public" },
+                { k: "followers", label: "Followers" },
+                { k: "private", label: "Private" },
+              ].map((opt) => (
+                <TouchableOpacity
+                  key={opt.k}
+                  style={styles.sheetItem}
+                  onPress={() => pickPrivacy(opt.k)}
+                >
+                  <Text style={styles.sheetItemText}>{opt.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </TouchableOpacity>
           </TouchableOpacity>
-        </TouchableOpacity>
-      )}
-
-      {/* Busy spinner overlay */}
-      {busy && (
-        <View style={styles.busyOverlay}>
-          <View style={styles.spinner} />
-        </View>
-      )}
-
-      {/* Reaction Picker */}
-      {showReactionPicker && (
-        <TouchableOpacity
-          activeOpacity={1}
-          style={styles.reactionOverlay}
-          onPress={() => setShowReactionPicker(null)}
-        >
-          <ReactionPicker
-            visible={showReactionPicker !== null}
-            position={reactionPickerPosition}
-            onSelectReaction={(reactionType) =>
-              handleReaction(showReactionPicker, reactionType)
-            }
-          />
-        </TouchableOpacity>
-      )}
-
-      {/* Bottom tab bar is now global in App.js */}
-    </SafeAreaView>
+        )
+      }
+      {/* Busy spinner overlay */ }
+      {
+        busy && (
+          <View style={styles.busyOverlay}>
+            <View style={styles.spinner} />
+          </View>
+        )
+      }
+      {/* Reaction Picker */ }
+      {
+        showReactionPicker && (
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.reactionOverlay}
+            onPress={() => setShowReactionPicker(null)}
+          >
+            <ReactionPicker
+              visible={showReactionPicker !== null}
+              position={reactionPickerPosition}
+              onSelectReaction={(reactionType) =>
+                handleReaction(showReactionPicker, reactionType)
+              }
+            />
+          </TouchableOpacity>
+        )
+      }
+      {/* Bottom tab bar is now global in App.js */ }
+    </SafeAreaView >
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1493,6 +1615,9 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 0,
+  },
+  navItem: {
+    padding: 4,
   },
   storiesContainer: {
     paddingVertical: 12,
@@ -1881,415 +2006,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#fff",
   },
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#DBDBDB",
-    zIndex: 1,
-  },
-  logo: {
-    fontSize: 24,
-    fontWeight: "700",
-    letterSpacing: -0.5,
-  },
-  headerRight: {
-    flexDirection: "row",
-    gap: 20,
-  },
-  headerIconWrapper: {
-    width: 26,
-    height: 26,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  heartIconHeader: {
-    width: 24,
-    height: 24,
-    position: "relative",
-  },
-  cameraIconImage: {
-    width: 29,
-    height: 29,
-  },
-  homeIconImage: {
-    width: 30,
-    height: 30,
-    borderRadius: 0,
-  },
-  storiesContainer: {
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#DBDBDB",
-  },
-  storyItem: {
-    alignItems: "center",
-    marginLeft: 12,
-  },
-  storyAvatarContainer: {
-    padding: 2,
-    borderRadius: 40,
-  },
-  storyAvatarBorder: {
-    borderWidth: 2.5,
-    borderColor: "#E1306C",
-  },
-  storyAvatar: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-  },
-  storyName: {
-    fontSize: 12,
-    marginTop: 4,
-    color: "#262626",
-  },
-  post: {
-    marginBottom: 16,
-  },
-  postHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  postHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  postAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-  },
-  postUsername: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#262626",
-  },
-  postLocation: {
-    fontSize: 11,
-    color: "#262626",
-  },
-  privacyPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    backgroundColor: "#F3F4F6",
-  },
-  privacyText: {
-    color: "#374151",
-    fontSize: 11,
-    textTransform: "capitalize",
-  },
-  moreIcon: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#262626",
-  },
-  postImageContainer: {
-    position: "relative",
-  },
-  postImage: {
-    width: "100%",
-    height: 400,
-    backgroundColor: "#F0F0F0",
-  },
-  playOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.15)",
-  },
-  imageCounter: {
-    position: "absolute",
-    top: 12,
-    right: 12,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  imageCounterText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  dotsContainer: {
-    position: "absolute",
-    bottom: 12,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 6,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "rgba(255, 255, 255, 0.5)",
-  },
-  dotActive: {
-    backgroundColor: "#FFFFFF",
-  },
-  postActions: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  postActionsLeft: {
-    flexDirection: "row",
-    gap: 16,
-    alignItems: "center",
-  },
-  heartIconPost: {
-    fontSize: 35,
-    color: "#DEDED6",
-    marginTop: -4,
-  },
-  heartIconPostFilled: {
-    fontSize: 35,
-    color: "#ED4956",
-    marginTop: -4,
-  },
-  followBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: "#dbdbdb",
-    borderRadius: 6,
-  },
-  followBtnText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  commentIconWrapper: {
-    width: 26,
-    height: 26,
-    justifyContent: "center",
-    alignItems: "center",
-    position: "relative",
-  },
-  commentBubble: {
-    width: 24,
-    height: 24,
-    borderWidth: 2.5,
-    borderColor: "#000",
-    borderRadius: 12,
-    borderTopLeftRadius: 0,
-  },
-  commentCount: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    backgroundColor: "#ED4956",
-    color: "#FFFFFF",
-    fontSize: 10,
-    fontWeight: "600",
-    borderRadius: 6,
-    paddingHorizontal: 3,
-    paddingVertical: 1,
-  },
-  postStats: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  likeCount: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#262626",
-    marginBottom: 4,
-  },
-  captionText: {
-    fontSize: 14,
-    color: "#111827",
-    lineHeight: 20,
-  },
-  commentCountText: {
-    fontSize: 12,
-    color: "#8E8E8E",
-  },
-  // bottom nav styles removed (now handled by tab navigator)
-  overlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-  },
-  sheetTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  sheetItem: {
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
-  },
-  sheetItemText: {
-    fontSize: 16,
-    color: "#111827",
-  },
-  primaryBtn: {
-    backgroundColor: "#111827",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  primaryBtnText: {
-    color: "#fff",
-    fontWeight: "600",
-  },
-  secondaryBtn: {
-    backgroundColor: "#f3f4f6",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  secondaryBtnText: {
-    color: "#111827",
-    fontWeight: "600",
-  },
-  busyOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(255,255,255,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  spinner: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 4,
-    borderColor: "#111827",
-    borderTopColor: "transparent",
-    // simple CSS-like spinner animation is not available; this is a placeholder
-  },
-  // Edit Caption Modal Styles
-  modalContainer: {
-    flex: 1,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  editCaptionSheet: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: Platform.OS === "ios" ? 34 : 20,
-    maxHeight: "80%",
-  },
-  sheetHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 16,
-    backgroundColor: "#f3f4f6",
-  },
-  closeButtonText: {
-    fontSize: 18,
-    color: "#111827",
-    fontWeight: "600",
-  },
-  editCaptionContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    minHeight: 200,
-  },
-  captionTextInput: {
-    fontSize: 16,
-    color: "#111827",
-    textAlignVertical: "top",
-    minHeight: 150,
-    maxHeight: 300,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 12,
-    backgroundColor: "#f9fafb",
-  },
-  charCounter: {
-    fontSize: 12,
-    color: "#9ca3af",
-    marginTop: 8,
-    textAlign: "right",
-  },
-  editCaptionActions: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    gap: 12,
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cancelButton: {
-    backgroundColor: "#f3f4f6",
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#6b7280",
-  },
-  saveButton: {
-    backgroundColor: "#0095F6",
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#fff",
-  },
   reactionOverlay: {
     position: "absolute",
     top: 0,
@@ -2298,5 +2014,27 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: "transparent",
     zIndex: 999,
+  },
+  addStoryAvatar: {
+    backgroundColor: '#fff',
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  plusCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#111827',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  plusText: {
+    color: '#fff',
+    fontSize: 22,
+    lineHeight: 22,
+    fontWeight: '700',
   },
 });
