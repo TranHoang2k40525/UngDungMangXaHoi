@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,12 +11,14 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getMyPosts, getProfile, updateAvatar, API_BASE_URL } from '../API/Api';
 import { useUser } from '../Context/UserContext';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { onTabTriple } from '../Utils/TabRefreshEmitter';
 
 const { width } = Dimensions.get('window');
 const imageSize = (width - 6) / 3;
@@ -24,7 +26,7 @@ const imageSize = (width - 6) / 3;
 const Profile = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { logout } = useUser();
+  const { logout, user } = useUser();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
@@ -35,14 +37,20 @@ const Profile = () => {
   const [isStoryViewed, setIsStoryViewed] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+  const [videoThumbs, setVideoThumbs] = useState({}); // { [postId]: uri }
 
   // Build full URL for avatar when API returns relative path
-  const getAvatarUri = (p) => {
-    const raw = p?.avatarUrl;
-    if (!raw) return 'https://i.pravatar.cc/150';
-    if (raw.startsWith('http')) return raw;
-    return `${API_BASE_URL}${raw}`;
-  };
+  const getAvatarUri = useMemo(() => {
+    return (p) => {
+      const raw = p?.avatarUrl;
+      if (!raw) return 'https://i.pravatar.cc/150';
+      if (raw.startsWith('http')) return raw;
+      return `${API_BASE_URL}${raw}`;
+    };
+  }, []);
+
+  // Memoize avatar URI để tránh tính toán lại mỗi lần render
+  const avatarUri = useMemo(() => getAvatarUri(profile), [profile, getAvatarUri]);
 
   // Check user story from AsyncStorage
   const checkUserStory = async (userId) => {
@@ -125,6 +133,58 @@ const Profile = () => {
     return unsubscribe;
   }, [navigation, currentUserId]);
 
+  // subscribe to triple-tap refresh on Profile tab
+  useEffect(() => {
+    const unsub = onTabTriple('Profile', async () => {
+      try {
+        setRefreshing(true);
+        const [p, me] = await Promise.all([getMyPosts(), getProfile()]);
+        setPosts(Array.isArray(p) ? p : []);
+        setProfile(me || null);
+        if (currentUserId) await checkUserStory(currentUserId);
+      } catch (e) { console.warn('[Profile] triple refresh', e); }
+      finally { setRefreshing(false); }
+    });
+    return unsub;
+  }, [currentUserId]);
+
+  // Tạo thumbnail cho các bài video để lưới không hiển thị màu đen
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      // Lọc danh sách bài video chưa có thumbnail
+      const targets = (posts || []).filter(
+        (p) => (p.media || []).some((m) => (m.type || '').toLowerCase() === 'video') && !videoThumbs[p.id]
+      );
+      
+      if (targets.length === 0) return; // Không có video mới cần tạo thumbnail
+      
+      // Tạo thumbnail tuần tự với delay để tránh blocking UI
+      for (let i = 0; i < targets.length; i++) {
+        if (!alive) break;
+        
+        const post = targets[i];
+        try {
+          const vid = (post.media || []).find((m) => (m.type || '').toLowerCase() === 'video');
+          if (!vid?.url) continue;
+          
+          const { uri } = await VideoThumbnails.getThumbnailAsync(vid.url, { time: 1000 });
+          if (alive && uri) {
+            setVideoThumbs((prev) => ({ ...prev, [post.id]: uri }));
+          }
+          
+          // Delay nhỏ giữa các video để không block UI
+          if (i < targets.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        } catch (e) {
+          console.warn('[PROFILE] generate thumbnail failed for', post.id, e);
+        }
+      }
+    })();
+    return () => { alive = false; };
+  }, [posts]); // Chỉ chạy khi posts thay đổi, không phụ thuộc videoThumbs
+
   const handleAvatarPress = () => {
     if (hasStory) {
       // Có story -> hiện menu chọn
@@ -199,7 +259,7 @@ const Profile = () => {
   ];
 
   return (
-    <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
+    <SafeAreaView edges={['top']} style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       
       {/* Header */}
@@ -236,7 +296,7 @@ const Profile = () => {
 
       <ScrollView 
         showsVerticalScrollIndicator={false} 
-        contentContainerStyle={{ paddingBottom: (insets.bottom || 0) + 16 }}
+        contentContainerStyle={{ paddingBottom: 16 }}
         refreshControl={
           <RefreshControl 
             refreshing={refreshing} 
@@ -274,7 +334,7 @@ const Profile = () => {
                 hasStory && !isStoryViewed && styles.avatarRingUnviewed
               ]}>
                 <Image
-                  source={{ uri: getAvatarUri(profile) }}
+                  source={{ uri: avatarUri }}
                   style={styles.profileImage}
                 />
               </View>
@@ -287,17 +347,31 @@ const Profile = () => {
             
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{posts.length}</Text>
+                <Text style={styles.statNumber}>{profile?.postCount ?? posts.length ?? 0}</Text>
                 <Text style={styles.statLabel}>Posts</Text>
               </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>834</Text>
+              <TouchableOpacity 
+                style={styles.statItem}
+                onPress={() => navigation.navigate('FollowList', { 
+                  userId: profile?.userId, 
+                  type: 'followers',
+                  username: profile?.username 
+                })}
+              >
+                <Text style={styles.statNumber}>{profile?.followerCount ?? 0}</Text>
                 <Text style={styles.statLabel}>Followers</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>162</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.statItem}
+                onPress={() => navigation.navigate('FollowList', { 
+                  userId: profile?.userId, 
+                  type: 'following',
+                  username: profile?.username 
+                })}
+              >
+                <Text style={styles.statNumber}>{profile?.followingCount ?? 0}</Text>
                 <Text style={styles.statLabel}>Following</Text>
-              </View>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -362,15 +436,43 @@ const Profile = () => {
             <Text style={{padding:16}}>Chưa có bài đăng</Text>
           ) : (
             posts.map((post) => {
-              const firstImage = (post.media || []).find(m => (m.type||'').toLowerCase() === 'image');
-              if (!firstImage) return (
-                <View key={post.id} style={[styles.postContainer, {justifyContent:'center', alignItems:'center'}]}>
-                  <Text style={{color:'#999'}}>Video</Text>
-                </View>
-              );
+              const images = (post.media || []).filter(m => (m.type||'').toLowerCase() === 'image');
+              const videos = (post.media || []).filter(m => (m.type||'').toLowerCase() === 'video');
+              const isVideo = videos.length > 0 && images.length === 0;
+              const firstImage = images[0];
+              
+              const onPress = () => {
+                if (isVideo) {
+                  // Navigate directly to Video tab with selectedId to show the exact video clicked
+                  navigation.navigate('Video', {
+                    selectedId: post.id,
+                    userId: post.user?.id || user?.id,
+                    username: post.user?.username || user?.username,
+                    avatarUrl: post.user?.avatarUrl || user?.avatarUrl
+                  });
+                } else {
+                  navigation.navigate('PostDetail', { post });
+                }
+              };
+              
+              if (isVideo) {
+                return (
+                  <TouchableOpacity key={post.id} style={styles.postContainer} onPress={onPress}>
+                    <View style={{flex:1}}>
+                      {videoThumbs[post.id] ? (
+                        <Image source={{ uri: videoThumbs[post.id] }} style={styles.postImage} />
+                      ) : (
+                        <View style={[styles.postImage, { backgroundColor:'#000' }]} />
+                      )}
+                      <Ionicons name="play" size={22} color="#fff" style={{ position:'absolute', right:6, bottom:6, opacity:0.9 }} />
+                    </View>
+                  </TouchableOpacity>
+                );
+              }
+              
               return (
-                <TouchableOpacity key={post.id} style={styles.postContainer}>
-                  <Image source={{ uri: firstImage.url }} style={styles.postImage} />
+                <TouchableOpacity key={post.id} style={styles.postContainer} onPress={onPress}>
+                  <Image source={{ uri: firstImage?.url }} style={styles.postImage} />
                 </TouchableOpacity>
               );
             })

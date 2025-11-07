@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useRef } from "react";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { UserProvider, useUser } from "./src/Context/UserContext";
+import { FollowProvider } from "./src/Context/FollowContext";
 import Login from "./src/Auth/Login";
 import SignUp from "./src/Auth/SignUp";
 import VerifyOtp from "./src/Auth/VerifyOtp";
@@ -23,18 +24,23 @@ import Doanchat from "./src/Messegers/Doanchat";
 import Messenger from "./src/Messegers/Messenger";
 import Search from "./src/Searchs/Search";
 import Profile from "./src/User/Profile";
+import UserProfilePublic from "./src/User/UserProfilePublic";
+import FollowList from "./src/User/FollowList";
+import PostDetail from "./src/Home/PostDetail";
 import Editprofile from "./src/User/Editprofile";
 import PhotoPreview from "./src/User/PhotoPreview";
 import { View, ActivityIndicator, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { API_BASE_URL } from "./src/API/Api";
+import { TouchableOpacity } from 'react-native';
+import { emitTabTriple } from './src/Utils/TabRefreshEmitter';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function TabProfileIcon({ focused }) {
     const { user } = useUser();
-    const size = focused ? 24 : 24;
+    const size = focused ? 30 : 30;
     const borderColor = focused ? "#000" : "#9CA3AF";
     let uri = user?.avatarUrl || user?.AvatarUrl || null;
     if (uri && !uri.startsWith("http")) {
@@ -63,66 +69,124 @@ function TabProfileIcon({ focused }) {
     );
 }
 
+function TabBarButton({ children, onPress, onLongPress, route, style, accessibilityState, ...rest }) {
+    // triple-tap detector
+    const taps = useRef([]);
+    return (
+        <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={onPress}
+            onLongPress={onLongPress || onPress}
+            style={[{ flex: 1, alignItems: 'center', justifyContent: 'center' }, style]}
+            accessibilityState={accessibilityState}
+            {...rest}
+            onPressIn={() => {
+                const now = Date.now();
+                taps.current = (taps.current || []).filter(t => now - t < 400);
+                taps.current.push(now);
+                if (taps.current.length >= 3) {
+                    // emit an event on navigation to tell that this tab was triple-pressed
+                    // Use navigation from children via a synthetic event: navigation.emit supported below
+                    try {
+                        // children are icons only; route param contains key/name we can use to emit event
+                        // We use the global navigation container by navigating to the same route with a param
+                        // that listeners can pick up via navigation.addListener('tabTriplePress', ...)
+                        // Here we navigate programmatically to the same route which will trigger no-op but we emit an event
+                        // Use setTimeout to allow normal onPress to process first
+                        setTimeout(() => {
+                            // Emit our custom triple-tap event for this tab
+                            try { emitTabTriple(route.name); } catch (e) { }
+                        }, 50);
+                    } catch (e) {}
+                }
+            }}
+        >
+            {children}
+        </TouchableOpacity>
+    );
+}
+
 function MainTabs() {
     const insets = useSafeAreaInsets();
-    const baseHeight = 56; // base tab height
+    const baseHeight = 60; // base tab height
     const bottomInset = insets?.bottom || 0;
     return (
         <Tab.Navigator
-            screenOptions={({ route }) => ({
-                headerShown: false,
-                tabBarShowLabel: false,
-                tabBarHideOnKeyboard: true,
-                // Ensure the tab bar clears device navigation area by including bottom safe-area inset
-                tabBarStyle: {
-                    height: baseHeight + bottomInset,
-                    paddingBottom: bottomInset, // chỉ đệm đúng phần safe-area, không thêm khoảng trắng
-                    paddingTop: 0,
-                    borderTopColor: "#DBDBDB",
-                    borderTopWidth: StyleSheet.hairlineWidth,
-                    backgroundColor: "#FFFFFF",
-                },
-                tabBarIcon: ({ focused, color, size }) => {
-                    switch (route.name) {
-                        case "Home":
-                            return (
-                                <Ionicons
-                                    name={focused ? "home" : "home-outline"}
-                                    size={24}
-                                    color={focused ? "#000" : "#9CA3AF"}
-                                />
-                            );
-                        case "Search":
-                            return (
-                                <Ionicons
-                                    name={focused ? "search" : "search-outline"}
-                                    size={24}
-                                    color={focused ? "#000" : "#9CA3AF"}
-                                />
-                            );
-                        case "CreatePost":
-                            return (
-                                <Ionicons
-                                    name={focused ? "add-circle" : "add-circle-outline"}
-                                    size={26}
-                                    color={focused ? "#000" : "#9CA3AF"}
-                                />
-                            );
-                        case "Video":
-                            return (
-                                <Ionicons
-                                    name={focused ? "play-circle" : "play-circle-outline"}
-                                    size={26}
-                                    color={focused ? "#000" : "#9CA3AF"}
-                                />
-                            );
-                        case "Profile":
-                            return <TabProfileIcon focused={focused} />;
-                        default:
-                            return null;
-                    }
-                },
-            })}
+            id="MainTabs"
+            screenOptions={({ route, navigation }) => {
+                // Check if current route is Video to invert colors
+                const state = navigation.getState();
+                const currentRoute = state?.routes[state.index];
+                const isVideoRoute = currentRoute?.name === 'Video';
+                
+                // Inverted colors for Video tab
+                const bgColor = isVideoRoute ? '#000000' : '#FFFFFF';
+                const borderColor = isVideoRoute ? 'rgba(255,255,255,0.1)' : '#DBDBDB';
+                const focusedColor = isVideoRoute ? '#FFFFFF' : '#000000';
+                const unfocusedColor = isVideoRoute ? 'rgba(255,255,255,0.6)' : '#9CA3AF';
+                
+                return {
+                    headerShown: false,
+                    tabBarShowLabel: false,
+                    tabBarHideOnKeyboard: true,
+                    // Custom tabBarButton to detect triple-tap and emit a refresh event
+                    tabBarButton: (props) => {
+                        // route is closed-over from screenOptions
+                        return <TabBarButton {...props} route={route} />;
+                    },
+                    // Ensure the tab bar clears device navigation area by including bottom safe-area inset
+                    tabBarStyle: {
+                        height: baseHeight + bottomInset,
+                        paddingBottom: bottomInset,
+                        paddingTop: 1,
+                        borderTopColor: borderColor,
+                        borderTopWidth: StyleSheet.hairlineWidth,
+                        backgroundColor: bgColor,
+                    },
+                    tabBarIcon: ({ focused, color, size }) => {
+                        const iconFocusedColor = focused ? focusedColor : unfocusedColor;
+                        
+                        switch (route.name) {
+                            case "Home":
+                                return (
+                                    <Ionicons
+                                        name={focused ? "home" : "home-outline"}
+                                        size={28}
+                                        color={iconFocusedColor}
+                                    />
+                                );
+                            case "Search":
+                                return (
+                                    <Ionicons
+                                        name={focused ? "search" : "search-outline"}
+                                        size={28}
+                                        color={iconFocusedColor}
+                                    />
+                                );
+                            case "CreatePost":
+                                return (
+                                    <Ionicons
+                                        name={focused ? "add-circle" : "add-circle-outline"}
+                                        size={30}
+                                        color={iconFocusedColor}
+                                    />
+                                );
+                            case "Video":
+                                return (
+                                    <Ionicons
+                                        name={focused ? "play-circle" : "play-circle-outline"}
+                                        size={30}
+                                        color={iconFocusedColor}
+                                    />
+                                );
+                            case "Profile":
+                                return <TabProfileIcon focused={focused} />;
+                            default:
+                                return null;
+                        }
+                    },
+                };
+            }}
         >
             <Tab.Screen name="Home" component={Home} />
             <Tab.Screen name="Search" component={Search} />
@@ -186,6 +250,9 @@ function AppNavigator() {
                         />
                         <Stack.Screen name="Thongbao" component={Thongbao} />
                         <Stack.Screen name="SharePost" component={SharePost} />
+                        <Stack.Screen name="PostDetail" component={PostDetail} />
+                        <Stack.Screen name="UserProfilePublic" component={UserProfilePublic} />
+                        <Stack.Screen name="FollowList" component={FollowList} />
                         <Stack.Screen
                             name="CommentsModal"
                             component={CommentsModal}
@@ -227,9 +294,11 @@ function AppNavigator() {
 export default function App() {
     return (
         <UserProvider>
-            <SafeAreaProvider>
-                <AppNavigator />
-            </SafeAreaProvider>
+            <FollowProvider>
+                <SafeAreaProvider>
+                    <AppNavigator />
+                </SafeAreaProvider>
+            </FollowProvider>
         </UserProvider>
     );
 }
