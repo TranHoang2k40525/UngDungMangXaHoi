@@ -1,0 +1,132 @@
+version: '3.8'
+
+# Production Docker Compose Configuration
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  sqlserver:
+    # Production database with resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    # Production volume with backup strategy
+    volumes:
+      - sqlserver-prod-data:/var/opt/mssql
+    # Remove port exposure for security (only accessible within Docker network)
+    ports: []
+    # Production restart policy
+    restart: always
+    healthcheck:
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  webapi:
+    # Use production Dockerfile
+    build:
+      context: .
+      dockerfile: Presentation/WebAPI/Dockerfile.production
+      args:
+        ASPNETCORE_ENVIRONMENT: Production
+    
+    # Production container name
+    container_name: ungdungmxh-webapi-prod
+    
+    # Production environment variables (no secrets in plain text!)
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5297
+      
+      # Database connection (read password from secret)
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=ungdungmangxahoiv_2;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;Encrypt=True;
+      
+      # JWT settings (read from secrets)
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - JWT_ISSUER=${JWT_ISSUER:-UngDungMangXaHoi}
+      - JWT_AUDIENCE=${JWT_AUDIENCE:-UngDungMangXaHoi}
+      
+      # Cloudinary (read from secrets)
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      
+      # Email (read from secrets)
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+    
+    # Use Docker secrets (more secure than env vars)
+    secrets:
+      - db_password
+      - jwt_access_secret
+      - jwt_refresh_secret
+      - cloudinary_api_secret
+      - email_password
+    
+    # Production resource limits
+    deploy:
+      replicas: 2  # Run 2 instances for high availability
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    
+    # NO volume mounts in production (use built image)
+    volumes: []
+    
+    # Production ports (behind reverse proxy/load balancer)
+    ports:
+      - "5297:5297"
+    
+    # Production restart policy
+    restart: always
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5297/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# Production volumes with backup labels
+volumes:
+  sqlserver-prod-data:
+    driver: local
+    labels:
+      backup: "daily"
+      retention: "30days"
+
+# Docker secrets (point to secret files)
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  jwt_access_secret:
+    file: ./secrets/jwt_access_secret.txt
+  jwt_refresh_secret:
+    file: ./secrets/jwt_refresh_secret.txt
+  cloudinary_api_secret:
+    file: ./secrets/cloudinary_api_secret.txt
+  email_password:
+    file: ./secrets/email_password.txt
+
+# Production network
+networks:
+  app-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

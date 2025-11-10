@@ -1,0 +1,26 @@
+# Ignore build output and local envs
+bin/
+obj/
+.env
+.DS_Store
+
+# Assets and large files
+Assets/
+
+# VS/IDE
+.vs/
+*.user
+*.suo
+*.cache
+*.log
+
+# Node / frontend
+node_modules/
+
+# Others
+*.sqlite
+*.db
+*.pfx
+*.snk
+*.key
+*.pem

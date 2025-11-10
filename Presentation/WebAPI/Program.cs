@@ -17,8 +17,17 @@ using UngDungMangXaHoi.Presentation.WebAPI.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Load .env as early as possible
-Env.TraversePath().Load();
+// Load .env file vào environment variables (cho Environment.GetEnvironmentVariable)
+// TraversePath() sẽ tìm .env từ thư mục hiện tại lên thư mục cha
+try
+{
+    Env.TraversePath().Load();
+    Console.WriteLine("Loaded .env file successfully");
+}
+catch (Exception)
+{
+    Console.WriteLine("No .env file found, using appsettings.json only");
+}
 
 // Add services to the container.
 builder.Services.AddControllers()
@@ -35,41 +44,36 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // ======================================
-// Database Configuration (ưu tiên appsettings.json, fallback .env)
+// Database Configuration (ƯU TIÊN Environment Variables → appsettings.json)
 // ======================================
+// ASP.NET Core tự động merge env vars vào Configuration:
+// - Env var: ConnectionStrings__DefaultConnection → Configuration["ConnectionStrings:DefaultConnection"]
+// - Docker Compose set qua environment, dotnet run dùng appsettings.json
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
-// Chỉ dùng env vars nếu connection string không có trong appsettings.json
 if (string.IsNullOrEmpty(connectionString))
 {
-    var sqlServer = Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost";
-    var sqlPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "1433";
-    var sqlUser = Environment.GetEnvironmentVariable("DB_USER") ?? "sa";
-    var sqlPass = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "123456789";
-    var sqlDb = Environment.GetEnvironmentVariable("DB_NAME") ?? "ungdungmangxahoiv_2";
-    var sqlTrust = Environment.GetEnvironmentVariable("SQLSERVER_TRUST_CERT") ?? "true";
-    connectionString = $"Server={sqlServer},{sqlPort};Database={sqlDb};User Id={sqlUser};Password={sqlPass};TrustServerCertificate={sqlTrust};";
-    Console.WriteLine($"[DB CONFIG] Using ENV: Server: {sqlServer}:{sqlPort}, Database: {sqlDb}");
+    throw new InvalidOperationException("Database connection string not found! Check appsettings.json or environment variables.");
 }
-else
-{
-    Console.WriteLine($"[DB CONFIG] Using appsettings.json: {connectionString}");
-}
+
+Console.WriteLine($"[DB CONFIG] Using connection: {connectionString.Substring(0, Math.Min(50, connectionString.Length))}...");
 
 builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(connectionString));
 
 // JWT Authentication - ƯU TIÊN .env, fallback appsettings.json
 var jwtAccessSecret = Environment.GetEnvironmentVariable("JWT_ACCESS_SECRET") 
-    ?? builder.Configuration["JwtSettings:AccessSecret"] 
-    ?? "kkwefihewofjevwljflwljgjewjwjegljlwflwflew";
+    ?? builder.Configuration["JwtSettings:AccessSecret"];
 
 var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER") 
-    ?? builder.Configuration["JwtSettings:Issuer"] 
-    ?? "UngDungMangXaHoi";
+    ?? builder.Configuration["JwtSettings:Issuer"];
 
 var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") 
-    ?? builder.Configuration["JwtSettings:Audience"] 
-    ?? "UngDungMangXaHoi";
+    ?? builder.Configuration["JwtSettings:Audience"];
+
+if (string.IsNullOrEmpty(jwtAccessSecret))
+{
+    throw new InvalidOperationException("JWT AccessSecret not found! Check appsettings.json or JWT_ACCESS_SECRET env var.");
+}
 
 Console.WriteLine($"[JWT AUTH] AccessSecret length: {jwtAccessSecret.Length}");
 Console.WriteLine($"[JWT AUTH] Issuer: {jwtIssuer}, Audience: {jwtAudience}");
@@ -135,16 +139,18 @@ builder.Services.AddScoped<IRealTimeNotificationService, UngDungMangXaHoi.Presen
 builder.Services.AddScoped<CloudinaryService>(provider =>
 {
     var cloudName = Environment.GetEnvironmentVariable("CLOUDINARY_CLOUD_NAME")
-                    ?? builder.Configuration["Cloudinary:CloudName"]
-                    ?? "";
+                    ?? builder.Configuration["Cloudinary:CloudName"];
     var apiKey = Environment.GetEnvironmentVariable("CLOUDINARY_API_KEY")
-                 ?? builder.Configuration["Cloudinary:ApiKey"]
-                 ?? "";
+                 ?? builder.Configuration["Cloudinary:ApiKey"];
     var apiSecret = Environment.GetEnvironmentVariable("CLOUDINARY_API_SECRET")
-                    ?? builder.Configuration["Cloudinary:ApiSecret"]
-                    ?? "";
+                    ?? builder.Configuration["Cloudinary:ApiSecret"];
 
-    Console.WriteLine($"[CLOUDINARY] ✅ Using cloud: {cloudName}");
+    if (string.IsNullOrEmpty(cloudName) || string.IsNullOrEmpty(apiKey) || string.IsNullOrEmpty(apiSecret))
+    {
+        throw new InvalidOperationException("❌ Cloudinary config not found! Check appsettings.json or CLOUDINARY_* env vars.");
+    }
+
+    Console.WriteLine($"[CLOUDINARY] Using cloud: {cloudName}");
 
     return new CloudinaryService(cloudName, apiKey, apiSecret);
 });
@@ -167,10 +173,11 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "http://localhost:5173") // Thêm origin của frontend
-              .AllowAnyMethod()
-              .AllowAnyHeader()
-              .AllowCredentials(); // Quan trọng cho SignalR
+        policy
+            .AllowAnyOrigin() // Cho phép mọi domain
+            .AllowAnyMethod()
+            .AllowAnyHeader();
+        // .AllowCredentials(); // Nếu dùng AllowAnyOrigin thì không dùng AllowCredentials
     });
 });
 
@@ -178,6 +185,27 @@ builder.Services.AddCors(options =>
 // Build App
 // ======================================
 var app = builder.Build();
+
+// ======================================
+// 🔹 Auto-migrate database on startup (Development only)
+// ======================================
+if (app.Environment.IsDevelopment())
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        try
+        {
+            Console.WriteLine("Checking for pending migrations...");
+            db.Database.Migrate(); // Tự động tạo/cập nhật bảng nếu thiếu
+            Console.WriteLine("Database is up to date!");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+    }
+}
 
 // ======================================
 // 🔹 Middleware Pipeline

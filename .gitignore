@@ -11,7 +11,23 @@
 
 ## Env files
 .env
+.env.production
+.env.staging
+.env.local
 **/.env
+**/.env.production
+**/.env.staging
+
+## Secrets (Docker secrets)
+secrets/*.txt
+!secrets/*.txt.example
+secrets/*.key
+secrets/*.pem
+secrets/*.pfx
+
+## Configs (if containing sensitive data)
+configs/*.conf
+!configs/*.conf.example
 
 ## Node/Frontend
 **/node_modules/

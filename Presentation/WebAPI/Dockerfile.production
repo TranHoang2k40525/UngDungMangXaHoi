@@ -1,0 +1,68 @@
+# ==================================
+# Stage 1: Restore dependencies
+# ==================================
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS restore
+WORKDIR /src
+
+# Copy solution and project files for efficient layer caching
+COPY UngDungMangXaHoi.sln ./
+COPY Domain/UngDungMangXaHoi.Domain.csproj Domain/
+COPY Application/UngDungMangXaHoi.Application.csproj Application/
+COPY Infrastructure/UngDungMangXaHoi.Infrastructure.csproj Infrastructure/
+COPY Presentation/WebAPI/UngDungMangXaHoi.WebAPI.csproj Presentation/WebAPI/
+
+# Restore NuGet packages
+RUN dotnet restore
+
+# ==================================
+# Stage 2: Build application
+# ==================================
+FROM restore AS build
+WORKDIR /src
+
+# Copy all source code
+COPY . .
+
+# Build in Release mode
+WORKDIR /src/Presentation/WebAPI
+RUN dotnet build -c Release -o /app/build --no-restore
+
+# ==================================
+# Stage 3: Publish application
+# ==================================
+FROM build AS publish
+RUN dotnet publish -c Release -o /app/publish --no-restore --no-build \
+    /p:UseAppHost=false
+
+# ==================================
+# Stage 4: Runtime (Final lightweight image)
+# ==================================
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+
+# Create non-root user for security
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Copy published files from publish stage
+COPY --from=publish /app/publish .
+
+# Create Assets directory for file uploads
+RUN mkdir -p Assets/Images Assets/Videos && \
+    chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 5297
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:5297/health || exit 1
+
+# Set production environment
+ENV ASPNETCORE_ENVIRONMENT=Production
+ENV ASPNETCORE_URLS=http://+:5297
+
+# Run application
+ENTRYPOINT ["dotnet", "UngDungMangXaHoi.WebAPI.dll"]

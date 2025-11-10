@@ -1,0 +1,73 @@
+version: '3.8'
+
+# Docker Compose for UngDungMangXaHoi - Development Environment
+# Services: WebAPI (Backend), SQL Server, MinIO (File Storage)
+# Usage: docker-compose up -d
+
+services:
+  # SQL Server Database
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: ungdungmxh-sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=${DB_PASSWORD}
+      - MSSQL_PID=Developer
+    ports:
+      - "1434:1433"  # Máy host dùng 1434, container vẫn dùng 1433
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P ${DB_PASSWORD} -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # WebAPI Backend (ASP.NET Core with hot-reload)
+  webapi:
+    build:
+      context: .
+      dockerfile: Presentation/WebAPI/Dockerfile
+    container_name: ungdungmxh-webapi
+    ports:
+      - "5297:5297"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5297
+      - DOTNET_USE_POLLING_FILE_WATCHER=1
+      # Database connection (use service name 'sqlserver' as host)
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=ungdungmangxahoiv_2;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;
+      # JWT settings (pass as simple env vars for Program.cs to read)
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - JWT_ISSUER=UngDungMangXaHoi
+      - JWT_AUDIENCE=UngDungMangXaHoi
+      # Cloudinary settings (pass as simple env vars)
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      # Email settings (pass as simple env vars)
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+    volumes:
+      # Mount source code for hot-reload (dotnet watch)
+      - ./:/src:delegated
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+
+# Persistent volumes for data storage
+volumes:
+  sqlserver-data:
+    driver: local
+
+# Custom network for service communication
+networks:
+  app-network:
+    driver: bridge
