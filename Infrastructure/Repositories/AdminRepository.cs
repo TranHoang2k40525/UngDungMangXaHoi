@@ -36,28 +36,26 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         {
             return await _context.Admins
                 .Include(a => a.Account)
-                .FirstOrDefaultAsync(a => a.Account.email != null && 
-                                         a.Account.email.Value.ToLower() == email.Value.ToLower());
+                .FirstOrDefaultAsync(a => a.Account.email != null && a.Account.email.Value.ToLower() == email.Value.ToLower());
         }
 
-        public async Task<Admin> AddAsync(Admin admin)
+    public async Task<Admin> AddAsync(Admin admin)
         {
             _context.Admins.Add(admin);
             await _context.SaveChangesAsync();
             return admin;
         }
 
-        public async Task UpdateAsync(Admin admin)
+    public async Task UpdateAsync(Admin admin)
         {
             _context.Admins.Update(admin);
             await _context.SaveChangesAsync();
         }
 
-        public async Task<bool> ExistsByEmailAsync(Email email)
+    public async Task<bool> ExistsByEmailAsync(Email email)
         {
             return await _context.Admins
-                .AnyAsync(a => a.Account.email != null && 
-                              a.Account.email.Value.ToLower() == email.Value.ToLower());
+                .AnyAsync(a => a.Account.email != null && a.Account.email.Value.ToLower() == email.Value.ToLower());
         }
     }
 }

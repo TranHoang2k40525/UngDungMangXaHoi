@@ -77,6 +77,8 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                     || (p.privacy.ToLower() == "followers" && currentUserId != null &&
                         _context.Follows.Any(f => f.follower_id == currentUserId && f.following_id == p.user_id))
                 ))
+                // Exclude posts from users blocked by current user
+                .Where(p => currentUserId == null || !_context.Blocks.Any(b => b.blocker_id == currentUserId && b.blocked_id == p.user_id))
                 .OrderByDescending(p => p.created_at)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize);
@@ -102,7 +104,14 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
             // If the viewer is the owner, return all visible posts
             if (viewerUserId != null && viewerUserId.Value == userId)
             {
+                // But if owner has blocked viewer (shouldn't happen when same user), still return
                 return await GetUserPostsAsync(userId, pageNumber, pageSize);
+            }
+
+            // If the target user has blocked the viewer, return empty (viewer cannot see this user's profile)
+            if (viewerUserId != null && _context.Blocks.Any(b => b.blocker_id == userId && b.blocked_id == viewerUserId))
+            {
+                return new List<Post>();
             }
 
             // Otherwise, return public posts + followers-only if viewer follows user
@@ -115,6 +124,8 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                     || (p.privacy.ToLower() == "followers" && viewerUserId != null &&
                         _context.Follows.Any(f => f.follower_id == viewerUserId && f.following_id == userId))
                 ))
+                // Exclude if viewer has blocked this user (then viewer shouldn't see their posts)
+                .Where(p => viewerUserId == null || !_context.Blocks.Any(b => b.blocker_id == viewerUserId && b.blocked_id == p.user_id))
                 .OrderByDescending(p => p.created_at)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
@@ -137,7 +148,9 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                         || (p.privacy.ToLower() == "followers" && currentUserId != null &&
                             _context.Follows.Any(f => f.follower_id == currentUserId && f.following_id == p.user_id))
                     ))
-                .OrderByDescending(p => p.created_at)
+                    // Exclude posts from users blocked by current user
+                    .Where(p => currentUserId == null || !_context.Blocks.Any(b => b.blocker_id == currentUserId && b.blocked_id == p.user_id))
+                    .OrderByDescending(p => p.created_at)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
@@ -160,6 +173,7 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                             _context.Follows.Any(f => f.follower_id == currentUserId && f.following_id == p.user_id))
                     ))
                 .OrderByDescending(p => p.created_at)
+                .Where(p => currentUserId == null || !_context.Blocks.Any(b => b.blocker_id == currentUserId && b.blocked_id == p.user_id))
                 .ToListAsync();
         }
 

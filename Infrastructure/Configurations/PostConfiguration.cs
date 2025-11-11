@@ -27,6 +27,14 @@ namespace UngDungMangXaHoi.Infrastructure.Configurations
                 .HasMaxLength(255)
                 .HasColumnName("location");
 
+            builder.Property(p => p.MentionedUserIds)
+                .HasColumnName("mentioned_user_ids")
+                .HasMaxLength(2000);
+
+            builder.Property(p => p.TaggedUserIds)
+                .HasColumnName("tagged_user_ids")
+                .HasMaxLength(2000);
+
             builder.Property(p => p.privacy)
                 .IsRequired()
                 .HasMaxLength(50)

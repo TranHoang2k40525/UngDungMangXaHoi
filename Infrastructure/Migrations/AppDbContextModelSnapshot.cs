@@ -562,7 +562,7 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                                 .IsUnique()
                                 .HasFilter("[email] IS NOT NULL");
 
-                            b1.ToTable("Accounts");
+                            b1.ToTable("Accounts", (string)null);
 
                             b1.WithOwner()
                                 .HasForeignKey("account_id");
@@ -581,7 +581,7 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
 
                             b1.HasKey("account_id");
 
-                            b1.ToTable("Accounts");
+                            b1.ToTable("Accounts", (string)null);
 
                             b1.WithOwner()
                                 .HasForeignKey("account_id");
@@ -604,7 +604,7 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                                 .IsUnique()
                                 .HasFilter("[phone] IS NOT NULL");
 
-                            b1.ToTable("Accounts");
+                            b1.ToTable("Accounts", (string)null);
 
                             b1.WithOwner()
                                 .HasForeignKey("account_id");
@@ -638,7 +638,7 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
 
                             b1.HasKey("admin_id");
 
-                            b1.ToTable("Admins");
+                            b1.ToTable("Admins", (string)null);
 
                             b1.WithOwner()
                                 .HasForeignKey("admin_id");
@@ -788,7 +788,7 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
 
                             b1.HasKey("user_id");
 
-                            b1.ToTable("Users");
+                            b1.ToTable("Users", (string)null);
 
                             b1.WithOwner()
                                 .HasForeignKey("user_id");
@@ -810,7 +810,7 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                             b1.HasIndex("Value")
                                 .IsUnique();
 
-                            b1.ToTable("Users");
+                            b1.ToTable("Users", (string)null);
 
                             b1.WithOwner()
                                 .HasForeignKey("user_id");

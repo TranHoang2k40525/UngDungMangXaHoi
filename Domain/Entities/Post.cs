@@ -12,6 +12,10 @@ namespace UngDungMangXaHoi.Domain.Entities
         public int user_id { get; set; }
         public string? caption { get; set; }
         public string? location { get; set; }
+        // CSV of mentioned user ids in caption/tags
+        public string? MentionedUserIds { get; set; }
+        // CSV of explicitly tagged user ids (post tags)
+        public string? TaggedUserIds { get; set; }
         public string privacy { get; set; } = "public";  // public/private/followers
         public bool is_visible { get; set; } = true;
         public DateTimeOffset created_at { get; set; }
