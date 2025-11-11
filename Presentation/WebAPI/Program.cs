@@ -113,6 +113,7 @@ builder.Services.AddScoped<IReactionRepository, ReactionRepository>();
 builder.Services.AddScoped<IShareRepository, ShareRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<ICommentRepository, CommentRepository>();
+builder.Services.AddScoped<IBlockRepository, BlockRepository>();
 
 // ======================================
 // 6️⃣ Đăng ký Service

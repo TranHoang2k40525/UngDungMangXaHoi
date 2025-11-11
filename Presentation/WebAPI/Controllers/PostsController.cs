@@ -42,6 +42,9 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             public string Privacy { get; set; } = "public"; // public | private | followers
             public List<IFormFile>? Images { get; set; }
             public IFormFile? Video { get; set; }
+            // Optional JSON arrays encoded as strings, e.g. "[1,2,3]"
+            public string? Mentions { get; set; }
+            public string? Tags { get; set; }
         }
 
         // DTOs for update operations
@@ -55,11 +58,17 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             public string Caption { get; set; } = string.Empty;
         }
 
+        public class UpdateTagsDto
+        {
+            // array of user ids
+            public int[]? Tags { get; set; }
+        }
+
     [HttpPost]
     [Consumes("multipart/form-data")]
         [RequestFormLimits(MultipartBodyLengthLimit = 150_000_000)] // 150MB total
         [RequestSizeLimit(150_000_000)]
-        public async Task<IActionResult> CreatePost([FromForm] CreatePostForm form)
+    public async Task<IActionResult> CreatePost([FromForm] CreatePostForm form)
         {
             // Validate privacy
             var allowedPrivacy = new[] { "public", "private", "followers" };
@@ -116,6 +125,26 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 }
             }
 
+            // Parse optional mentions/tags (JSON arrays) and store as CSV on Post
+            int[]? mentionIds = null;
+            int[]? tagIds = null;
+            try
+            {
+                if (!string.IsNullOrEmpty(form.Mentions))
+                {
+                    mentionIds = System.Text.Json.JsonSerializer.Deserialize<int[]>(form.Mentions);
+                }
+            }
+            catch { /* ignore parse errors */ }
+            try
+            {
+                if (!string.IsNullOrEmpty(form.Tags))
+                {
+                    tagIds = System.Text.Json.JsonSerializer.Deserialize<int[]>(form.Tags);
+                }
+            }
+            catch { /* ignore parse errors */ }
+
             // Create post first
             var post = new Post
             {
@@ -124,7 +153,9 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 location = form.Location,
                 privacy = incomingPrivacy,
                 is_visible = true,
-                created_at = DateTimeOffset.UtcNow
+                created_at = DateTimeOffset.UtcNow,
+                MentionedUserIds = (mentionIds != null && mentionIds.Length > 0) ? string.Join(",", mentionIds) : null,
+                TaggedUserIds = (tagIds != null && tagIds.Length > 0) ? string.Join(",", tagIds) : null
             };
 
             var createdPost = await _postRepository.AddAsync(post);
@@ -224,7 +255,12 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 commentCounts[postId] = count;
             }
             
-            return Ok(posts.Select(p => MapPostToDto(p, commentCounts.GetValueOrDefault(p.post_id, 0))));
+            var dtoList = new List<object>();
+            foreach (var pp in posts)
+            {
+                dtoList.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
+            }
+            return Ok(dtoList);
         }
 
         [HttpGet("reels")]
@@ -254,7 +290,12 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 commentCounts[postId] = count;
             }
             
-            return Ok(posts.Select(p => MapPostToDto(p, commentCounts.GetValueOrDefault(p.post_id, 0))));
+            var dtoList2 = new List<object>();
+            foreach (var pp in posts)
+            {
+                dtoList2.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
+            }
+            return Ok(dtoList2);
         }
 
         [HttpGet("reels/all")]
@@ -284,7 +325,12 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 commentCounts[postId] = count;
             }
             
-            return Ok(posts.Select(p => MapPostToDto(p, commentCounts.GetValueOrDefault(p.post_id, 0))));
+            var dtoList3 = new List<object>();
+            foreach (var pp in posts)
+            {
+                dtoList3.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
+            }
+            return Ok(dtoList3);
         }
 
         [HttpGet("reels/following")]
@@ -313,7 +359,12 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 commentCounts[postId] = count;
             }
             
-            return Ok(posts.Select(p => MapPostToDto(p, commentCounts.GetValueOrDefault(p.post_id, 0))));
+            var dtoList4 = new List<object>();
+            foreach (var pp in posts)
+            {
+                dtoList4.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
+            }
+            return Ok(dtoList4);
         }
 
         [HttpGet("me")]
@@ -338,12 +389,17 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 commentCounts[postId] = count;
             }
             
-            return Ok(posts.Select(p => MapPostToDto(p, commentCounts.GetValueOrDefault(p.post_id, 0))));
+            var dtoList5 = new List<object>();
+            foreach (var pp in posts)
+            {
+                dtoList5.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
+            }
+            return Ok(dtoList5);
         }
 
-        [HttpGet("user/{userId:int}")]
-        [AllowAnonymous]
-        public async Task<IActionResult> GetUserPosts([FromRoute] int userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    [HttpGet("user/{userId:int}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetUserPosts([FromRoute] int userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
             int? currentUserId = null;
             try
@@ -368,10 +424,15 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 commentCounts[postId] = count;
             }
             
-            return Ok(posts.Select(p => MapPostToDto(p, commentCounts.GetValueOrDefault(p.post_id, 0))));
+            var dtoList6 = new List<object>();
+            foreach (var pp in posts)
+            {
+                dtoList6.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
+            }
+            return Ok(dtoList6);
         }
 
-        private object MapPostToDto(Post p, int commentsCount = 0)
+    private object MapPostToDto(Post p, int commentsCount = 0)
         {
             string BaseUrl(string path) => $"{Request.Scheme}://{Request.Host}{path}";
 
@@ -426,6 +487,102 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             };
         }
 
+        private async Task<object> MapPostToDtoAsync(Post p, int commentsCount = 0)
+        {
+            string BaseUrl(string path) => $"{Request.Scheme}://{Request.Host}{path}";
+
+            var media = p.Media
+                .OrderBy(m => m.media_order)
+                .Select(m =>
+                {
+                    string type = m.media_type;
+                    string url;
+                    string? altUrl = null;
+
+                    if (type.Equals("video", StringComparison.OrdinalIgnoreCase))
+                    {
+                        url = BaseUrl($"/Assets/Videos/{m.media_url}");
+                        try
+                        {
+                            var root = Directory.GetCurrentDirectory();
+                            var videosDir = Path.Combine(root, "Assets", "Videos");
+                            var nameNoExt = Path.GetFileNameWithoutExtension(m.media_url);
+                            var compatName = nameNoExt + "_compat.mp4";
+                            var compatPath = Path.Combine(videosDir, compatName);
+                            if (System.IO.File.Exists(compatPath))
+                            {
+                                altUrl = BaseUrl($"/Assets/Videos/{compatName}");
+                            }
+                        }
+                        catch { }
+                    }
+                    else
+                    {
+                        url = BaseUrl($"/Assets/Images/{m.media_url}");
+                    }
+
+                    return new { type, url, altUrl };
+                });
+
+            // resolve mentioned and tagged users
+            List<object> mentions = new List<object>();
+            List<object> tags = new List<object>();
+            try
+            {
+                if (!string.IsNullOrEmpty(p.MentionedUserIds))
+                {
+                    var ids = p.MentionedUserIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => int.TryParse(s, out var v) ? v : 0).Where(i => i > 0).ToList();
+                    if (ids.Count > 0)
+                    {
+                        var users = await _userRepository.GetUsersByIdsAsync(ids);
+                        mentions.AddRange(users.Select(u => new {
+                            id = u.user_id,
+                            username = u.username.Value,
+                            avatarUrl = u.avatar_url?.Value != null ? BaseUrl(u.avatar_url.Value) : null
+                        }));
+                    }
+                }
+            }
+            catch { }
+
+            try
+            {
+                if (!string.IsNullOrEmpty(p.TaggedUserIds))
+                {
+                    var ids = p.TaggedUserIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => int.TryParse(s, out var v) ? v : 0).Where(i => i > 0).ToList();
+                    if (ids.Count > 0)
+                    {
+                        var users = await _userRepository.GetUsersByIdsAsync(ids);
+                        tags.AddRange(users.Select(u => new {
+                            id = u.user_id,
+                            username = u.username.Value,
+                            avatarUrl = u.avatar_url?.Value != null ? BaseUrl(u.avatar_url.Value) : null
+                        }));
+                    }
+                }
+            }
+            catch { }
+
+            return new
+            {
+                id = p.post_id,
+                caption = p.caption,
+                location = p.location,
+                privacy = p.privacy,
+                createdAt = p.created_at,
+                commentsCount = commentsCount,
+                user = new
+                {
+                    id = p.User?.user_id,
+                    username = p.User?.username.Value,
+                    avatarUrl = p.User?.avatar_url?.Value != null ? BaseUrl(p.User.avatar_url.Value) : null
+                },
+                media = media,
+                mentions = mentions,
+                tags = tags
+            };
+        }
+
         [HttpPatch("{id:int}/privacy")]
         public async Task<IActionResult> UpdatePrivacy([FromRoute] int id, [FromBody] UpdatePrivacyDto dto)
         {
@@ -451,7 +608,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             // return latest with media for client update
             var updated = await _postRepository.GetByIdWithMediaAsync(id) ?? post;
             var commentsCount = await _commentRepository.GetCommentCountByPostIdAsync(id);
-            return Ok(MapPostToDto(updated, commentsCount));
+            return Ok(await MapPostToDtoAsync(updated, commentsCount));
         }
 
         [HttpPatch("{id:int}/caption")]
@@ -477,7 +634,31 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             var updated = await _postRepository.GetByIdWithMediaAsync(id) ?? post;
             var commentsCount = await _commentRepository.GetCommentCountByPostIdAsync(id);
-            return Ok(MapPostToDto(updated, commentsCount));
+            return Ok(await MapPostToDtoAsync(updated, commentsCount));
+        }
+
+        [HttpPatch("{id:int}/tags")]
+        public async Task<IActionResult> UpdateTags([FromRoute] int id, [FromBody] UpdateTagsDto dto)
+        {
+            var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
+                return Unauthorized(new { message = "Token không hợp lệ!" });
+
+            var user = await _userRepository.GetByAccountIdAsync(accountId);
+            if (user == null) return BadRequest(new { message = "Không tìm thấy user." });
+
+            var post = await _postRepository.GetByIdAsync(id);
+            if (post == null) return NotFound(new { message = "Không tìm thấy bài đăng." });
+            if (post.user_id != user.user_id) return Forbid();
+
+            // Accept list of user ids to be tagged. Null or empty clears tags.
+            var tagIds = dto?.Tags;
+            post.TaggedUserIds = (tagIds != null && tagIds.Length > 0) ? string.Join(',', tagIds) : null;
+            await _postRepository.UpdateAsync(post);
+
+            var updated = await _postRepository.GetByIdWithMediaAsync(id) ?? post;
+            var commentsCount = await _commentRepository.GetCommentCountByPostIdAsync(id);
+            return Ok(await MapPostToDtoAsync(updated, commentsCount));
         }
 
         [HttpDelete("{id:int}")]

@@ -16,13 +16,15 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
     [Authorize(Policy = "UserOnly")]
     public class UserController : ControllerBase
     {
-        private readonly IUserRepository _userRepository;
-        private readonly IPostRepository _postRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly IPostRepository _postRepository;
+    private readonly IBlockRepository _blockRepository;
 
-        public UserController(IUserRepository userRepository, IPostRepository postRepository)
+        public UserController(IUserRepository userRepository, IPostRepository postRepository, IBlockRepository blockRepository)
         {
             _userRepository = userRepository;
             _postRepository = postRepository;
+            _blockRepository = blockRepository;
         }
 
         // DTO for public profile response
@@ -68,6 +70,13 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 return NotFound(new { message = "Không tìm thấy user." });
             }
 
+            // If target user has blocked current user, behave as if user not found (privacy)
+            var blockedByTarget = await _blockRepository.IsBlockedAsync(targetUser.user_id, currentUser.user_id);
+            if (blockedByTarget)
+            {
+                return NotFound(new { message = "Không tìm thấy user." });
+            }
+
             var postsCount = await _postRepository.CountPostsByUserIdAsync(userId);
             var followersCount = await _userRepository.GetFollowersCountAsync(userId);
             var followingCount = await _userRepository.GetFollowingCountAsync(userId);
@@ -91,6 +100,71 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             };
 
             return Ok(new { message = "Lấy thông tin user thành công", data = dto });
+        }
+
+        /// <summary>
+        /// Block a user
+        /// POST /api/users/{userId}/block
+        /// </summary>
+        [HttpPost("{userId}/block")]
+        public async Task<IActionResult> BlockUser(int userId)
+        {
+            var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
+            {
+                return Unauthorized(new { message = "Token không hợp lệ!" });
+            }
+
+            var currentUser = await _userRepository.GetByAccountIdAsync(accountId);
+            if (currentUser == null) return BadRequest(new { message = "Không tìm thấy user hiện tại." });
+            if (currentUser.user_id == userId) return BadRequest(new { message = "Không thể chặn chính mình." });
+
+            var target = await _userRepository.GetByIdAsync(userId);
+            if (target == null) return NotFound(new { message = "Không tìm thấy user." });
+
+            await _blockRepository.BlockUserAsync(currentUser.user_id, userId);
+
+            return Ok(new { message = "Đã chặn user" });
+        }
+
+        /// <summary>
+        /// Unblock a user
+        /// DELETE /api/users/{userId}/block
+        /// </summary>
+        [HttpDelete("{userId}/block")]
+        public async Task<IActionResult> UnblockUser(int userId)
+        {
+            var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
+            {
+                return Unauthorized(new { message = "Token không hợp lệ!" });
+            }
+
+            var currentUser = await _userRepository.GetByAccountIdAsync(accountId);
+            if (currentUser == null) return BadRequest(new { message = "Không tìm thấy user hiện tại." });
+
+            await _blockRepository.UnblockUserAsync(currentUser.user_id, userId);
+            return Ok(new { message = "Đã bỏ chặn user" });
+        }
+
+        /// <summary>
+        /// Get blocked users list for current user
+        /// GET /api/users/blocked
+        /// </summary>
+        [HttpGet("blocked")]
+        public async Task<IActionResult> GetBlockedUsers()
+        {
+            var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
+            {
+                return Unauthorized(new { message = "Token không hợp lệ!" });
+            }
+
+            var currentUser = await _userRepository.GetByAccountIdAsync(accountId);
+            if (currentUser == null) return BadRequest(new { message = "Không tìm thấy user hiện tại." });
+
+            var list = await _blockRepository.GetBlockedUsersAsync(currentUser.user_id);
+            return Ok(new { message = "Lấy danh sách chặn thành công", data = list });
         }
 
         /// <summary>
