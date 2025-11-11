@@ -15,6 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getProfile, updateProfile, API_BASE_URL } from '../API/Api';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function Editprofile() {
   const navigation = useNavigation();
@@ -182,10 +183,13 @@ export default function Editprofile() {
         >
           {/* Avatar */}
           <View style={styles.profileSection}>
-            <Image
-              source={{ uri: avatar || 'https://i.pravatar.cc/150' }}
-              style={styles.profileImage}
-            />
+            {avatar ? (
+              <Image source={{ uri: avatar }} style={styles.profileImage} />
+            ) : (
+              <View style={[styles.profileImage, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#e5e7eb' }]}>
+                <Ionicons name="person" size={40} color="#9ca3af" />
+              </View>
+            )}
             <TouchableOpacity onPress={pickImage}>
               <Text style={styles.changePhoto}>Tải ảnh từ thiết bị</Text>
             </TouchableOpacity>

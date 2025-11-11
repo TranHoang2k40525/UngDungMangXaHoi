@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../API/Api';
 
@@ -68,14 +69,11 @@ export const StoryItem = ({ id, name, avatar, hasStory, storyData, navigation })
         }
     };
 
-    let avatarSource;
+    let avatarSource = null;
     if (typeof avatar === 'string') {
         avatarSource = { uri: avatar.startsWith('http') ? avatar : `${API_BASE_URL}${avatar}` };
     } else if (avatar?.uri) {
         avatarSource = avatar;
-    } else {
-        // Ảnh mặc định
-        avatarSource = avatar || require('../Assets/trai.png');
     }
 
     return (
@@ -85,11 +83,17 @@ export const StoryItem = ({ id, name, avatar, hasStory, storyData, navigation })
             activeOpacity={hasStory ? 0.7 : 1}
         >
             <View style={[styles.storyAvatarContainer, hasStory && styles.storyAvatarBorder]}>
-                <Image
-                    source={avatarSource}
-                    style={styles.storyAvatar}
-                    resizeMode="cover"
-                />
+                {avatarSource ? (
+                    <Image
+                        source={avatarSource}
+                        style={styles.storyAvatar}
+                        resizeMode="cover"
+                    />
+                ) : (
+                    <View style={[styles.storyAvatar, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#e5e7eb' }]}>
+                        <Ionicons name="person" size={28} color="#9ca3af" />
+                    </View>
+                )}
             </View>
             <Text style={styles.storyName} numberOfLines={1}>{name}</Text>
             

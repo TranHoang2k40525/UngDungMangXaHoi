@@ -31,22 +31,22 @@ export default function SharePost() {
     const [caption, setCaption] = useState("");
     const [privacy, setPrivacy] = useState("public");
     const [loading, setLoading] = useState(false);
-    
+
     // Mention autocomplete states
     const [showMentionDropdown, setShowMentionDropdown] = useState(false);
     const [mentionSearch, setMentionSearch] = useState("");
     const [cursorPosition, setCursorPosition] = useState(0);
     const [allUsers, setAllUsers] = useState([]);
     const captionInputRef = useRef(null);
-    
+
     // Tag users states (separate from caption mentions)
     const [showTagModal, setShowTagModal] = useState(false);
     const [taggedUsers, setTaggedUsers] = useState([]);
     const [searchTag, setSearchTag] = useState("");
-    
+
     // Privacy modal
     const [showPrivacyModal, setShowPrivacyModal] = useState(false);
-    
+
     // Video editing states
     const [showVideoEditModal, setShowVideoEditModal] = useState(false);
     const [editedVideoUri, setEditedVideoUri] = useState(null);
@@ -77,15 +77,22 @@ export default function SharePost() {
                 getFollowing().catch(() => []),
                 getFollowers().catch(() => [])
             ]);
-            
+
             // Merge and deduplicate users
+            const raw = [...(Array.isArray(following) ? following : []), ...(Array.isArray(followers) ? followers : [])];
             const allUsersMap = new Map();
-            [...(Array.isArray(following) ? following : []), ...(Array.isArray(followers) ? followers : [])].forEach(user => {
-                if (user && user.id) {
-                    allUsersMap.set(user.id, user);
+            // Backend may return different property names (userId, user_id, id). Normalize to { id, username, fullName, avatarUrl }
+            raw.forEach(u => {
+                if (!u) return;
+                const id = u.id ?? u.userId ?? u.user_id ?? u.user_id ?? null;
+                const username = u.username ?? u.userName ?? u.user_name ?? null;
+                const fullName = u.fullName ?? u.full_name ?? u.fullname ?? null;
+                const avatarUrl = u.avatarUrl ?? u.avatar_url ?? u.avatar ?? null;
+                if (id != null) {
+                    allUsersMap.set(Number(id), { id: Number(id), username: username || String(u?.username || u?.userName || id), fullName, avatarUrl });
                 }
             });
-            
+
             setAllUsers(Array.from(allUsersMap.values()));
         } catch (error) {
             console.warn('Load users error:', error);
@@ -96,21 +103,31 @@ export default function SharePost() {
     // Detect @ symbol and show mention dropdown
     const handleCaptionChange = (text) => {
         setCaption(text);
-        
+
         // Find @ symbol before cursor
         const textBeforeCursor = text.substring(0, cursorPosition);
         const lastAtIndex = textBeforeCursor.lastIndexOf('@');
-        
+
         if (lastAtIndex !== -1) {
             const textAfterAt = textBeforeCursor.substring(lastAtIndex + 1);
-            // Check if there's no space after @
+            // Check if there's no space after @ => still typing mention
             if (!textAfterAt.includes(' ')) {
-                setMentionSearch(textAfterAt);
-                setShowMentionDropdown(true);
+                const search = textAfterAt;
+                setMentionSearch(search);
+
+                // Filter locally to decide whether to show dropdown
+                const localFiltered = allUsers.filter(u => u.username?.toLowerCase().includes(search.toLowerCase())).slice(0, 5);
+                if (localFiltered.length > 0) {
+                    setShowMentionDropdown(true);
+                } else {
+                    // no matches -> hide
+                    setShowMentionDropdown(false);
+                }
                 return;
             }
         }
-        
+
+        // No active @mention token
         setShowMentionDropdown(false);
         setMentionSearch("");
     };
@@ -119,18 +136,18 @@ export default function SharePost() {
         const textBeforeCursor = caption.substring(0, cursorPosition);
         const textAfterCursor = caption.substring(cursorPosition);
         const lastAtIndex = textBeforeCursor.lastIndexOf('@');
-        
+
         if (lastAtIndex !== -1) {
             const beforeAt = caption.substring(0, lastAtIndex);
             const mention = `@${user.username} `;
             const newCaption = beforeAt + mention + textAfterCursor;
             const newCursorPos = beforeAt.length + mention.length;
-            
+
             setCaption(newCaption);
             setCursorPosition(newCursorPos);
             setShowMentionDropdown(false);
             setMentionSearch("");
-            
+
             // Focus back to input
             setTimeout(() => {
                 if (captionInputRef.current) {
@@ -140,7 +157,7 @@ export default function SharePost() {
         }
     };
 
-    const filteredMentionUsers = allUsers.filter(user => 
+    const filteredMentionUsers = allUsers.filter(user =>
         user.username?.toLowerCase().includes(mentionSearch.toLowerCase())
     ).slice(0, 5);
 
@@ -156,12 +173,12 @@ export default function SharePost() {
         setTaggedUsers(taggedUsers.filter(u => u.id !== userId));
     };
 
-    const filteredTagUsers = allUsers.filter(user => 
+    const filteredTagUsers = allUsers.filter(user =>
         user.username?.toLowerCase().includes(searchTag.toLowerCase())
     );
 
     const getPrivacyLabel = () => {
-        switch(privacy) {
+        switch (privacy) {
             case 'public': return 'Công khai';
             case 'followers': return 'Người theo dõi';
             case 'private': return 'Riêng tư';
@@ -171,19 +188,19 @@ export default function SharePost() {
 
     const applyVideoFilter = async () => {
         if (!isVideo || selectedFilter === 'none') return uri;
-        
+
         setIsProcessingVideo(true);
         try {
             // TODO: Implement real-time video filter using expo-av or ffmpeg
             // For now, we'll process on upload
             // In production: use ffmpeg with filter like brightness, contrast, saturation, etc.
-            
+
             // Simulated processing delay
             await new Promise(resolve => setTimeout(resolve, 1500));
-            
+
             // For trimming: would use expo-av or ffmpeg to cut video
             // For filters: apply color adjustments using video processing libraries
-            
+
             Alert.alert('Hoàn tất', 'Bộ lọc sẽ được áp dụng khi đăng bài');
             return uri;
         } catch (error) {
@@ -198,13 +215,13 @@ export default function SharePost() {
     const handleShare = async () => {
         try {
             setLoading(true);
-            
+
             // Apply video edits if any
             let finalUri = uri;
             if (isVideo && (selectedFilter !== 'none' || trimStart > 0 || trimEnd !== null)) {
                 finalUri = await applyVideoFilter();
             }
-            
+
             const items = (selectedImages.length ? selectedImages : (selectedImage ? [selectedImage] : [])).filter(Boolean);
             const imageItems = items.filter(it => (it.mediaType === 'photo' || it.mediaType === 'image' || it.type === 'image'));
             const videoItem = items.find(it => (it.mediaType === 'video' || it.type === 'video')) || null;
@@ -239,17 +256,17 @@ export default function SharePost() {
             // Merge caption mentions and tagged users
             const allMentionIds = [...new Set([...captionMentions, ...taggedUsers.map(u => u.id)])];
 
-            await createPost({ 
-                images, 
-                video, 
-                caption, 
-                privacy, 
+            await createPost({
+                images,
+                video,
+                caption,
+                privacy,
                 mentions: allMentionIds,
                 tags: taggedUsers.map(u => u.id),
                 videoFilter: selectedFilter !== 'none' ? selectedFilter : undefined,
                 videoTrim: trimStart > 0 || trimEnd ? { start: trimStart, end: trimEnd } : undefined
             });
-            
+
             navigation.navigate('MainTabs', { screen: 'Home', params: { refresh: true } });
         } catch (e) {
             console.warn('Share error', e);
@@ -288,19 +305,19 @@ export default function SharePost() {
                             multiline
                             value={caption}
                             onChangeText={handleCaptionChange}
+                            onBlur={() => { setShowMentionDropdown(false); setMentionSearch(''); }}
                             onSelectionChange={(e) => setCursorPosition(e.nativeEvent.selection.start)}
                             maxLength={2200}
                         />
                         <Text style={styles.charCounter}>{caption.length}/2200</Text>
-                        
+
                         {/* Mention Dropdown */}
                         {showMentionDropdown && filteredMentionUsers.length > 0 && (
                             <View style={styles.mentionDropdown}>
-                                <FlatList
-                                    data={filteredMentionUsers}
-                                    keyExtractor={(item) => item.id?.toString()}
-                                    renderItem={({ item }) => (
+                                <View style={styles.mentionList}>
+                                    {filteredMentionUsers.map((item) => (
                                         <TouchableOpacity
+                                            key={String(item.id)}
                                             style={styles.mentionItem}
                                             onPress={() => handleMentionSelect(item)}
                                         >
@@ -315,10 +332,13 @@ export default function SharePost() {
                                                 )}
                                             </View>
                                         </TouchableOpacity>
-                                    )}
-                                    style={styles.mentionList}
-                                    keyboardShouldPersistTaps="handled"
-                                />
+                                    ))}
+                                </View>
+
+                                {/* Global overlay to close mention dropdown when tapping outside */}
+                                {showMentionDropdown && (
+                                    <TouchableOpacity style={styles.globalOverlay} activeOpacity={1} onPress={() => { setShowMentionDropdown(false); setMentionSearch(''); }} />
+                                )}
                             </View>
                         )}
                     </View>
@@ -326,7 +346,7 @@ export default function SharePost() {
                     <View style={styles.divider} />
 
                     {/* Privacy Selection */}
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         style={styles.settingItem}
                         onPress={() => setShowPrivacyModal(true)}
                     >
@@ -344,7 +364,7 @@ export default function SharePost() {
                         <View style={styles.mediaSectionHeader}>
                             <Text style={styles.sectionTitle}>Xem trước</Text>
                             {isVideo && (
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     style={styles.editButton}
                                     onPress={() => setShowVideoEditModal(true)}
                                 >
@@ -353,7 +373,7 @@ export default function SharePost() {
                                 </TouchableOpacity>
                             )}
                         </View>
-                        
+
                         <View style={styles.mediaPreview}>
                             {isVideo && videoPlayer ? (
                                 <View style={styles.videoContainer}>
@@ -382,7 +402,7 @@ export default function SharePost() {
 
                     {/* Mention/Tag Users */}
                     <View style={styles.mentionSection}>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={styles.settingItem}
                             onPress={() => setShowTagModal(true)}
                         >
@@ -399,8 +419,8 @@ export default function SharePost() {
                             <View style={styles.mentionedList}>
                                 {taggedUsers.map(user => (
                                     <View key={user.id} style={styles.mentionedUser}>
-                                        <Image 
-                                            source={{ uri: user.avatarUrl || 'https://via.placeholder.com/40' }} 
+                                        <Image
+                                            source={{ uri: user.avatarUrl || 'https://via.placeholder.com/40' }}
                                             style={styles.mentionedAvatar}
                                         />
                                         <Text style={styles.mentionedUsername}>@{user.username}</Text>
@@ -438,7 +458,7 @@ export default function SharePost() {
                 animationType="slide"
                 onRequestClose={() => setShowPrivacyModal(false)}
             >
-                <TouchableOpacity 
+                <TouchableOpacity
                     style={styles.modalOverlay}
                     activeOpacity={1}
                     onPress={() => setShowPrivacyModal(false)}
@@ -450,7 +470,7 @@ export default function SharePost() {
                                 <Ionicons name="close" size={24} color="#000" />
                             </TouchableOpacity>
                         </View>
-                        
+
                         {[
                             { key: 'public', label: 'Công khai', icon: 'earth', desc: 'Mọi người đều có thể xem' },
                             { key: 'followers', label: 'Người theo dõi', icon: 'people', desc: 'Chỉ người theo dõi bạn' },
@@ -495,7 +515,7 @@ export default function SharePost() {
                                 <Ionicons name="close" size={24} color="#000" />
                             </TouchableOpacity>
                         </View>
-                        
+
                         <View style={styles.searchContainer}>
                             <Ionicons name="search" size={20} color="#999" />
                             <TextInput
@@ -514,8 +534,8 @@ export default function SharePost() {
                                     style={styles.userItem}
                                     onPress={() => handleAddTag(item)}
                                 >
-                                    <Image 
-                                        source={{ uri: item.avatarUrl || 'https://via.placeholder.com/40' }} 
+                                    <Image
+                                        source={{ uri: item.avatarUrl || 'https://via.placeholder.com/40' }}
                                         style={styles.userAvatar}
                                     />
                                     <View style={styles.userInfo}>
@@ -549,7 +569,7 @@ export default function SharePost() {
                                 <Text style={styles.cancelButton}>Hủy</Text>
                             </TouchableOpacity>
                             <Text style={styles.modalTitle}>Chỉnh sửa video</Text>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 onPress={async () => {
                                     await applyVideoFilter();
                                     setShowVideoEditModal(false);
@@ -590,25 +610,26 @@ export default function SharePost() {
                                             style={[styles.filterItem, selectedFilter === filter && styles.filterItemActive]}
                                             onPress={() => setSelectedFilter(filter)}
                                         >
-                                            <View style={[styles.filterPreview, { backgroundColor: 
-                                                filter === 'none' ? '#fff' :
-                                                filter === 'grayscale' ? '#888' :
-                                                filter === 'sepia' ? '#D2691E' :
-                                                filter === 'vivid' ? '#FF6B6B' :
-                                                filter === 'warm' ? '#FF8C42' :
-                                                filter === 'cool' ? '#4ECDC4' :
-                                                filter === 'vintage' ? '#C09F80' :
-                                                '#2C3E50'
+                                            <View style={[styles.filterPreview, {
+                                                backgroundColor:
+                                                    filter === 'none' ? '#fff' :
+                                                        filter === 'grayscale' ? '#888' :
+                                                            filter === 'sepia' ? '#D2691E' :
+                                                                filter === 'vivid' ? '#FF6B6B' :
+                                                                    filter === 'warm' ? '#FF8C42' :
+                                                                        filter === 'cool' ? '#4ECDC4' :
+                                                                            filter === 'vintage' ? '#C09F80' :
+                                                                                '#2C3E50'
                                             }]} />
                                             <Text style={[styles.filterName, selectedFilter === filter && styles.filterNameActive]}>
                                                 {filter === 'none' ? 'Gốc' :
-                                                 filter === 'grayscale' ? 'Đen trắng' :
-                                                 filter === 'sepia' ? 'Cổ điển' :
-                                                 filter === 'vivid' ? 'Sống động' :
-                                                 filter === 'warm' ? 'Ấm' : 
-                                                 filter === 'cool' ? 'Lạnh' :
-                                                 filter === 'vintage' ? 'Cổ xưa' :
-                                                 'Đậm'}
+                                                    filter === 'grayscale' ? 'Đen trắng' :
+                                                        filter === 'sepia' ? 'Cổ điển' :
+                                                            filter === 'vivid' ? 'Sống động' :
+                                                                filter === 'warm' ? 'Ấm' :
+                                                                    filter === 'cool' ? 'Lạnh' :
+                                                                        filter === 'vintage' ? 'Cổ xưa' :
+                                                                            'Đậm'}
                                             </Text>
                                         </TouchableOpacity>
                                     ))}
@@ -770,14 +791,14 @@ const styles = StyleSheet.create({
         backgroundColor: "#F0F0F0",
     },
     videoPlayOverlay: {
-        position:'absolute',
-        top:0,
-        left:0,
-        right:0,
-        bottom:0,
-        alignItems:'center',
-        justifyContent:'center',
-        backgroundColor:'rgba(0,0,0,0.2)'
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.2)'
     },
     filterBadge: {
         position: 'absolute',

@@ -21,20 +21,36 @@ import { useUser } from "../Context/UserContext";
 import { useFollow } from "../Context/FollowContext";
 import CommentsModal from "./CommentsModal";
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getUserPostsById, updatePostPrivacy, updatePostCaption, deletePost, followUser, unfollowUser } from "../API/Api";
+import { getUserPostsById, updatePostPrivacy, updatePostCaption, deletePost, followUser, unfollowUser, getFollowing, getFollowers, updatePostTags, API_BASE_URL } from "../API/Api";
 import { Ionicons } from "@expo/vector-icons";
 import { VideoView, useVideoPlayer } from "expo-video";
+import ImageViewer from 'react-native-image-zoom-viewer';
 
 const { width } = Dimensions.get('window');
 
 export default function PostDetail() {
     const route = useRoute();
     const navigation = useNavigation();
+    // State cho modal xem ảnh đơn
+    const [singleViewerVisible, setSingleViewerVisible] = useState(false);
+    const [singleViewerUrl, setSingleViewerUrl] = useState(null);
     const { user: ctxUser } = useUser();
+    // Ensure user/tag objects used in chips have consistent shape
+    const normalizeUser = (u) => {
+        if (!u) return { id: null, username: '', avatarUrl: null, fullName: '' };
+        const rawId = u?.id ?? u?.userId ?? u?.user_id ?? u?.UserId ?? null;
+        const id = Number(rawId);
+        const username = u?.username ?? u?.userName ?? u?.name ?? '';
+        const rawAvatar = u?.avatarUrl ?? u?.avatar_url ?? u?.userAvatar ?? null;
+        const avatarUrl = rawAvatar ? (String(rawAvatar).startsWith('http') ? rawAvatar : `${API_BASE_URL}${rawAvatar}`) : null;
+        const fullName = u?.fullName ?? u?.full_name ?? '';
+        return { id: Number.isFinite(id) ? id : null, username, avatarUrl, fullName };
+    };
     const { markAsFollowed, markAsUnfollowed, isFollowed } = useFollow();
-    
+    const flatListRef = React.useRef(null);
     const targetUserId = route.params?.post?.user?.id || route.params?.userId;
-
+    // Nhận index truyền từ Profile/UserProfilePublic
+    const initialIndex = route.params?.initialIndex ?? 0;
     const [postStates, setPostStates] = useState({});
     const [activeCommentsPostId, setActiveCommentsPostId] = useState(null);
     const [posts, setPosts] = useState([]);
@@ -49,7 +65,27 @@ export default function PostDetail() {
     const [captionDraft, setCaptionDraft] = useState('');
     const [editingCaptionPostId, setEditingCaptionPostId] = useState(null);
     const [busy, setBusy] = useState(false);
+    // Edit tags state
+    const [showEditTags, setShowEditTags] = useState(false);
+    const [editTagsList, setEditTagsList] = useState([]);
+    const [availableTagUsers, setAvailableTagUsers] = useState([]);
+    const [availableTagUsersAll, setAvailableTagUsersAll] = useState([]);
+    const [tagChangeQueue, setTagChangeQueue] = useState({ toAdd: [], toRemove: [] });
+    const [showAddTagList, setShowAddTagList] = useState(false);
     const [currentUserId, setCurrentUserId] = useState(null);
+
+    // Ensure FlatList scrolls to correct index after posts are loaded
+    useEffect(() => {
+        if (flatListRef.current && initialIndex > 0 && posts.length > initialIndex) {
+            setTimeout(() => {
+                try {
+                    flatListRef.current.scrollToIndex({ index: initialIndex, animated: false });
+                } catch (e) {
+                    // ignore
+                }
+            }, 300);
+        }
+    }, [posts, initialIndex]);
 
     // Helper functions
     const getOwnerId = () => {
@@ -112,43 +148,64 @@ export default function PostDetail() {
 
     // PostImagesCarousel Component
     function PostImagesCarousel({ images }) {
-        const [currentIndex, setCurrentIndex] = useState(0);
-
-        const onScroll = (event) => {
-            const slideSize = event.nativeEvent.layoutMeasurement.width;
-            const index = Math.round(event.nativeEvent.contentOffset.x / slideSize);
-            setCurrentIndex(index);
+        const [index, setIndex] = useState(0);
+        const [viewerVisible, setViewerVisible] = useState(false);
+        const [viewerIndex, setViewerIndex] = useState(0);
+        const imageWidth = 400;
+        const openViewer = (idx) => {
+            setViewerIndex(idx);
+            setViewerVisible(true);
         };
-
         return (
-            <View style={styles.carouselContainer}>
+            <View style={{ position: "relative" }}>
                 <FlatList
                     data={images}
+                    keyExtractor={(it, i) => String(i)}
                     horizontal
                     pagingEnabled
+                    snapToInterval={imageWidth}
+                    decelerationRate={"fast"}
                     showsHorizontalScrollIndicator={false}
-                    onMomentumScrollEnd={onScroll}
-                    keyExtractor={(_, idx) => `img-${idx}`}
-                    renderItem={({ item }) => (
-                        <Image
-                            source={{ uri: item }}
-                            style={styles.postImage}
-                            resizeMode="cover"
-                        />
+                    style={{ width: imageWidth }}
+                    renderItem={({ item, index: idx }) => (
+                        <TouchableOpacity activeOpacity={0.95} onPress={() => openViewer(idx)}>
+                            <Image source={{ uri: item }} style={[styles.postImage, { width: imageWidth }]} />
+                        </TouchableOpacity>
                     )}
+                    onMomentumScrollEnd={(e) => {
+                        const w = e.nativeEvent.layoutMeasurement.width || imageWidth;
+                        const x = e.nativeEvent.contentOffset.x || 0;
+                        setIndex(Math.max(0, Math.round(x / w)));
+                    }}
                 />
-                {images.length > 1 && (
-                    <View style={styles.paginationDots}>
-                        {images.map((_, idx) => (
-                            <View
-                                key={idx}
-                                style={[
-                                    styles.dot,
-                                    idx === currentIndex && styles.activeDot,
-                                ]}
-                            />
-                        ))}
-                    </View>
+                {/* Counter top-right - giống Home.js */}
+                <View style={{ position: 'absolute', top: 12, right: 16, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, zIndex: 10 }}>
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>{index + 1}/{images.length}</Text>
+                </View>
+                {/* Dots bottom */}
+                <View style={styles.dotsContainer}>
+                    {images.map((_, i) => (
+                        <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
+                    ))}
+                </View>
+                {/* ImageViewer modal */}
+                {viewerVisible && (
+                    <Modal visible={viewerVisible} transparent onRequestClose={() => setViewerVisible(false)}>
+                        <ImageViewer
+                            imageUrls={images.map((url) => ({ url }))}
+                            index={viewerIndex}
+                            enableSwipeDown
+                            onSwipeDown={() => setViewerVisible(false)}
+                            onCancel={() => setViewerVisible(false)}
+                            saveToLocalByLongPress={false}
+                            enablePreload={true}
+                            renderIndicator={(currentIndex, allSize) => (
+                                <View style={{ position: 'absolute', top: 40, right: 20, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 }}>
+                                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>{currentIndex}/{allSize}</Text>
+                                </View>
+                            )}
+                        />
+                    </Modal>
                 )}
             </View>
         );
@@ -386,6 +443,41 @@ export default function PostDetail() {
         );
     };
 
+    const closeEditTags = () => {
+        setShowEditTags(false);
+        setEditTagsList([]);
+        setAvailableTagUsers([]);
+        setAvailableTagUsersAll([]);
+        setTagChangeQueue({ toAdd: [], toRemove: [] });
+        setShowAddTagList(false);
+    };
+
+    const submitEditTags = async () => {
+        if (!optionsPostId) return;
+        try {
+            setBusy(true);
+            // Normalize tag ids and filter invalid
+            const tagIds = (editTagsList || []).map(t => Number(t?.id)).filter(x => Number.isFinite(x) && x > 0);
+            console.log('[PostDetail] submitEditTags payload:', { postId: optionsPostId, tagIds, queue: tagChangeQueue });
+            const updated = await updatePostTags(optionsPostId, tagIds);
+            setPosts(prev => prev.map(p => {
+                try {
+                    if (Number(p.id) === Number(optionsPostId)) {
+                        const newTags = (updated && Array.isArray(updated.tags)) ? updated.tags : (editTagsList || []);
+                        return { ...p, tags: newTags };
+                    }
+                } catch { }
+                return p;
+            }));
+            closeEditTags();
+        } catch (e) {
+            console.warn('[PostDetail] update tags error', e);
+            Alert.alert('Lỗi', e?.message || 'Không thể cập nhật gắn thẻ');
+        } finally {
+            setBusy(false);
+        }
+    };
+
     return (
         <SafeAreaView edges={['top']} style={styles.container}>
             <View style={styles.header}>
@@ -396,8 +488,11 @@ export default function PostDetail() {
                 <View style={{ width: 28 }} />
             </View>
             <FlatList
+                ref={flatListRef}
                 data={posts}
                 keyExtractor={(item) => `post-${item.id}`}
+                initialScrollIndex={initialIndex}
+                getItemLayout={(data, index) => ({ length: 520, offset: 520 * index, index })}
                 renderItem={({ item: post }) => {
                     const state = postStates[post.id] || {};
                     const isOwnPost = isOwner(post);
@@ -420,16 +515,50 @@ export default function PostDetail() {
                                         }
                                     }}
                                 >
-                                    <Image
-                                        source={{
-                                            uri: post.user?.avatarUrl || 'https://i.pravatar.cc/150',
-                                        }}
-                                        style={styles.postAvatar}
-                                    />
+                                    {(() => {
+                                        const rawAvatar = post.user?.avatarUrl ?? post.user?.avatar_url ?? null;
+                                        const avatarUri = rawAvatar ? (String(rawAvatar).startsWith('http') ? rawAvatar : `${API_BASE_URL}${rawAvatar}`) : null;
+                                        if (avatarUri) return <Image source={{ uri: avatarUri }} style={styles.postAvatar} />;
+                                        return (
+                                            <View style={[styles.postAvatar, { backgroundColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center' }]}>
+                                                <Ionicons name="person" size={18} color="#9ca3af" />
+                                            </View>
+                                        );
+                                    })()}
                                     <View>
-                                        <Text style={styles.postUsername}>
-                                            {post.user?.username || 'User'}
-                                        </Text>
+                                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                            <Text style={styles.postUsername}>
+                                                {post.user?.username || 'User'}
+                                            </Text>
+                                            {post.tags && post.tags.length > 0 && (
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8 }}>
+                                                    {(() => {
+                                                        const first = post.tags[0];
+                                                        const rest = post.tags.length - 1;
+                                                        const uid = getOwnerId();
+                                                        const isCurrentUser = Number(first.id) === Number(uid);
+                                                        return (
+                                                            <>
+                                                                <TouchableOpacity
+                                                                    onPress={() => {
+                                                                        if (isCurrentUser) navigation.navigate('Profile');
+                                                                        else navigation.navigate('UserProfilePublic', { userId: first.id, username: first.username, avatarUrl: first.avatarUrl });
+                                                                    }}
+                                                                    style={{ marginLeft: 8 }}
+                                                                >
+                                                                    <Text style={styles.inlineTagText}>{isCurrentUser ? 'bạn' : ` @${first.username}`}</Text>
+                                                                </TouchableOpacity>
+                                                                {rest > 0 && (
+                                                                    <TouchableOpacity onPress={() => openTagListModal(post)} style={styles.moreTagsTouch}>
+                                                                        <Text style={styles.moreTagsText}>+{rest}</Text>
+                                                                    </TouchableOpacity>
+                                                                )}
+                                                            </>
+                                                        );
+                                                    })()}
+                                                </View>
+                                            )}
+                                      </View>
                                         <View style={styles.postTimeContainer}>
                                             <Text style={styles.postLocation}>
                                                 {new Date(post.createdAt).toLocaleString('vi-VN')}
@@ -482,10 +611,15 @@ export default function PostDetail() {
                                         }
                                         if (images.length === 1) {
                                             return (
-                                                <Image
-                                                    source={{ uri: images[0].url }}
-                                                    style={styles.postImage}
-                                                />
+                                                <TouchableOpacity activeOpacity={0.95} onPress={() => {
+                                                    setSingleViewerUrl(images[0].url);
+                                                    setSingleViewerVisible(true);
+                                                }}>
+                                                    <Image
+                                                        source={{ uri: images[0].url }}
+                                                        style={styles.postImage}
+                                                    />
+                                                </TouchableOpacity>
                                             );
                                         }
                                         if (videos.length > 0) {
@@ -576,8 +710,29 @@ export default function PostDetail() {
                                 {/* Caption */}
                                 {post.caption ? (
                                     <Text style={styles.captionText}>
-                                        
-                                        {post.caption}
+                                        {post.caption.split(/(@\w+)/g).map((part, index) => {
+                                            if (part.startsWith('@')) {
+                                                const username = part.substring(1);
+                                                const mentionedUser = post.mentions?.find(m => m.username === username);
+                                                const uid = getOwnerId();
+                                                const isCurrentUser = mentionedUser && Number(mentionedUser.id) === Number(uid);
+                                                return (
+                                                    <Text
+                                                        key={index}
+                                                        style={styles.mentionText}
+                                                        onPress={() => {
+                                                            if (mentionedUser) {
+                                                                if (isCurrentUser) navigation.navigate('Profile');
+                                                                else navigation.navigate('UserProfilePublic', { userId: mentionedUser.id, username: mentionedUser.username, avatarUrl: mentionedUser.avatarUrl });
+                                                            }
+                                                        }}
+                                                    >
+                                                        {isCurrentUser ? 'bạn' : part}
+                                                    </Text>
+                                                );
+                                            }
+                                            return part;
+                                        })}
                                     </Text>
                                 ) : null}
                             </View>
@@ -688,6 +843,116 @@ export default function PostDetail() {
                 </KeyboardAvoidingView>
             </Modal>
 
+            {/* Edit tags modal */}
+            {showEditTags && (
+                <TouchableOpacity activeOpacity={1} style={styles.overlay} onPress={closeEditTags}>
+                    <TouchableOpacity activeOpacity={1} style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Text style={styles.sheetTitle}>Chỉnh sửa gắn thẻ</Text>
+                          <TouchableOpacity style={styles.addButtonHeader} onPress={() => setShowAddTagList(prev => !prev)}>
+                            <Text style={styles.addButtonText}>{showAddTagList ? '×' : '+'}</Text>
+                          </TouchableOpacity>
+                        </View>
+                        <Text style={{ color: '#666', marginBottom: 8 }}>Nhấn ✕ trên chip để gỡ; nhấn + để thêm người chưa được gắn</Text>
+
+                        {/* Selected tags chips */}
+                        {editTagsList && editTagsList.length > 0 && (
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 }}>
+                                {editTagsList.map((t) => (
+                                    <View key={`chip-${String(t.id ?? t.username ?? '')}`} style={styles.tagChip}>
+                                        {t.avatarUrl ? (
+                                            <Image source={{ uri: t.avatarUrl }} style={styles.tagChipAvatar} />
+                                        ) : (
+                                            <View style={[styles.tagChipAvatar, { backgroundColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center' }]}>
+                                                <Ionicons name="person" size={14} color="#9ca3af" />
+                                            </View>
+                                        )}
+                                        <Text style={styles.tagChipText}>{t.username ? `@${t.username}` : t.id}</Text>
+                                        <TouchableOpacity style={styles.tagChipClose} onPress={() => {
+                                            setEditTagsList(prev => (prev || []).filter(x => Number(x.id) !== Number(t.id)));
+                                            setTagChangeQueue(prev => {
+                                                const toAdd = new Set(prev.toAdd || []);
+                                                const toRemove = new Set(prev.toRemove || []);
+                                                if (toAdd.has(Number(t.id))) {
+                                                    toAdd.delete(Number(t.id));
+                                                } else {
+                                                    toRemove.add(Number(t.id));
+                                                }
+                                                return { toAdd: Array.from(toAdd), toRemove: Array.from(toRemove) };
+                                            });
+                                        }}>
+                                            <Text style={styles.tagChipCloseText}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
+
+                        <View style={{ maxHeight: 260 }}>
+                            <FlatList
+                                data={(showAddTagList ? (availableTagUsersAll || []).filter(u => !(editTagsList || []).find(x => Number(x.id) === Number(u.id))) : availableTagUsersAll) || []}
+                                keyExtractor={(it) => String(it.id)}
+                                renderItem={({ item }) => {
+                                    const selected = !!editTagsList.find(x => Number(x.id) === Number(item.id));
+                                    return (
+                                        <TouchableOpacity style={styles.userItem} onPress={() => {
+                                            if (selected) {
+                                                // remove
+                                                setEditTagsList(prev => (prev || []).filter(x => Number(x.id) !== Number(item.id)));
+                                                setTagChangeQueue(prev => {
+                                                    const toAdd = new Set(prev.toAdd || []);
+                                                    const toRemove = new Set(prev.toRemove || []);
+                                                    if (toAdd.has(Number(item.id))) {
+                                                        toAdd.delete(Number(item.id));
+                                                    } else {
+                                                        toRemove.add(Number(item.id));
+                                                    }
+                                                    return { toAdd: Array.from(toAdd), toRemove: Array.from(toRemove) };
+                                                });
+                                            } else {
+                                                // add
+                                                setEditTagsList(prev => [...(prev || []), normalizeUser(item)]);
+                                                setTagChangeQueue(prev => {
+                                                    const toAdd = new Set(prev.toAdd || []);
+                                                    const toRemove = new Set(prev.toRemove || []);
+                                                    if (toRemove.has(Number(item.id))) {
+                                                        toRemove.delete(Number(item.id));
+                                                    } else {
+                                                        toAdd.add(Number(item.id));
+                                                    }
+                                                    return { toAdd: Array.from(toAdd), toRemove: Array.from(toRemove) };
+                                                });
+                                            }
+                                        }}>
+                                            {item.avatarUrl ? (
+                                                <Image source={{ uri: item.avatarUrl }} style={styles.userAvatar} />
+                                            ) : (
+                                                <View style={[styles.userAvatar, { backgroundColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center' }]}>
+                                                    <Ionicons name="person" size={16} color="#9ca3af" />
+                                                </View>
+                                            )}
+                                            <View style={styles.userInfo}>
+                                                <Text style={styles.userUsername}>@{item.username}</Text>
+                                                <Text style={styles.userFullname}>{item.fullName || item.username}</Text>
+                                            </View>
+                                            {selected && <Ionicons name="checkmark-circle" size={22} color="#0095F6" />}
+                                        </TouchableOpacity>
+                                    );
+                                }}
+                            />
+                        </View>
+                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+                            <TouchableOpacity style={[styles.actionButton, styles.cancelButton]} onPress={closeEditTags}>
+                                <Text style={styles.cancelButtonText}>Hủy</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.actionButton, styles.saveButton]} onPress={submitEditTags}>
+                                <Text style={styles.saveButtonText}>Lưu</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </TouchableOpacity>
+                </TouchableOpacity>
+            )}
+
             {/* Options overlay - giống Home.js */}
             {showOptions && (
                 <TouchableOpacity activeOpacity={1} style={styles.overlay} onPress={closeAllOverlays}>
@@ -698,6 +963,32 @@ export default function PostDetail() {
                             if (post && isOwner(post)) {
                                 return (
                                     <>
+                                        <TouchableOpacity style={styles.sheetItem} onPress={async ()=>{
+                                            try {
+                                                setShowOptions(false);
+                                                // Ensure we set optionsPostId so submitEditTags knows which post to update
+                                                setOptionsPostId(post.id);
+                                                // normalize existing tags into safe objects
+                                                setEditTagsList((post.tags ? post.tags : []).map(normalizeUser));
+                                                setShowAddTagList(false);
+                                                setShowEditTags(true);
+                                                const [following, followers] = await Promise.all([getFollowing().catch(()=>[]), getFollowers().catch(()=>[])]);
+                                                const map = new Map();
+                                                (Array.isArray(following)?following:[]).forEach(u=>{ const nu = normalizeUser(u); if (nu.id != null) map.set(nu.id, nu); });
+                                                (Array.isArray(followers)?followers:[]).forEach(u=>{ const nu = normalizeUser(u); if (nu.id != null) map.set(nu.id, nu); });
+                                                const all = Array.from(map.values());
+                                                setAvailableTagUsers(Array.from(all));
+                                                setAvailableTagUsersAll(all);
+                                                setTagChangeQueue({ toAdd: [], toRemove: [] });
+                                            } catch (e) {
+                                                console.warn('[PostDetail] openEditTags error', e);
+                                                setAvailableTagUsers([]);
+                                                setAvailableTagUsersAll([]);
+                                                setTagChangeQueue({ toAdd: [], toRemove: [] });
+                                            }
+                                        }}>
+                                            <Text style={styles.sheetItemText}>Chỉnh sửa gắn thẻ</Text>
+                                        </TouchableOpacity>
                                         <TouchableOpacity style={styles.sheetItem} onPress={() => setShowPrivacySheet(true)}>
                                             <Text style={styles.sheetItemText}>Chỉnh sửa quyền riêng tư</Text>
                                         </TouchableOpacity>
@@ -904,6 +1195,25 @@ const styles = StyleSheet.create({
         color: '#262626',
         lineHeight: 18,
     },
+    mentionText: {
+        color: '#0095F6',
+        fontWeight: '600',
+    },
+    inlineTagsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 4,
+        flexWrap: 'wrap'
+    },
+    inlineTagTouchable: {
+        marginLeft: 6,
+    },
+    inlineTagText: {
+        color: '#111827',
+        fontWeight: '700',
+        fontSize: 13,
+        marginLeft: 2,
+    },
     captionUsername: {
         fontWeight: '600',
         color: '#262626',
@@ -1051,5 +1361,76 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontWeight: '600',
         fontSize: 14,
+    },
+    addButtonHeader: {
+        width: 36,
+        height: 32,
+        borderRadius: 8,
+        backgroundColor: '#f3f4f6',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    addButtonText: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#111827',
+    },
+    tagChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 20,
+        backgroundColor: '#f3f4f6',
+        marginRight: 8,
+        marginBottom: 8,
+    },
+    tagChipAvatar: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        marginRight: 8,
+    },
+    tagChipText: {
+        fontSize: 13,
+        color: '#111827',
+        fontWeight: '600',
+    },
+    tagChipClose: {
+        marginLeft: 8,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    tagChipCloseText: {
+        color: '#dc2626',
+        fontWeight: '700',
+        fontSize: 14,
+    },
+    userItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 4,
+    },
+    userAvatar: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        marginRight: 12,
+    },
+    userInfo: {
+        flex: 1,
+    },
+    userUsername: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#111827',
+    },
+    userFullname: {
+        fontSize: 12,
+        color: '#6b7280',
     },
 });

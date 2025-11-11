@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity, Dimensions, RefreshControl, FlatList, Modal, Alert } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getUserPostsById, getUserProfile, followUser, unfollowUser, API_BASE_URL } from '../API/Api';
+import { getUserPostsById, getUserProfile, followUser, unfollowUser, API_BASE_URL, blockUser, unblockUser, getBlockedUsers } from '../API/Api';
 import { useFollow } from '../Context/FollowContext';
 import { Ionicons } from '@expo/vector-icons';
 import * as VideoThumbnails from 'expo-video-thumbnails';
@@ -23,6 +23,7 @@ export default function UserProfilePublic() {
   const [videoThumbs, setVideoThumbs] = useState({});
   const [isFollowing, setIsFollowing] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
   const [userInfoModalVisible, setUserInfoModalVisible] = useState(false);
 
   // Format number helper function (phải định nghĩa trước khi dùng trong useMemo)
@@ -81,6 +82,16 @@ export default function UserProfilePublic() {
         }
       } catch (e) {
         console.warn('User profile/posts error', e);
+      }
+    })();
+    // check if this user is in our blocked list
+    (async () => {
+      try {
+        const list = await getBlockedUsers();
+        const found = Array.isArray(list) && list.some(u => u.userId === userId);
+        setIsBlocked(!!found);
+      } catch (e) {
+        console.warn('Failed to fetch blocked list', e);
       }
     })();
     return () => { alive = false; };
@@ -171,6 +182,31 @@ export default function UserProfilePublic() {
 
   const handleBlock = () => {
     setMenuVisible(false);
+    if (isBlocked) {
+      // Unblock flow
+      Alert.alert(
+        'Bỏ chặn',
+        `Bạn có muốn bỏ chặn ${profile?.username || 'người dùng này'}?`,
+        [
+          { text: 'Không', style: 'cancel' },
+          {
+            text: 'Bỏ chặn',
+            onPress: async () => {
+              try {
+                await unblockUser(userId);
+                setIsBlocked(false);
+                Alert.alert('Đã bỏ chặn', 'Người dùng đã được bỏ chặn');
+              } catch (e) {
+                Alert.alert('Lỗi', e.message || 'Không thể bỏ chặn');
+              }
+            }
+          }
+        ]
+      );
+      return;
+    }
+
+    // Block flow
     Alert.alert(
       'Chặn người dùng',
       `Bạn có chắc muốn chặn ${profile?.username || 'người dùng này'}?`,
@@ -179,9 +215,17 @@ export default function UserProfilePublic() {
         {
           text: 'Chặn',
           style: 'destructive',
-          onPress: () => {
-            // TODO: Implement block API
-            Alert.alert('Thông báo', 'Tính năng chặn sẽ được cập nhật sớm');
+          onPress: async () => {
+            try {
+              await blockUser(userId);
+              setIsBlocked(true);
+              // Update global follow state
+              markAsUnfollowed(userId);
+              // Navigate back to home/main feed
+              navigation.navigate('MainTabs', { screen: 'Home' });
+            } catch (e) {
+              Alert.alert('Lỗi', e.message || 'Không thể chặn user');
+            }
           },
         },
       ]
@@ -198,7 +242,6 @@ export default function UserProfilePublic() {
   const onPressPost = (post) => {
     const isVideo = (post.media||[]).some(m => (m.type||'').toLowerCase()==='video');
     if (isVideo) {
-      // Navigate to MainTabs, then to Video tab with selectedId to show the exact video clicked
       navigation.navigate('MainTabs', { 
         screen: 'Video',
         params: {
@@ -209,7 +252,9 @@ export default function UserProfilePublic() {
         }
       });
     } else {
-      navigation.navigate('PostDetail', { post });
+      // Truyền index của post vào PostDetail
+      const index = posts.findIndex(p => p.id === post.id);
+      navigation.navigate('PostDetail', { post, initialIndex: index });
     }
   };
 
@@ -313,14 +358,17 @@ export default function UserProfilePublic() {
 
           {/* Action Buttons */}
           <View style={styles.actionButtonsRow}>
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.followButton, isFollowing && styles.followingButton]} 
-              onPress={handleFollow}
-            >
-              <Text style={[styles.actionButtonText, isFollowing && styles.followingButtonText]}>
-                {isFollowing ? 'Đang theo dõi' : 'Theo dõi'}
-              </Text>
-            </TouchableOpacity>
+            {/* Hide follow button if this user is blocked; only show follow when not blocked */}
+            {!isBlocked && (
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.followButton, isFollowing && styles.followingButton]} 
+                onPress={handleFollow}
+              >
+                <Text style={[styles.actionButtonText, isFollowing && styles.followingButtonText]}>
+                  {isFollowing ? 'Đang theo dõi' : 'Theo dõi'}
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity 
               style={[styles.actionButton, styles.messageButton]} 
               onPress={handleMessage}
@@ -404,7 +452,7 @@ export default function UserProfilePublic() {
               style={styles.menuItem}
               onPress={handleBlock}
             >
-              <Text style={[styles.menuItemText, { color: '#ef4444' }]}>Chặn</Text>
+              <Text style={[styles.menuItemText, { color: isBlocked ? '#2563eb' : '#ef4444' }]}>{isBlocked ? 'Bỏ chặn' : 'Chặn'}</Text>
             </TouchableOpacity>
             
             <View style={styles.menuDivider} />

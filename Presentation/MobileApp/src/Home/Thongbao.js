@@ -81,9 +81,8 @@ export default function Thongbao() {
         <TouchableOpacity 
           style={styles.navItem}
           onPress={() => {
-            const parent = typeof navigation.getParent === 'function' ? navigation.getParent() : null;
-            if (parent && typeof parent.navigate === 'function') parent.navigate('Home');
-            else navigation.navigate('Home');
+            // Navigate into the MainTabs navigator to ensure the Home tab exists
+            navigation.navigate('MainTabs', { screen: 'Home' });
           }}
         >
           <Image

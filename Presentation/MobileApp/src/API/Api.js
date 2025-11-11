@@ -6,7 +6,7 @@ import { Platform } from "react-native";
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
 // Nếu test trên máy tính: dùng localhost
 // Nếu test trên điện thoại thật: dùng IP của máy tính (xem bằng ipconfig)
-export const API_BASE_URL = "https://interdorsal-tetartohedrally-malaysia.ngrok-free.dev"; // Backend đang chạy trên IP máy tính
+export const API_BASE_URL = "http://192.168.1.102:5297"; // Backend đang chạy trên IP máy tính
 
 // Hàm helper để gọi API
 const apiCall = async (endpoint, options = {}) => {
@@ -349,6 +349,30 @@ export const updateAvatar = async ({
   return json;
 };
 
+// =================== BLOCK APIs ===================
+export const blockUser = async (userId) => {
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/users/${userId}/block`, {
+    method: 'POST',
+    headers,
+  });
+};
+
+export const unblockUser = async (userId) => {
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/users/${userId}/block`, {
+    method: 'DELETE',
+    headers,
+  });
+};
+
+export const getBlockedUsers = async () => {
+  const headers = await getAuthHeaders();
+  const result = await apiCall('/api/users/blocked', { method: 'GET', headers });
+  return result?.data || [];
+};
+
+
 // Quên mật khẩu
 export const forgotPassword = async (email) => {
   console.log("[FORGOT-PASSWORD] Calling API with email:", email);
@@ -467,6 +491,8 @@ export const createPost = async ({
   caption = "",
   location = "",
   privacy = "public",
+  mentions = [], // array of user ids
+  tags = [], // array of user ids (tagged users)
 }) => {
   const headers = await getAuthHeaders();
   const form = new FormData();
@@ -506,6 +532,18 @@ export const createPost = async ({
       name: video.name || "video.mp4",
       type: video.type || "video/mp4",
     });
+  }
+
+  // Attach mentions/tags as JSON strings in the multipart form so backend can consume if supported
+  try {
+    if (Array.isArray(mentions) && mentions.length > 0) {
+      form.append("Mentions", JSON.stringify(mentions));
+    }
+    if (Array.isArray(tags) && tags.length > 0) {
+      form.append("Tags", JSON.stringify(tags));
+    }
+  } catch (e) {
+    console.warn('[API] createPost: failed to append mentions/tags', e);
   }
 
   const res = await fetch(`${API_BASE_URL}/api/posts`, {
@@ -619,7 +657,33 @@ export const unfollowUser = async (userId) => {
 // Get followers list
 export const getFollowers = async (userId) => {
   const headers = await getAuthHeaders();
-  const result = await apiCall(`/api/users/${userId}/followers`, {
+  // If caller didn't provide userId, attempt to resolve current user id from storage or profile
+  let uid = userId;
+  if (uid == null) {
+    try {
+      const stored = await AsyncStorage.getItem("userInfo");
+      if (stored) {
+        const u = JSON.parse(stored);
+        uid = u?.user_id ?? u?.userId ?? u?.UserId ?? u?.id ?? null;
+      }
+    } catch (e) {
+      console.warn('[API] getFollowers: failed to read AsyncStorage userInfo', e);
+    }
+    if (uid == null) {
+      try {
+        const prof = await getProfile().catch(() => null);
+        uid = prof?.userId ?? prof?.UserId ?? prof?.user_id ?? null;
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+  if (uid == null) {
+    // No user id to query -> return empty list to avoid making a bad request
+    console.warn('[API] getFollowers: no userId available, returning empty array');
+    return [];
+  }
+  const result = await apiCall(`/api/users/${uid}/followers`, {
     method: "GET",
     headers,
   });
@@ -629,7 +693,33 @@ export const getFollowers = async (userId) => {
 // Get following list
 export const getFollowing = async (userId) => {
   const headers = await getAuthHeaders();
-  const result = await apiCall(`/api/users/${userId}/following`, {
+  // Resolve userId when not provided (try AsyncStorage -> profile)
+  let uid = userId;
+  if (uid == null) {
+    try {
+      const stored = await AsyncStorage.getItem("userInfo");
+      if (stored) {
+        const u = JSON.parse(stored);
+        uid = u?.user_id ?? u?.userId ?? u?.UserId ?? u?.id ?? null;
+      }
+    } catch (e) {
+      console.warn('[API] getFollowing: failed to read AsyncStorage userInfo', e);
+    }
+    if (uid == null) {
+      try {
+        const prof = await getProfile().catch(() => null);
+        uid = prof?.userId ?? prof?.UserId ?? prof?.user_id ?? null;
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+  if (uid == null) {
+    console.warn('[API] getFollowing: no userId available, returning empty array');
+    return [];
+  }
+
+  const result = await apiCall(`/api/users/${uid}/following`, {
     method: "GET",
     headers,
   });
@@ -678,6 +768,20 @@ export const updatePostCaption = async (postId, caption) => {
     throw new Error(json?.message || 'Không thể cập nhật caption');
   }
   return json;
+};
+
+// Update tags for a post (replace entire tag list)
+export const updatePostTags = async (postId, tags = []) => {
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/posts/${postId}/tags`, {
+    method: "PATCH",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ Tags: tags }),
+  });
 };
 
 // Xóa bài đăng

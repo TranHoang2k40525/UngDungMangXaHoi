@@ -16,11 +16,13 @@ export default function PhotoPreview() {
       setPosting(true);
       const image = { uri: photoUri, name: 'photo.jpg', type: 'image/jpeg' };
       await createPost({ images: [image], caption: '', privacy: 'public' });
-      const parent = typeof navigation.getParent === 'function' ? navigation.getParent() : null;
-      if (parent && typeof parent.navigate === 'function') {
-        parent.navigate('Home', { refresh: true });
-      } else {
-        navigation.navigate('Home', { refresh: true });
+      // Navigate to the Home tab inside MainTabs stack so the tab navigator handles the route
+      // MainTabs is the Stack.Screen that contains the Tab navigator (Home is a tab inside it).
+      try {
+        navigation.navigate('MainTabs', { screen: 'Home', params: { refresh: true } });
+      } catch (e) {
+        // Fallback to simple navigate in case structure differs
+        try { navigation.navigate('Home', { refresh: true }); } catch (err) { }
       }
     } catch (e) {
       Alert.alert('Lỗi', e.message || 'Không thể đăng ảnh');

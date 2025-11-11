@@ -6,16 +6,18 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Modal,
   StatusBar,
   Dimensions,
   RefreshControl,
+  
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getMyPosts, getProfile, updateAvatar, API_BASE_URL } from '../API/Api';
+import { getMyPosts, getProfile, updateAvatar, API_BASE_URL, getBlockedUsers, unblockUser } from '../API/Api';
 import { useUser } from '../Context/UserContext';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { onTabTriple } from '../Utils/TabRefreshEmitter';
@@ -31,6 +33,8 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [blockedListVisible, setBlockedListVisible] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [hasStory, setHasStory] = useState(false);
   const [storyData, setStoryData] = useState(null);
@@ -40,10 +44,11 @@ const Profile = () => {
   const [videoThumbs, setVideoThumbs] = useState({}); // { [postId]: uri }
 
   // Build full URL for avatar when API returns relative path
+  // Return null when missing so callers can render a consistent placeholder
   const getAvatarUri = useMemo(() => {
     return (p) => {
       const raw = p?.avatarUrl;
-      if (!raw) return 'https://i.pravatar.cc/150';
+      if (!raw) return null;
       if (raw.startsWith('http')) return raw;
       return `${API_BASE_URL}${raw}`;
     };
@@ -185,6 +190,32 @@ const Profile = () => {
     return () => { alive = false; };
   }, [posts]); // Chỉ chạy khi posts thay đổi, không phụ thuộc videoThumbs
 
+  // Load blocked users when the blocked list sheet is opened
+  useEffect(() => {
+    let alive = true;
+    if (!blockedListVisible) return;
+    (async () => {
+      try {
+        const list = await getBlockedUsers();
+        if (!alive) return;
+        setBlockedUsers(Array.isArray(list) ? list : []);
+      } catch (e) {
+        console.warn('[Profile] fetch blocked users failed', e);
+      }
+    })();
+    return () => { alive = false; };
+  }, [blockedListVisible]);
+
+  const handleUnblock = async (userId) => {
+    try {
+      await unblockUser(userId);
+      setBlockedUsers(prev => prev.filter(u => u.userId !== userId && u.userId !== u.id));
+    } catch (e) {
+      console.warn('Unblock failed', e);
+      alert('Không thể bỏ chặn');
+    }
+  };
+
   const handleAvatarPress = () => {
     if (hasStory) {
       // Có story -> hiện menu chọn
@@ -280,27 +311,87 @@ const Profile = () => {
           </TouchableOpacity>
         </View>
       </View>
-      {menuOpen && (
-        <View style={styles.menuSheet}>
-          <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); navigation.navigate('Editprofile'); }}>
-            <Text style={styles.menuText}>Xem/Chỉnh sửa thông tin</Text>
+      {/* Menu modal - tap outside to dismiss */}
+      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setMenuOpen(false)}>
+          <View style={styles.menuSheet}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); navigation.navigate('Editprofile'); }}>
+              <Text style={styles.menuText}>Xem/Chỉnh sửa thông tin</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); navigation.navigate('ChangePassword'); }}>
+              <Text style={styles.menuText}>Đổi mật khẩu</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); setBlockedListVisible(true); }}>
+              <Text style={styles.menuText}>Danh sách chặn</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); logout(); }}>
+              <Text style={[styles.menuText, { color: '#ef4444' }]}>Đăng xuất</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Blocked users modal */}
+      <Modal visible={blockedListVisible} transparent animationType="slide" onRequestClose={() => setBlockedListVisible(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setBlockedListVisible(false)}>
+          {/* inner sheet stops propagation so presses inside don't close the modal */}
+          <TouchableOpacity activeOpacity={1} style={styles.blockedListModal} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.sheetTitle}>Danh sách chặn</Text>
+            {blockedUsers.length === 0 ? (
+              <View style={{ padding: 20 }}>
+                <Text style={{ color: '#6b7280' }}>Chưa có người bị chặn</Text>
+              </View>
+            ) : (
+              blockedUsers.map((u) => {
+                const uid = u.userId || u.id;
+                const av = getAvatarUri(u);
+                return (
+                  <TouchableOpacity
+                    key={uid}
+                    style={styles.blockedRow}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      // Open public profile so the user can optionally unblock there
+                      navigation.navigate('UserProfilePublic', { userId: uid });
+                      setBlockedListVisible(false);
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      {av ? (
+                        <Image source={{ uri: av }} style={styles.blockedAvatar} />
+                      ) : (
+                        <View style={[styles.blockedAvatar, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#f3f4f6' }]}>
+                          <Ionicons name="person" size={20} color="#9ca3af" />
+                        </View>
+                      )}
+                      <View style={{ marginLeft: 12 }}>
+                        <Text style={styles.blockedName}>{u.username || u.fullName || u.name}</Text>
+                        {u.fullName ? <Text style={{ color: '#6b7280', fontSize: 12 }}>{u.fullName}</Text> : null}
+                      </View>
+                    </View>
+
+                    <TouchableOpacity onPress={() => handleUnblock(uid)} style={styles.unblockButton}>
+                      <Text style={styles.unblockText}>Bỏ chặn</Text>
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+
+            <TouchableOpacity style={[styles.menuItem, { marginTop: 8 }]} onPress={() => setBlockedListVisible(false)}>
+              <Text style={styles.menuText}>Đóng</Text>
+            </TouchableOpacity>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); navigation.navigate('ChangePassword'); }}>
-            <Text style={styles.menuText}>Đổi mật khẩu</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); logout(); }}>
-            <Text style={[styles.menuText, { color: '#ef4444' }]}>Đăng xuất</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+        </TouchableOpacity>
+      </Modal>
 
       <ScrollView 
         showsVerticalScrollIndicator={false} 
         contentContainerStyle={{ paddingBottom: 16 }}
         refreshControl={
           <RefreshControl 
-            refreshing={refreshing} 
-            onRefresh={async ()=>{
+            refreshing={refreshing}
+            onRefresh={async () => {
               try {
                 setRefreshing(true);
                 const [p, me] = await Promise.all([
@@ -310,12 +401,12 @@ const Profile = () => {
                 setPosts(Array.isArray(p) ? p : []);
                 setProfile(me || null);
                 if (currentUserId) await checkUserStory(currentUserId);
-              } catch(e) { 
+              } catch (e) { 
                 console.warn('Profile refresh error', e); 
               } finally { 
                 setRefreshing(false); 
               }
-            }} 
+            }}
           />
         }
       >
@@ -333,10 +424,16 @@ const Profile = () => {
                 hasStory && styles.avatarRingActive,
                 hasStory && !isStoryViewed && styles.avatarRingUnviewed
               ]}>
-                <Image
-                  source={{ uri: avatarUri }}
-                  style={styles.profileImage}
-                />
+                {avatarUri ? (
+                  <Image
+                    source={{ uri: avatarUri }}
+                    style={styles.profileImage}
+                  />
+                ) : (
+                  <View style={[styles.profileImage, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#e5e7eb' }]}>
+                    <Ionicons name="person" size={40} color="#9ca3af" />
+                  </View>
+                )}
               </View>
               
               {/* Story indicator dot */}
@@ -443,7 +540,6 @@ const Profile = () => {
               
               const onPress = () => {
                 if (isVideo) {
-                  // Navigate directly to Video tab with selectedId to show the exact video clicked
                   navigation.navigate('Video', {
                     selectedId: post.id,
                     userId: post.user?.id || user?.id,
@@ -451,7 +547,9 @@ const Profile = () => {
                     avatarUrl: post.user?.avatarUrl || user?.avatarUrl
                   });
                 } else {
-                  navigation.navigate('PostDetail', { post });
+                  // Truyền index của post vào PostDetail
+                  const index = posts.findIndex(p => p.id === post.id);
+                  navigation.navigate('PostDetail', { post, initialIndex: index });
                 }
               };
               
@@ -763,6 +861,44 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
+  },
+
+  blockedListModal: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    paddingBottom: 24,
+    paddingHorizontal: 16,
+    maxHeight: '60%'
+  },
+  blockedRow: {
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#eaeaea',
+  },
+  blockedAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f3f4f6',
+  },
+  blockedName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  unblockButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  unblockText: {
+    color: '#2563eb',
+    fontWeight: '600',
   },
   avatarMenuSheet: {
     backgroundColor: '#fff',

@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getReels, getFollowingReels, updatePostPrivacy, updatePostCaption, deletePost, getAuthHeaders, followUser, unfollowUser } from '../API/Api';
+import { getReels, getFollowingReels, updatePostPrivacy, updatePostCaption, deletePost, getAuthHeaders, followUser, unfollowUser, getFollowing, getFollowers, updatePostTags, API_BASE_URL } from '../API/Api';
 import { useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Audio } from 'expo-av';
@@ -290,6 +290,13 @@ export default function Reels() {
   const [editingCaption, setEditingCaption] = useState(false);
   const [captionDraft, setCaptionDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  // Edit tags state (owner only)
+  const [showEditTags, setShowEditTags] = useState(false);
+  const [editTagsList, setEditTagsList] = useState([]);
+  const [availableTagUsers, setAvailableTagUsers] = useState([]);
+  const [availableTagUsersAll, setAvailableTagUsersAll] = useState([]);
+  const [tagChangeQueue, setTagChangeQueue] = useState({ toAdd: [], toRemove: [] });
+  const [showAddTagList, setShowAddTagList] = useState(false);
   
   // Comments modal state
   const [showComments, setShowComments] = useState(false);
@@ -486,6 +493,18 @@ export default function Reels() {
     const pidRaw = post?.user?.id;
     const pid = pidRaw != null ? Number(pidRaw) : null;
     return Number.isFinite(uid) && Number.isFinite(pid) && uid === pid;
+  };
+
+  // Normalize user/tag objects used for chips and lists
+  const normalizeUser = (u) => {
+    if (!u) return { id: null, username: '', avatarUrl: null, fullName: '' };
+    const rawId = u?.id ?? u?.userId ?? u?.user_id ?? u?.UserId ?? null;
+    const id = Number(rawId);
+    const username = u?.username ?? u?.userName ?? u?.name ?? '';
+    const rawAvatar = u?.avatarUrl ?? u?.avatar_url ?? u?.userAvatar ?? null;
+    const avatarUrl = rawAvatar ? (String(rawAvatar).startsWith('http') ? rawAvatar : `${API_BASE_URL}${rawAvatar}`) : null;
+    const fullName = u?.fullName ?? u?.full_name ?? '';
+    return { id: Number.isFinite(id) ? id : null, username, avatarUrl, fullName };
   };
 
   const handleFollow = async (post) => {
@@ -1074,6 +1093,42 @@ export default function Reels() {
     } finally { setBusy(false); }
   };
 
+  const closeEditTags = () => {
+    setShowEditTags(false);
+    setEditTagsList([]);
+    setAvailableTagUsers([]);
+    setAvailableTagUsersAll([]);
+    setTagChangeQueue({ toAdd: [], toRemove: [] });
+    setShowAddTagList(false);
+  };
+
+  const submitEditTags = async () => {
+    try {
+      const post = reels[activeIndex];
+      if (!post) return;
+      setBusy(true);
+      // Normalize tag ids to integers and filter invalid
+      const tagIds = (editTagsList || []).map(t => Number(t?.id)).filter(x => Number.isFinite(x) && x > 0);
+      console.log('[REELS] submitEditTags payload:', { postId: post.id, tagIds, queue: tagChangeQueue });
+      const updated = await updatePostTags(post.id, tagIds);
+      // update local reels by numeric id comparison and prefer server-returned tags
+      setReels(prev => prev.map((r) => {
+        try {
+          if (Number(r.id) === Number(post.id)) {
+            return { ...r, tags: (updated && Array.isArray(updated.tags)) ? updated.tags : (editTagsList || []) };
+          }
+        } catch { }
+        return r;
+      }));
+      closeEditTags();
+    } catch (e) {
+      console.warn('[REELS] update tags error', e);
+      Alert.alert('Lỗi', e?.message || 'Không thể cập nhật gắn thẻ');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const submitCaptionEdit = async () => {
     try {
       const post = reels[activeIndex];
@@ -1158,6 +1213,37 @@ export default function Reels() {
               if (post && isOwner(post)) {
                 return (
                   <>
+                    <TouchableOpacity
+                      style={styles.sheetItem}
+                      onPress={() => {
+                        // Open edit tags modal for current post
+                        (async () => {
+                          try {
+                            setShowOptions(false);
+                            // normalize existing tags into safe objects
+                            setEditTagsList((post.tags ? post.tags : []).map(normalizeUser));
+                            setShowAddTagList(false);
+                            setShowEditTags(true);
+                            // Load available users from following + followers and normalize
+                            const [following, followers] = await Promise.all([getFollowing().catch(()=>[]), getFollowers().catch(()=>[])]);
+                            const map = new Map();
+                            (Array.isArray(following)?following:[]).forEach(u=>{ const nu = normalizeUser(u); if (nu.id != null) map.set(nu.id, nu); });
+                            (Array.isArray(followers)?followers:[]).forEach(u=>{ const nu = normalizeUser(u); if (nu.id != null) map.set(nu.id, nu); });
+                            const all = Array.from(map.values());
+                            setAvailableTagUsers(Array.from(all));
+                            setAvailableTagUsersAll(all);
+                            setTagChangeQueue({ toAdd: [], toRemove: [] });
+                          } catch (e) {
+                            console.warn('[REELS] openEditTags error', e);
+                            setAvailableTagUsers([]);
+                            setAvailableTagUsersAll([]);
+                            setTagChangeQueue({ toAdd: [], toRemove: [] });
+                          }
+                        })();
+                      }}
+                    >
+                      <Text style={styles.sheetItemText}>Chỉnh sửa gắn thẻ</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity style={styles.sheetItem} onPress={() => setShowPrivacySheet(true)}>
                       <Text style={styles.sheetItemText}>Chỉnh sửa quyền riêng tư</Text>
                     </TouchableOpacity>
@@ -1271,6 +1357,113 @@ export default function Reels() {
           </TouchableOpacity>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Edit tags modal (owner only) */}
+      {showEditTags && (
+        <TouchableOpacity activeOpacity={1} style={styles.overlayDim} onPress={closeEditTags}>
+          <TouchableOpacity activeOpacity={1} style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={styles.sheetTitle}>Chỉnh sửa gắn thẻ</Text>
+              <TouchableOpacity style={styles.addButtonHeader} onPress={() => setShowAddTagList(prev => !prev)}>
+                <Text style={styles.addButtonText}>{showAddTagList ? '×' : '+'}</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={{ color: '#666', marginBottom: 8 }}>Nhấn ✕ trên chip để gỡ; nhấn + để thêm người chưa được gắn</Text>
+
+            {/* Selected tags chips */}
+            {editTagsList && editTagsList.length > 0 && (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 }}>
+                {editTagsList.map((t) => (
+                  <View key={`chip-${String(t.id ?? t.username ?? '')}`} style={styles.tagChip}>
+                    {t.avatarUrl ? (
+                      <Image source={{ uri: t.avatarUrl }} style={styles.tagChipAvatar} />
+                    ) : (
+                      <View style={[styles.tagChipAvatar, { backgroundColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center' }]}>
+                        <Ionicons name="person" size={14} color="#9ca3af" />
+                      </View>
+                    )}
+                    <Text style={styles.tagChipText}>{t.username ? `@${t.username}` : t.id}</Text>
+                    <TouchableOpacity style={styles.tagChipClose} onPress={() => {
+                      setEditTagsList(prev => (prev || []).filter(x => Number(x.id) !== Number(t.id)));
+                      setTagChangeQueue(prev => {
+                        const toAdd = new Set(prev.toAdd || []);
+                        const toRemove = new Set(prev.toRemove || []);
+                        if (toAdd.has(Number(t.id))) {
+                          toAdd.delete(Number(t.id));
+                        } else {
+                          toRemove.add(Number(t.id));
+                        }
+                        return { toAdd: Array.from(toAdd), toRemove: Array.from(toRemove) };
+                      });
+                    }}>
+                      <Text style={styles.tagChipCloseText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+            <View style={{ maxHeight: 260 }}>
+              <FlatList
+                data={(showAddTagList ? (availableTagUsersAll || []).filter(u => !(editTagsList || []).find(x => Number(x.id) === Number(u.id))) : availableTagUsersAll) || []}
+                keyExtractor={(it) => String(it.id)}
+                renderItem={({ item }) => {
+                  const selected = !!editTagsList.find(x => Number(x.id) === Number(item.id));
+                  return (
+                    <TouchableOpacity style={styles.userItem} onPress={() => {
+                      if (selected) {
+                        setEditTagsList(prev => (prev || []).filter(x => Number(x.id) !== Number(item.id)));
+                        setTagChangeQueue(prev => {
+                          const toAdd = new Set(prev.toAdd || []);
+                          const toRemove = new Set(prev.toRemove || []);
+                          if (toAdd.has(Number(item.id))) {
+                            toAdd.delete(Number(item.id));
+                          } else {
+                            toRemove.add(Number(item.id));
+                          }
+                          return { toAdd: Array.from(toAdd), toRemove: Array.from(toRemove) };
+                        });
+                      } else {
+                        setEditTagsList(prev => [...(prev || []), normalizeUser(item)]);
+                        setTagChangeQueue(prev => {
+                          const toAdd = new Set(prev.toAdd || []);
+                          const toRemove = new Set(prev.toRemove || []);
+                          if (toRemove.has(Number(item.id))) {
+                            toRemove.delete(Number(item.id));
+                          } else {
+                            toAdd.add(Number(item.id));
+                          }
+                          return { toAdd: Array.from(toAdd), toRemove: Array.from(toRemove) };
+                        });
+                      }
+                    }}>
+                      {item.avatarUrl ? (
+                        <Image source={{ uri: item.avatarUrl }} style={styles.userAvatar} />
+                      ) : (
+                        <View style={[styles.userAvatar, { backgroundColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center' }]}>
+                          <Ionicons name="person" size={16} color="#9ca3af" />
+                        </View>
+                      )}
+                      <View style={styles.userInfo}>
+                        <Text style={styles.userUsername}>@{item.username}</Text>
+                        <Text style={styles.userFullname}>{item.fullName || item.username}</Text>
+                      </View>
+                      {selected && <Ionicons name="checkmark-circle" size={22} color="#0095F6" />}
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            </View>
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+              <TouchableOpacity style={[styles.actionButton, styles.cancelButton]} onPress={closeEditTags}>
+                <Text style={styles.cancelButtonText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.actionButton, styles.saveButton]} onPress={submitEditTags}>
+                <Text style={styles.saveButtonText}>Lưu</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      )}
 
       {busy && (
         <View style={styles.busyOverlay}><View style={styles.spinner} /></View>
@@ -1650,6 +1843,77 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#fff',
+  },
+  addButtonHeader: {
+    width: 36,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addButtonText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  tagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#f3f4f6',
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  tagChipAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    marginRight: 8,
+  },
+  tagChipText: {
+    fontSize: 13,
+    color: '#111827',
+    fontWeight: '600',
+  },
+  tagChipClose: {
+    marginLeft: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tagChipCloseText: {
+    color: '#dc2626',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  userItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  userAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userUsername: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  userFullname: {
+    fontSize: 12,
+    color: '#6b7280',
   },
   // Video interaction styles
   speedIndicator: {
