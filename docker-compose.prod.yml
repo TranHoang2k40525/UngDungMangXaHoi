@@ -27,14 +27,12 @@ services:
       retries: 5
 
   webapi:
-    # Use production Dockerfile
-    build:
-      context: .
-      dockerfile: Presentation/WebAPI/Dockerfile.production
-      args:
-        ASPNETCORE_ENVIRONMENT: Production
+    # In CI/CD we prefer to deploy images pushed to a registry.
+    # The CI pipeline should push an image to ${REGISTRY}/${WEBAPI_IMAGE}:${TAG}
+    # If WEBAPI_IMAGE is not provided, fallback to ungdungmxh/webapi:latest
+    image: ${WEBAPI_IMAGE:-ungdungmxh/webapi:latest}
     
-    # Production container name
+    # (Optional) set a container name in production
     container_name: ungdungmxh-webapi-prod
     
     # Production environment variables (no secrets in plain text!)
@@ -86,14 +84,14 @@ services:
     
     # NO volume mounts in production (use built image)
     volumes: []
-    
+
     # Production ports (behind reverse proxy/load balancer)
     ports:
       - "5297:5297"
-    
+
     # Production restart policy
     restart: always
-    
+
     # Health check
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5297/health"]
