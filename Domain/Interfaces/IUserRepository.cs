@@ -28,8 +28,10 @@ namespace UngDungMangXaHoi.Domain.Interfaces
         // Follow operations
         Task<bool> IsFollowingAsync(int followerId, int followingId);
         Task FollowUserAsync(int followerId, int followingId);
-        Task UnfollowUserAsync(int followerId, int followingId);
-        Task<IEnumerable<object>> GetFollowersListAsync(int userId);
+        Task UnfollowUserAsync(int followerId, int followingId);        Task<IEnumerable<object>> GetFollowersListAsync(int userId);
         Task<IEnumerable<object>> GetFollowingListAsync(int userId);
+        // Conversation/Message history (for future implementation)
+        Task<bool> HasMessagedBeforeAsync(int userId1, int userId2);
+        Task<IEnumerable<int>> GetUsersMessagedBeforeAsync(int userId);
     }
 }

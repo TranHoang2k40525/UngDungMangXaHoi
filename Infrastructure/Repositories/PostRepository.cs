@@ -212,11 +212,31 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         public async Task<int> GetUserPostCountAsync(int userId)
         {
             return await _context.Posts.CountAsync(p => p.is_visible && p.user_id == userId);
-        }
-
-        public async Task<int> CountPostsByUserIdAsync(int userId)
+        }        public async Task<int> CountPostsByUserIdAsync(int userId)
         {
             return await _context.Posts.CountAsync(p => p.is_visible && p.user_id == userId);
+        }        public async Task<IEnumerable<Post>> SearchPostsByCaptionAsync(string searchTerm, int pageNumber, int pageSize)
+        {
+            if (string.IsNullOrWhiteSpace(searchTerm))
+            {
+                return new List<Post>();
+            }
+
+            searchTerm = searchTerm.ToLower();
+
+            // Search posts có caption CHỨA searchTerm ở BẤT KỲ ĐÂU (case-insensitive)
+            return await _context.Posts
+                .AsNoTracking()
+                .Include(p => p.User)
+                .Include(p => p.Media)
+                .Where(p => p.is_visible 
+                    && p.privacy.ToLower() == "public"
+                    && p.caption != null
+                    && p.caption.ToLower().Contains(searchTerm))
+                .OrderByDescending(p => p.created_at)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
         }
     }
 }
