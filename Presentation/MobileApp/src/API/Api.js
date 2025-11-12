@@ -704,3 +704,70 @@ export const getReactionSummary = async (postId) => {
     },
   });
 };
+
+// Lấy danh sách người dùng đã thả cảm xúc cho bài đăng
+export const getReactionsByPost = async (postId) => {
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/reactions/post/${postId}`, {
+    method: "GET",
+    headers: {
+      ...headers,
+      Accept: "application/json",
+    },
+  });
+};
+
+// ====== SHARES API ======
+// Chia sẻ một bài đăng
+export const createShare = async (
+  postId,
+  caption = null,
+  privacy = "public"
+) => {
+  const headers = await getAuthHeaders();
+  return apiCall("/api/shares", {
+    method: "POST",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ postId, caption, privacy }),
+  });
+};
+
+// Lấy danh sách shares của một bài đăng
+export const getSharesByPost = async (postId) => {
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/shares/post/${postId}`, {
+    method: "GET",
+    headers: {
+      ...headers,
+      Accept: "application/json",
+    },
+  });
+};
+
+// Lấy số lượng shares của một bài đăng
+export const getShareCount = async (postId) => {
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/shares/post/${postId}/count`, {
+    method: "GET",
+    headers: {
+      ...headers,
+      Accept: "application/json",
+    },
+  });
+};
+
+// Xóa một share
+export const deleteShare = async (shareId) => {
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/shares/${shareId}`, {
+    method: "DELETE",
+    headers: {
+      ...headers,
+      Accept: "application/json",
+    },
+  });
+};

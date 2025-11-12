@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   View,
   Text,
@@ -15,248 +21,301 @@ import {
   Alert,
   TouchableWithoutFeedback,
   Animated,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getReels, getFollowingReels, updatePostPrivacy, updatePostCaption, deletePost, getAuthHeaders, followUser, unfollowUser } from '../API/Api';
-import { useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
-import { VideoView, useVideoPlayer } from 'expo-video';
-import { Audio } from 'expo-av';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-import { useUser } from '../Context/UserContext';
-import { useFollow } from '../Context/FollowContext';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import Slider from '@react-native-community/slider';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import {
+  getReels,
+  getFollowingReels,
+  updatePostPrivacy,
+  updatePostCaption,
+  deletePost,
+  getAuthHeaders,
+  followUser,
+  unfollowUser,
+  addReaction,
+  getReactionSummary,
+  createShare,
+} from "../API/Api";
+import {
+  useIsFocused,
+  useNavigation,
+  useRoute,
+} from "@react-navigation/native";
+import { VideoView, useVideoPlayer } from "expo-video";
+import { Audio } from "expo-av";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useUser } from "../Context/UserContext";
+import { useFollow } from "../Context/FollowContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import Slider from "@react-native-community/slider";
+import { Share } from "react-native";
+import CommentsModal from "./CommentsModal";
+import ReactionPicker from "./ReactionPicker";
+import ShareSheet from "./ShareSheet";
+import ReactionsModal from "./ReactionsModal";
 
 // Component wrapper cho mỗi video item để dùng useVideoPlayer hook
-const ReelVideoPlayer = React.memo(({ 
-  videoUri, 
-  authHeaders, 
-  height, 
-  isActive, 
-  isFocused,
-  onError,
-  onPlaybackStatusUpdate,
-  on3TapDetected,
-  index
-}) => {
-  const player = useVideoPlayer(videoUri, (player) => {
-    // Configure player
-    player.loop = true;
-    player.muted = false;
-  });
+const ReelVideoPlayer = React.memo(
+  ({
+    videoUri,
+    authHeaders,
+    height,
+    isActive,
+    isFocused,
+    onError,
+    onPlaybackStatusUpdate,
+    on3TapDetected,
+    index,
+  }) => {
+    const player = useVideoPlayer(videoUri, (player) => {
+      // Configure player
+      player.loop = true;
+      player.muted = false;
+    });
 
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [playbackRate, setPlaybackRate] = useState(1.0);
-  const [showProgressBar, setShowProgressBar] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  
-  const longPressTimerRef = useRef(null);
-  const progressIntervalRef = useRef(null);
-  const hideProgressTimerRef = useRef(null);
+    const [isPlaying, setIsPlaying] = useState(true);
+    const [playbackRate, setPlaybackRate] = useState(1.0);
+    const [showProgressBar, setShowProgressBar] = useState(false);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+    const [isDragging, setIsDragging] = useState(false);
 
-  // Control play/pause based on active state
-  useEffect(() => {
-    if (!player) return;
-    
-    try {
-      if (isActive && isFocused) {
-        if (isPlaying) {
+    const longPressTimerRef = useRef(null);
+    const progressIntervalRef = useRef(null);
+    const hideProgressTimerRef = useRef(null);
+
+    // Control play/pause based on active state
+    useEffect(() => {
+      if (!player) return;
+
+      try {
+        if (isActive && isFocused) {
+          if (isPlaying) {
+            player.play();
+          }
+        } else {
+          player.pause();
+        }
+      } catch (error) {
+        // Ignore errors from already released players
+        console.log(
+          "[ReelVideoPlayer] Play/pause error (ignored):",
+          error.message
+        );
+      }
+    }, [isActive, isFocused, player, isPlaying]);
+
+    // Update playback rate
+    useEffect(() => {
+      if (player && isActive) {
+        try {
+          player.playbackRate = playbackRate;
+        } catch (error) {
+          console.log("[ReelVideoPlayer] Playback rate error:", error);
+        }
+      }
+    }, [player, playbackRate, isActive]);
+
+    // Track video progress
+    useEffect(() => {
+      if (!player || !isActive || !isFocused) return;
+
+      const interval = setInterval(() => {
+        try {
+          if (
+            player.currentTime !== undefined &&
+            player.duration !== undefined
+          ) {
+            setCurrentTime(player.currentTime);
+            setDuration(player.duration);
+          }
+        } catch (error) {
+          // Ignore
+        }
+      }, 100);
+
+      progressIntervalRef.current = interval;
+      return () => clearInterval(interval);
+    }, [player, isActive, isFocused]);
+
+    // Handle tap to pause/play
+    const handleTap = () => {
+      const newPlayingState = !isPlaying;
+      setIsPlaying(newPlayingState);
+
+      try {
+        if (newPlayingState) {
           player.play();
-        }
-      } else {
-        player.pause();
-      }
-    } catch (error) {
-      // Ignore errors from already released players
-      console.log('[ReelVideoPlayer] Play/pause error (ignored):', error.message);
-    }
-  }, [isActive, isFocused, player, isPlaying]);
-
-  // Update playback rate
-  useEffect(() => {
-    if (player && isActive) {
-      try {
-        player.playbackRate = playbackRate;
-      } catch (error) {
-        console.log('[ReelVideoPlayer] Playback rate error:', error);
-      }
-    }
-  }, [player, playbackRate, isActive]);
-
-  // Track video progress
-  useEffect(() => {
-    if (!player || !isActive || !isFocused) return;
-
-    const interval = setInterval(() => {
-      try {
-        if (player.currentTime !== undefined && player.duration !== undefined) {
-          setCurrentTime(player.currentTime);
-          setDuration(player.duration);
+        } else {
+          player.pause();
         }
       } catch (error) {
-        // Ignore
+        console.log("[ReelVideoPlayer] Toggle play error:", error);
       }
-    }, 100);
+    };
 
-    progressIntervalRef.current = interval;
-    return () => clearInterval(interval);
-  }, [player, isActive, isFocused]);
+    // Handle long press for 2x speed
+    const handlePressIn = () => {
+      longPressTimerRef.current = setTimeout(() => {
+        setPlaybackRate(2.0);
+      }, 1000); // 1 second
+    };
 
-  // Handle tap to pause/play
-  const handleTap = () => {
-    const newPlayingState = !isPlaying;
-    setIsPlaying(newPlayingState);
-    
-    try {
-      if (newPlayingState) {
-        player.play();
+    const handlePressOut = () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+      setPlaybackRate(1.0);
+    };
+
+    // Handle tap on bottom to show progress bar
+    const handleBottomTap = (evt) => {
+      // Check for 3-tap first
+      if (on3TapDetected && on3TapDetected()) {
+        return; // 3-tap consumed, don't do anything else
+      }
+
+      const { locationY } = evt.nativeEvent;
+      const screenHeight = height;
+      const bottomThreshold = screenHeight * 0.8; // bottom 20%
+
+      if (locationY > bottomThreshold) {
+        setShowProgressBar(true);
+
+        // Auto hide after 3 seconds
+        if (hideProgressTimerRef.current) {
+          clearTimeout(hideProgressTimerRef.current);
+        }
+        hideProgressTimerRef.current = setTimeout(() => {
+          if (!isDragging) {
+            setShowProgressBar(false);
+          }
+        }, 3000);
       } else {
-        player.pause();
+        handleTap();
       }
-    } catch (error) {
-      console.log('[ReelVideoPlayer] Toggle play error:', error);
-    }
-  };
+    };
 
-  // Handle long press for 2x speed
-  const handlePressIn = () => {
-    longPressTimerRef.current = setTimeout(() => {
-      setPlaybackRate(2.0);
-    }, 1000); // 1 second
-  };
+    // Handle slider value change (seeking)
+    const handleSliderValueChange = (value) => {
+      setIsDragging(true);
+      setCurrentTime(value);
+    };
 
-  const handlePressOut = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-    }
-    setPlaybackRate(1.0);
-  };
+    const handleSlidingComplete = (value) => {
+      setIsDragging(false);
+      try {
+        player.currentTime = value;
+      } catch (error) {
+        console.log("[ReelVideoPlayer] Seek error:", error);
+      }
 
-  // Handle tap on bottom to show progress bar
-  const handleBottomTap = (evt) => {
-    // Check for 3-tap first
-    if (on3TapDetected && on3TapDetected()) {
-      return; // 3-tap consumed, don't do anything else
-    }
-
-    const { locationY } = evt.nativeEvent;
-    const screenHeight = height;
-    const bottomThreshold = screenHeight * 0.8; // bottom 20%
-
-    if (locationY > bottomThreshold) {
-      setShowProgressBar(true);
-      
       // Auto hide after 3 seconds
       if (hideProgressTimerRef.current) {
         clearTimeout(hideProgressTimerRef.current);
       }
       hideProgressTimerRef.current = setTimeout(() => {
-        if (!isDragging) {
-          setShowProgressBar(false);
-        }
+        setShowProgressBar(false);
       }, 3000);
-    } else {
-      handleTap();
-    }
-  };
-
-  // Handle slider value change (seeking)
-  const handleSliderValueChange = (value) => {
-    setIsDragging(true);
-    setCurrentTime(value);
-  };
-
-  const handleSlidingComplete = (value) => {
-    setIsDragging(false);
-    try {
-      player.currentTime = value;
-    } catch (error) {
-      console.log('[ReelVideoPlayer] Seek error:', error);
-    }
-
-    // Auto hide after 3 seconds
-    if (hideProgressTimerRef.current) {
-      clearTimeout(hideProgressTimerRef.current);
-    }
-    hideProgressTimerRef.current = setTimeout(() => {
-      setShowProgressBar(false);
-    }, 3000);
-  };
-
-  // Cleanup timers
-  useEffect(() => {
-    return () => {
-      if (longPressTimerRef.current) {
-        clearTimeout(longPressTimerRef.current);
-      }
-      if (hideProgressTimerRef.current) {
-        clearTimeout(hideProgressTimerRef.current);
-      }
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-      }
     };
-  }, []);
 
-  return (
-    <View style={StyleSheet.absoluteFillObject}>
-      <VideoView
-        player={player}
-        style={StyleSheet.absoluteFillObject}
-        contentFit="contain"
-        nativeControls={false}
-        onError={onError}
-      />
+    // Cleanup timers
+    useEffect(() => {
+      return () => {
+        if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+        }
+        if (hideProgressTimerRef.current) {
+          clearTimeout(hideProgressTimerRef.current);
+        }
+        if (progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current);
+        }
+      };
+    }, []);
 
-      {/* Touchable overlay cho gesture */}
-      <TouchableWithoutFeedback
-        onPress={handleBottomTap}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-      >
-        <View style={StyleSheet.absoluteFillObject} />
-      </TouchableWithoutFeedback>
+    return (
+      <View style={StyleSheet.absoluteFillObject}>
+        <VideoView
+          player={player}
+          style={StyleSheet.absoluteFillObject}
+          contentFit="contain"
+          nativeControls={false}
+          onError={onError}
+        />
 
-      {/* Speed indicator */}
-      {playbackRate > 1 && (
-        <View style={styles.speedIndicator} pointerEvents="none">
-          <Text style={styles.speedText}>{playbackRate}x</Text>
-        </View>
-      )}
+        {/* Touchable overlay cho gesture */}
+        <TouchableWithoutFeedback
+          onPress={handleBottomTap}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+        >
+          <View style={StyleSheet.absoluteFillObject} />
+        </TouchableWithoutFeedback>
 
-      {/* Progress bar */}
-      {showProgressBar && duration > 0 && (
-        <View style={styles.progressBarContainer} pointerEvents="box-none">
-          <View style={styles.timeLabels}>
-            <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-            <Text style={styles.timeText}>{formatTime(duration)}</Text>
+        {/* Speed indicator */}
+        {playbackRate > 1 && (
+          <View style={styles.speedIndicator} pointerEvents="none">
+            <Text style={styles.speedText}>{playbackRate}x</Text>
           </View>
-          <Slider
-            style={styles.progressSlider}
-            value={currentTime}
-            minimumValue={0}
-            maximumValue={duration}
-            minimumTrackTintColor="#FFFFFF"
-            maximumTrackTintColor="rgba(255, 255, 255, 0.3)"
-            thumbTintColor="#FFFFFF"
-            onValueChange={handleSliderValueChange}
-            onSlidingComplete={handleSlidingComplete}
-          />
-        </View>
-      )}
-    </View>
-  );
-});
+        )}
+
+        {/* Progress bar */}
+        {showProgressBar && duration > 0 && (
+          <View style={styles.progressBarContainer} pointerEvents="box-none">
+            <View style={styles.timeLabels}>
+              <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
+              <Text style={styles.timeText}>{formatTime(duration)}</Text>
+            </View>
+            <Slider
+              style={styles.progressSlider}
+              value={currentTime}
+              minimumValue={0}
+              maximumValue={duration}
+              minimumTrackTintColor="#FFFFFF"
+              maximumTrackTintColor="rgba(255, 255, 255, 0.3)"
+              thumbTintColor="#FFFFFF"
+              onValueChange={handleSliderValueChange}
+              onSlidingComplete={handleSlidingComplete}
+            />
+          </View>
+        )}
+      </View>
+    );
+  }
+);
 
 // Helper function to format time (seconds to MM:SS)
 const formatTime = (seconds) => {
-  if (isNaN(seconds) || seconds === null || seconds === undefined) return '0:00';
+  if (isNaN(seconds) || seconds === null || seconds === undefined)
+    return "0:00";
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+};
+
+// Helper function to get emoji from reaction type
+const getReactionEmoji = (reactionType) => {
+  switch (reactionType) {
+    case 1:
+      return "❤️";
+    case 2:
+      return "😍";
+    case 3:
+      return "😂";
+    case 4:
+      return "😮";
+    case 5:
+      return "😢";
+    case 6:
+      return "😠";
+    default:
+      return "❤️";
+  }
 };
 
 export default function Reels() {
@@ -265,14 +324,14 @@ export default function Reels() {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
   const { markAsFollowed, markAsUnfollowed, isFollowed } = useFollow();
-  
+
   // Get userId from route params for user-specific video filtering
   const filterUserId = route.params?.userId;
   const filterUsername = route.params?.username;
-  
+
   // Tab state: 'reels' or 'following'
-  const [activeTab, setActiveTab] = useState('reels');
-  
+  const [activeTab, setActiveTab] = useState("reels");
+
   const [reels, setReels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -287,8 +346,23 @@ export default function Reels() {
   const [showOptions, setShowOptions] = useState(false);
   const [showPrivacySheet, setShowPrivacySheet] = useState(false);
   const [editingCaption, setEditingCaption] = useState(false);
-  const [captionDraft, setCaptionDraft] = useState('');
+  const [captionDraft, setCaptionDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  // Reactions & modals state
+  const [postStates, setPostStates] = useState({}); // { [postId]: { liked, likes, reactionType, topReactions } }
+  const [showReactionPicker, setShowReactionPicker] = useState(null); // postId showing picker
+  const [reactionPickerPosition, setReactionPickerPosition] = useState({
+    top: 0,
+    left: 0,
+  });
+  const [shareSheetVisible, setShareSheetVisible] = useState(false);
+  const [shareSheetPost, setShareSheetPost] = useState(null);
+  const [showComments, setShowComments] = useState(false);
+  const [activeCommentsPostId, setActiveCommentsPostId] = useState(null);
+  const [reactionsModalVisible, setReactionsModalVisible] = useState(false);
+  const [reactionsModalPostId, setReactionsModalPostId] = useState(null);
+  const [reactionsModalCounts, setReactionsModalCounts] = useState([]);
+  const likeButtonRefs = useRef({});
   // tap gesture helpers
   const tapTimerRef = useRef(null);
   const tapTimesRef = useRef([]);
@@ -298,27 +372,32 @@ export default function Reels() {
   const [heartAnimationIndex, setHeartAnimationIndex] = useState(null); // Track which video shows heart
   const tabBarHeight = useBottomTabBarHeight?.() || 56;
   const [viewportHeight, setViewportHeight] = useState(0); // chiều cao thực vùng cuộn giữa header và tab bar
-  const WATCHED_KEY = 'watchedVideoIds';
-  const REELS_CACHE_KEY = 'reelsCache_v1';
+  const WATCHED_KEY = "watchedVideoIds";
+  const REELS_CACHE_KEY = "reelsCache_v1";
   const [authHeaders, setAuthHeaders] = useState(null);
   // Retry map for resilient playback after upload: { [postId]: { count: number, token: number } }
   const [retryMap, setRetryMap] = useState({});
   const retryTimersRef = useRef({}); // { [postId]: timeoutId }
   // Fallback source index per post: { [postId]: number }
   const [sourceIndexMap, setSourceIndexMap] = useState({});
-  
+
   // Không giới hạn số lượng video - tải tất cả để đảm bảo chất lượng trải nghiệm
 
   // Build Cloudinary-safe fallback variants when possible
   const isCloudinaryUrl = useCallback((u) => {
-    try { const x = new URL(u); return (x.hostname || '').includes('res.cloudinary.com'); } catch { return false; }
+    try {
+      const x = new URL(u);
+      return (x.hostname || "").includes("res.cloudinary.com");
+    } catch {
+      return false;
+    }
   }, []);
 
   const cloudinaryTransform = useCallback((u, transform, newExt) => {
     try {
       const x = new URL(u);
-      const parts = x.pathname.split('/').filter(Boolean);
-      const idxUpload = parts.findIndex(p => p === 'upload');
+      const parts = x.pathname.split("/").filter(Boolean);
+      const idxUpload = parts.findIndex((p) => p === "upload");
       if (idxUpload < 0) return null;
       const before = parts.slice(0, idxUpload + 1); // includes 'upload'
       const after = parts.slice(idxUpload + 1);
@@ -327,28 +406,50 @@ export default function Reels() {
       // replace extension of last segment
       const lastIdx = newParts.length - 1;
       const last = newParts[lastIdx];
-      const base = last.replace(/\.[^./]+$/, '');
+      const base = last.replace(/\.[^./]+$/, "");
       newParts[lastIdx] = `${base}.${newExt}`;
-      const newPath = '/' + newParts.join('/');
+      const newPath = "/" + newParts.join("/");
       return `${x.origin}${newPath}`;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }, []);
 
-  const buildCandidates = useCallback((baseUrl) => {
-    const arr = [baseUrl];
-    if (baseUrl && isCloudinaryUrl(baseUrl)) {
-      const v1 = cloudinaryTransform(baseUrl, 'q_auto:good,vc_h264:baseline:3.1,fps_30,w_720', 'mp4');
-      const v2 = cloudinaryTransform(baseUrl, 'q_auto:eco,vc_h264:baseline:3.1,fps_30,w_540', 'mp4');
-      const hls = cloudinaryTransform(baseUrl, 'q_auto:good,vc_h264:baseline:3.1,fps_30,w_720', 'm3u8');
-      [v1, v2, hls].forEach(v => { if (v && !arr.includes(v)) arr.push(v); });
-    }
-    return arr;
-  }, [isCloudinaryUrl, cloudinaryTransform]);
+  const buildCandidates = useCallback(
+    (baseUrl) => {
+      const arr = [baseUrl];
+      if (baseUrl && isCloudinaryUrl(baseUrl)) {
+        const v1 = cloudinaryTransform(
+          baseUrl,
+          "q_auto:good,vc_h264:baseline:3.1,fps_30,w_720",
+          "mp4"
+        );
+        const v2 = cloudinaryTransform(
+          baseUrl,
+          "q_auto:eco,vc_h264:baseline:3.1,fps_30,w_540",
+          "mp4"
+        );
+        const hls = cloudinaryTransform(
+          baseUrl,
+          "q_auto:good,vc_h264:baseline:3.1,fps_30,w_720",
+          "m3u8"
+        );
+        [v1, v2, hls].forEach((v) => {
+          if (v && !arr.includes(v)) arr.push(v);
+        });
+      }
+      return arr;
+    },
+    [isCloudinaryUrl, cloudinaryTransform]
+  );
 
   // Load auth headers once (for protected video URLs)
   useEffect(() => {
     (async () => {
-      try { const h = await getAuthHeaders(); setAuthHeaders(h || null); } catch {}
+      try {
+        const h = await getAuthHeaders();
+        setAuthHeaders(h || null);
+      } catch {}
     })();
   }, []);
 
@@ -356,7 +457,11 @@ export default function Reels() {
   useEffect(() => {
     return () => {
       try {
-        Object.values(retryTimersRef.current || {}).forEach((t) => { try { clearTimeout(t); } catch {} });
+        Object.values(retryTimersRef.current || {}).forEach((t) => {
+          try {
+            clearTimeout(t);
+          } catch {}
+        });
         retryTimersRef.current = {};
       } catch {}
     };
@@ -368,7 +473,10 @@ export default function Reels() {
       const current = prev[postId] || { count: 0, token: 0 };
       if (current.count >= 4) return prev; // max 4 retries
       const delay = Math.min(2000, 400 * Math.pow(2, current.count));
-      try { if (retryTimersRef.current[postId]) clearTimeout(retryTimersRef.current[postId]); } catch {}
+      try {
+        if (retryTimersRef.current[postId])
+          clearTimeout(retryTimersRef.current[postId]);
+      } catch {}
       retryTimersRef.current[postId] = setTimeout(async () => {
         // expo-video doesn't need manual unload; just bump retry token to force re-render
         setRetryMap((prev2) => {
@@ -377,13 +485,19 @@ export default function Reels() {
           return { ...prev2, [postId]: next };
         });
       }, delay);
-      return { ...prev, [postId]: { count: current.count, token: current.token } };
+      return {
+        ...prev,
+        [postId]: { count: current.count, token: current.token },
+      };
     });
   }, []);
 
   const clearRetry = useCallback((postId) => {
     if (postId == null) return;
-    try { if (retryTimersRef.current[postId]) clearTimeout(retryTimersRef.current[postId]); } catch {}
+    try {
+      if (retryTimersRef.current[postId])
+        clearTimeout(retryTimersRef.current[postId]);
+    } catch {}
     setRetryMap((prev) => {
       if (!(postId in prev)) return prev;
       const { [postId]: _omit, ...rest } = prev;
@@ -395,7 +509,10 @@ export default function Reels() {
     if (postId == null) return;
     setRetryMap((prev) => {
       const cur = prev[postId] || { count: 0, token: 0 };
-      return { ...prev, [postId]: { count: cur.count, token: (cur.token || 0) + 1 } };
+      return {
+        ...prev,
+        [postId]: { count: cur.count, token: (cur.token || 0) + 1 },
+      };
     });
   }, []);
 
@@ -404,46 +521,61 @@ export default function Reels() {
       const raw = await AsyncStorage.getItem(WATCHED_KEY);
       const arr = raw ? JSON.parse(raw) : [];
       return new Set(Array.isArray(arr) ? arr : []);
-    } catch { return new Set(); }
+    } catch {
+      return new Set();
+    }
   }, []);
 
-  const markWatched = useCallback(async (postId) => {
-    try {
-      if (!postId) return;
-      const set = await getWatchedSet();
-      if (!set.has(postId)) {
-        set.add(postId);
-        await AsyncStorage.setItem(WATCHED_KEY, JSON.stringify(Array.from(set)));
-      }
-    } catch {}
-  }, [getWatchedSet]);
+  const markWatched = useCallback(
+    async (postId) => {
+      try {
+        if (!postId) return;
+        const set = await getWatchedSet();
+        if (!set.has(postId)) {
+          set.add(postId);
+          await AsyncStorage.setItem(
+            WATCHED_KEY,
+            JSON.stringify(Array.from(set))
+          );
+        }
+      } catch {}
+    },
+    [getWatchedSet]
+  );
 
-  const reorderVideos = useCallback(async (selectedId, list) => {
-    const watched = await getWatchedSet();
-    const arr = Array.isArray(list) ? list.slice() : [];
-    // unique by id
-    const map = new Map();
-    for (const p of arr) { if (p?.id != null && !map.has(p.id)) map.set(p.id, p); }
-    const uniq = Array.from(map.values());
-    const selected = selectedId != null ? uniq.find(p => p.id === selectedId) : null;
-    const rest = uniq.filter(p => !selected || p.id !== selected.id);
-    // sort: unseen first, then newest
-    rest.sort((a,b) => {
-      const aw = watched.has(a.id) ? 1 : 0; const bw = watched.has(b.id) ? 1 : 0;
-      if (aw !== bw) return aw - bw; // unseen (0) comes before seen (1)
-      const ad = new Date(a.createdAt || 0).getTime();
-      const bd = new Date(b.createdAt || 0).getTime();
-      return bd - ad; // newest first
-    });
-    return selected ? [selected, ...rest] : rest;
-  }, [getWatchedSet]);
+  const reorderVideos = useCallback(
+    async (selectedId, list) => {
+      const watched = await getWatchedSet();
+      const arr = Array.isArray(list) ? list.slice() : [];
+      // unique by id
+      const map = new Map();
+      for (const p of arr) {
+        if (p?.id != null && !map.has(p.id)) map.set(p.id, p);
+      }
+      const uniq = Array.from(map.values());
+      const selected =
+        selectedId != null ? uniq.find((p) => p.id === selectedId) : null;
+      const rest = uniq.filter((p) => !selected || p.id !== selected.id);
+      // sort: unseen first, then newest
+      rest.sort((a, b) => {
+        const aw = watched.has(a.id) ? 1 : 0;
+        const bw = watched.has(b.id) ? 1 : 0;
+        if (aw !== bw) return aw - bw; // unseen (0) comes before seen (1)
+        const ad = new Date(a.createdAt || 0).getTime();
+        const bd = new Date(b.createdAt || 0).getTime();
+        return bd - ad; // newest first
+      });
+      return selected ? [selected, ...rest] : rest;
+    },
+    [getWatchedSet]
+  );
 
   // Tính sẵn chiều cao mỗi item để đồng bộ initialScrollIndex và âm thanh/hiển thị
   const itemHeight = useMemo(() => {
     // Ưu tiên dùng kích thước đo được của vùng hiển thị thực tế dưới header
     if (viewportHeight > 0) return Math.max(320, viewportHeight);
     // Fallback: ước lượng theo window
-    const screenH = Dimensions.get('window').height;
+    const screenH = Dimensions.get("window").height;
     const safeTop = Math.max(0, insets.top || 0);
     const head = Math.max(44, headerHeight || 0) + safeTop;
     const bottom = Math.max(0, tabBarHeight || 0);
@@ -457,19 +589,27 @@ export default function Reels() {
     let mounted = true;
     (async () => {
       try {
-        const userStr = await AsyncStorage.getItem('userInfo');
+        const userStr = await AsyncStorage.getItem("userInfo");
         if (userStr && mounted) {
           const parsed = JSON.parse(userStr);
-          const raw = parsed?.user_id ?? parsed?.userId ?? parsed?.UserId ?? parsed?.id ?? null;
+          const raw =
+            parsed?.user_id ??
+            parsed?.userId ??
+            parsed?.UserId ??
+            parsed?.id ??
+            null;
           const n = raw != null ? Number(raw) : null;
           setCurrentUserId(Number.isFinite(n) ? n : null);
         }
       } catch {}
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
   const getOwnerId = () => {
-    const fromCtx = ctxUser?.user_id ?? ctxUser?.userId ?? ctxUser?.UserId ?? ctxUser?.id;
+    const fromCtx =
+      ctxUser?.user_id ?? ctxUser?.userId ?? ctxUser?.UserId ?? ctxUser?.id;
     const n1 = fromCtx != null ? Number(fromCtx) : null;
     if (Number.isFinite(n1)) return n1;
     const n2 = currentUserId != null ? Number(currentUserId) : null;
@@ -485,75 +625,141 @@ export default function Reels() {
   const handleFollow = async (post) => {
     const targetUserId = post?.user?.id;
     if (!targetUserId) return;
-    
+
     try {
       await followUser(targetUserId);
-      console.log('[REELS] Followed user:', targetUserId);
+      console.log("[REELS] Followed user:", targetUserId);
       // Mark as followed in global context (đồng bộ với Home và Profile)
       markAsFollowed(targetUserId);
     } catch (e) {
-      console.warn('[REELS] Follow error:', e);
-      Alert.alert('Lỗi', e.message || 'Không thể theo dõi người dùng');
+      console.warn("[REELS] Follow error:", e);
+      Alert.alert("Lỗi", e.message || "Không thể theo dõi người dùng");
     }
   };
 
   // Fetch a page from backend; if refresh=true, replace list; else append unique
   const mergeUniqueById = useCallback((prevArr, nextArr) => {
     const map = new Map();
-    for (const p of prevArr) if (p?.id != null && !map.has(p.id)) map.set(p.id, p);
-    for (const p of nextArr) if (p?.id != null && !map.has(p.id)) map.set(p.id, p);
+    for (const p of prevArr)
+      if (p?.id != null && !map.has(p.id)) map.set(p.id, p);
+    for (const p of nextArr)
+      if (p?.id != null && !map.has(p.id)) map.set(p.id, p);
     return Array.from(map.values());
   }, []);
 
-  const fetchPage = useCallback(async (pageNo = 1, { refresh = false, ensureSelected = null, ensureFromParams = null, tab = 'reels' } = {}) => {
-    console.log(`[REELS] fetchPage - page ${pageNo}, refresh: ${refresh}, tab: ${tab}, filterUserId: ${filterUserId}, ensureSelected: ${ensureSelected}`);
-    // Load videos with pagination based on active tab
-    const pageSize = 10;
-    const fetchFn = tab === 'following' ? getFollowingReels : getReels;
-    const data = await fetchFn(pageNo, pageSize).catch((e) => { console.warn(`${tab} fetch error`, e); return []; });
-    let arr = Array.isArray(data) ? data : [];
-    
-    // Filter by userId if filterUserId is present (user-specific mode)
-    if (filterUserId != null) {
-      arr = arr.filter(reel => Number(reel?.user?.id) === Number(filterUserId));
-    }
-    
-    // Don't reorder! Keep videos in their original positions
-    // If ensureSelected is provided, we'll scroll to it after setting reels
-    
-    if (refresh) {
-      setReels(arr);
-      setCurrentPage(1);
-      setHasMoreReels(arr.length >= pageSize);
-      
-      // If we have a selected video, find its index and scroll to it
-      if (ensureSelected != null) {
-        const selectedIndex = arr.findIndex(p => p?.id === ensureSelected);
-        if (selectedIndex >= 0) {
-          // Scroll to the selected video after a short delay
-          setTimeout(() => {
-            listRef.current?.scrollToIndex?.({ 
-              index: selectedIndex, 
-              animated: false 
-            });
-            setActiveIndex(selectedIndex);
-          }, 100);
+  const fetchPage = useCallback(
+    async (
+      pageNo = 1,
+      {
+        refresh = false,
+        ensureSelected = null,
+        ensureFromParams = null,
+        tab = "reels",
+      } = {}
+    ) => {
+      console.log(
+        `[REELS] fetchPage - page ${pageNo}, refresh: ${refresh}, tab: ${tab}, filterUserId: ${filterUserId}, ensureSelected: ${ensureSelected}`
+      );
+      // Load videos with pagination based on active tab
+      const pageSize = 10;
+      const fetchFn = tab === "following" ? getFollowingReels : getReels;
+      const data = await fetchFn(pageNo, pageSize).catch((e) => {
+        console.warn(`${tab} fetch error`, e);
+        return [];
+      });
+      let arr = Array.isArray(data) ? data : [];
+
+      // Filter by userId if filterUserId is present (user-specific mode)
+      if (filterUserId != null) {
+        arr = arr.filter(
+          (reel) => Number(reel?.user?.id) === Number(filterUserId)
+        );
+      }
+
+      // Load reactions for each video
+      const nextStates = {};
+      for (const p of arr) {
+        try {
+          const response = await getReactionSummary(p.id);
+          const reactionData = response?.data || response;
+          const topReactions = (reactionData?.reactionCounts || [])
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 3)
+            .map((r) => r.reactionType);
+
+          nextStates[p.id] = {
+            liked: reactionData?.userReaction != null,
+            likes: Number(reactionData?.totalReactions ?? 0),
+            shares: Number(p.sharesCount ?? 0),
+            comments: Number(p.commentsCount ?? 0),
+            reactionType: reactionData?.userReaction,
+            topReactions: topReactions,
+            reactionCounts: reactionData?.reactionCounts || [],
+          };
+        } catch (err) {
+          nextStates[p.id] = {
+            liked: false,
+            likes: Number(p.likesCount ?? 0),
+            shares: Number(p.sharesCount ?? 0),
+            comments: Number(p.commentsCount ?? 0),
+            reactionType: null,
+            topReactions: [],
+            reactionCounts: [],
+          };
         }
       }
-      
-      // cache after refresh
-      try { await AsyncStorage.setItem(`${REELS_CACHE_KEY}_${tab}`, JSON.stringify({ items: arr, ts: Date.now() })); } catch {}
-    } else {
-      setReels(prev => {
-        const next = mergeUniqueById(prev, arr);
-        // cache after append
-        (async () => { try { await AsyncStorage.setItem(`${REELS_CACHE_KEY}_${tab}`, JSON.stringify({ items: next, ts: Date.now() })); } catch {} })();
-        return next;
-      });
-      setCurrentPage(pageNo);
-      setHasMoreReels(arr.length >= pageSize);
-    }
-  }, [mergeUniqueById, filterUserId]);
+      setPostStates((prev) => ({ ...prev, ...nextStates }));
+
+      // Don't reorder! Keep videos in their original positions
+      // If ensureSelected is provided, we'll scroll to it after setting reels
+
+      if (refresh) {
+        setReels(arr);
+        setCurrentPage(1);
+        setHasMoreReels(arr.length >= pageSize);
+
+        // If we have a selected video, find its index and scroll to it
+        if (ensureSelected != null) {
+          const selectedIndex = arr.findIndex((p) => p?.id === ensureSelected);
+          if (selectedIndex >= 0) {
+            // Scroll to the selected video after a short delay
+            setTimeout(() => {
+              listRef.current?.scrollToIndex?.({
+                index: selectedIndex,
+                animated: false,
+              });
+              setActiveIndex(selectedIndex);
+            }, 100);
+          }
+        }
+
+        // cache after refresh
+        try {
+          await AsyncStorage.setItem(
+            `${REELS_CACHE_KEY}_${tab}`,
+            JSON.stringify({ items: arr, ts: Date.now() })
+          );
+        } catch {}
+      } else {
+        setReels((prev) => {
+          const next = mergeUniqueById(prev, arr);
+          // cache after append
+          (async () => {
+            try {
+              await AsyncStorage.setItem(
+                `${REELS_CACHE_KEY}_${tab}`,
+                JSON.stringify({ items: next, ts: Date.now() })
+              );
+            } catch {}
+          })();
+          return next;
+        });
+        setCurrentPage(pageNo);
+        setHasMoreReels(arr.length >= pageSize);
+      }
+    },
+    [mergeUniqueById, filterUserId]
+  );
 
   // Initial load
   useEffect(() => {
@@ -571,15 +777,17 @@ export default function Reels() {
             if (Array.isArray(cache?.items) && cache.items.length > 0) {
               setReels(cache.items);
               setLoading(false);
-              
+
               // If we have a selectedId, scroll to it immediately
               if (selectedId != null) {
-                const selectedIndex = cache.items.findIndex(p => p?.id === selectedId);
+                const selectedIndex = cache.items.findIndex(
+                  (p) => p?.id === selectedId
+                );
                 if (selectedIndex >= 0) {
                   setTimeout(() => {
-                    listRef.current?.scrollToIndex?.({ 
-                      index: selectedIndex, 
-                      animated: false 
+                    listRef.current?.scrollToIndex?.({
+                      index: selectedIndex,
+                      animated: false,
                     });
                     setActiveIndex(selectedIndex);
                   }, 100);
@@ -589,23 +797,30 @@ export default function Reels() {
           }
         } catch {}
         // always fetch fresh
-        await fetchPage(1, { refresh: true, ensureSelected: selectedId, ensureFromParams: route?.params?.videos, tab: activeTab });
+        await fetchPage(1, {
+          refresh: true,
+          ensureSelected: selectedId,
+          ensureFromParams: route?.params?.videos,
+          tab: activeTab,
+        });
       } finally {
         if (mounted) setLoading(false);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []); // Chỉ chạy 1 lần khi mount
-  
+
   // Handle when selectedId changes (when navigating from Home/Profile with a specific video)
   useEffect(() => {
     const selectedId = route?.params?.selectedId;
     if (selectedId != null && reels.length > 0) {
-      const selectedIndex = reels.findIndex(p => p?.id === selectedId);
+      const selectedIndex = reels.findIndex((p) => p?.id === selectedId);
       if (selectedIndex >= 0 && selectedIndex !== activeIndex) {
-        listRef.current?.scrollToIndex?.({ 
-          index: selectedIndex, 
-          animated: false 
+        listRef.current?.scrollToIndex?.({
+          index: selectedIndex,
+          animated: false,
         });
         setActiveIndex(selectedIndex);
       }
@@ -626,34 +841,40 @@ export default function Reels() {
 
   // subscribe to triple-tap refresh
   useEffect(() => {
-    const unsub = require('../Utils/TabRefreshEmitter').onTabTriple('Video', async () => {
-      try {
-        setLoading(true);
-        // Clear userId filter when triple-tapping to show all videos
-        if (filterUserId != null) {
-          navigation.setParams({ userId: undefined, username: undefined });
+    const unsub = require("../Utils/TabRefreshEmitter").onTabTriple(
+      "Video",
+      async () => {
+        try {
+          setLoading(true);
+          // Clear userId filter when triple-tapping to show all videos
+          if (filterUserId != null) {
+            navigation.setParams({ userId: undefined, username: undefined });
+          }
+          await fetchPage(1, { refresh: true, tab: activeTab });
+          // Scroll to top
+          setTimeout(() => {
+            listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+          }, 100);
+        } catch (e) {
+          console.warn("[Video] triple refresh error", e);
+        } finally {
+          setLoading(false);
         }
-        await fetchPage(1, { refresh: true, tab: activeTab });
-        // Scroll to top
-        setTimeout(() => {
-          listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
-        }, 100);
-      } catch (e) { console.warn('[Video] triple refresh error', e); }
-      finally { setLoading(false); }
-    });
+      }
+    );
     return unsub;
   }, [fetchPage, activeTab, filterUserId, navigation]);
 
   // Load more reels when scroll to end
   const loadMoreReels = useCallback(async () => {
     if (loadingMore || !hasMoreReels || loading) return;
-    
+
     try {
       setLoadingMore(true);
       const nextPage = currentPage + 1;
       await fetchPage(nextPage, { refresh: false, tab: activeTab });
     } catch (e) {
-      console.warn('Load more reels error', e);
+      console.warn("Load more reels error", e);
     } finally {
       setLoadingMore(false);
     }
@@ -669,17 +890,25 @@ export default function Reels() {
     selectedIdRef.current = sid;
     (async () => {
       try {
-        console.log('[REELS] navigate with selectedId', sid);
+        console.log("[REELS] navigate with selectedId", sid);
         setLoading(true);
-        await fetchPage(1, { refresh: true, ensureSelected: sid, ensureFromParams: pv });
+        await fetchPage(1, {
+          refresh: true,
+          ensureSelected: sid,
+          ensureFromParams: pv,
+        });
         setActiveIndex(0);
         requestAnimationFrame(() => {
-          try { listRef.current?.scrollToOffset?.({ offset: 0, animated: false }); } catch {}
+          try {
+            listRef.current?.scrollToOffset?.({ offset: 0, animated: false });
+          } catch {}
           // expo-video tự động play thông qua isActive prop
         });
       } catch (e) {
-        console.warn('[Video] apply new params error', e);
-      } finally { setLoading(false); }
+        console.warn("[Video] apply new params error", e);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, [route?.params?.selectedId, route?.params?.videos]);
 
@@ -694,11 +923,16 @@ export default function Reels() {
     const idx = viewableItems[0]?.index ?? 0;
     setActiveIndex(idx);
     // đánh dấu đã xem để ưu tiên video chưa xem ở lần mở sau
-    try { const post = reels[idx]; if (post?.id) markWatched(post.id); } catch {}
+    try {
+      const post = reels[idx];
+      if (post?.id) markWatched(post.id);
+    } catch {}
     // expo-video tự động quản lý play/pause thông qua isActive prop, không cần imperative control
   }).current;
 
-  const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 80 }).current;
+  const viewabilityConfig = useRef({
+    viewAreaCoveragePercentThreshold: 80,
+  }).current;
   // Giảm ngưỡng viewability để bắt được item đang hiển thị dễ hơn (tránh miss do header/safe-area)
   useEffect(() => {
     // update at runtime to avoid re-mounting refs
@@ -719,52 +953,75 @@ export default function Reels() {
           interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
           interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
         });
-      } catch (e) { console.warn('[REELS] setAudioMode error', e?.message || e); }
+      } catch (e) {
+        console.warn("[REELS] setAudioMode error", e?.message || e);
+      }
     })();
   }, []);
 
   const renderItem = ({ item, index }) => {
     const videoMedia = (item.media || []).find(
-      (m) => (m.type || '').toLowerCase() === 'video'
+      (m) => (m.type || "").toLowerCase() === "video"
     );
-  // Dùng itemHeight đã tính để đảm bảo FlatList đo lường chính xác
-  const height = itemHeight;
-  // Tạo danh sách nguồn ứng viên (gồm bản gốc và các biến thể Cloudinary an toàn hơn)
-  const base = videoMedia?.url || '';
-  const candidates = buildCandidates(base);
-  const sIdx = sourceIndexMap[item?.id] ?? 0;
-  const chosenBase = candidates[Math.min(Math.max(0, sIdx), Math.max(0, candidates.length - 1))] || base;
-  // Cache-busting để tránh dùng lại buffer cũ
-  const videoUri = (() => {
-    if (!chosenBase) return chosenBase;
-    const ts = (new Date(item?.createdAt || Date.now()).getTime()) || Date.now();
-    const rt = retryMap[item?.id]?.token || 0;
-    return chosenBase + (chosenBase.includes('?') ? '&' : '?') + 'ts=' + ts + '&rt=' + rt;
-  })();
+    // Dùng itemHeight đã tính để đảm bảo FlatList đo lường chính xác
+    const height = itemHeight;
+    // Tạo danh sách nguồn ứng viên (gồm bản gốc và các biến thể Cloudinary an toàn hơn)
+    const base = videoMedia?.url || "";
+    const candidates = buildCandidates(base);
+    const sIdx = sourceIndexMap[item?.id] ?? 0;
+    const chosenBase =
+      candidates[
+        Math.min(Math.max(0, sIdx), Math.max(0, candidates.length - 1))
+      ] || base;
+    // Cache-busting để tránh dùng lại buffer cũ
+    const videoUri = (() => {
+      if (!chosenBase) return chosenBase;
+      const ts =
+        new Date(item?.createdAt || Date.now()).getTime() || Date.now();
+      const rt = retryMap[item?.id]?.token || 0;
+      return (
+        chosenBase +
+        (chosenBase.includes("?") ? "&" : "?") +
+        "ts=" +
+        ts +
+        "&rt=" +
+        rt
+      );
+    })();
 
-  // Handle 3-tap detection for heart animation
-  const handle3TapDetection = () => {
-    const now = Date.now();
-    // lưu times trong 350ms window
-    tapTimesRef.current = (tapTimesRef.current || []).filter(t => now - t < 350);
-    tapTimesRef.current.push(now);
-    // nếu 3 tap trong cửa sổ -> thả cảm xúc
-    if (tapTimesRef.current.length >= 3) {
-      tapTimesRef.current = [];
-      if (tapTimerRef.current) { clearTimeout(tapTimerRef.current); tapTimerRef.current = null; }
-      setHeartAnimationIndex(index);
-      setTimeout(() => setHeartAnimationIndex(null), 700);
-      return true; // consumed
-    }
-    return false; // not consumed, let it pass through
-  };
+    // Handle 3-tap detection for heart animation
+    const handle3TapDetection = () => {
+      const now = Date.now();
+      // lưu times trong 350ms window
+      tapTimesRef.current = (tapTimesRef.current || []).filter(
+        (t) => now - t < 350
+      );
+      tapTimesRef.current.push(now);
+      // nếu 3 tap trong cửa sổ -> thả cảm xúc
+      if (tapTimesRef.current.length >= 3) {
+        tapTimesRef.current = [];
+        if (tapTimerRef.current) {
+          clearTimeout(tapTimerRef.current);
+          tapTimerRef.current = null;
+        }
+        setHeartAnimationIndex(index);
+        setTimeout(() => setHeartAnimationIndex(null), 700);
+        // Also trigger like reaction
+        handleReaction(item.id, 1);
+        return true; // consumed
+      }
+      return false; // not consumed, let it pass through
+    };
 
     return (
-      <View style={[styles.reel, { height }]}> 
+      <View style={[styles.reel, { height }]}>
         {videoMedia?.url ? (
           <>
             {/* Gesture detection layer - must be on top but use pointerEvents carefully */}
-            <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
+            <View
+              style={StyleSheet.absoluteFillObject}
+              pointerEvents="box-none"
+            >
               <ReelVideoPlayer
                 videoUri={videoUri}
                 authHeaders={authHeaders}
@@ -774,12 +1031,15 @@ export default function Reels() {
                 index={index}
                 on3TapDetected={handle3TapDetection}
                 onError={(e) => {
-                  console.warn('[REELS] video error index', index, e);
+                  console.warn("[REELS] video error index", index, e);
                   try {
                     // Nếu còn phương án nguồn kế tiếp, chuyển sang ngay để thử
-                    const hasNext = (candidates && (sIdx + 1) < candidates.length);
+                    const hasNext = candidates && sIdx + 1 < candidates.length;
                     if (hasNext) {
-                      setSourceIndexMap((prev) => ({ ...prev, [item?.id]: sIdx + 1 }));
+                      setSourceIndexMap((prev) => ({
+                        ...prev,
+                        [item?.id]: sIdx + 1,
+                      }));
                       bumpRetryTokenNow(item?.id);
                     } else {
                       // Hết phương án → dùng cơ chế retry theo backoff
@@ -798,13 +1058,18 @@ export default function Reels() {
             </View>
             {heartAnimationIndex === index && (
               <View pointerEvents="none" style={styles.bigHeartWrap}>
-                <Ionicons name="heart" size={96} color="#fff" style={{ opacity: 0.9 }} />
+                <Ionicons
+                  name="heart"
+                  size={96}
+                  color="#fff"
+                  style={{ opacity: 0.9 }}
+                />
               </View>
             )}
           </>
         ) : (
           <View style={[StyleSheet.absoluteFill, styles.noVideo]}>
-            <Text style={{ color: '#fff' }}>Không có video</Text>
+            <Text style={{ color: "#fff" }}>Không có video</Text>
           </View>
         )}
         {/* Overlay UI - Positioned 30px from bottom */}
@@ -816,12 +1081,12 @@ export default function Reels() {
               const uid = getOwnerId();
               const pid = item?.user?.id != null ? Number(item.user.id) : null;
               if (Number.isFinite(uid) && Number.isFinite(pid) && uid === pid) {
-                navigation.navigate('Profile');
+                navigation.navigate("Profile");
               } else {
-                navigation.navigate('UserProfilePublic', { 
-                  userId: item?.user?.id, 
-                  username: item?.user?.username, 
-                  avatarUrl: item?.user?.avatarUrl 
+                navigation.navigate("UserProfilePublic", {
+                  userId: item?.user?.id,
+                  username: item?.user?.username,
+                  avatarUrl: item?.user?.avatarUrl,
                 });
               }
             }}
@@ -829,20 +1094,28 @@ export default function Reels() {
             <TouchableOpacity
               onPress={() => {
                 const uid = getOwnerId();
-                const pid = item?.user?.id != null ? Number(item.user.id) : null;
-                if (Number.isFinite(uid) && Number.isFinite(pid) && uid === pid) {
-                  navigation.navigate('Profile');
+                const pid =
+                  item?.user?.id != null ? Number(item.user.id) : null;
+                if (
+                  Number.isFinite(uid) &&
+                  Number.isFinite(pid) &&
+                  uid === pid
+                ) {
+                  navigation.navigate("Profile");
                 } else {
-                  navigation.navigate('UserProfilePublic', { 
-                    userId: item?.user?.id, 
-                    username: item?.user?.username, 
-                    avatarUrl: item?.user?.avatarUrl 
+                  navigation.navigate("UserProfilePublic", {
+                    userId: item?.user?.id,
+                    username: item?.user?.username,
+                    avatarUrl: item?.user?.avatarUrl,
                   });
                 }
               }}
             >
               {item?.user?.avatarUrl ? (
-                <Image source={{ uri: item.user.avatarUrl }} style={styles.avatar} />
+                <Image
+                  source={{ uri: item.user.avatarUrl }}
+                  style={styles.avatar}
+                />
               ) : (
                 <View style={styles.avatarPlaceholder} />
               )}
@@ -851,21 +1124,28 @@ export default function Reels() {
               <TouchableOpacity
                 onPress={() => {
                   const uid = getOwnerId();
-                  const pid = item?.user?.id != null ? Number(item.user.id) : null;
-                  if (Number.isFinite(uid) && Number.isFinite(pid) && uid === pid) {
-                    navigation.navigate('Profile');
+                  const pid =
+                    item?.user?.id != null ? Number(item.user.id) : null;
+                  if (
+                    Number.isFinite(uid) &&
+                    Number.isFinite(pid) &&
+                    uid === pid
+                  ) {
+                    navigation.navigate("Profile");
                   } else {
-                    navigation.navigate('UserProfilePublic', { 
-                      userId: item?.user?.id, 
-                      username: item?.user?.username, 
-                      avatarUrl: item?.user?.avatarUrl 
+                    navigation.navigate("UserProfilePublic", {
+                      userId: item?.user?.id,
+                      username: item?.user?.username,
+                      avatarUrl: item?.user?.avatarUrl,
                     });
                   }
                 }}
               >
-                <Text style={styles.username}>@{item?.user?.username || 'user'}</Text>
+                <Text style={styles.username}>
+                  @{item?.user?.username || "user"}
+                </Text>
               </TouchableOpacity>
-              
+
               {/* Tagged Users */}
               {item.tags && item.tags.length > 0 && (
                 <View style={styles.taggedUsersRow}>
@@ -878,21 +1158,23 @@ export default function Reels() {
                         <TouchableOpacity
                           onPress={() => {
                             if (isCurrentUser) {
-                              navigation.navigate('Profile');
+                              navigation.navigate("Profile");
                             } else {
-                              navigation.navigate('UserProfilePublic', { 
-                                userId: tag.id, 
-                                username: tag.username, 
-                                avatarUrl: tag.avatarUrl 
+                              navigation.navigate("UserProfilePublic", {
+                                userId: tag.id,
+                                username: tag.username,
+                                avatarUrl: tag.avatarUrl,
                               });
                             }
                           }}
                         >
                           <Text style={styles.taggedUsername}>
-                            {isCurrentUser ? 'bạn' : `@${tag.username}`}
+                            {isCurrentUser ? "bạn" : `@${tag.username}`}
                           </Text>
                         </TouchableOpacity>
-                        {idx < item.tags.length - 1 && <Text style={styles.taggedLabel}>, </Text>}
+                        {idx < item.tags.length - 1 && (
+                          <Text style={styles.taggedLabel}>, </Text>
+                        )}
                       </React.Fragment>
                     );
                   })}
@@ -900,12 +1182,15 @@ export default function Reels() {
               )}
             </View>
             {!isOwner(item) && !isFollowed(item?.user?.id) && (
-              <TouchableOpacity style={styles.followBtn} onPress={() => handleFollow(item)}>
+              <TouchableOpacity
+                style={styles.followBtn}
+                onPress={() => handleFollow(item)}
+              >
                 <Text style={styles.followText}>Theo dõi</Text>
               </TouchableOpacity>
             )}
           </TouchableOpacity>
-          
+
           {/* Caption with clickable @mentions */}
           {!!item.caption && (
             <View style={styles.captionWrap}>
@@ -915,7 +1200,10 @@ export default function Reels() {
                 onTextLayout={(e) => {
                   const lines = e?.nativeEvent?.lines?.length || 0;
                   if ((captionTotalLines[index] || 0) !== lines) {
-                    setCaptionTotalLines(prev => ({ ...prev, [index]: lines }));
+                    setCaptionTotalLines((prev) => ({
+                      ...prev,
+                      [index]: lines,
+                    }));
                   }
                 }}
               >
@@ -928,12 +1216,15 @@ export default function Reels() {
                 numberOfLines={captionLinesShown[index] ?? 2}
               >
                 {item.caption.split(/(@\w+)/g).map((part, partIndex) => {
-                  if (part.startsWith('@')) {
+                  if (part.startsWith("@")) {
                     const username = part.substring(1);
                     const uid = getOwnerId();
-                    const mentionedUser = item.mentions?.find(m => m.username === username);
-                    const isCurrentUser = mentionedUser && Number(mentionedUser.id) === Number(uid);
-                    
+                    const mentionedUser = item.mentions?.find(
+                      (m) => m.username === username
+                    );
+                    const isCurrentUser =
+                      mentionedUser && Number(mentionedUser.id) === Number(uid);
+
                     return (
                       <Text
                         key={`${index}-${partIndex}`}
@@ -941,18 +1232,18 @@ export default function Reels() {
                         onPress={() => {
                           if (mentionedUser) {
                             if (isCurrentUser) {
-                              navigation.navigate('Profile');
+                              navigation.navigate("Profile");
                             } else {
-                              navigation.navigate('UserProfilePublic', {
+                              navigation.navigate("UserProfilePublic", {
                                 userId: mentionedUser.id,
                                 username: mentionedUser.username,
-                                avatarUrl: mentionedUser.avatarUrl
+                                avatarUrl: mentionedUser.avatarUrl,
                               });
                             }
                           }
                         }}
                       >
-                        {isCurrentUser ? 'bạn' : part}
+                        {isCurrentUser ? "bạn" : part}
                       </Text>
                     );
                   }
@@ -962,24 +1253,29 @@ export default function Reels() {
               {(() => {
                 const shown = captionLinesShown[index] ?? 2;
                 const total = captionTotalLines[index] ?? 0;
-                const heuristicLong = (item.caption || '').length > 80; // fallback while measuring
+                const heuristicLong = (item.caption || "").length > 80; // fallback while measuring
                 if (total <= 2 && !heuristicLong) return null;
                 const fullyShown = shown >= Math.max(total, 2);
                 return (
-                  <TouchableOpacity onPress={() => {
-                    setCaptionLinesShown(prev => {
-                      const current = prev[index] ?? 2;
-                      const totalLines = captionTotalLines[index] ?? current + 10;
-                      if (totalLines <= current) {
-                        // collapse
-                        return { ...prev, [index]: 2 };
-                      }
-                      // expand by 10 lines each tap
-                      const next = Math.min(current + 10, totalLines);
-                      return { ...prev, [index]: next };
-                    });
-                  }}>
-                    <Text style={styles.seeMore}>{fullyShown ? 'Ẩn nội dung' : 'Xem thêm'}</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setCaptionLinesShown((prev) => {
+                        const current = prev[index] ?? 2;
+                        const totalLines =
+                          captionTotalLines[index] ?? current + 10;
+                        if (totalLines <= current) {
+                          // collapse
+                          return { ...prev, [index]: 2 };
+                        }
+                        // expand by 10 lines each tap
+                        const next = Math.min(current + 10, totalLines);
+                        return { ...prev, [index]: next };
+                      });
+                    }}
+                  >
+                    <Text style={styles.seeMore}>
+                      {fullyShown ? "Ẩn nội dung" : "Xem thêm"}
+                    </Text>
                   </TouchableOpacity>
                 );
               })()}
@@ -989,13 +1285,63 @@ export default function Reels() {
 
         {/* Right-side vertical actions, centered */}
         <View pointerEvents="box-none" style={styles.actionsColumn}>
-          <TouchableOpacity style={styles.sideBtn}><Ionicons name="heart-outline" size={28} color="#fff" /><Text style={styles.sideCount}>0</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.sideBtn}><Ionicons name="chatbubble-outline" size={28} color="#fff" /><Text style={styles.sideCount}>0</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.sideBtn}><Ionicons name="paper-plane-outline" size={28} color="#fff" /><Text style={styles.sideCount}>0</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.sideBtn,{marginTop:6}]} onPress={() => { 
-            console.log('[REELS] Open options for index', index, 'postId', item?.id);
-            setShowOptions(true); 
-          }}>
+          {/* Like/Reaction button */}
+          <TouchableOpacity
+            ref={(ref) => (likeButtonRefs.current[item.id] = ref)}
+            style={styles.sideBtn}
+            onPress={() => onToggleLike(item.id)}
+            onLongPress={() => onLongPressLike(item.id)}
+            delayLongPress={500}
+          >
+            {postStates[item.id]?.liked ? (
+              <Text style={{ fontSize: 28 }}>
+                {getReactionEmoji(postStates[item.id]?.reactionType)}
+              </Text>
+            ) : (
+              <Ionicons name="heart-outline" size={28} color="#fff" />
+            )}
+            <TouchableOpacity onPress={() => onOpenReactions(item.id)}>
+              <Text style={styles.sideCount}>
+                {postStates[item.id]?.likes ?? 0}
+              </Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+
+          {/* Comments button */}
+          <TouchableOpacity
+            style={styles.sideBtn}
+            onPress={() => onOpenComments(item.id)}
+          >
+            <Ionicons name="chatbubble-outline" size={28} color="#fff" />
+            <Text style={styles.sideCount}>
+              {postStates[item.id]?.comments ?? 0}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Share button */}
+          <TouchableOpacity
+            style={styles.sideBtn}
+            onPress={() => onShare(item)}
+          >
+            <Ionicons name="paper-plane-outline" size={28} color="#fff" />
+            <Text style={styles.sideCount}>
+              {postStates[item.id]?.shares ?? 0}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Options button */}
+          <TouchableOpacity
+            style={[styles.sideBtn, { marginTop: 6 }]}
+            onPress={() => {
+              console.log(
+                "[REELS] Open options for index",
+                index,
+                "postId",
+                item?.id
+              );
+              setShowOptions(true);
+            }}
+          >
             <Ionicons name="ellipsis-vertical" size={24} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -1010,22 +1356,163 @@ export default function Reels() {
       if (filterUserId != null) {
         navigation.setParams({ userId: undefined, username: undefined });
       }
-      await fetchPage(1, { refresh: true, ensureSelected: selectedIdRef.current, ensureFromParams: route?.params?.videos, tab: activeTab });
+      await fetchPage(1, {
+        refresh: true,
+        ensureSelected: selectedIdRef.current,
+        ensureFromParams: route?.params?.videos,
+        tab: activeTab,
+      });
       // Scroll to top
       setTimeout(() => {
         listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
         setActiveIndex(0);
       }, 100);
     } catch (e) {
-      console.warn('Reels refresh error', e);
-    } finally { setRefreshing(false); }
+      console.warn("Reels refresh error", e);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleShareToFeed = async (postId, caption, privacy) => {
+    try {
+      setBusy(true);
+      await createShare(postId, caption, privacy);
+      setPostStates((prev) => {
+        const cur = prev[postId] || {
+          liked: false,
+          likes: 0,
+          shares: 0,
+          comments: 0,
+        };
+        return { ...prev, [postId]: { ...cur, shares: cur.shares + 1 } };
+      });
+      Alert.alert("Thành công", "Đã chia sẻ video lên feed của bạn");
+    } catch (error) {
+      console.error("Error sharing to feed:", error);
+      Alert.alert("Lỗi", "Không thể chia sẻ video");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleShareExternal = async (post) => {
+    try {
+      const firstMedia = (post.media || [])[0];
+      const url = firstMedia?.url || "";
+      await Share.share({
+        message: post.caption
+          ? `${post.caption}${url ? `\n${url}` : ""}`
+          : url || "Xem video",
+        url,
+        title: "Chia sẻ video",
+      });
+    } catch (e) {
+      console.error("Error sharing externally:", e);
+    }
+  };
+
+  // Reaction handlers
+  const handleReaction = async (postId, reactionType) => {
+    try {
+      // Optimistic UI update
+      setPostStates((prev) => {
+        const cur = prev[postId] || {
+          liked: false,
+          likes: 0,
+          shares: 0,
+          comments: 0,
+          reactionType: null,
+          topReactions: [],
+          reactionCounts: [],
+        };
+        const isSameType = cur.reactionType === reactionType;
+        const liked = !isSameType;
+        const likes = Math.max(
+          0,
+          cur.likes + (liked ? 1 : isSameType ? -1 : 0)
+        );
+        return {
+          ...prev,
+          [postId]: {
+            ...cur,
+            liked,
+            likes,
+            reactionType: liked ? reactionType : null,
+          },
+        };
+      });
+
+      await addReaction(postId, reactionType);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const response = await getReactionSummary(postId);
+      const reactionData = response?.data || response;
+      const topReactions = (reactionData?.reactionCounts || [])
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3)
+        .map((r) => r.reactionType);
+
+      setPostStates((prev) => ({
+        ...prev,
+        [postId]: {
+          ...prev[postId],
+          liked: reactionData?.userReaction != null,
+          likes: Number(reactionData?.totalReactions ?? 0),
+          reactionType: reactionData?.userReaction,
+          topReactions: topReactions,
+          reactionCounts: reactionData?.reactionCounts || [],
+        },
+      }));
+
+      setShowReactionPicker(null);
+    } catch (error) {
+      console.error("Error adding reaction:", error);
+    }
+  };
+
+  const onToggleLike = (postId) => {
+    const currentReaction = postStates[postId]?.reactionType;
+    const reactionType = currentReaction || 1;
+    handleReaction(postId, reactionType);
+  };
+
+  const onLongPressLike = (postId) => {
+    const buttonRef = likeButtonRefs.current[postId];
+    if (buttonRef) {
+      buttonRef.measure((x, y, width, height, pageX, pageY) => {
+        setReactionPickerPosition({
+          top: pageY - 70,
+          left: pageX - 280, // Dịch sang trái để hiển thị đầy đủ thanh cảm xúc
+        });
+        setShowReactionPicker(postId);
+      });
+    }
+  };
+
+  const onOpenComments = (postId) => {
+    setActiveCommentsPostId(postId);
+    setShowComments(true);
+  };
+
+  const onOpenReactions = (postId) => {
+    const state = postStates[postId];
+    // Mở modal ngay cả khi chưa có data, modal sẽ tự load
+    setReactionsModalPostId(postId);
+    setReactionsModalCounts(state?.reactionCounts || []);
+    setReactionsModalVisible(true);
+  };
+
+  const onShare = async (post) => {
+    setShareSheetPost(post);
+    setShareSheetVisible(true);
   };
 
   const closeAllOverlays = () => {
     setShowOptions(false);
     setShowPrivacySheet(false);
     setEditingCaption(false);
-    setCaptionDraft('');
+    setCaptionDraft("");
   };
 
   const pickPrivacy = async (privacyKey) => {
@@ -1033,15 +1520,23 @@ export default function Reels() {
       const post = reels[activeIndex];
       if (!post) return;
       setBusy(true);
-      console.log('[REELS] pickPrivacy', privacyKey, 'for postId', post.id);
+      console.log("[REELS] pickPrivacy", privacyKey, "for postId", post.id);
       const updated = await updatePostPrivacy(post.id, privacyKey);
       setShowPrivacySheet(false);
       // update local copy
-      setReels(prev => prev.map((p, i) => i===activeIndex ? { ...p, privacy: updated?.privacy || privacyKey } : p));
+      setReels((prev) =>
+        prev.map((p, i) =>
+          i === activeIndex
+            ? { ...p, privacy: updated?.privacy || privacyKey }
+            : p
+        )
+      );
       setShowOptions(false);
     } catch (e) {
-      console.warn('Update privacy error', e);
-    } finally { setBusy(false); }
+      console.warn("Update privacy error", e);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const submitCaptionEdit = async () => {
@@ -1049,13 +1544,26 @@ export default function Reels() {
       const post = reels[activeIndex];
       if (!post) return;
       setBusy(true);
-      console.log('[REELS] submitCaptionEdit for postId', post.id, 'captionDraft length', captionDraft?.length ?? 0);
+      console.log(
+        "[REELS] submitCaptionEdit for postId",
+        post.id,
+        "captionDraft length",
+        captionDraft?.length ?? 0
+      );
       const updated = await updatePostCaption(post.id, captionDraft);
-      setReels(prev => prev.map((p, i) => i===activeIndex ? { ...p, caption: updated?.caption ?? captionDraft } : p));
+      setReels((prev) =>
+        prev.map((p, i) =>
+          i === activeIndex
+            ? { ...p, caption: updated?.caption ?? captionDraft }
+            : p
+        )
+      );
       closeAllOverlays();
     } catch (e) {
-      console.warn('Update caption error', e);
-    } finally { setBusy(false); }
+      console.warn("Update caption error", e);
+    } finally {
+      setBusy(false);
+    }
   };
 
   // expo-video tự động quản lý play/pause thông qua isActive prop trong ReelVideoPlayer
@@ -1066,20 +1574,25 @@ export default function Reels() {
 
   return (
     // Với màn hình thuộc Tab Navigator, chỉ giữ safe-area cạnh trên để tránh dải đen nằm ngay trên tab bar
-  <SafeAreaView edges={['top']} style={styles.container}>
+    <SafeAreaView edges={["top"]} style={styles.container}>
       {/* Video content - full screen */}
       {loading ? (
         <View style={styles.loading}>
-          <Text style={{ color: '#fff' }}>Đang tải...</Text>
+          <Text style={{ color: "#fff" }}>Đang tải...</Text>
         </View>
       ) : reels.length === 0 ? (
         <View style={styles.loading}>
-          <Text style={{ color: '#fff' }}>
-            {activeTab === 'following' ? 'Chưa có video từ người bạn theo dõi' : 'Chưa có video'}
+          <Text style={{ color: "#fff" }}>
+            {activeTab === "following"
+              ? "Chưa có video từ người bạn theo dõi"
+              : "Chưa có video"}
           </Text>
         </View>
       ) : (
-        <View style={{ flex: 1 }} onLayout={(e)=> setViewportHeight(e.nativeEvent.layout.height)}>
+        <View
+          style={{ flex: 1 }}
+          onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
+        >
           <FlatList
             data={reels}
             keyExtractor={(item) => String(item.id)}
@@ -1089,7 +1602,11 @@ export default function Reels() {
             onViewableItemsChanged={onViewableItemsChanged}
             viewabilityConfig={viewabilityConfig}
             initialScrollIndex={initialIndex}
-            getItemLayout={(_, index) => ({ length: itemHeight, offset: itemHeight * index, index })}
+            getItemLayout={(_, index) => ({
+              length: itemHeight,
+              offset: itemHeight * index,
+              index,
+            })}
             windowSize={5}
             removeClippedSubviews={false}
             initialNumToRender={2}
@@ -1097,19 +1614,40 @@ export default function Reels() {
             updateCellsBatchingPeriod={50}
             onScrollToIndexFailed={(info) => {
               // Fallback khi RN cuộn sai vị trí ban đầu
-              console.warn('[REELS] onScrollToIndexFailed, retry with offset', info.averageItemLength * info.index);
-              listRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
-              setTimeout(() => listRef.current?.scrollToIndex({ index: info.index, animated: false }), 50);
+              console.warn(
+                "[REELS] onScrollToIndexFailed, retry with offset",
+                info.averageItemLength * info.index
+              );
+              listRef.current?.scrollToOffset({
+                offset: info.averageItemLength * info.index,
+                animated: false,
+              });
+              setTimeout(
+                () =>
+                  listRef.current?.scrollToIndex({
+                    index: info.index,
+                    animated: false,
+                  }),
+                50
+              );
             }}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
             // Infinite scroll
             onEndReached={loadMoreReels}
             onEndReachedThreshold={1.5}
             ListFooterComponent={() => {
               if (!loadingMore) return null;
               return (
-                <View style={{ height: itemHeight, justifyContent: 'center', alignItems: 'center' }}>
-                  <Text style={{ color: '#fff' }}>Đang tải thêm...</Text>
+                <View
+                  style={{
+                    height: itemHeight,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ color: "#fff" }}>Đang tải thêm...</Text>
                 </View>
               );
             }}
@@ -1120,29 +1658,56 @@ export default function Reels() {
 
       {/* Options overlay (giống Home) */}
       {showOptions && (
-        <TouchableOpacity activeOpacity={1} style={styles.overlayDim} onPress={() => setShowOptions(false)}>
-          <TouchableOpacity activeOpacity={0.95} style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.overlayDim}
+          onPress={() => setShowOptions(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={0.95}
+            style={styles.sheet}
+            onPress={(e) => e.stopPropagation()}
+          >
             <Text style={styles.sheetTitle}>Tùy chọn</Text>
             {(() => {
               const post = reels[activeIndex];
               if (post && isOwner(post)) {
                 return (
                   <>
-                    <TouchableOpacity style={styles.sheetItem} onPress={() => setShowPrivacySheet(true)}>
-                      <Text style={styles.sheetItemText}>Chỉnh sửa quyền riêng tư</Text>
-                    </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.sheetItem}
-                      onPress={() => { setEditingCaption(true); setCaptionDraft(post.caption || ''); }}
+                      onPress={() => setShowPrivacySheet(true)}
                     >
-                      <Text style={styles.sheetItemText}>Chỉnh sửa caption</Text>
+                      <Text style={styles.sheetItemText}>
+                        Chỉnh sửa quyền riêng tư
+                      </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.sheetItem}
-                      onPress={async ()=>{
-                        try { setBusy(true); await deletePost(post.id); setShowOptions(false); setReels(prev => prev.filter(p => p.id !== post.id)); }
-                        catch(e){ console.warn('Delete error', e); }
-                        finally { setBusy(false); }
+                      onPress={() => {
+                        setEditingCaption(true);
+                        setCaptionDraft(post.caption || "");
+                      }}
+                    >
+                      <Text style={styles.sheetItemText}>
+                        Chỉnh sửa caption
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.sheetItem}
+                      onPress={async () => {
+                        try {
+                          setBusy(true);
+                          await deletePost(post.id);
+                          setShowOptions(false);
+                          setReels((prev) =>
+                            prev.filter((p) => p.id !== post.id)
+                          );
+                        } catch (e) {
+                          console.warn("Delete error", e);
+                        } finally {
+                          setBusy(false);
+                        }
                       }}
                     >
                       <Text style={styles.sheetItemText}>Xóa bài viết</Text>
@@ -1153,10 +1718,16 @@ export default function Reels() {
               // non-owner limited
               return (
                 <>
-                  <TouchableOpacity style={styles.sheetItem} onPress={() => setShowOptions(false)}>
+                  <TouchableOpacity
+                    style={styles.sheetItem}
+                    onPress={() => setShowOptions(false)}
+                  >
                     <Text style={styles.sheetItemText}>Báo cáo</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.sheetItem, { borderTopWidth: 0 }]} onPress={() => setShowOptions(false)}>
+                  <TouchableOpacity
+                    style={[styles.sheetItem, { borderTopWidth: 0 }]}
+                    onPress={() => setShowOptions(false)}
+                  >
                     <Text style={styles.sheetItemText}>Ẩn video</Text>
                   </TouchableOpacity>
                 </>
@@ -1167,11 +1738,27 @@ export default function Reels() {
       )}
 
       {showOptions && showPrivacySheet && (
-        <TouchableOpacity activeOpacity={1} style={styles.overlayDim} onPress={closeAllOverlays}>
-          <TouchableOpacity activeOpacity={0.95} style={styles.sheet} onPress={(e)=>e.stopPropagation()}>
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.overlayDim}
+          onPress={closeAllOverlays}
+        >
+          <TouchableOpacity
+            activeOpacity={0.95}
+            style={styles.sheet}
+            onPress={(e) => e.stopPropagation()}
+          >
             <Text style={styles.sheetTitle}>Chọn quyền riêng tư</Text>
-            {[{k:'public',label:'Public'},{k:'followers',label:'Followers'},{k:'private',label:'Private'}].map(opt => (
-              <TouchableOpacity key={opt.k} style={styles.sheetItem} onPress={() => pickPrivacy(opt.k)}>
+            {[
+              { k: "public", label: "Public" },
+              { k: "followers", label: "Followers" },
+              { k: "private", label: "Private" },
+            ].map((opt) => (
+              <TouchableOpacity
+                key={opt.k}
+                style={styles.sheetItem}
+                onPress={() => pickPrivacy(opt.k)}
+              >
                 <Text style={styles.sheetItemText}>{opt.label}</Text>
               </TouchableOpacity>
             ))}
@@ -1187,26 +1774,29 @@ export default function Reels() {
         onRequestClose={closeAllOverlays}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalContainer}
         >
-          <TouchableOpacity 
-            activeOpacity={1} 
-            style={styles.modalOverlay} 
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.modalOverlay}
             onPress={closeAllOverlays}
           >
-            <TouchableOpacity 
-              activeOpacity={1} 
+            <TouchableOpacity
+              activeOpacity={1}
               style={styles.editCaptionSheet}
               onPress={(e) => e.stopPropagation()}
             >
               <View style={styles.sheetHeader}>
                 <Text style={styles.sheetTitle}>Chỉnh sửa caption</Text>
-                <TouchableOpacity onPress={closeAllOverlays} style={styles.closeButton}>
+                <TouchableOpacity
+                  onPress={closeAllOverlays}
+                  style={styles.closeButton}
+                >
                   <Text style={styles.closeButtonText}>✕</Text>
                 </TouchableOpacity>
               </View>
-              
+
               <View style={styles.editCaptionContent}>
                 <TextInput
                   style={styles.captionTextInput}
@@ -1222,16 +1812,16 @@ export default function Reels() {
                   {captionDraft.length}/2200
                 </Text>
               </View>
-              
+
               <View style={styles.editCaptionActions}>
-                <TouchableOpacity 
-                  style={[styles.actionButton, styles.cancelButton]} 
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.cancelButton]}
                   onPress={closeAllOverlays}
                 >
                   <Text style={styles.cancelButtonText}>Hủy</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.actionButton, styles.saveButton]} 
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.saveButton]}
                   onPress={submitCaptionEdit}
                 >
                   <Text style={styles.saveButtonText}>Lưu</Text>
@@ -1243,7 +1833,9 @@ export default function Reels() {
       </Modal>
 
       {busy && (
-        <View style={styles.busyOverlay}><View style={styles.spinner} /></View>
+        <View style={styles.busyOverlay}>
+          <View style={styles.spinner} />
+        </View>
       )}
 
       {/* Header overlay - transparent with tabs */}
@@ -1252,7 +1844,7 @@ export default function Reels() {
           {filterUserId ? (
             // User-specific mode: Show username and back button
             <View style={styles.userModeHeader}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.backButton}
                 onPress={() => {
                   // Quay về trang trước đó
@@ -1261,34 +1853,92 @@ export default function Reels() {
               >
                 <Ionicons name="arrow-back" size={24} color="#fff" />
               </TouchableOpacity>
-              <Text style={styles.userModeTitle}>@{filterUsername || 'User'}</Text>
+              <Text style={styles.userModeTitle}>
+                @{filterUsername || "User"}
+              </Text>
             </View>
           ) : (
             // Normal mode: Show tabs
             <>
-              <TouchableOpacity 
-                style={styles.tab} 
-                onPress={() => setActiveTab('reels')}
+              <TouchableOpacity
+                style={styles.tab}
+                onPress={() => setActiveTab("reels")}
               >
-                <Text style={[styles.tabText, activeTab === 'reels' && styles.activeTabText]}>
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === "reels" && styles.activeTabText,
+                  ]}
+                >
                   Reels
                 </Text>
-                {activeTab === 'reels' && <View style={styles.tabIndicator} />}
+                {activeTab === "reels" && <View style={styles.tabIndicator} />}
               </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.tab} 
-                onPress={() => setActiveTab('following')}
+
+              <TouchableOpacity
+                style={styles.tab}
+                onPress={() => setActiveTab("following")}
               >
-                <Text style={[styles.tabText, activeTab === 'following' && styles.activeTabText]}>
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === "following" && styles.activeTabText,
+                  ]}
+                >
                   Bạn bè
                 </Text>
-                {activeTab === 'following' && <View style={styles.tabIndicator} />}
+                {activeTab === "following" && (
+                  <View style={styles.tabIndicator} />
+                )}
               </TouchableOpacity>
             </>
           )}
         </View>
       </View>
+
+      {/* Reaction Picker */}
+      {showReactionPicker && (
+        <ReactionPicker
+          visible={showReactionPicker != null}
+          onClose={() => setShowReactionPicker(null)}
+          onSelectReaction={(type) => handleReaction(showReactionPicker, type)}
+          position={reactionPickerPosition}
+        />
+      )}
+
+      {/* Comments Modal */}
+      <CommentsModal
+        visible={showComments}
+        onClose={() => {
+          setShowComments(false);
+          setActiveCommentsPostId(null);
+        }}
+        postId={activeCommentsPostId}
+      />
+
+      {/* Share Sheet Modal */}
+      <ShareSheet
+        visible={shareSheetVisible}
+        onClose={() => {
+          setShareSheetVisible(false);
+          setShareSheetPost(null);
+        }}
+        post={shareSheetPost}
+        onShareToFeed={handleShareToFeed}
+        onShareExternal={handleShareExternal}
+      />
+
+      {/* Reactions Modal */}
+      <ReactionsModal
+        visible={reactionsModalVisible}
+        onClose={() => {
+          setReactionsModalVisible(false);
+          setReactionsModalPostId(null);
+          setReactionsModalCounts([]);
+        }}
+        postId={reactionsModalPostId}
+        reactionCounts={reactionsModalCounts}
+      />
     </SafeAreaView>
   );
 }
@@ -1296,11 +1946,11 @@ export default function Reels() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: "#000",
   },
   header: {
-    backgroundColor: 'transparent', // Trong suốt
-    position: 'absolute', // Đặt absolute để nằm trên video
+    backgroundColor: "transparent", // Trong suốt
+    position: "absolute", // Đặt absolute để nằm trên video
     top: 0,
     left: 0,
     right: 0,
@@ -1308,80 +1958,80 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   tabContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexDirection: "row",
+    justifyContent: "space-around",
     paddingHorizontal: 16,
     paddingTop: 8,
   },
   userModeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    width: '100%',
+    width: "100%",
   },
   userModeTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
+    fontWeight: "600",
+    color: "#fff",
     marginLeft: 12,
   },
   tab: {
     flex: 1,
     paddingVertical: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
   tabIndicator: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
-    left: '25%',
-    right: '25%',
+    left: "25%",
+    right: "25%",
     height: 2,
-    backgroundColor: '#fff', // Thanh trắng
+    backgroundColor: "#fff", // Thanh trắng
   },
   tabText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.6)', // Trắng mờ
+    fontWeight: "600",
+    color: "rgba(255, 255, 255, 0.6)", // Trắng mờ
   },
   activeTabText: {
-    color: '#fff', // Trắng đậm
+    color: "#fff", // Trắng đậm
   },
   backButton: {
     width: 40,
     height: 40,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
+    justifyContent: "center",
+    alignItems: "flex-start",
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#fff', // Trắng
+    fontWeight: "600",
+    color: "#fff", // Trắng
   },
   loading: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#000',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#000",
   },
   reel: {
-    width: '100%',
-    backgroundColor: '#000',
-    overflow: 'hidden',
-    justifyContent: 'flex-end',
+    width: "100%",
+    backgroundColor: "#000",
+    overflow: "hidden",
+    justifyContent: "flex-end",
   },
   caption: {
-    color: '#fff',
+    color: "#fff",
     padding: 12,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: "rgba(0,0,0,0.3)",
   },
   noVideo: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#111',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#111",
   },
   overlay: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
@@ -1393,29 +2043,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   captionUser: {
-    color: '#fff',
-    fontWeight: '800',
+    color: "#fff",
+    fontWeight: "800",
     marginBottom: 0,
   },
   captionText: {
-    color: '#fff',
+    color: "#fff",
     lineHeight: 18,
   },
   hiddenMeasure: {
-    position: 'absolute',
+    position: "absolute",
     opacity: 0,
     zIndex: -1,
     left: -10000,
     right: 10000,
   },
   seeMore: {
-    color: '#e5e7eb',
+    color: "#e5e7eb",
     marginTop: 4,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   userRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     marginBottom: 6,
   },
@@ -1423,142 +2073,153 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.6)'
+    backgroundColor: "rgba(255,255,255,0.6)",
   },
   actionsColumn: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     bottom: 0,
     right: 8,
     width: 72,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   bigHeartWrap: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   sideBtn: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 10,
   },
   sideCount: {
-    color: '#fff',
+    color: "#fff",
     marginTop: 4,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   avatarPlaceholder: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.6)',
+    backgroundColor: "rgba(255,255,255,0.6)",
   },
   username: {
-    color: '#fff',
-    fontWeight: '700',
+    color: "#fff",
+    fontWeight: "700",
   },
   taggedUsersRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
     marginTop: 4,
   },
   taggedLabel: {
-    color: 'rgba(255,255,255,0.8)',
+    color: "rgba(255,255,255,0.8)",
     fontSize: 13,
   },
   taggedUsername: {
-    color: '#0095F6',
-    fontWeight: '600',
+    color: "#0095F6",
+    fontWeight: "600",
     fontSize: 13,
   },
   mentionText: {
-    color: '#0095F6',
-    fontWeight: '600',
+    color: "#0095F6",
+    fontWeight: "600",
   },
   followBtn: {
     marginLeft: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.9)',
+    borderColor: "rgba(255,255,255,0.9)",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
   },
   followText: {
-    color: '#fff',
-    fontWeight: '700',
+    color: "#fff",
+    fontWeight: "700",
   },
   overlayDim: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
   },
   sheet: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     padding: 16,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
   },
-  sheetTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
-  sheetItem: { paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#e5e7eb' },
-  sheetItemText: { fontSize: 16, color: '#111827' },
+  sheetTitle: { fontSize: 16, fontWeight: "700", marginBottom: 8 },
+  sheetItem: {
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#e5e7eb",
+  },
+  sheetItemText: { fontSize: 16, color: "#111827" },
   busyOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0,0,0,0.15)",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  spinner: { width: 40, height: 40, borderRadius: 20, borderWidth: 4, borderColor: '#fff', borderTopColor: 'transparent' },
+  spinner: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 4,
+    borderColor: "#fff",
+    borderTopColor: "transparent",
+  },
   // Edit Caption Modal Styles
   modalContainer: {
     flex: 1,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "flex-end",
   },
   editCaptionSheet: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-    maxHeight: '80%',
+    paddingBottom: Platform.OS === "ios" ? 34 : 20,
+    maxHeight: "80%",
   },
   sheetHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: "#e5e7eb",
   },
   closeButton: {
     width: 32,
     height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderRadius: 16,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: "#f3f4f6",
   },
   closeButtonText: {
     fontSize: 18,
-    color: '#111827',
-    fontWeight: '600',
+    color: "#111827",
+    fontWeight: "600",
   },
   editCaptionContent: {
     paddingHorizontal: 20,
@@ -1567,24 +2228,24 @@ const styles = StyleSheet.create({
   },
   captionTextInput: {
     fontSize: 16,
-    color: '#111827',
-    textAlignVertical: 'top',
+    color: "#111827",
+    textAlignVertical: "top",
     minHeight: 150,
     maxHeight: 300,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: "#d1d5db",
     borderRadius: 12,
-    backgroundColor: '#f9fafb',
+    backgroundColor: "#f9fafb",
   },
   charCounter: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: "#9ca3af",
     marginTop: 8,
-    textAlign: 'right',
+    textAlign: "right",
   },
   editCaptionActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: 20,
     paddingTop: 16,
     gap: 12,
@@ -1593,52 +2254,52 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   cancelButton: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: "#f3f4f6",
   },
   cancelButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#6b7280',
+    fontWeight: "600",
+    color: "#6b7280",
   },
   saveButton: {
-    backgroundColor: '#0095F6',
+    backgroundColor: "#0095F6",
   },
   saveButtonText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#fff',
+    fontWeight: "700",
+    color: "#fff",
   },
   // Video interaction styles
   speedIndicator: {
-    position: 'absolute',
-    top: '45%',
-    left: '45%',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    position: "absolute",
+    top: "45%",
+    left: "45%",
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,
     zIndex: 100,
   },
   speedText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
-    fontWeight: 'bold',
-    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    fontWeight: "bold",
+    textShadowColor: "rgba(0, 0, 0, 0.8)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
   pauseIndicator: {
-    position: 'absolute',
-    top: '45%',
-    left: '45%',
+    position: "absolute",
+    top: "45%",
+    left: "45%",
     zIndex: 100,
   },
   progressBarContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: -5,
     left: 0,
     right: 0,
@@ -1646,23 +2307,21 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
   progressSlider: {
-    width: '100%',
+    width: "100%",
     height: 40,
   },
   timeLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     paddingHorizontal: 4,
     marginBottom: -20,
   },
   timeText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 12,
-    fontWeight: '600',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    fontWeight: "600",
+    textShadowColor: "rgba(0, 0, 0, 0.75)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
 });
- 
-

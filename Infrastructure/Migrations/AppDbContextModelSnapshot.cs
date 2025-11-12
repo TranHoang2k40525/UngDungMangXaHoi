@@ -391,8 +391,11 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                         .HasColumnType("int")
                         .HasColumnName("post_id");
 
-                    b.Property<int>("reaction_type")
-                        .HasColumnType("int")
+                    b.Property<string>("reaction_type")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .IsUnicode(true)
+                        .HasColumnType("nvarchar(10)")
                         .HasColumnName("reaction_type");
 
                     b.Property<int>("user_id")

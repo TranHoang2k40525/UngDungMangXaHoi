@@ -19,11 +19,9 @@ var builder = WebApplication.CreateBuilder(args);
 Env.TraversePath().Load();
 
 // Add services to the container.
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
-    {
-        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()); // Thêm dòng này
-    });
+builder.Services.AddControllers();
+    // NOTE: Removed JsonStringEnumConverter to return enums as numbers (1,2,3...) instead of strings ("Like","Love",...)
+    // This ensures compatibility with frontend which uses numeric reaction types
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {

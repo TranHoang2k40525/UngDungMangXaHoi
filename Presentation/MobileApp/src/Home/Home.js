@@ -23,6 +23,8 @@ import { useFollow } from "../Context/FollowContext";
 import * as ImagePicker from "expo-image-picker";
 import CommentsModal from "./CommentsModal";
 import ReactionPicker from "./ReactionPicker";
+import ShareSheet from "./ShareSheet";
+import ReactionsModal from "./ReactionsModal";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -37,6 +39,7 @@ import {
   unfollowUser,
   addReaction,
   getReactionSummary,
+  createShare,
 } from "../API/Api";
 import { Ionicons } from "@expo/vector-icons";
 import { VideoView, useVideoPlayer } from "expo-video";
@@ -225,6 +228,14 @@ export default function Home() {
     top: 0,
     left: 0,
   });
+  // Share sheet state
+  const [shareSheetVisible, setShareSheetVisible] = useState(false);
+  const [shareSheetPost, setShareSheetPost] = useState(null);
+  // Reactions modal state
+  const [reactionsModalVisible, setReactionsModalVisible] = useState(false);
+  const [reactionsModalPostId, setReactionsModalPostId] = useState(null);
+  const [reactionsModalCounts, setReactionsModalCounts] = useState([]);
+
   const longPressTimer = useRef(null);
   const navigation = useNavigation();
   const route = useRoute();
@@ -284,7 +295,8 @@ export default function Home() {
           const next = {};
           for (const p of arr) {
             try {
-              const reactionData = await getReactionSummary(p.id);
+              const response = await getReactionSummary(p.id);
+              const reactionData = response?.data || response; // Handle both { data: ... } and direct response
               const topReactions = (reactionData?.reactionCounts || [])
                 .sort((a, b) => b.count - a.count)
                 .slice(0, 3)
@@ -391,8 +403,11 @@ export default function Home() {
   };
 
   const onToggleLike = (postId) => {
-    // Quick like (tap) - default to Like type (1)
-    handleReaction(postId, 1);
+    // Quick like (tap) - if user already has a reaction, toggle it off
+    // Otherwise, default to Like type (1)
+    const currentReaction = postStates[postId]?.reactionType;
+    const reactionType = currentReaction || 1;
+    handleReaction(postId, reactionType);
   };
 
   const handleReaction = async (postId, reactionType) => {
@@ -429,9 +444,14 @@ export default function Home() {
       // Call API
       await addReaction(postId, reactionType);
 
+      // Small delay to ensure backend has processed the reaction
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       // Reload reaction summary to get accurate counts and top reactions
       try {
-        const reactionData = await getReactionSummary(postId);
+        const response = await getReactionSummary(postId);
+        const reactionData = response?.data || response; // Handle both { data: ... } and direct response
+
         const topReactions = (reactionData?.reactionCounts || [])
           .sort((a, b) => b.count - a.count)
           .slice(0, 3)
@@ -492,7 +512,47 @@ export default function Home() {
     setShowComments(true);
   };
 
+  const onOpenReactions = (postId) => {
+    const state = postStates[postId];
+    if (!state || state.likes === 0) return;
+
+    setReactionsModalPostId(postId);
+    setReactionsModalCounts(state.reactionCounts || []);
+    setReactionsModalVisible(true);
+  };
+
   const onShare = async (post) => {
+    // Open share sheet modal
+    setShareSheetPost(post);
+    setShareSheetVisible(true);
+  };
+
+  const handleShareToFeed = async (postId, caption, privacy) => {
+    try {
+      setBusy(true);
+      await createShare(postId, caption, privacy);
+
+      // Update share count
+      setPostStates((prev) => {
+        const cur = prev[postId] || {
+          liked: false,
+          likes: 0,
+          shares: 0,
+          comments: 0,
+        };
+        return { ...prev, [postId]: { ...cur, shares: cur.shares + 1 } };
+      });
+
+      Alert.alert("Thành công", "Đã chia sẻ bài viết lên feed của bạn");
+    } catch (error) {
+      console.error("Error sharing to feed:", error);
+      Alert.alert("Lỗi", "Không thể chia sẻ bài viết");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleShareExternal = async (post) => {
     try {
       const firstMedia = (post.media || [])[0];
       const url = firstMedia?.url || "";
@@ -503,17 +563,8 @@ export default function Home() {
         url,
         title: "Chia sẻ bài đăng",
       });
-      setPostStates((prev) => {
-        const cur = prev[post.id] || {
-          liked: false,
-          likes: 0,
-          shares: 0,
-          comments: 0,
-        };
-        return { ...prev, [post.id]: { ...cur, shares: cur.shares + 1 } };
-      });
     } catch (e) {
-      // ignore
+      console.error("Error sharing externally:", e);
     }
   };
 
@@ -678,7 +729,8 @@ export default function Home() {
       const next = {};
       for (const p of arr) {
         try {
-          const reactionData = await getReactionSummary(p.id);
+          const response = await getReactionSummary(p.id);
+          const reactionData = response?.data || response; // Handle both { data: ... } and direct response
           const topReactions = (reactionData?.reactionCounts || [])
             .sort((a, b) => b.count - a.count)
             .slice(0, 3)
@@ -745,7 +797,8 @@ export default function Home() {
       const newStates = {};
       for (const p of arr) {
         try {
-          const reactionData = await getReactionSummary(p.id);
+          const response = await getReactionSummary(p.id);
+          const reactionData = response?.data || response; // Handle both { data: ... } and direct response
           const topReactions = (reactionData?.reactionCounts || [])
             .sort((a, b) => b.count - a.count)
             .slice(0, 3)
@@ -1071,6 +1124,7 @@ export default function Home() {
                     onPress={() => onToggleLike(p.id)}
                     onLongPress={() => onLongPressLike(p.id)}
                     delayLongPress={500}
+                    style={{ flexDirection: "row", alignItems: "center" }}
                   >
                     {postStates[p.id]?.reactionType ? (
                       <Text style={{ fontSize: 28 }}>
@@ -1082,6 +1136,18 @@ export default function Home() {
                         size={28}
                         color="#262626"
                       />
+                    )}
+                    {/* Display like count next to icon */}
+                    {(postStates[p.id]?.likes ?? 0) > 0 && (
+                      <Text
+                        style={{
+                          marginLeft: 6,
+                          color: "#262626",
+                          fontWeight: "600",
+                        }}
+                      >
+                        {postStates[p.id].likes}
+                      </Text>
                     )}
                   </TouchableOpacity>
                 </View>
@@ -1120,7 +1186,9 @@ export default function Home() {
 
             <View style={styles.postStats}>
               {/* Top reactions + Likes and shares summary */}
-              <View
+              <TouchableOpacity
+                onPress={() => onOpenReactions(p.id)}
+                activeOpacity={0.7}
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
@@ -1142,7 +1210,7 @@ export default function Home() {
                   {(postStates[p.id]?.shares ?? 0).toLocaleString()} lượt chia
                   sẻ
                 </Text>
-              </View>
+              </TouchableOpacity>
 
               {/* Tagged Users */}
               {p.tags && p.tags.length > 0 && (
@@ -1300,6 +1368,30 @@ export default function Home() {
             ? postStates[activeCommentsPostId]?.comments ?? 0
             : 0
         }
+      />
+
+      {/* Share Sheet Modal */}
+      <ShareSheet
+        visible={shareSheetVisible}
+        onClose={() => {
+          setShareSheetVisible(false);
+          setShareSheetPost(null);
+        }}
+        post={shareSheetPost}
+        onShareToFeed={handleShareToFeed}
+        onShareExternal={handleShareExternal}
+      />
+
+      {/* Reactions Modal */}
+      <ReactionsModal
+        visible={reactionsModalVisible}
+        onClose={() => {
+          setReactionsModalVisible(false);
+          setReactionsModalPostId(null);
+          setReactionsModalCounts([]);
+        }}
+        postId={reactionsModalPostId}
+        reactionCounts={reactionsModalCounts}
       />
 
       {/* Options overlay */}
