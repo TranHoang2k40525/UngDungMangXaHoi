@@ -19,12 +19,18 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
     {
     private readonly IPostRepository _postRepository;
     private readonly IUserRepository _userRepository;
+    private readonly ICommentRepository _commentRepository;
     private readonly UngDungMangXaHoi.Infrastructure.Services.VideoTranscodeService _videoTranscoder;
 
-        public PostsController(IPostRepository postRepository, IUserRepository userRepository, UngDungMangXaHoi.Infrastructure.Services.VideoTranscodeService videoTranscoder)
+        public PostsController(
+            IPostRepository postRepository, 
+            IUserRepository userRepository, 
+            ICommentRepository commentRepository,
+            UngDungMangXaHoi.Infrastructure.Services.VideoTranscodeService videoTranscoder)
         {
             _postRepository = postRepository;
             _userRepository = userRepository;
+            _commentRepository = commentRepository;
             _videoTranscoder = videoTranscoder;
         }
 
@@ -208,7 +214,17 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             catch { }
 
             var posts = await _postRepository.GetFeedAsync(currentUserId, Math.Max(1, page), Math.Clamp(pageSize, 1, 50));
-            return Ok(posts.Select(MapPostToDto));
+            
+            // Load comment counts for all posts
+            var postIds = posts.Select(p => p.post_id).ToList();
+            var commentCounts = new Dictionary<int, int>();
+            foreach (var postId in postIds)
+            {
+                var count = await _commentRepository.GetCommentCountByPostIdAsync(postId);
+                commentCounts[postId] = count;
+            }
+            
+            return Ok(posts.Select(p => MapPostToDto(p, commentCounts.GetValueOrDefault(p.post_id, 0))));
         }
 
         [HttpGet("reels")]
@@ -228,7 +244,17 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             catch { }
 
             var posts = await _postRepository.GetVideoPostsAsync(currentUserId, Math.Max(1, page), Math.Clamp(pageSize, 1, 50));
-            return Ok(posts.Select(MapPostToDto));
+            
+            // Load comment counts
+            var postIds = posts.Select(p => p.post_id).ToList();
+            var commentCounts = new Dictionary<int, int>();
+            foreach (var postId in postIds)
+            {
+                var count = await _commentRepository.GetCommentCountByPostIdAsync(postId);
+                commentCounts[postId] = count;
+            }
+            
+            return Ok(posts.Select(p => MapPostToDto(p, commentCounts.GetValueOrDefault(p.post_id, 0))));
         }
 
         [HttpGet("reels/all")]
@@ -248,7 +274,17 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             catch { }
 
             var posts = await _postRepository.GetAllVideoPostsAsync(currentUserId);
-            return Ok(posts.Select(MapPostToDto));
+            
+            // Load comment counts
+            var postIds = posts.Select(p => p.post_id).ToList();
+            var commentCounts = new Dictionary<int, int>();
+            foreach (var postId in postIds)
+            {
+                var count = await _commentRepository.GetCommentCountByPostIdAsync(postId);
+                commentCounts[postId] = count;
+            }
+            
+            return Ok(posts.Select(p => MapPostToDto(p, commentCounts.GetValueOrDefault(p.post_id, 0))));
         }
 
         [HttpGet("reels/following")]
@@ -267,7 +303,17 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             }
 
             var posts = await _postRepository.GetFollowingVideoPostsAsync(currentUser.user_id, Math.Max(1, page), Math.Clamp(pageSize, 1, 50));
-            return Ok(posts.Select(MapPostToDto));
+            
+            // Load comment counts
+            var postIds = posts.Select(p => p.post_id).ToList();
+            var commentCounts = new Dictionary<int, int>();
+            foreach (var postId in postIds)
+            {
+                var count = await _commentRepository.GetCommentCountByPostIdAsync(postId);
+                commentCounts[postId] = count;
+            }
+            
+            return Ok(posts.Select(p => MapPostToDto(p, commentCounts.GetValueOrDefault(p.post_id, 0))));
         }
 
         [HttpGet("me")]
@@ -282,7 +328,17 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             if (user == null) return BadRequest(new { message = "Không tìm thấy user." });
 
             var posts = await _postRepository.GetUserPostsAsync(user.user_id, Math.Max(1, page), Math.Clamp(pageSize, 1, 50));
-            return Ok(posts.Select(MapPostToDto));
+            
+            // Load comment counts
+            var postIds = posts.Select(p => p.post_id).ToList();
+            var commentCounts = new Dictionary<int, int>();
+            foreach (var postId in postIds)
+            {
+                var count = await _commentRepository.GetCommentCountByPostIdAsync(postId);
+                commentCounts[postId] = count;
+            }
+            
+            return Ok(posts.Select(p => MapPostToDto(p, commentCounts.GetValueOrDefault(p.post_id, 0))));
         }
 
         [HttpGet("user/{userId:int}")]
@@ -302,10 +358,20 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             catch { }
 
             var posts = await _postRepository.GetUserPostsForViewerAsync(userId, currentUserId, Math.Max(1, page), Math.Clamp(pageSize, 1, 50));
-            return Ok(posts.Select(MapPostToDto));
+            
+            // Load comment counts
+            var postIds = posts.Select(p => p.post_id).ToList();
+            var commentCounts = new Dictionary<int, int>();
+            foreach (var postId in postIds)
+            {
+                var count = await _commentRepository.GetCommentCountByPostIdAsync(postId);
+                commentCounts[postId] = count;
+            }
+            
+            return Ok(posts.Select(p => MapPostToDto(p, commentCounts.GetValueOrDefault(p.post_id, 0))));
         }
 
-        private object MapPostToDto(Post p)
+        private object MapPostToDto(Post p, int commentsCount = 0)
         {
             string BaseUrl(string path) => $"{Request.Scheme}://{Request.Host}{path}";
 
@@ -349,6 +415,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 location = p.location,
                 privacy = p.privacy,
                 createdAt = p.created_at,
+                commentsCount = commentsCount,
                 user = new
                 {
                     id = p.User?.user_id,
@@ -383,7 +450,8 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             // return latest with media for client update
             var updated = await _postRepository.GetByIdWithMediaAsync(id) ?? post;
-            return Ok(MapPostToDto(updated));
+            var commentsCount = await _commentRepository.GetCommentCountByPostIdAsync(id);
+            return Ok(MapPostToDto(updated, commentsCount));
         }
 
         [HttpPatch("{id:int}/caption")]
@@ -408,7 +476,8 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             await _postRepository.UpdateAsync(post);
 
             var updated = await _postRepository.GetByIdWithMediaAsync(id) ?? post;
-            return Ok(MapPostToDto(updated));
+            var commentsCount = await _commentRepository.GetCommentCountByPostIdAsync(id);
+            return Ok(MapPostToDto(updated, commentsCount));
         }
 
         [HttpDelete("{id:int}")]

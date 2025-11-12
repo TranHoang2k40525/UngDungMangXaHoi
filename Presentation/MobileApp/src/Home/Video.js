@@ -348,6 +348,7 @@ export default function Reels() {
   const [editingCaption, setEditingCaption] = useState(false);
   const [captionDraft, setCaptionDraft] = useState("");
   const [busy, setBusy] = useState(false);
+
   // Reactions & modals state
   const [postStates, setPostStates] = useState({}); // { [postId]: { liked, likes, reactionType, topReactions } }
   const [showReactionPicker, setShowReactionPicker] = useState(null); // postId showing picker
@@ -362,7 +363,10 @@ export default function Reels() {
   const [reactionsModalVisible, setReactionsModalVisible] = useState(false);
   const [reactionsModalPostId, setReactionsModalPostId] = useState(null);
   const [reactionsModalCounts, setReactionsModalCounts] = useState([]);
+  const [selectedPostIdForComments, setSelectedPostIdForComments] =
+    useState(null);
   const likeButtonRefs = useRef({});
+
   // tap gesture helpers
   const tapTimerRef = useRef(null);
   const tapTimesRef = useRef([]);
@@ -1513,6 +1517,26 @@ export default function Reels() {
     setShowPrivacySheet(false);
     setEditingCaption(false);
     setCaptionDraft("");
+  };
+
+  // Handler to open comments modal
+  const handleOpenComments = (postId) => {
+    console.log("[Video] Opening comments for postId:", postId);
+    setSelectedPostIdForComments(postId);
+    setShowComments(true);
+  };
+
+  // Callback when comment is added
+  const handleCommentAdded = (postId) => {
+    console.log("[Video] Comment added for postId:", postId);
+    // Update comments count in reels array
+    setReels((prev) =>
+      prev.map((p) =>
+        p.id === postId
+          ? { ...p, commentsCount: (p.commentsCount || 0) + 1 }
+          : p
+      )
+    );
   };
 
   const pickPrivacy = async (privacyKey) => {

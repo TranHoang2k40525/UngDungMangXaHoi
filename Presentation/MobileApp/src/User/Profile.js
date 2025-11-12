@@ -9,12 +9,12 @@ import {
   StatusBar,
   Dimensions,
   RefreshControl,
-  
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getMyPosts, getProfile, updateAvatar, API_BASE_URL } from '../API/Api';
 import { useUser } from '../Context/UserContext';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,12 +26,17 @@ const imageSize = (width - 6) / 3;
 const Profile = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const { logout } = useUser();
+  const { logout, user } = useUser();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [hasStory, setHasStory] = useState(false);
+  const [storyData, setStoryData] = useState(null);
+  const [isStoryViewed, setIsStoryViewed] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
   const [videoThumbs, setVideoThumbs] = useState({}); // { [postId]: uri }
 
   // Build full URL for avatar when API returns relative path
@@ -45,12 +50,62 @@ const Profile = () => {
   }, []);
 
   // Memoize avatar URI để tránh tính toán lại mỗi lần render
-  const avatarUri = useMemo(() => getAvatarUri(profile), [profile]);
+  const avatarUri = useMemo(() => getAvatarUri(profile), [profile, getAvatarUri]);
+
+  // Check user story from AsyncStorage
+  const checkUserStory = async (userId) => {
+    try {
+      const savedStories = await AsyncStorage.getItem('currentUserStories');
+      if (savedStories) {
+        let storiesArray = JSON.parse(savedStories);
+        
+        // Filter expired stories (24h)
+        const now = Date.now();
+        const validStories = storiesArray.filter(s => {
+          const age = now - new Date(s.createdAt).getTime();
+          return age < 24 * 60 * 60 * 1000;
+        });
+        
+        if (validStories.length > 0) {
+          setHasStory(true);
+          setStoryData(validStories);
+          
+          // Check if viewed
+          const viewedStories = await AsyncStorage.getItem('viewedStories');
+          const viewedList = viewedStories ? JSON.parse(viewedStories) : [];
+          const allViewed = validStories.every(story => 
+            viewedList.some(v => v.storyId === story.id && v.userId === 'me')
+          );
+          setIsStoryViewed(allViewed);
+        } else {
+          setHasStory(false);
+          setStoryData(null);
+          await AsyncStorage.removeItem('currentUserStories');
+        }
+      } else {
+        setHasStory(false);
+        setStoryData(null);
+      }
+    } catch (e) {
+      console.warn('[Profile] Error checking story:', e);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
+        // Load user ID
+        const userStr = await AsyncStorage.getItem('userInfo');
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          const uid = user?.user_id ?? user?.userId ?? user?.UserId ?? user?.id;
+          if (mounted && uid) {
+            setCurrentUserId(uid);
+            await checkUserStory(uid);
+          }
+        }
+
         const [p, me] = await Promise.all([
           getMyPosts(),
           getProfile(),
@@ -68,6 +123,16 @@ const Profile = () => {
     return () => { mounted = false; };
   }, []);
 
+  // Listen for screen focus to refresh story
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', async () => {
+      if (currentUserId) {
+        await checkUserStory(currentUserId);
+      }
+    });
+    return unsubscribe;
+  }, [navigation, currentUserId]);
+
   // subscribe to triple-tap refresh on Profile tab
   useEffect(() => {
     const unsub = onTabTriple('Profile', async () => {
@@ -76,11 +141,12 @@ const Profile = () => {
         const [p, me] = await Promise.all([getMyPosts(), getProfile()]);
         setPosts(Array.isArray(p) ? p : []);
         setProfile(me || null);
+        if (currentUserId) await checkUserStory(currentUserId);
       } catch (e) { console.warn('[Profile] triple refresh', e); }
       finally { setRefreshing(false); }
     });
     return unsub;
-  }, []);
+  }, [currentUserId]);
 
   // Tạo thumbnail cho các bài video để lưới không hiển thị màu đen
   useEffect(() => {
@@ -119,6 +185,47 @@ const Profile = () => {
     return () => { alive = false; };
   }, [posts]); // Chỉ chạy khi posts thay đổi, không phụ thuộc videoThumbs
 
+  const handleAvatarPress = () => {
+    if (hasStory) {
+      // Có story -> hiện menu chọn
+      setShowAvatarMenu(true);
+    } else {
+      // Không có story -> đổi avatar luôn
+      handlePickAvatar();
+    }
+  };
+
+  const handleViewStory = async () => {
+    setShowAvatarMenu(false);
+    if (hasStory && storyData) {
+      navigation.navigate('StoryViewer', { 
+        paramStories: storyData 
+      });
+
+      // Mark as viewed
+      try {
+        const viewedStories = await AsyncStorage.getItem('viewedStories');
+        const viewedList = viewedStories ? JSON.parse(viewedStories) : [];
+        
+        storyData.forEach(story => {
+          const exists = viewedList.some(v => v.storyId === story.id && v.userId === 'me');
+          if (!exists) {
+            viewedList.push({
+              storyId: story.id,
+              userId: 'me',
+              viewedAt: new Date().toISOString()
+            });
+          }
+        });
+        
+        await AsyncStorage.setItem('viewedStories', JSON.stringify(viewedList));
+        setIsStoryViewed(true);
+      } catch (e) {
+        console.warn('[Profile] Error saving view status:', e);
+      }
+    }
+  };
+
   const handlePickAvatar = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -126,7 +233,7 @@ const Profile = () => {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions?.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1,1],
       quality: 0.9,
@@ -135,9 +242,9 @@ const Profile = () => {
     const asset = result.assets?.[0];
     if (!asset?.uri) return;
     try {
-  const res = await updateAvatar({ uri: asset.uri, name: 'avatar.jpg', type: 'image/jpeg', createPost: false });
-  const newUrl = res?.data?.avatarUrl;
-  if (newUrl) setProfile(prev => (prev ? { ...prev, avatarUrl: newUrl } : prev));
+      const res = await updateAvatar({ uri: asset.uri, name: 'avatar.jpg', type: 'image/jpeg', createPost: false });
+      const newUrl = res?.data?.avatarUrl;
+      if (newUrl) setProfile(prev => (prev ? { ...prev, avatarUrl: newUrl } : prev));
     } catch (e) {
       console.warn('Update avatar error', e);
       alert('Đổi avatar thất bại');
@@ -152,7 +259,7 @@ const Profile = () => {
   ];
 
   return (
-  <SafeAreaView edges={['top']} style={[styles.container, { paddingTop: insets.top }]}> 
+    <SafeAreaView edges={['top']} style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       
       {/* Header */}
@@ -187,30 +294,57 @@ const Profile = () => {
         </View>
       )}
 
-  {/* Không cộng thêm insets.bottom để tránh dải trắng nằm trên tab bar */}
-  <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}
-    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async ()=>{
-      try {
-        setRefreshing(true);
-        const [p, me] = await Promise.all([
-          getMyPosts(),
-          getProfile(),
-        ]);
-        setPosts(Array.isArray(p) ? p : []);
-        setProfile(me || null);
-      } catch(e) { console.warn('Profile refresh error', e); }
-      finally { setRefreshing(false); }
-    }} />}
-  >
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={{ paddingBottom: 16 }}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={async ()=>{
+              try {
+                setRefreshing(true);
+                const [p, me] = await Promise.all([
+                  getMyPosts(),
+                  getProfile(),
+                ]);
+                setPosts(Array.isArray(p) ? p : []);
+                setProfile(me || null);
+                if (currentUserId) await checkUserStory(currentUserId);
+              } catch(e) { 
+                console.warn('Profile refresh error', e); 
+              } finally { 
+                setRefreshing(false); 
+              }
+            }} 
+          />
+        }
+      >
         {/* Profile Info */}
         <View style={styles.profileSection}>
           <View style={styles.profileHeader}>
-            <TouchableOpacity onPress={handlePickAvatar} activeOpacity={0.8}>
-              <Image
-                source={{ uri: avatarUri }}
-                style={styles.profileImage}
-              />
+            <TouchableOpacity 
+              onPress={handleAvatarPress} 
+              activeOpacity={0.8}
+              style={{ position: 'relative' }}
+            >
+              {/* Story ring container */}
+              <View style={[
+                styles.avatarRingContainer,
+                hasStory && styles.avatarRingActive,
+                hasStory && !isStoryViewed && styles.avatarRingUnviewed
+              ]}>
+                <Image
+                  source={{ uri: avatarUri }}
+                  style={styles.profileImage}
+                />
+              </View>
+              
+              {/* Story indicator dot */}
+              {hasStory && !isStoryViewed && (
+                <View style={styles.storyIndicator} />
+              )}
             </TouchableOpacity>
+            
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>{profile?.postCount ?? posts.length ?? 0}</Text>
@@ -306,6 +440,7 @@ const Profile = () => {
               const videos = (post.media || []).filter(m => (m.type||'').toLowerCase() === 'video');
               const isVideo = videos.length > 0 && images.length === 0;
               const firstImage = images[0];
+              
               const onPress = () => {
                 if (isVideo) {
                   // Navigate directly to Video tab with selectedId to show the exact video clicked
@@ -319,6 +454,7 @@ const Profile = () => {
                   navigation.navigate('PostDetail', { post });
                 }
               };
+              
               if (isVideo) {
                 return (
                   <TouchableOpacity key={post.id} style={styles.postContainer} onPress={onPress}>
@@ -333,6 +469,7 @@ const Profile = () => {
                   </TouchableOpacity>
                 );
               }
+              
               return (
                 <TouchableOpacity key={post.id} style={styles.postContainer} onPress={onPress}>
                   <Image source={{ uri: firstImage?.url }} style={styles.postImage} />
@@ -343,7 +480,41 @@ const Profile = () => {
         </View>
       </ScrollView>
 
-      {/* Bottom tab bar is now handled globally in App.js */}
+      {/* Avatar Action Menu */}
+      {showAvatarMenu && (
+        <TouchableOpacity 
+          activeOpacity={1} 
+          style={styles.modalOverlay} 
+          onPress={() => setShowAvatarMenu(false)}
+        >
+          <TouchableOpacity 
+            activeOpacity={0.95} 
+            style={styles.avatarMenuSheet} 
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={styles.sheetTitle}>Tùy chọn</Text>
+            
+            <TouchableOpacity 
+              style={styles.sheetItem} 
+              onPress={handleViewStory}
+            >
+              <Ionicons name="play-circle-outline" size={20} color="#000" />
+              <Text style={styles.sheetItemText}>Xem Story</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.sheetItem, { borderTopWidth: 0 }]} 
+              onPress={() => {
+                setShowAvatarMenu(false);
+                handlePickAvatar();
+              }}
+            >
+              <Ionicons name="camera-outline" size={20} color="#000" />
+              <Text style={styles.sheetItemText}>Đổi Avatar</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
   );
 };
@@ -412,10 +583,43 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  avatarRingContainer: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    padding: 2,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarRingActive: {
+    borderWidth: 2.5,
+    borderColor: '#FF3B30',
+  },
+  avatarRingUnviewed: {
+    shadowColor: '#FF3B30',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
+  },
   profileImage: {
     width: 86,
     height: 86,
     borderRadius: 43,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
+  storyIndicator: {
+    position: 'absolute',
+    top: -2,
+    right: 2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FF3B30',
+    borderWidth: 2.5,
+    borderColor: '#fff',
   },
   statsContainer: {
     flex: 1,
@@ -550,6 +754,39 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     backgroundColor: '#f0f0f0',
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  avatarMenuSheet: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 8,
+    color: '#111827',
+  },
+  sheetItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    gap: 12,
+  },
+  sheetItemText: {
+    fontSize: 16,
+    color: '#111827',
   },
 });
 

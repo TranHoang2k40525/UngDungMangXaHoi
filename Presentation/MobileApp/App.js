@@ -1,5 +1,8 @@
 import React, { useRef } from "react";
-import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+    SafeAreaProvider,
+    useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -18,6 +21,7 @@ import CreatePost from "./src/Home/CreatePost";
 import SharePost from "./src/Home/SharePost";
 import StoryViewer from "./src/Home/StoryViewer";
 import CommentsModal from "./src/Home/CommentsModal";
+import CreateStory from "./src/Home/CreateStory";
 
 import Doanchat from "./src/Messegers/Doanchat";
 import Messenger from "./src/Messegers/Messenger";
@@ -31,8 +35,8 @@ import PhotoPreview from "./src/User/PhotoPreview";
 import { View, ActivityIndicator, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { API_BASE_URL } from "./src/API/Api";
-import { TouchableOpacity } from 'react-native';
-import { emitTabTriple } from './src/Utils/TabRefreshEmitter';
+import { TouchableOpacity } from "react-native";
+import { emitTabTriple } from "./src/Utils/TabRefreshEmitter";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -41,10 +45,18 @@ function TabProfileIcon({ focused }) {
     const { user } = useUser();
     const size = focused ? 30 : 30;
     const borderColor = focused ? "#000" : "#9CA3AF";
+
+    // Build avatar URL
     let uri = user?.avatarUrl || user?.AvatarUrl || null;
     if (uri && !uri.startsWith("http")) {
+        // Add full path if relative
+        if (!uri.startsWith("/")) {
+            uri = `/uploads/avatars/${uri}`;
+        }
         uri = `${API_BASE_URL}${uri}`;
     }
+
+    // If no avatar, show icon instead
     if (!uri) {
         return (
             <Ionicons
@@ -54,21 +66,36 @@ function TabProfileIcon({ focused }) {
             />
         );
     }
+
     return (
-        <View style={{
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-            overflow: "hidden",
-            borderWidth: 2,
-            borderColor,
-        }}>
-            <Image source={{ uri }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+        <View
+            style={{
+                width: size,
+                height: size,
+                borderRadius: size / 2,
+                overflow: "hidden",
+                borderWidth: 2,
+                borderColor,
+            }}
+        >
+            <Image
+                source={{ uri }}
+                style={{ width: "100%", height: "100%" }}
+                resizeMode="cover"
+            />
         </View>
     );
 }
 
-function TabBarButton({ children, onPress, onLongPress, route, style, accessibilityState, ...rest }) {
+function TabBarButton({
+    children,
+    onPress,
+    onLongPress,
+    route,
+    style,
+    accessibilityState,
+    ...rest
+}) {
     // triple-tap detector
     const taps = useRef([]);
     return (
@@ -76,12 +103,17 @@ function TabBarButton({ children, onPress, onLongPress, route, style, accessibil
             activeOpacity={0.9}
             onPress={onPress}
             onLongPress={onLongPress || onPress}
-            style={[{ flex: 1, alignItems: 'center', justifyContent: 'center' }, style]}
+            style={[
+                { flex: 1, alignItems: "center", justifyContent: "center" },
+                style,
+            ]}
             accessibilityState={accessibilityState}
             {...rest}
             onPressIn={() => {
                 const now = Date.now();
-                taps.current = (taps.current || []).filter(t => now - t < 400);
+                taps.current = (taps.current || []).filter(
+                    (t) => now - t < 400
+                );
                 taps.current.push(now);
                 if (taps.current.length >= 3) {
                     // emit an event on navigation to tell that this tab was triple-pressed
@@ -94,7 +126,9 @@ function TabBarButton({ children, onPress, onLongPress, route, style, accessibil
                         // Use setTimeout to allow normal onPress to process first
                         setTimeout(() => {
                             // Emit our custom triple-tap event for this tab
-                            try { emitTabTriple(route.name); } catch (e) { }
+                            try {
+                                emitTabTriple(route.name);
+                            } catch (e) {}
                         }, 50);
                     } catch (e) {}
                 }
@@ -116,14 +150,18 @@ function MainTabs() {
                 // Check if current route is Video to invert colors
                 const state = navigation.getState();
                 const currentRoute = state?.routes[state.index];
-                const isVideoRoute = currentRoute?.name === 'Video';
-                
+                const isVideoRoute = currentRoute?.name === "Video";
+
                 // Inverted colors for Video tab
-                const bgColor = isVideoRoute ? '#000000' : '#FFFFFF';
-                const borderColor = isVideoRoute ? 'rgba(255,255,255,0.1)' : '#DBDBDB';
-                const focusedColor = isVideoRoute ? '#FFFFFF' : '#000000';
-                const unfocusedColor = isVideoRoute ? 'rgba(255,255,255,0.6)' : '#9CA3AF';
-                
+                const bgColor = isVideoRoute ? "#000000" : "#FFFFFF";
+                const borderColor = isVideoRoute
+                    ? "rgba(255,255,255,0.1)"
+                    : "#DBDBDB";
+                const focusedColor = isVideoRoute ? "#FFFFFF" : "#000000";
+                const unfocusedColor = isVideoRoute
+                    ? "rgba(255,255,255,0.6)"
+                    : "#9CA3AF";
+
                 return {
                     headerShown: false,
                     tabBarShowLabel: false,
@@ -143,8 +181,10 @@ function MainTabs() {
                         backgroundColor: bgColor,
                     },
                     tabBarIcon: ({ focused, color, size }) => {
-                        const iconFocusedColor = focused ? focusedColor : unfocusedColor;
-                        
+                        const iconFocusedColor = focused
+                            ? focusedColor
+                            : unfocusedColor;
+
                         switch (route.name) {
                             case "Home":
                                 return (
@@ -157,7 +197,11 @@ function MainTabs() {
                             case "Search":
                                 return (
                                     <Ionicons
-                                        name={focused ? "search" : "search-outline"}
+                                        name={
+                                            focused
+                                                ? "search"
+                                                : "search-outline"
+                                        }
                                         size={28}
                                         color={iconFocusedColor}
                                     />
@@ -165,7 +209,11 @@ function MainTabs() {
                             case "CreatePost":
                                 return (
                                     <Ionicons
-                                        name={focused ? "add-circle" : "add-circle-outline"}
+                                        name={
+                                            focused
+                                                ? "add-circle"
+                                                : "add-circle-outline"
+                                        }
                                         size={30}
                                         color={iconFocusedColor}
                                     />
@@ -173,7 +221,11 @@ function MainTabs() {
                             case "Video":
                                 return (
                                     <Ionicons
-                                        name={focused ? "play-circle" : "play-circle-outline"}
+                                        name={
+                                            focused
+                                                ? "play-circle"
+                                                : "play-circle-outline"
+                                        }
                                         size={30}
                                         color={iconFocusedColor}
                                     />
@@ -192,6 +244,7 @@ function MainTabs() {
             <Tab.Screen name="CreatePost" component={CreatePost} />
             <Tab.Screen name="Video" component={Video} />
             <Tab.Screen name="Profile" component={Profile} />
+
         </Tab.Navigator>
     );
 }
@@ -241,15 +294,25 @@ function AppNavigator() {
                         <Stack.Screen name="MainTabs" component={MainTabs} />
                         <Stack.Screen name="Messenger" component={Messenger} />
                         <Stack.Screen name="Doanchat" component={Doanchat} />
+                        <Stack.Screen name="CreateStory" component={CreateStory} />
                         <Stack.Screen
                             name="ChangePassword"
                             component={ChangePassword}
                         />
                         <Stack.Screen name="Thongbao" component={Thongbao} />
                         <Stack.Screen name="SharePost" component={SharePost} />
-                        <Stack.Screen name="PostDetail" component={PostDetail} />
-                        <Stack.Screen name="UserProfilePublic" component={UserProfilePublic} />
-                        <Stack.Screen name="FollowList" component={FollowList} />
+                        <Stack.Screen
+                            name="PostDetail"
+                            component={PostDetail}
+                        />
+                        <Stack.Screen
+                            name="UserProfilePublic"
+                            component={UserProfilePublic}
+                        />
+                        <Stack.Screen
+                            name="FollowList"
+                            component={FollowList}
+                        />
                         <Stack.Screen
                             name="CommentsModal"
                             component={CommentsModal}

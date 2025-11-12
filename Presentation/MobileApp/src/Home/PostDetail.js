@@ -16,6 +16,8 @@ import {
 } from "react-native";
 import { RefreshControl } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { RefreshControl } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useUser } from "../Context/UserContext";
 import { useFollow } from "../Context/FollowContext";
@@ -35,6 +37,16 @@ import {
   getReactionSummary,
   createShare,
   getSharesByPost,
+} from "../API/Api";
+import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  getUserPostsById,
+  updatePostPrivacy,
+  updatePostCaption,
+  deletePost,
+  followUser,
+  unfollowUser,
+  API_BASE_URL,
 } from "../API/Api";
 import { Ionicons } from "@expo/vector-icons";
 import { VideoView, useVideoPlayer } from "expo-video";
@@ -66,8 +78,9 @@ export default function PostDetail() {
   const navigation = useNavigation();
   const { user: ctxUser } = useUser();
   const { markAsFollowed, markAsUnfollowed, isFollowed } = useFollow();
-
   const targetUserId = route.params?.post?.user?.id || route.params?.userId;
+  const singlePostData = route.params?.singlePost; // Post data từ search
+  const isSinglePostMode = !!singlePostData; // Chế độ hiển thị 1 post
 
   const [postStates, setPostStates] = useState({});
   const [activeCommentsPostId, setActiveCommentsPostId] = useState(null);
@@ -141,6 +154,25 @@ export default function PostDetail() {
     setShowOptions(true);
     setShowPrivacySheet(false);
     setEditingCaptionPostId(null);
+  };
+
+  // Helper function để build media URL từ search data
+  const buildMediaUrl = (mediaUrl) => {
+    if (!mediaUrl) return null;
+
+    if (mediaUrl.startsWith("http")) {
+      return mediaUrl;
+    }
+
+    // Build relative URL
+    let cleanUrl = mediaUrl;
+    if (!cleanUrl.startsWith("/uploads/")) {
+      if (!cleanUrl.startsWith("/")) {
+        cleanUrl = `/uploads/${cleanUrl}`;
+      }
+    }
+
+    return `${API_BASE_URL}${cleanUrl}`;
   };
 
   const closeAllOverlays = () => {
@@ -633,7 +665,9 @@ export default function PostDetail() {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={28} color="#000" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Bài viết</Text>
+        <Text style={styles.headerTitle}>
+          {isSinglePostMode ? "Chi tiết bài viết" : "Bài viết"}
+        </Text>
         <View style={{ width: 28 }} />
       </View>
       <FlatList
@@ -776,6 +810,88 @@ export default function PostDetail() {
                   </View>
                 )}
               </View>
+              {/* Media - hiển thị giống Home.js */}
+              <View style={styles.postImageContainer}>
+                {post.media && post.media.length > 0 ? (
+                  (() => {
+                    const images = (post.media || []).filter(
+                      (m) => (m.type || "").toLowerCase() === "image"
+                    );
+                    const videos = (post.media || []).filter(
+                      (m) => (m.type || "").toLowerCase() === "video"
+                    );
+
+                    if (images.length > 1) {
+                      return (
+                        <PostImagesCarousel
+                          key={`car-${post.id}`}
+                          images={images.map((img) => img.url)}
+                        />
+                      );
+                    }
+                    if (images.length === 1) {
+                      return (
+                        <Image
+                          source={{
+                            uri: images[0].url,
+                          }}
+                          style={styles.postImage}
+                        />
+                      );
+                    }
+                    if (videos.length > 0) {
+                      const video = videos[0];
+                      return (
+                        <VideoThumbnail
+                          videoUrl={video.url}
+                          style={styles.postImage}
+                          onPress={() => openVideoPlayerFor(post)}
+                        />
+                      );
+                    }
+                    return (
+                      <View
+                        style={[
+                          styles.postImage,
+                          {
+                            justifyContent: "center",
+                            alignItems: "center",
+                          },
+                        ]}
+                      >
+                        <Text style={{ color: "#888" }}>Không có media</Text>
+                      </View>
+                    );
+                  })()
+                ) : post.videoUrl ? (
+                  <VideoThumbnail
+                    videoUrl={post.videoUrl}
+                    style={styles.postImage}
+                    onPress={() => openVideoPlayerFor(post)}
+                  />
+                ) : post.imageUrls && post.imageUrls.length > 0 ? (
+                  post.imageUrls.length > 1 ? (
+                    <PostImagesCarousel images={post.imageUrls} />
+                  ) : (
+                    <Image
+                      source={{ uri: post.imageUrls[0] }}
+                      style={styles.postImage}
+                    />
+                  )
+                ) : (
+                  <View
+                    style={[
+                      styles.postImage,
+                      {
+                        justifyContent: "center",
+                        alignItems: "center",
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: "#888" }}>Không có media</Text>
+                  </View>
+                )}
+              </View>
 
               {/* Actions - giống Home.js */}
               <View style={styles.postActions}>
@@ -838,12 +954,59 @@ export default function PostDetail() {
                       {state.comments ?? 0}
                     </Text>
                   </TouchableOpacity>
+                  {/* Actions - giống Home.js */}
+                  <View style={styles.postActions}>
+                    <View style={styles.postActionsLeft}>
+                      <TouchableOpacity onPress={() => onToggleLike(post.id)}>
+                        <Ionicons
+                          name={state.liked ? "heart" : "heart-outline"}
+                          size={28}
+                          color={state.liked ? "#ED4956" : "#262626"}
+                        />
+                      </TouchableOpacity>
 
-                  <TouchableOpacity onPress={() => onShare(post)}>
-                    <Ionicons name="repeat-outline" size={28} color="#262626" />
-                  </TouchableOpacity>
+                      <TouchableOpacity
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                        }}
+                        onPress={() => setActiveCommentsPostId(post.id)}
+                      >
+                        <Ionicons
+                          name="chatbubble-outline"
+                          size={26}
+                          color="#262626"
+                        />
+                        <Text style={styles.commentCount}>
+                          {state.commentsCount || 0}
+                        </Text>
+                      </TouchableOpacity>
 
-                  <TouchableOpacity onPress={() => onShare(post)}>
+                      <TouchableOpacity onPress={() => onShare(post)}>
+                        <Ionicons
+                          name="repeat-outline"
+                          size={28}
+                          color="#262626"
+                        />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => onRepost(post)}>
+                        <Ionicons
+                          name="repeat-outline"
+                          size={28}
+                          color="#262626"
+                        />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity onPress={() => onShare(post)}>
+                        <Ionicons
+                          name="paper-plane-outline"
+                          size={26}
+                          color="#262626"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <TouchableOpacity onPress={() => onRepost(post)}>
                     <Ionicons
                       name="paper-plane-outline"
                       size={26}
@@ -1154,6 +1317,303 @@ export default function PostDetail() {
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#fff" },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#DBDBDB",
+    backgroundColor: "#fff",
+  },
+  headerTitle: { fontSize: 18, fontWeight: "600", color: "#262626" },
+  post: {
+    backgroundColor: "#fff",
+    marginBottom: 8,
+  },
+  postHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  postHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  postAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
+  },
+  postUsername: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#262626",
+  },
+  postTimeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 2,
+  },
+  postLocation: {
+    fontSize: 12,
+    color: "#8E8E8E",
+  },
+  privacyPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: "#f3f4f6",
+  },
+  privacyText: {
+    fontSize: 10,
+    color: "#374151",
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  moreIcon: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#262626",
+  },
+  postImageContainer: {
+    width: "100%",
+    aspectRatio: 1,
+    backgroundColor: "#000",
+  },
+  postImage: {
+    width: "100%",
+    height: "100%",
+  },
+  playOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.1)",
+  },
+  carouselContainer: {
+    width: "100%",
+    aspectRatio: 1,
+    backgroundColor: "#000",
+  },
+  paginationDots: {
+    position: "absolute",
+    bottom: 16,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.5)",
+    marginHorizontal: 3,
+  },
+  activeDot: {
+    backgroundColor: "#fff",
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  postActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  postActionsLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  commentCount: {
+    marginLeft: 6,
+    color: "#262626",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  postStats: {
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+  },
+  likeCount: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#262626",
+    marginBottom: 4,
+  },
+  captionText: {
+    fontSize: 14,
+    color: "#262626",
+    lineHeight: 18,
+  },
+  captionUsername: {
+    fontWeight: "600",
+    color: "#262626",
+  },
+  loadingMore: {
+    paddingVertical: 20,
+    alignItems: "center",
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: "#8E8E8E",
+  },
+  // Overlay styles - giống Home.js
+  overlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: "#fff",
+    padding: 16,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: Platform.OS === "ios" ? 34 : 20,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  sheetItem: {
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#e5e7eb",
+  },
+  sheetItemText: {
+    fontSize: 16,
+    color: "#111827",
+  },
+  busyOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255,255,255,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  spinner: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 4,
+    borderColor: "#111827",
+    borderTopColor: "transparent",
+  },
+  // Edit Caption Modal Styles
+  modalContainer: {
+    flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  editCaptionSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: Platform.OS === "ios" ? 34 : 20,
+    maxHeight: "80%",
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  closeButton: {
+    padding: 4,
+  },
+  closeButtonText: {
+    fontSize: 24,
+    color: "#666",
+    fontWeight: "300",
+  },
+  editCaptionContent: {
+    padding: 20,
+  },
+  captionTextInput: {
+    fontSize: 16,
+    color: "#111827",
+    minHeight: 120,
+    textAlignVertical: "top",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 8,
+    padding: 12,
+  },
+  charCounter: {
+    fontSize: 12,
+    color: "#999",
+    textAlign: "right",
+    marginTop: 8,
+  },
+  editCaptionActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  actionButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  cancelButton: {
+    backgroundColor: "#f3f4f6",
+  },
+  cancelButtonText: {
+    color: "#111827",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  saveButton: {
+    backgroundColor: "#111827",
+  },
+  saveButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
+  },
   container: { flex: 1, backgroundColor: "#fff" },
   header: {
     flexDirection: "row",
