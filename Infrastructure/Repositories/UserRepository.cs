@@ -105,15 +105,18 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         public async Task<bool> ExistsByUserNameAsync(UserName userName)
         {
             return await _context.Users.AnyAsync(u => u.username.Value == userName.Value);
-        }
-
-        public async Task<IEnumerable<User>> SearchUsersAsync(string searchTerm, int pageNumber, int pageSize)
+        }        public async Task<IEnumerable<User>> SearchUsersAsync(string searchTerm, int pageNumber, int pageSize)
         {
+            searchTerm = searchTerm.ToLower();
+            
+            // Tìm users có CHỮ CÁI ĐẦU TIÊN của tên hoặc username bắt đầu bằng searchTerm
             var query = _context.Users
                 .Include(u => u.Account)
                 .Where(u => u.Account.status == "active" &&
-                    (u.full_name.ToLower().Contains(searchTerm.ToLower()) ||
-                     u.username.Value.ToLower().Contains(searchTerm.ToLower())));
+                    (u.full_name.ToLower().StartsWith(searchTerm) ||
+                     u.username.Value.ToLower().StartsWith(searchTerm) ||
+                     // Hoặc CHỮ CÁI ĐẦU của từ thứ 2, 3... (sau khoảng trắng)
+                     u.full_name.ToLower().Contains(" " + searchTerm)));
 
             return await query
                 .OrderBy(u => u.full_name)
@@ -208,9 +211,23 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                         username = user.username.Value,
                         fullName = user.full_name,
                         avatarUrl = user.avatar_url != null ? user.avatar_url.Value : null
-                    })
-                .ToListAsync();
+                    })                .ToListAsync();
             return following;
+        }
+
+        // Conversation/Message history methods (placeholder for future implementation)
+        public async Task<bool> HasMessagedBeforeAsync(int userId1, int userId2)
+        {
+            // TODO: Implement when Conversation/Message tables are added
+            // For now, return false (no message history)
+            return await Task.FromResult(false);
+        }
+
+        public async Task<IEnumerable<int>> GetUsersMessagedBeforeAsync(int userId)
+        {
+            // TODO: Implement when Conversation/Message tables are added
+            // For now, return empty list
+            return await Task.FromResult(new List<int>());
         }
     }
 }

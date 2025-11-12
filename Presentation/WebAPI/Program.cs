@@ -114,6 +114,7 @@ builder.Services.AddScoped<VideoTranscodeService>();
 builder.Services.AddScoped<ReactionService>();
 builder.Services.AddScoped<ShareService>();
 builder.Services.AddScoped<NotificationManagementService>();
+builder.Services.AddScoped<SearchService>();
 builder.Services.AddScoped<IRealTimeNotificationService, UngDungMangXaHoi.Presentation.WebAPI.Hubs.SignalRNotificationService>();
 
 // External Services
