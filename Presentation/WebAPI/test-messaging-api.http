@@ -1,0 +1,269 @@
+### Messaging System API Tests
+### Base URL
+@baseUrl = http://localhost:5000/api
+@token = YOUR_JWT_TOKEN_HERE
+@userId2 = 2
+
+### ============================================
+### 1. Get Conversations List
+### ============================================
+GET {{baseUrl}}/messages/conversations
+Authorization: Bearer {{token}}
+
+### ============================================
+### 2. Get Conversation Detail with User
+### ============================================
+GET {{baseUrl}}/messages/conversations/{{userId2}}
+Authorization: Bearer {{token}}
+
+### ============================================
+### 3. Get Conversation Detail with Pagination
+### ============================================
+GET {{baseUrl}}/messages/conversations/{{userId2}}?page=1&pageSize=50
+Authorization: Bearer {{token}}
+
+### ============================================
+### 4. Send Text Message
+### ============================================
+POST {{baseUrl}}/messages/send
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "receiver_id": {{userId2}},
+  "content": "Hello! This is a test message.",
+  "message_type": "Text"
+}
+
+### ============================================
+### 5. Send Message with Different Types
+### ============================================
+POST {{baseUrl}}/messages/send
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "receiver_id": {{userId2}},
+  "content": "Check out this image!",
+  "message_type": "Image",
+  "media_url": "https://example.com/image.jpg",
+  "thumbnail_url": "https://example.com/thumb.jpg"
+}
+
+### ============================================
+### 6. Mark Messages as Read
+### ============================================
+PUT {{baseUrl}}/messages/read/1
+Authorization: Bearer {{token}}
+
+### ============================================
+### 7. Delete Message
+### ============================================
+DELETE {{baseUrl}}/messages/1
+Authorization: Bearer {{token}}
+
+### ============================================
+### 8. Get Mutual Followers (Users you can chat with)
+### ============================================
+GET {{baseUrl}}/messages/mutual-followers
+Authorization: Bearer {{token}}
+
+### ============================================
+### Test Scenarios
+### ============================================
+
+### Scenario 1: First Time Chat
+# Step 1: Check if conversation exists
+GET {{baseUrl}}/messages/conversations/{{userId2}}
+Authorization: Bearer {{token}}
+
+# Step 2: Send first message (will create conversation)
+POST {{baseUrl}}/messages/send
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "receiver_id": {{userId2}},
+  "content": "Hey! How are you?",
+  "message_type": "Text"
+}
+
+# Step 3: Get conversation again (should have messages now)
+GET {{baseUrl}}/messages/conversations/{{userId2}}
+Authorization: Bearer {{token}}
+
+### Scenario 2: Ongoing Conversation
+# Step 1: Get all conversations
+GET {{baseUrl}}/messages/conversations
+Authorization: Bearer {{token}}
+
+# Step 2: Open specific conversation
+GET {{baseUrl}}/messages/conversations/{{userId2}}?page=1&pageSize=50
+Authorization: Bearer {{token}}
+
+# Step 3: Mark as read
+PUT {{baseUrl}}/messages/read/1
+Authorization: Bearer {{token}}
+
+# Step 4: Send reply
+POST {{baseUrl}}/messages/send
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "receiver_id": {{userId2}},
+  "content": "Thanks for your message!",
+  "message_type": "Text"
+}
+
+### Scenario 3: Error Cases
+
+# Try to send message to user you don't follow mutually (should fail)
+POST {{baseUrl}}/messages/send
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "receiver_id": 999,
+  "content": "This should fail",
+  "message_type": "Text"
+}
+
+# Try to delete someone else's message (should fail)
+DELETE {{baseUrl}}/messages/999
+Authorization: Bearer {{token}}
+
+# Try without authentication (should fail with 401)
+GET {{baseUrl}}/messages/conversations
+
+### ============================================
+### WebSocket Connection Test (JavaScript)
+### ============================================
+# Copy and paste this in browser console to test WebSocket
+
+/*
+const connection = new signalR.HubConnectionBuilder()
+    .withUrl("http://localhost:5000/hubs/messages", {
+        accessTokenFactory: () => "YOUR_JWT_TOKEN_HERE"
+    })
+    .withAutomaticReconnect()
+    .configureLogging(signalR.LogLevel.Information)
+    .build();
+
+// Event listeners
+connection.on("ReceiveMessage", (message) => {
+    console.log("📩 Received message:", message);
+});
+
+connection.on("MessageSent", (message) => {
+    console.log("✅ Message sent:", message);
+});
+
+connection.on("MessagesRead", (data) => {
+    console.log("👁️ Messages read:", data);
+});
+
+connection.on("UserTyping", (data) => {
+    console.log("⌨️ User typing:", data);
+});
+
+connection.on("UserOnline", (userId) => {
+    console.log("🟢 User online:", userId);
+});
+
+connection.on("UserOffline", (userId) => {
+    console.log("🔴 User offline:", userId);
+});
+
+connection.on("OnlineUsers", (userIds) => {
+    console.log("👥 Online users:", userIds);
+});
+
+connection.on("MessageDeleted", (messageId) => {
+    console.log("🗑️ Message deleted:", messageId);
+});
+
+connection.on("Error", (error) => {
+    console.error("❌ Error:", error);
+});
+
+// Connect
+connection.start()
+    .then(() => {
+        console.log("✅ Connected to MessageHub!");
+        
+        // Get online users
+        connection.invoke("GetOnlineUsers");
+        
+        // Send a test message
+        connection.invoke("SendMessage", {
+            receiver_id: 2,
+            content: "Hello from WebSocket!",
+            message_type: "Text"
+        });
+        
+        // Test typing indicator
+        connection.invoke("UserTyping", 2, true);
+        setTimeout(() => {
+            connection.invoke("UserTyping", 2, false);
+        }, 3000);
+        
+        // Mark as read
+        connection.invoke("MarkAsRead", 1);
+        
+    })
+    .catch(err => console.error("❌ Connection error:", err));
+
+// Disconnect
+// connection.stop();
+*/
+
+### ============================================
+### Performance Tests
+### ============================================
+
+### Load test: Send multiple messages
+POST {{baseUrl}}/messages/send
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "receiver_id": {{userId2}},
+  "content": "Load test message 1",
+  "message_type": "Text"
+}
+
+###
+POST {{baseUrl}}/messages/send
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "receiver_id": {{userId2}},
+  "content": "Load test message 2",
+  "message_type": "Text"
+}
+
+###
+POST {{baseUrl}}/messages/send
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "receiver_id": {{userId2}},
+  "content": "Load test message 3",
+  "message_type": "Text"
+}
+
+### Get large conversation (pagination test)
+GET {{baseUrl}}/messages/conversations/{{userId2}}?page=1&pageSize=100
+Authorization: Bearer {{token}}
+
+### ============================================
+### Notes
+### ============================================
+# 1. Replace {{token}} with your actual JWT token
+# 2. Replace {{userId2}} with actual user ID
+# 3. Make sure both users follow each other
+# 4. Backend must be running on http://localhost:5000
+# 5. For WebSocket test, open browser console on your frontend
