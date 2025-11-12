@@ -14,26 +14,35 @@ import {
     Dimensions,
     TextInput,
 } from "react-native";
-import { RefreshControl } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { RefreshControl } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useUser } from "../Context/UserContext";
 import { useFollow } from "../Context/FollowContext";
 import CommentsModal from "./CommentsModal";
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { getUserPostsById, updatePostPrivacy, updatePostCaption, deletePost, followUser, unfollowUser } from "../API/Api";
+import { SafeAreaView } from "react-native-safe-area-context";
+import {
+    getUserPostsById,
+    updatePostPrivacy,
+    updatePostCaption,
+    deletePost,
+    followUser,
+    unfollowUser,
+    API_BASE_URL,
+} from "../API/Api";
 import { Ionicons } from "@expo/vector-icons";
 import { VideoView, useVideoPlayer } from "expo-video";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
 export default function PostDetail() {
     const route = useRoute();
     const navigation = useNavigation();
     const { user: ctxUser } = useUser();
     const { markAsFollowed, markAsUnfollowed, isFollowed } = useFollow();
-    
     const targetUserId = route.params?.post?.user?.id || route.params?.userId;
+    const singlePostData = route.params?.singlePost; // Post data từ search
+    const isSinglePostMode = !!singlePostData; // Chế độ hiển thị 1 post
 
     const [postStates, setPostStates] = useState({});
     const [activeCommentsPostId, setActiveCommentsPostId] = useState(null);
@@ -46,7 +55,7 @@ export default function PostDetail() {
     const [optionsPostId, setOptionsPostId] = useState(null);
     const [showOptions, setShowOptions] = useState(false);
     const [showPrivacySheet, setShowPrivacySheet] = useState(false);
-    const [captionDraft, setCaptionDraft] = useState('');
+    const [captionDraft, setCaptionDraft] = useState("");
     const [editingCaptionPostId, setEditingCaptionPostId] = useState(null);
     const [busy, setBusy] = useState(false);
     const [currentUserId, setCurrentUserId] = useState(null);
@@ -63,19 +72,52 @@ export default function PostDetail() {
     const isOwner = (post) => {
         const uid = getOwnerId();
         const pid = post?.user?.id != null ? Number(post.user.id) : null;
-        const result = Number.isFinite(uid) && Number.isFinite(pid) && uid === pid;
-        console.log('[PostDetail] isOwner check:', { uid, pid, result, postId: post?.id });
+        const result =
+            Number.isFinite(uid) && Number.isFinite(pid) && uid === pid;
+        console.log("[PostDetail] isOwner check:", {
+            uid,
+            pid,
+            result,
+            postId: post?.id,
+        });
         return result;
     };
-
     const openOptionsFor = (post) => {
         const uid = getOwnerId();
         const pid = post?.user?.id != null ? Number(post.user.id) : null;
-        console.log('[PostDetail] Open options for post', post.id, 'ownerId:', uid, 'postUserId:', pid, 'isOwner:', Number.isFinite(uid) && Number.isFinite(pid) && uid === pid);
+        console.log(
+            "[PostDetail] Open options for post",
+            post.id,
+            "ownerId:",
+            uid,
+            "postUserId:",
+            pid,
+            "isOwner:",
+            Number.isFinite(uid) && Number.isFinite(pid) && uid === pid
+        );
         setOptionsPostId(post.id);
         setShowOptions(true);
         setShowPrivacySheet(false);
         setEditingCaptionPostId(null);
+    };
+
+    // Helper function để build media URL từ search data
+    const buildMediaUrl = (mediaUrl) => {
+        if (!mediaUrl) return null;
+
+        if (mediaUrl.startsWith("http")) {
+            return mediaUrl;
+        }
+
+        // Build relative URL
+        let cleanUrl = mediaUrl;
+        if (!cleanUrl.startsWith("/uploads/")) {
+            if (!cleanUrl.startsWith("/")) {
+                cleanUrl = `/uploads/${cleanUrl}`;
+            }
+        }
+
+        return `${API_BASE_URL}${cleanUrl}`;
     };
 
     const closeAllOverlays = () => {
@@ -94,7 +136,7 @@ export default function PostDetail() {
                 p.loop = false;
             }
         });
-        
+
         return (
             <TouchableOpacity activeOpacity={0.9} onPress={onPress}>
                 <VideoView
@@ -116,7 +158,9 @@ export default function PostDetail() {
 
         const onScroll = (event) => {
             const slideSize = event.nativeEvent.layoutMeasurement.width;
-            const index = Math.round(event.nativeEvent.contentOffset.x / slideSize);
+            const index = Math.round(
+                event.nativeEvent.contentOffset.x / slideSize
+            );
             setCurrentIndex(index);
         };
 
@@ -166,12 +210,37 @@ export default function PostDetail() {
             };
         });
         return states;
-    };
-
-    // Load user posts
+    }; // Load user posts
     const loadUserPosts = async (page = 1, append = false) => {
+        // Nếu là single post mode, sử dụng data có sẵn
+        if (isSinglePostMode && singlePostData) {
+            // Process media URLs for single post from search
+            const processedPost = { ...singlePostData };
+
+            // Convert media URLs using buildMediaUrl
+            if (processedPost.media && processedPost.media.length > 0) {
+                processedPost.media = processedPost.media.map((mediaItem) => ({
+                    ...mediaItem,
+                    url: buildMediaUrl(mediaItem.url),
+                }));
+            }
+
+            // Handle legacy fields
+            if (processedPost.videoUrl) {
+                processedPost.videoUrl = buildMediaUrl(processedPost.videoUrl);
+            }
+
+            const newStates = initPostStates([processedPost]);
+            setPostStates(newStates);
+            setPosts([processedPost]);
+            setHasMorePosts(false); // Không có thêm posts
+            setLoading(false);
+            setRefreshing(false);
+            return;
+        }
+
         if (!targetUserId) return;
-        
+
         if (page === 1) {
             setLoading(true);
         } else {
@@ -181,7 +250,7 @@ export default function PostDetail() {
         try {
             const pageSize = 10;
             const data = await getUserPostsById(targetUserId, page, pageSize);
-            
+
             if (data && Array.isArray(data)) {
                 const newStates = initPostStates(data);
                 setPostStates((prev) => ({ ...prev, ...newStates }));
@@ -189,8 +258,9 @@ export default function PostDetail() {
                 if (append) {
                     setPosts((prev) => {
                         const merged = [...prev, ...data];
-                        const unique = merged.filter((p, i, arr) => 
-                            arr.findIndex(x => x.id === p.id) === i
+                        const unique = merged.filter(
+                            (p, i, arr) =>
+                                arr.findIndex((x) => x.id === p.id) === i
                         );
                         return unique;
                     });
@@ -204,8 +274,8 @@ export default function PostDetail() {
                 setHasMorePosts(false);
             }
         } catch (error) {
-            console.error('Error loading user posts:', error);
-            Alert.alert('Lỗi', 'Không thể tải bài viết');
+            console.error("Error loading user posts:", error);
+            Alert.alert("Lỗi", "Không thể tải bài viết");
         } finally {
             setLoading(false);
             setLoadingMore(false);
@@ -217,13 +287,13 @@ export default function PostDetail() {
     useEffect(() => {
         const fetchUserId = async () => {
             try {
-                const storedUser = await AsyncStorage.getItem('currentUser');
+                const storedUser = await AsyncStorage.getItem("currentUser");
                 if (storedUser) {
                     const parsed = JSON.parse(storedUser);
                     setCurrentUserId(parsed.id || parsed.userId);
                 }
             } catch (err) {
-                console.error('Error fetching user ID:', err);
+                console.error("Error fetching user ID:", err);
             }
         };
         fetchUserId();
@@ -261,7 +331,9 @@ export default function PostDetail() {
                 [postId]: {
                     ...current,
                     liked: newLiked,
-                    likesCount: newLiked ? current.likesCount + 1 : current.likesCount - 1,
+                    likesCount: newLiked
+                        ? current.likesCount + 1
+                        : current.likesCount - 1,
                 },
             };
         });
@@ -272,7 +344,7 @@ export default function PostDetail() {
         try {
             const shareUrl = `https://yourapp.com/post/${post.id}`;
             await Share.share({
-                message: post.caption || 'Xem bài viết này!',
+                message: post.caption || "Xem bài viết này!",
                 url: shareUrl,
             });
             setPostStates((prev) => ({
@@ -283,14 +355,14 @@ export default function PostDetail() {
                 },
             }));
         } catch (error) {
-            console.error('Error sharing:', error);
+            console.error("Error sharing:", error);
         }
     };
 
     // Handle follow toggle
     const handleFollowToggle = async (userId) => {
         if (!currentUserId) return;
-        
+
         try {
             const alreadyFollowing = isFollowed(userId);
             if (alreadyFollowing) {
@@ -301,20 +373,20 @@ export default function PostDetail() {
                 markAsFollowed(userId);
             }
         } catch (error) {
-            console.error('Error toggling follow:', error);
-            Alert.alert('Lỗi', 'Không thể thực hiện thao tác');
+            console.error("Error toggling follow:", error);
+            Alert.alert("Lỗi", "Không thể thực hiện thao tác");
         }
     };
 
     // Open video player - điều hướng như UserProfilePublic
     const openVideoPlayerFor = (post) => {
-        navigation.navigate('MainTabs', {
-            screen: 'Video',
+        navigation.navigate("MainTabs", {
+            screen: "Video",
             params: {
                 selectedId: post.id,
                 userId: post.user?.id || targetUserId,
-                username: post.user?.username || 'user',
-            }
+                username: post.user?.username || "user",
+            },
         });
     };
 
@@ -329,10 +401,16 @@ export default function PostDetail() {
         try {
             setBusy(true);
             const updated = await updatePostPrivacy(optionsPostId, privacyKey);
-            setPosts((prev) => prev.map(p => p.id === optionsPostId ? { ...p, privacy: updated?.privacy ?? privacyKey } : p));
+            setPosts((prev) =>
+                prev.map((p) =>
+                    p.id === optionsPostId
+                        ? { ...p, privacy: updated?.privacy ?? privacyKey }
+                        : p
+                )
+            );
             closeAllOverlays();
         } catch (e) {
-            console.warn('Update privacy error', e);
+            console.warn("Update privacy error", e);
         } finally {
             setBusy(false);
         }
@@ -350,11 +428,20 @@ export default function PostDetail() {
         if (!editingCaptionPostId) return;
         try {
             setBusy(true);
-            const updated = await updatePostCaption(editingCaptionPostId, captionDraft);
-            setPosts((prev) => prev.map(p => p.id === editingCaptionPostId ? { ...p, caption: updated?.caption ?? captionDraft } : p));
+            const updated = await updatePostCaption(
+                editingCaptionPostId,
+                captionDraft
+            );
+            setPosts((prev) =>
+                prev.map((p) =>
+                    p.id === editingCaptionPostId
+                        ? { ...p, caption: updated?.caption ?? captionDraft }
+                        : p
+                )
+            );
             closeAllOverlays();
         } catch (e) {
-            console.warn('Update caption error', e);
+            console.warn("Update caption error", e);
         } finally {
             setBusy(false);
         }
@@ -363,36 +450,38 @@ export default function PostDetail() {
     // Handle delete post
     const confirmDelete = async () => {
         if (!optionsPostId) return;
-        Alert.alert(
-            'Xóa bài đăng',
-            'Bạn có chắc muốn xóa bài đăng này?',
-            [
-                { text: 'Hủy', style: 'cancel' },
-                {
-                    text: 'Xóa', style: 'destructive', onPress: async () => {
-                        try {
-                            setBusy(true);
-                            await deletePost(optionsPostId);
-                            setPosts((prev) => prev.filter(p => p.id !== optionsPostId));
-                            closeAllOverlays();
-                        } catch (e) {
-                            console.warn('Delete post error', e);
-                        } finally {
-                            setBusy(false);
-                        }
+        Alert.alert("Xóa bài đăng", "Bạn có chắc muốn xóa bài đăng này?", [
+            { text: "Hủy", style: "cancel" },
+            {
+                text: "Xóa",
+                style: "destructive",
+                onPress: async () => {
+                    try {
+                        setBusy(true);
+                        await deletePost(optionsPostId);
+                        setPosts((prev) =>
+                            prev.filter((p) => p.id !== optionsPostId)
+                        );
+                        closeAllOverlays();
+                    } catch (e) {
+                        console.warn("Delete post error", e);
+                    } finally {
+                        setBusy(false);
                     }
-                }
-            ]
-        );
+                },
+            },
+        ]);
     };
 
     return (
-        <SafeAreaView edges={['top']} style={styles.container}>
+        <SafeAreaView edges={["top"]} style={styles.container}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()}>
                     <Ionicons name="arrow-back" size={28} color="#000" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Bài viết</Text>
+                <Text style={styles.headerTitle}>
+                    {isSinglePostMode ? "Chi tiết bài viết" : "Bài viết"}
+                </Text>
                 <View style={{ width: 28 }} />
             </View>
             <FlatList
@@ -410,44 +499,63 @@ export default function PostDetail() {
                                     style={styles.postHeaderLeft}
                                     onPress={() => {
                                         if (isOwnPost) {
-                                            navigation.navigate('Profile');
+                                            navigation.navigate("Profile");
                                         } else {
-                                            navigation.navigate('UserProfilePublic', {
-                                                userId: post.user?.id,
-                                                username: post.user?.username,
-                                                avatarUrl: post.user?.avatarUrl,
-                                            });
+                                            navigation.navigate(
+                                                "UserProfilePublic",
+                                                {
+                                                    userId: post.user?.id,
+                                                    username:
+                                                        post.user?.username,
+                                                    avatarUrl:
+                                                        post.user?.avatarUrl,
+                                                }
+                                            );
                                         }
                                     }}
                                 >
                                     <Image
                                         source={{
-                                            uri: post.user?.avatarUrl || 'https://i.pravatar.cc/150',
+                                            uri:
+                                                post.user?.avatarUrl ||
+                                                "https://i.pravatar.cc/150",
                                         }}
                                         style={styles.postAvatar}
                                     />
                                     <View>
                                         <Text style={styles.postUsername}>
-                                            {post.user?.username || 'User'}
+                                            {post.user?.username || "User"}
                                         </Text>
                                         <View style={styles.postTimeContainer}>
                                             <Text style={styles.postLocation}>
-                                                {new Date(post.createdAt).toLocaleString('vi-VN')}
+                                                {new Date(
+                                                    post.createdAt
+                                                ).toLocaleString("vi-VN")}
                                             </Text>
                                             {post.privacy && (
-                                                <View style={styles.privacyPill}>
+                                                <View
+                                                    style={styles.privacyPill}
+                                                >
                                                     <Ionicons
                                                         name={
-                                                            post.privacy === 'private'
-                                                                ? 'lock-closed'
-                                                                : post.privacy === 'followers'
-                                                                ? 'people'
-                                                                : 'earth'
+                                                            post.privacy ===
+                                                            "private"
+                                                                ? "lock-closed"
+                                                                : post.privacy ===
+                                                                  "followers"
+                                                                ? "people"
+                                                                : "earth"
                                                         }
                                                         size={12}
                                                         color="#374151"
                                                     />
-                                                    <Text style={styles.privacyText}>{post.privacy}</Text>
+                                                    <Text
+                                                        style={
+                                                            styles.privacyText
+                                                        }
+                                                    >
+                                                        {post.privacy}
+                                                    </Text>
                                                 </View>
                                             )}
                                         </View>
@@ -455,7 +563,9 @@ export default function PostDetail() {
                                 </TouchableOpacity>
 
                                 <View style={styles.headerActions}>
-                                    <TouchableOpacity onPress={() => openOptionsFor(post)}>
+                                    <TouchableOpacity
+                                        onPress={() => openOptionsFor(post)}
+                                    >
                                         <Text style={styles.moreIcon}>⋯</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -465,25 +575,37 @@ export default function PostDetail() {
                             <View style={styles.postImageContainer}>
                                 {post.media && post.media.length > 0 ? (
                                     (() => {
-                                        const images = (post.media || []).filter(
-                                            (m) => (m.type || '').toLowerCase() === 'image'
+                                        const images = (
+                                            post.media || []
+                                        ).filter(
+                                            (m) =>
+                                                (m.type || "").toLowerCase() ===
+                                                "image"
                                         );
-                                        const videos = (post.media || []).filter(
-                                            (m) => (m.type || '').toLowerCase() === 'video'
+                                        const videos = (
+                                            post.media || []
+                                        ).filter(
+                                            (m) =>
+                                                (m.type || "").toLowerCase() ===
+                                                "video"
                                         );
-                                        
+
                                         if (images.length > 1) {
                                             return (
                                                 <PostImagesCarousel
                                                     key={`car-${post.id}`}
-                                                    images={images.map((img) => img.url)}
+                                                    images={images.map(
+                                                        (img) => img.url
+                                                    )}
                                                 />
                                             );
                                         }
                                         if (images.length === 1) {
                                             return (
                                                 <Image
-                                                    source={{ uri: images[0].url }}
+                                                    source={{
+                                                        uri: images[0].url,
+                                                    }}
                                                     style={styles.postImage}
                                                 />
                                             );
@@ -494,7 +616,9 @@ export default function PostDetail() {
                                                 <VideoThumbnail
                                                     videoUrl={video.url}
                                                     style={styles.postImage}
-                                                    onPress={() => openVideoPlayerFor(post)}
+                                                    onPress={() =>
+                                                        openVideoPlayerFor(post)
+                                                    }
                                                 />
                                             );
                                         }
@@ -502,10 +626,16 @@ export default function PostDetail() {
                                             <View
                                                 style={[
                                                     styles.postImage,
-                                                    { justifyContent: 'center', alignItems: 'center' },
+                                                    {
+                                                        justifyContent:
+                                                            "center",
+                                                        alignItems: "center",
+                                                    },
                                                 ]}
                                             >
-                                                <Text style={{ color: '#888' }}>Không có media</Text>
+                                                <Text style={{ color: "#888" }}>
+                                                    Không có media
+                                                </Text>
                                             </View>
                                         );
                                     })()
@@ -515,9 +645,12 @@ export default function PostDetail() {
                                         style={styles.postImage}
                                         onPress={() => openVideoPlayerFor(post)}
                                     />
-                                ) : post.imageUrls && post.imageUrls.length > 0 ? (
+                                ) : post.imageUrls &&
+                                  post.imageUrls.length > 0 ? (
                                     post.imageUrls.length > 1 ? (
-                                        <PostImagesCarousel images={post.imageUrls} />
+                                        <PostImagesCarousel
+                                            images={post.imageUrls}
+                                        />
                                     ) : (
                                         <Image
                                             source={{ uri: post.imageUrls[0] }}
@@ -528,10 +661,15 @@ export default function PostDetail() {
                                     <View
                                         style={[
                                             styles.postImage,
-                                            { justifyContent: 'center', alignItems: 'center' },
+                                            {
+                                                justifyContent: "center",
+                                                alignItems: "center",
+                                            },
                                         ]}
                                     >
-                                        <Text style={{ color: '#888' }}>Không có media</Text>
+                                        <Text style={{ color: "#888" }}>
+                                            Không có media
+                                        </Text>
                                     </View>
                                 )}
                             </View>
@@ -539,30 +677,61 @@ export default function PostDetail() {
                             {/* Actions - giống Home.js */}
                             <View style={styles.postActions}>
                                 <View style={styles.postActionsLeft}>
-                                    <TouchableOpacity onPress={() => onToggleLike(post.id)}>
+                                    <TouchableOpacity
+                                        onPress={() => onToggleLike(post.id)}
+                                    >
                                         <Ionicons
-                                            name={state.liked ? 'heart' : 'heart-outline'}
+                                            name={
+                                                state.liked
+                                                    ? "heart"
+                                                    : "heart-outline"
+                                            }
                                             size={28}
-                                            color={state.liked ? '#ED4956' : '#262626'}
+                                            color={
+                                                state.liked
+                                                    ? "#ED4956"
+                                                    : "#262626"
+                                            }
                                         />
                                     </TouchableOpacity>
-                                    
+
                                     <TouchableOpacity
-                                        style={{ flexDirection: 'row', alignItems: 'center' }}
-                                        onPress={() => setActiveCommentsPostId(post.id)}
+                                        style={{
+                                            flexDirection: "row",
+                                            alignItems: "center",
+                                        }}
+                                        onPress={() =>
+                                            setActiveCommentsPostId(post.id)
+                                        }
                                     >
-                                        <Ionicons name="chatbubble-outline" size={26} color="#262626" />
+                                        <Ionicons
+                                            name="chatbubble-outline"
+                                            size={26}
+                                            color="#262626"
+                                        />
                                         <Text style={styles.commentCount}>
                                             {state.commentsCount || 0}
                                         </Text>
                                     </TouchableOpacity>
 
-                                    <TouchableOpacity onPress={() => onRepost(post)}>
-                                        <Ionicons name="repeat-outline" size={28} color="#262626" />
+                                    <TouchableOpacity
+                                        onPress={() => onRepost(post)}
+                                    >
+                                        <Ionicons
+                                            name="repeat-outline"
+                                            size={28}
+                                            color="#262626"
+                                        />
                                     </TouchableOpacity>
 
-                                    <TouchableOpacity onPress={() => onRepost(post)}>
-                                        <Ionicons name="paper-plane-outline" size={26} color="#262626" />
+                                    <TouchableOpacity
+                                        onPress={() => onRepost(post)}
+                                    >
+                                        <Ionicons
+                                            name="paper-plane-outline"
+                                            size={26}
+                                            color="#262626"
+                                        />
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -570,13 +739,13 @@ export default function PostDetail() {
                             {/* Stats */}
                             <View style={styles.postStats}>
                                 <Text style={styles.likeCount}>
-                                    {(state.likesCount || 0).toLocaleString()} lượt thích • {(state.sharesCount || 0).toLocaleString()} lượt chia sẻ
+                                    {(state.likesCount || 0).toLocaleString()}{" "}
+                                    lượt thích •{" "}
+                                    {(state.sharesCount || 0).toLocaleString()}{" "}
+                                    lượt chia sẻ
                                 </Text>
-
-                                {/* Caption */}
                                 {post.caption ? (
                                     <Text style={styles.captionText}>
-                                        
                                         {post.caption}
                                     </Text>
                                 ) : null}
@@ -585,11 +754,16 @@ export default function PostDetail() {
                     );
                 }}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                    />
                 }
                 onEndReached={handleLoadMore}
                 onEndReachedThreshold={0.5}
-                contentContainerStyle={{ paddingBottom: Platform.OS === 'ios' ? 90 : 70 }}
+                contentContainerStyle={{
+                    paddingBottom: Platform.OS === "ios" ? 90 : 70,
+                }}
                 ListFooterComponent={
                     loadingMore ? (
                         <View style={styles.loadingMore}>
@@ -600,7 +774,9 @@ export default function PostDetail() {
                 ListEmptyComponent={
                     !loading ? (
                         <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>Chưa có bài viết nào</Text>
+                            <Text style={styles.emptyText}>
+                                Chưa có bài viết nào
+                            </Text>
                         </View>
                     ) : null
                 }
@@ -618,7 +794,8 @@ export default function PostDetail() {
                             [activeCommentsPostId]: {
                                 ...prev[activeCommentsPostId],
                                 commentsCount:
-                                    (prev[activeCommentsPostId]?.commentsCount || 0) + 1,
+                                    (prev[activeCommentsPostId]
+                                        ?.commentsCount || 0) + 1,
                             },
                         }));
                     }}
@@ -633,26 +810,33 @@ export default function PostDetail() {
                 onRequestClose={closeAllOverlays}
             >
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    behavior={Platform.OS === "ios" ? "padding" : "height"}
                     style={styles.modalContainer}
                 >
-                    <TouchableOpacity 
-                        activeOpacity={1} 
-                        style={styles.modalOverlay} 
+                    <TouchableOpacity
+                        activeOpacity={1}
+                        style={styles.modalOverlay}
                         onPress={closeAllOverlays}
                     >
-                        <TouchableOpacity 
-                            activeOpacity={1} 
+                        <TouchableOpacity
+                            activeOpacity={1}
                             style={styles.editCaptionSheet}
                             onPress={(e) => e.stopPropagation()}
                         >
                             <View style={styles.sheetHeader}>
-                                <Text style={styles.sheetTitle}>Chỉnh sửa caption</Text>
-                                <TouchableOpacity onPress={closeAllOverlays} style={styles.closeButton}>
-                                    <Text style={styles.closeButtonText}>✕</Text>
+                                <Text style={styles.sheetTitle}>
+                                    Chỉnh sửa caption
+                                </Text>
+                                <TouchableOpacity
+                                    onPress={closeAllOverlays}
+                                    style={styles.closeButton}
+                                >
+                                    <Text style={styles.closeButtonText}>
+                                        ✕
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
-                            
+
                             <View style={styles.editCaptionContent}>
                                 <TextInput
                                     style={styles.captionTextInput}
@@ -668,19 +852,29 @@ export default function PostDetail() {
                                     {captionDraft.length}/2200
                                 </Text>
                             </View>
-                            
+
                             <View style={styles.editCaptionActions}>
-                                <TouchableOpacity 
-                                    style={[styles.actionButton, styles.cancelButton]} 
+                                <TouchableOpacity
+                                    style={[
+                                        styles.actionButton,
+                                        styles.cancelButton,
+                                    ]}
                                     onPress={closeAllOverlays}
                                 >
-                                    <Text style={styles.cancelButtonText}>Hủy</Text>
+                                    <Text style={styles.cancelButtonText}>
+                                        Hủy
+                                    </Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity 
-                                    style={[styles.actionButton, styles.saveButton]} 
+                                <TouchableOpacity
+                                    style={[
+                                        styles.actionButton,
+                                        styles.saveButton,
+                                    ]}
                                     onPress={submitCaptionEdit}
                                 >
-                                    <Text style={styles.saveButtonText}>Lưu</Text>
+                                    <Text style={styles.saveButtonText}>
+                                        Lưu
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
                         </TouchableOpacity>
@@ -690,22 +884,59 @@ export default function PostDetail() {
 
             {/* Options overlay - giống Home.js */}
             {showOptions && (
-                <TouchableOpacity activeOpacity={1} style={styles.overlay} onPress={closeAllOverlays}>
-                    <TouchableOpacity activeOpacity={0.95} style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+                <TouchableOpacity
+                    activeOpacity={1}
+                    style={styles.overlay}
+                    onPress={closeAllOverlays}
+                >
+                    <TouchableOpacity
+                        activeOpacity={0.95}
+                        style={styles.sheet}
+                        onPress={(e) => e.stopPropagation()}
+                    >
                         <Text style={styles.sheetTitle}>Tùy chọn</Text>
                         {(() => {
-                            const post = posts.find(x => x.id === optionsPostId);
+                            const post = posts.find(
+                                (x) => x.id === optionsPostId
+                            );
                             if (post && isOwner(post)) {
                                 return (
                                     <>
-                                        <TouchableOpacity style={styles.sheetItem} onPress={() => setShowPrivacySheet(true)}>
-                                            <Text style={styles.sheetItemText}>Chỉnh sửa quyền riêng tư</Text>
+                                        <TouchableOpacity
+                                            style={styles.sheetItem}
+                                            onPress={() =>
+                                                setShowPrivacySheet(true)
+                                            }
+                                        >
+                                            <Text style={styles.sheetItemText}>
+                                                Chỉnh sửa quyền riêng tư
+                                            </Text>
                                         </TouchableOpacity>
-                                        <TouchableOpacity style={styles.sheetItem} onPress={() => startEditCaption(post)}>
-                                            <Text style={styles.sheetItemText}>Chỉnh sửa bài đăng</Text>
+                                        <TouchableOpacity
+                                            style={styles.sheetItem}
+                                            onPress={() =>
+                                                startEditCaption(post)
+                                            }
+                                        >
+                                            <Text style={styles.sheetItemText}>
+                                                Chỉnh sửa bài đăng
+                                            </Text>
                                         </TouchableOpacity>
-                                        <TouchableOpacity style={[styles.sheetItem, { borderTopWidth: 0 }]} onPress={confirmDelete}>
-                                            <Text style={[styles.sheetItemText, { color: '#dc2626' }]}>Xóa bài đăng</Text>
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.sheetItem,
+                                                { borderTopWidth: 0 },
+                                            ]}
+                                            onPress={confirmDelete}
+                                        >
+                                            <Text
+                                                style={[
+                                                    styles.sheetItemText,
+                                                    { color: "#dc2626" },
+                                                ]}
+                                            >
+                                                Xóa bài đăng
+                                            </Text>
                                         </TouchableOpacity>
                                     </>
                                 );
@@ -713,11 +944,34 @@ export default function PostDetail() {
                             // Not owner: show limited actions
                             return (
                                 <>
-                                    <TouchableOpacity style={styles.sheetItem} onPress={() => { closeAllOverlays(); }}>
-                                        <Text style={styles.sheetItemText}>Báo cáo</Text>
+                                    <TouchableOpacity
+                                        style={styles.sheetItem}
+                                        onPress={() => {
+                                            closeAllOverlays();
+                                        }}
+                                    >
+                                        <Text style={styles.sheetItemText}>
+                                            Báo cáo
+                                        </Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity style={[styles.sheetItem, { borderTopWidth: 0 }]} onPress={() => { setPosts(prev => prev.filter(p => p.id !== optionsPostId)); closeAllOverlays(); }}>
-                                        <Text style={styles.sheetItemText}>Ẩn bài viết</Text>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.sheetItem,
+                                            { borderTopWidth: 0 },
+                                        ]}
+                                        onPress={() => {
+                                            setPosts((prev) =>
+                                                prev.filter(
+                                                    (p) =>
+                                                        p.id !== optionsPostId
+                                                )
+                                            );
+                                            closeAllOverlays();
+                                        }}
+                                    >
+                                        <Text style={styles.sheetItemText}>
+                                            Ẩn bài viết
+                                        </Text>
                                     </TouchableOpacity>
                                 </>
                             );
@@ -728,16 +982,32 @@ export default function PostDetail() {
 
             {/* Privacy choices overlay - giống Home.js */}
             {showOptions && showPrivacySheet && (
-                <TouchableOpacity activeOpacity={1} style={styles.overlay} onPress={closeAllOverlays}>
-                    <TouchableOpacity activeOpacity={0.95} style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-                        <Text style={styles.sheetTitle}>Chọn quyền riêng tư</Text>
+                <TouchableOpacity
+                    activeOpacity={1}
+                    style={styles.overlay}
+                    onPress={closeAllOverlays}
+                >
+                    <TouchableOpacity
+                        activeOpacity={0.95}
+                        style={styles.sheet}
+                        onPress={(e) => e.stopPropagation()}
+                    >
+                        <Text style={styles.sheetTitle}>
+                            Chọn quyền riêng tư
+                        </Text>
                         {[
-                            { k: 'public', label: 'Public' },
-                            { k: 'followers', label: 'Followers' },
-                            { k: 'private', label: 'Private' },
-                        ].map(opt => (
-                            <TouchableOpacity key={opt.k} style={styles.sheetItem} onPress={() => pickPrivacy(opt.k)}>
-                                <Text style={styles.sheetItemText}>{opt.label}</Text>
+                            { k: "public", label: "Public" },
+                            { k: "followers", label: "Followers" },
+                            { k: "private", label: "Private" },
+                        ].map((opt) => (
+                            <TouchableOpacity
+                                key={opt.k}
+                                style={styles.sheetItem}
+                                onPress={() => pickPrivacy(opt.k)}
+                            >
+                                <Text style={styles.sheetItemText}>
+                                    {opt.label}
+                                </Text>
                             </TouchableOpacity>
                         ))}
                     </TouchableOpacity>
@@ -755,32 +1025,32 @@ export default function PostDetail() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#fff' },
+    container: { flex: 1, backgroundColor: "#fff" },
     header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#DBDBDB',
-        backgroundColor: '#fff',
+        borderBottomColor: "#DBDBDB",
+        backgroundColor: "#fff",
     },
-    headerTitle: { fontSize: 18, fontWeight: '600', color: '#262626' },
+    headerTitle: { fontSize: 18, fontWeight: "600", color: "#262626" },
     post: {
-        backgroundColor: '#fff',
+        backgroundColor: "#fff",
         marginBottom: 8,
     },
     postHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
         paddingHorizontal: 12,
         paddingVertical: 10,
     },
     postHeaderLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         flex: 1,
     },
     postAvatar: {
@@ -791,102 +1061,102 @@ const styles = StyleSheet.create({
     },
     postUsername: {
         fontSize: 14,
-        fontWeight: '600',
-        color: '#262626',
+        fontWeight: "600",
+        color: "#262626",
     },
     postTimeContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         gap: 6,
         marginTop: 2,
     },
     postLocation: {
         fontSize: 12,
-        color: '#8E8E8E',
+        color: "#8E8E8E",
     },
     privacyPill: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         gap: 3,
         paddingHorizontal: 6,
         paddingVertical: 2,
         borderRadius: 4,
-        backgroundColor: '#f3f4f6',
+        backgroundColor: "#f3f4f6",
     },
     privacyText: {
         fontSize: 10,
-        color: '#374151',
+        color: "#374151",
     },
     headerActions: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
     },
     moreIcon: {
         fontSize: 24,
-        fontWeight: 'bold',
-        color: '#262626',
+        fontWeight: "bold",
+        color: "#262626",
     },
     postImageContainer: {
-        width: '100%',
+        width: "100%",
         aspectRatio: 1,
-        backgroundColor: '#000',
+        backgroundColor: "#000",
     },
     postImage: {
-        width: '100%',
-        height: '100%',
+        width: "100%",
+        height: "100%",
     },
     playOverlay: {
-        position: 'absolute',
+        position: "absolute",
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(0,0,0,0.1)',
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "rgba(0,0,0,0.1)",
     },
     carouselContainer: {
-        width: '100%',
+        width: "100%",
         aspectRatio: 1,
-        backgroundColor: '#000',
+        backgroundColor: "#000",
     },
     paginationDots: {
-        position: 'absolute',
+        position: "absolute",
         bottom: 16,
         left: 0,
         right: 0,
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
+        flexDirection: "row",
+        justifyContent: "center",
+        alignItems: "center",
     },
     dot: {
         width: 6,
         height: 6,
         borderRadius: 3,
-        backgroundColor: 'rgba(255,255,255,0.5)',
+        backgroundColor: "rgba(255,255,255,0.5)",
         marginHorizontal: 3,
     },
     activeDot: {
-        backgroundColor: '#fff',
+        backgroundColor: "#fff",
         width: 8,
         height: 8,
         borderRadius: 4,
     },
     postActions: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+        flexDirection: "row",
+        justifyContent: "space-between",
         paddingHorizontal: 12,
         paddingVertical: 8,
     },
     postActionsLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         gap: 16,
     },
     commentCount: {
         marginLeft: 6,
-        color: '#262626',
-        fontWeight: '600',
+        color: "#262626",
+        fontWeight: "600",
         fontSize: 14,
     },
     postStats: {
@@ -895,82 +1165,82 @@ const styles = StyleSheet.create({
     },
     likeCount: {
         fontSize: 14,
-        fontWeight: '600',
-        color: '#262626',
+        fontWeight: "600",
+        color: "#262626",
         marginBottom: 4,
     },
     captionText: {
         fontSize: 14,
-        color: '#262626',
+        color: "#262626",
         lineHeight: 18,
     },
     captionUsername: {
-        fontWeight: '600',
-        color: '#262626',
+        fontWeight: "600",
+        color: "#262626",
     },
     loadingMore: {
         paddingVertical: 20,
-        alignItems: 'center',
+        alignItems: "center",
     },
     emptyContainer: {
         flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
+        alignItems: "center",
+        justifyContent: "center",
         paddingVertical: 60,
     },
     emptyText: {
         fontSize: 16,
-        color: '#8E8E8E',
+        color: "#8E8E8E",
     },
     // Overlay styles - giống Home.js
     overlay: {
-        position: 'absolute',
+        position: "absolute",
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.4)',
-        justifyContent: 'flex-end',
+        backgroundColor: "rgba(0,0,0,0.4)",
+        justifyContent: "flex-end",
     },
     sheet: {
-        backgroundColor: '#fff',
+        backgroundColor: "#fff",
         padding: 16,
         borderTopLeftRadius: 16,
         borderTopRightRadius: 16,
-        paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+        paddingBottom: Platform.OS === "ios" ? 34 : 20,
     },
     sheetTitle: {
         fontSize: 16,
-        fontWeight: '700',
+        fontWeight: "700",
         marginBottom: 8,
-        textAlign: 'center',
+        textAlign: "center",
     },
     sheetItem: {
         paddingVertical: 12,
         borderTopWidth: 1,
-        borderTopColor: '#e5e7eb',
+        borderTopColor: "#e5e7eb",
     },
     sheetItemText: {
         fontSize: 16,
-        color: '#111827',
+        color: "#111827",
     },
     busyOverlay: {
-        position: 'absolute',
+        position: "absolute",
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(255,255,255,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
+        backgroundColor: "rgba(255,255,255,0.5)",
+        justifyContent: "center",
+        alignItems: "center",
     },
     spinner: {
         width: 40,
         height: 40,
         borderRadius: 20,
         borderWidth: 4,
-        borderColor: '#111827',
-        borderTopColor: 'transparent',
+        borderColor: "#111827",
+        borderTopColor: "transparent",
     },
     // Edit Caption Modal Styles
     modalContainer: {
@@ -978,55 +1248,55 @@ const styles = StyleSheet.create({
     },
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'flex-end',
+        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        justifyContent: "flex-end",
     },
     editCaptionSheet: {
-        backgroundColor: '#fff',
+        backgroundColor: "#fff",
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
-        paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-        maxHeight: '80%',
+        paddingBottom: Platform.OS === "ios" ? 34 : 20,
+        maxHeight: "80%",
     },
     sheetHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
         paddingHorizontal: 20,
         paddingVertical: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#e5e7eb',
+        borderBottomColor: "#e5e7eb",
     },
     closeButton: {
         padding: 4,
     },
     closeButtonText: {
         fontSize: 24,
-        color: '#666',
-        fontWeight: '300',
+        color: "#666",
+        fontWeight: "300",
     },
     editCaptionContent: {
         padding: 20,
     },
     captionTextInput: {
         fontSize: 16,
-        color: '#111827',
+        color: "#111827",
         minHeight: 120,
-        textAlignVertical: 'top',
+        textAlignVertical: "top",
         borderWidth: 1,
-        borderColor: '#e5e7eb',
+        borderColor: "#e5e7eb",
         borderRadius: 8,
         padding: 12,
     },
     charCounter: {
         fontSize: 12,
-        color: '#999',
-        textAlign: 'right',
+        color: "#999",
+        textAlign: "right",
         marginTop: 8,
     },
     editCaptionActions: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
+        flexDirection: "row",
+        justifyContent: "flex-end",
         paddingHorizontal: 20,
         paddingVertical: 12,
         gap: 12,
@@ -1037,19 +1307,19 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     cancelButton: {
-        backgroundColor: '#f3f4f6',
+        backgroundColor: "#f3f4f6",
     },
     cancelButtonText: {
-        color: '#111827',
-        fontWeight: '600',
+        color: "#111827",
+        fontWeight: "600",
         fontSize: 14,
     },
     saveButton: {
-        backgroundColor: '#111827',
+        backgroundColor: "#111827",
     },
     saveButtonText: {
-        color: '#fff',
-        fontWeight: '600',
+        color: "#fff",
+        fontWeight: "600",
         fontSize: 14,
     },
 });
