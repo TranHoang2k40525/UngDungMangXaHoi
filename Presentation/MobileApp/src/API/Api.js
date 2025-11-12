@@ -6,6 +6,7 @@ import { Platform } from "react-native";
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
 // Nếu test trên máy tính: dùng localhost
 // Nếu test trên điện thoại thật: dùng IP của máy tính (xem bằng ipconfig)
+export const API_BASE_URL = "http://192.168.1.102:5297"; // Backend đang chạy trên IP máy tính
 export const API_BASE_URL = "http://192.168.100.77:5297"; // Backend đang chạy trên IP máy tính
 
 // Hàm helper để gọi API
@@ -138,6 +139,11 @@ const apiCall = async (endpoint, options = {}) => {
             throw new Error(errorMessage);
         }
 
+    console.log("[API-CALL] API call successful");
+    return result;
+  } catch (error) {
+
+    console.error("[API-CALL] API Error:", error);
         console.log("[API-CALL] API call successful");
         return result;
     } catch (error) {
@@ -171,6 +177,21 @@ const apiCall = async (endpoint, options = {}) => {
 
 // Compress an image URI using expo-image-manipulator to avoid large uploads / OOM on Android
 const compressImage = async (uri, maxWidth = 1080, compress = 0.7) => {
+  try {
+    if (!uri) return uri;
+    console.log("[API] compressImage input:", uri);
+    const manip = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ resize: { width: maxWidth } }],
+      { compress, format: ImageManipulator.SaveFormat.JPEG }
+    );
+    console.log("[API] compressImage result:", manip?.uri);
+    return manip?.uri || uri;
+  } catch (e) {
+    console.warn("[API] compressImage failed, fallback to original uri", e);
+    return uri;
+
+  }
     try {
         if (!uri) return uri;
         console.log("[API] compressImage input:", uri);
@@ -332,6 +353,21 @@ export const updateAvatar = async ({
     postLocation = "",
     postPrivacy = "public",
 }) => {
+  const headers = await getAuthHeaders();
+  const form = new FormData();
+
+  // Compress avatar to reduce memory and upload size
+  try {
+    const compressed = await compressImage(uri, 800, 0.75);
+    uri = compressed || uri;
+  } catch (e) {
+    console.warn("[API] updateAvatar compress failed", e);
+  }
+  form.append("avatarFile", { uri, name, type });
+  form.append("CreatePost", createPost ? "true" : "false");
+  if (postCaption) form.append("PostCaption", postCaption);
+  if (postLocation) form.append("PostLocation", postLocation);
+  form.append("PostPrivacy", postPrivacy);
     const headers = await getAuthHeaders();
     const form = new FormData();
     // Compress avatar to reduce memory and upload size
@@ -494,6 +530,12 @@ export const createPost = async ({
     location = "",
     privacy = "public",
 }) => {
+  const headers = await getAuthHeaders();
+  const form = new FormData();
+  if (caption) form.append("Caption", caption);
+  if (location) form.append("Location", location);
+  form.append("Privacy", privacy);
+
     const headers = await getAuthHeaders();
     const form = new FormData();
     if (caption) form.append("Caption", caption);
@@ -582,6 +624,15 @@ export const getAllReels = async () => {
 
 // Get reels from users that current user is following
 export const getFollowingReels = async (page = 1, pageSize = 20) => {
+  const headers = await getAuthHeaders();
+  return apiCall(
+    `/api/posts/reels/following?page=${page}&pageSize=${pageSize}`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+
     const headers = await getAuthHeaders();
     return apiCall(
         `/api/posts/reels/following?page=${page}&pageSize=${pageSize}`,
@@ -652,6 +703,13 @@ export const getFollowers = async (userId) => {
 
 // Get following list
 export const getFollowing = async (userId) => {
+  const headers = await getAuthHeaders();
+  const result = await apiCall(`/api/users/${userId}/following`, {
+    method: "GET",
+    headers,
+  });
+  return result?.data || [];
+
     const headers = await getAuthHeaders();
     const result = await apiCall(`/api/users/${userId}/following`, {
         method: "GET",
@@ -662,6 +720,24 @@ export const getFollowing = async (userId) => {
 
 // Cập nhật quyền riêng tư của bài đăng
 export const updatePostPrivacy = async (postId, privacy) => {
+  const headers = await getAuthHeaders();
+
+  return apiCall(`/api/posts/${postId}/privacy`, {
+    method: "PATCH",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+
+    body: JSON.stringify({ Privacy: privacy }),
+  });
+  const text = await res.text();
+  let json = null; try { json = text ? JSON.parse(text) : null; } catch {}
+  if (!res.ok) {
+    throw new Error(json?.message || 'Không thể cập nhật quyền riêng tư');
+  }
+  return json; // server trả về post dto
     const headers = await getAuthHeaders();
     return apiCall(`/api/posts/${postId}/privacy`, {
         method: "PATCH",
@@ -676,6 +752,23 @@ export const updatePostPrivacy = async (postId, privacy) => {
 
 // Cập nhật caption bài đăng
 export const updatePostCaption = async (postId, caption) => {
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/posts/${postId}/caption`, {
+    method: "PATCH",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+
+    body: JSON.stringify({ Caption: caption }),
+  });
+  const text = await res.text();
+  let json = null; try { json = text ? JSON.parse(text) : null; } catch {}
+  if (!res.ok) {
+    throw new Error(json?.message || 'Không thể cập nhật caption');
+  }
+  return json;
     const headers = await getAuthHeaders();
     return apiCall(`/api/posts/${postId}/caption`, {
         method: "PATCH",
@@ -732,6 +825,187 @@ export const getReactionSummary = async (postId) => {
             Accept: "application/json",
         },
     });
+};
+
+// ====== COMMENTS API ======
+// Lấy danh sách comments của bài đăng
+export const getComments = async (postId, page = 1, pageSize = 20) => {
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/comments/${postId}?page=${page}&pageSize=${pageSize}`, {
+    method: "GET",
+    headers: {
+      ...headers,
+      Accept: "application/json",
+    },
+  });
+};
+
+// Lấy số lượng comments của bài đăng
+export const getCommentCount = async (postId) => {
+  const headers = await getAuthHeaders();
+  const result = await apiCall(`/api/comments/${postId}/count`, {
+    method: "GET",
+    headers: {
+      ...headers,
+      Accept: "application/json",
+    },
+  });
+  return result?.count || 0;
+};
+
+// Thêm comment mới
+export const addComment = async (postId, content, parentCommentId = null) => {
+  const headers = await getAuthHeaders();
+  return apiCall("/api/comments", {
+    method: "POST",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ postId, content, parentCommentId }),
+  });
+};
+
+// Sửa comment
+export const updateComment = async (commentId, content) => {
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/comments/${commentId}`, {
+    method: "PUT",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ content }),
+  });
+};
+
+// Xóa comment
+export const deleteComment = async (commentId) => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/comments/${commentId}`, {
+    method: "DELETE",
+    headers: { ...headers, Accept: "application/json" },
+  });
+  if (!res.ok && res.status !== 204) {
+    const text = await res.text();
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {}
+    throw new Error(json?.message || "Không thể xóa comment");
+  }
+  return true;
+};
+
+// Thêm reaction cho comment
+// reactionType: "Like", "Love", "Haha", "Wow", "Sad", "Angry" (string, not number)
+export const addCommentReaction = async (commentId, reactionType = "Like") => {
+  const headers = await getAuthHeaders();
+  return apiCall("/api/comments/reactions", {
+    method: "POST",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ commentId, reactionType }),
+  });
+};
+
+// Xóa reaction khỏi comment
+export const removeCommentReaction = async (commentId) => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/comments/${commentId}/react`, {
+    method: "DELETE",
+    headers: { ...headers, Accept: "application/json" },
+  });
+  if (!res.ok && res.status !== 204) {
+    const text = await res.text();
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {}
+    throw new Error(json?.message || "Không thể xóa reaction");
+  }
+  return true;
+};
+
+// =================== STORIES APIs ===================
+// Create story (multipart/form-data): Media (file), MediaType (image|video), Privacy
+export const createStory = async ({ media, mediaType = 'image', privacy = 'public', userId = null }) => {
+  const headers = await getAuthHeaders();
+  const form = new FormData();
+  form.append('MediaType', mediaType);
+  form.append('Privacy', privacy);
+  if (userId) form.append('UserId', String(userId));
+  if (media) {
+    form.append('Media', {
+      uri: media.uri,
+      name: media.name || (mediaType === 'video' ? 'story_video.mp4' : 'story_image.jpg'),
+      type: media.type || (mediaType === 'video' ? 'video/mp4' : 'image/jpeg'),
+    });
+  }
+
+  const res = await fetch(`${API_BASE_URL}/api/stories`, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      Accept: 'application/json',
+    },
+    body: form,
+  });
+
+  const text = await res.text();
+  console.log('[createStory] response status:', res.status);
+  console.log('[createStory] response text:', text);
+  let json = null; try { json = text ? JSON.parse(text) : null; } catch (e) { console.warn('[createStory] failed to parse json', e); }
+  if (!res.ok) {
+    // Provide detailed error in client logs to help diagnose 404/500
+    const serverMsg = json?.message || json?.Message || text || `Tạo story thất bại (${res.status})`;
+    throw new Error(serverMsg);
+  }
+  return json;
+};
+
+export const getUserStories = async (userId) => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/stories/user/${userId}`, { headers });
+  if (!res.ok) throw new Error('Không lấy được stories của user');
+  return res.json();
+};
+
+export const getFeedStories = async () => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/stories/feed`, { headers });
+  if (!res.ok) throw new Error('Không lấy được feed stories');
+  return res.json();
+};
+
+export const viewStory = async (storyId) => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/stories/${storyId}/view`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) throw new Error('Không ghi được lượt xem');
+  return res.json();
+};
+
+export const deleteStory = async (storyId) => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/stories/${storyId}`, {
+    method: 'DELETE',
+    headers: { ...headers, Accept: 'application/json' },
+  });
+  if (!res.ok && res.status !== 204) {
+    const text = await res.text();
+    let json = null; try { json = text ? JSON.parse(text) : null; } catch {}
+    throw new Error(json?.message || 'Không thể xóa story');
+  }
+  return true;
 };
 
 // ====== SEARCH API ======

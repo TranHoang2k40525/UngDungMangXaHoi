@@ -27,6 +27,7 @@ import { useUser } from '../Context/UserContext';
 import { useFollow } from '../Context/FollowContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Slider from '@react-native-community/slider';
+import CommentsModal from './CommentsModal';
 
 // Component wrapper cho mỗi video item để dùng useVideoPlayer hook
 const ReelVideoPlayer = React.memo(({ 
@@ -289,6 +290,11 @@ export default function Reels() {
   const [editingCaption, setEditingCaption] = useState(false);
   const [captionDraft, setCaptionDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  
+  // Comments modal state
+  const [showComments, setShowComments] = useState(false);
+  const [selectedPostIdForComments, setSelectedPostIdForComments] = useState(null);
+  
   // tap gesture helpers
   const tapTimerRef = useRef(null);
   const tapTimesRef = useRef([]);
@@ -990,7 +996,13 @@ export default function Reels() {
         {/* Right-side vertical actions, centered */}
         <View pointerEvents="box-none" style={styles.actionsColumn}>
           <TouchableOpacity style={styles.sideBtn}><Ionicons name="heart-outline" size={28} color="#fff" /><Text style={styles.sideCount}>0</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.sideBtn}><Ionicons name="chatbubble-outline" size={28} color="#fff" /><Text style={styles.sideCount}>0</Text></TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.sideBtn}
+            onPress={() => handleOpenComments(item?.id)}
+          >
+            <Ionicons name="chatbubble-outline" size={28} color="#fff" />
+            <Text style={styles.sideCount}>{item?.commentsCount || 0}</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.sideBtn}><Ionicons name="paper-plane-outline" size={28} color="#fff" /><Text style={styles.sideCount}>0</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.sideBtn,{marginTop:6}]} onPress={() => { 
             console.log('[REELS] Open options for index', index, 'postId', item?.id);
@@ -1026,6 +1038,24 @@ export default function Reels() {
     setShowPrivacySheet(false);
     setEditingCaption(false);
     setCaptionDraft('');
+  };
+
+  // Handler to open comments modal
+  const handleOpenComments = (postId) => {
+    console.log('[Video] Opening comments for postId:', postId);
+    setSelectedPostIdForComments(postId);
+    setShowComments(true);
+  };
+
+  // Callback when comment is added
+  const handleCommentAdded = (postId) => {
+    console.log('[Video] Comment added for postId:', postId);
+    // Update comments count in reels array
+    setReels(prev => prev.map(p => 
+      p.id === postId 
+        ? { ...p, commentsCount: (p.commentsCount || 0) + 1 }
+        : p
+    ));
   };
 
   const pickPrivacy = async (privacyKey) => {
@@ -1289,6 +1319,15 @@ export default function Reels() {
           )}
         </View>
       </View>
+
+      {/* Comments Modal */}
+      <CommentsModal
+        visible={showComments}
+        onClose={() => setShowComments(false)}
+        postId={selectedPostIdForComments}
+        navigation={navigation}
+        onCommentAdded={handleCommentAdded}
+      />
     </SafeAreaView>
   );
 }

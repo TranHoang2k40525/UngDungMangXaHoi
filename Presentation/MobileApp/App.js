@@ -21,6 +21,7 @@ import CreatePost from "./src/Home/CreatePost";
 import SharePost from "./src/Home/SharePost";
 import StoryViewer from "./src/Home/StoryViewer";
 import CommentsModal from "./src/Home/CommentsModal";
+import CreateStory from "./src/Home/CreateStory";
 
 import Doanchat from "./src/Messegers/Doanchat";
 import Messenger from "./src/Messegers/Messenger";
@@ -243,6 +244,7 @@ function MainTabs() {
             <Tab.Screen name="CreatePost" component={CreatePost} />
             <Tab.Screen name="Video" component={Video} />
             <Tab.Screen name="Profile" component={Profile} />
+
         </Tab.Navigator>
     );
 }
@@ -292,6 +294,7 @@ function AppNavigator() {
                         <Stack.Screen name="MainTabs" component={MainTabs} />
                         <Stack.Screen name="Messenger" component={Messenger} />
                         <Stack.Screen name="Doanchat" component={Doanchat} />
+                        <Stack.Screen name="CreateStory" component={CreateStory} />
                         <Stack.Screen
                             name="ChangePassword"
                             component={ChangePassword}

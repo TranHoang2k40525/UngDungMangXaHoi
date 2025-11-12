@@ -11,6 +11,7 @@ namespace UngDungMangXaHoi.Domain.Interfaces
         Task<User?> GetByAccountIdAsync(int accountId);
         Task<User?> GetByEmailAsync(Email email);
         Task<User?> GetByUserNameAsync(UserName userName);
+        Task<User?> GetByUsernameAsync(string username);
         Task<IEnumerable<User>> GetAllAsync();
         Task<IEnumerable<User>> GetUsersByIdsAsync(IEnumerable<int> userIds);
         Task<User> AddAsync(User user);

@@ -8,10 +8,12 @@ using UngDungMangXaHoi.Infrastructure.Repositories;
 using UngDungMangXaHoi.Infrastructure.Services;
 using UngDungMangXaHoi.Infrastructure.ExternalServices;
 using UngDungMangXaHoi.Application.Services;
+using UngDungMangXaHoi.WebAPI.Services;
 using UngDungMangXaHoi.Application.UseCases.Users;
 using UngDungMangXaHoi.Domain.Interfaces;
-using System.Text.Json.Serialization; // Thêm namespace này
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.FileProviders;
+using UngDungMangXaHoi.Presentation.WebAPI.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +26,7 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()); // Thêm dòng này
     });
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -31,7 +34,9 @@ builder.Services.AddSwaggerGen(options =>
     options.CustomSchemaIds(type => (type.FullName ?? type.Name).Replace("+", "."));
 });
 
-// Database configuration - ƯU TIÊN appsettings.json, fallback .env
+// ======================================
+// Database Configuration (ưu tiên appsettings.json, fallback .env)
+// ======================================
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 // Chỉ dùng env vars nếu connection string không có trong appsettings.json
@@ -57,11 +62,11 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(conn
 var jwtAccessSecret = Environment.GetEnvironmentVariable("JWT_ACCESS_SECRET") 
     ?? builder.Configuration["JwtSettings:AccessSecret"] 
     ?? "kkwefihewofjevwljflwljgjewjwjegljlwflwflew";
-    
+
 var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER") 
     ?? builder.Configuration["JwtSettings:Issuer"] 
     ?? "UngDungMangXaHoi";
-    
+
 var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") 
     ?? builder.Configuration["JwtSettings:Audience"] 
     ?? "UngDungMangXaHoi";
@@ -99,42 +104,62 @@ builder.Services.AddScoped<IOTPRepository, OTPRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<ILoginHistoryRepository, LoginHistoryRepository>();
 builder.Services.AddScoped<IPostRepository, PostRepository>();
+builder.Services.AddScoped<IStoryRepository, StoryRepository>();
 builder.Services.AddScoped<IReactionRepository, ReactionRepository>();
 builder.Services.AddScoped<IShareRepository, ShareRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 
-// Services
+// ======================================
+// 6️⃣ Đăng ký Service
+// ======================================
+builder.Services.AddScoped<StoryService>();
 builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddScoped<ITokenService, AuthService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, EmailService>();
 builder.Services.AddScoped<UserProfileService>();
+builder.Services.AddScoped<JwtTokenService>();
+
+// Dịch vụ chạy nền để dọn Story hết hạn
+builder.Services.AddHostedService<ExpiredStoriesCleanupService>();
 builder.Services.AddScoped<VideoTranscodeService>();
 builder.Services.AddScoped<ReactionService>();
 builder.Services.AddScoped<ShareService>();
 builder.Services.AddScoped<NotificationManagementService>();
+builder.Services.AddScoped<CommentService>();
 builder.Services.AddScoped<SearchService>();
 builder.Services.AddScoped<IRealTimeNotificationService, UngDungMangXaHoi.Presentation.WebAPI.Hubs.SignalRNotificationService>();
 
 // External Services
 builder.Services.AddScoped<CloudinaryService>(provider =>
 {
-    var config = builder.Configuration.GetSection("Cloudinary");
-    return new CloudinaryService(
-        config["CloudName"] ?? "",
-        config["ApiKey"] ?? "",
-        config["ApiSecret"] ?? ""
-    );
+    var cloudName = Environment.GetEnvironmentVariable("CLOUDINARY_CLOUD_NAME")
+                    ?? builder.Configuration["Cloudinary:CloudName"]
+                    ?? "";
+    var apiKey = Environment.GetEnvironmentVariable("CLOUDINARY_API_KEY")
+                 ?? builder.Configuration["Cloudinary:ApiKey"]
+                 ?? "";
+    var apiSecret = Environment.GetEnvironmentVariable("CLOUDINARY_API_SECRET")
+                    ?? builder.Configuration["Cloudinary:ApiSecret"]
+                    ?? "";
+
+    Console.WriteLine($"[CLOUDINARY] ✅ Using cloud: {cloudName}");
+
+    return new CloudinaryService(cloudName, apiKey, apiSecret);
 });
 
-// Đăng ký JwtTokenService
-builder.Services.AddScoped<JwtTokenService>();
-// Use Cases
+// ======================================
+//  Use Case Layer
+// ======================================
 builder.Services.AddScoped<RegisterUser>();
 builder.Services.AddScoped<LoginUser>();
 builder.Services.AddScoped<UpdateProfile>();
 
+// ======================================
+// CORS
+// ======================================
 // SignalR
 builder.Services.AddSignalR();
 
@@ -150,18 +175,25 @@ builder.Services.AddCors(options =>
     });
 });
 
+// ======================================
+// Build App
+// ======================================
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// ======================================
+// 🔹 Middleware Pipeline
+// ======================================
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// app.UseHttpsRedirection(); // Comment out for development
+// app.UseHttpsRedirection(); // Bỏ qua trong dev
+
 app.UseCors("AllowAll");
-// Serve static files from Assets folder (Images, Videos) with Range support and proper content types
+
+// Serve thư mục Assets (ảnh/video upload)
 var assetsPath = Path.Combine(Directory.GetCurrentDirectory(), "Assets");
 if (!Directory.Exists(assetsPath))
 {
@@ -196,5 +228,6 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<UngDungMangXaHoi.Presentation.WebAPI.Hubs.NotificationHub>("/hubs/notifications");
+app.MapHub<CommentHub>("/hubs/comments");
 
 app.Run();

@@ -10,7 +10,7 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
         {
         }
 
-        // DbSets
+        // DbSets for each entity
     public DbSet<Account> Accounts { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<Admin> Admins { get; set; } = null!;
@@ -23,6 +23,14 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
     public DbSet<Reaction> Reactions { get; set; } = null!;
     public DbSet<Share> Shares { get; set; } = null!;
     public DbSet<Notification> Notifications { get; set; } = null!;
+    public DbSet<Comment> Comments { get; set; } = null!;
+    public DbSet<CommentMention> CommentMentions { get; set; } = null!;
+    public DbSet<CommentReaction> CommentReactions { get; set; } = null!;
+    public DbSet<CommentEditHistory> CommentEditHistories { get; set; } = null!;
+    // Stories
+    public DbSet<Story> Stories { get; set; }
+    public DbSet<StoryView> StoryViews { get; set; }
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -41,6 +49,12 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new ReactionConfiguration());
             modelBuilder.ApplyConfiguration(new ShareConfiguration());
             modelBuilder.ApplyConfiguration(new NotificationConfiguration());
+            modelBuilder.ApplyConfiguration(new CommentConfiguration());
+            modelBuilder.ApplyConfiguration(new CommentMentionConfiguration());
+            modelBuilder.ApplyConfiguration(new CommentReactionConfiguration());
+            modelBuilder.ApplyConfiguration(new CommentEditHistoryConfiguration());
+            modelBuilder.ApplyConfiguration(new StoryConfiguration());
+            modelBuilder.ApplyConfiguration(new StoryViewConfiguration());
         }
     }
 }
