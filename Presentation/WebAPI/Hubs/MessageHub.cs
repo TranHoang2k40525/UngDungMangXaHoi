@@ -1,0 +1,275 @@
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
+using UngDungMangXaHoi.Application.DTOs;
+using UngDungMangXaHoi.Application.Services;
+using UngDungMangXaHoi.Infrastructure.Persistence;
+
+namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
+{
+    [Authorize]
+    public class MessageHub : Hub
+    {
+        private readonly MessageService _messageService;
+        private readonly AppDbContext _context;
+        private static readonly ConcurrentDictionary<int, string> _userConnections = new();
+
+        public MessageHub(MessageService messageService, AppDbContext context)
+        {
+            _messageService = messageService;
+            _context = context;
+        }
+
+        public override async Task OnConnectedAsync()
+        {
+            // JWT sử dụng "nameid" cho user ID, không phải "user_id"
+            var userIdClaim = Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+                              ?? Context.User?.FindFirst("nameid")?.Value 
+                              ?? Context.User?.FindFirst("user_id")?.Value;
+            
+            if (int.TryParse(userIdClaim, out int userId))
+            {
+                _userConnections.TryAdd(userId, Context.ConnectionId);
+                Console.WriteLine($"[MessageHub] User {userId} connected with ConnectionId: {Context.ConnectionId}");
+                
+                // Thông báo cho user đã online
+                await Clients.Others.SendAsync("UserOnline", userId);
+            }
+            else
+            {
+                Console.WriteLine($"[MessageHub] OnConnectedAsync - user_id claim not found. Claims: {string.Join(", ", Context.User?.Claims.Select(c => $"{c.Type}={c.Value}") ?? new string[0])}");
+            }
+
+            await base.OnConnectedAsync();
+        }
+
+        public override async Task OnDisconnectedAsync(Exception? exception)
+        {
+            // JWT sử dụng "nameid" cho user ID, không phải "user_id"
+            var userIdClaim = Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+                              ?? Context.User?.FindFirst("nameid")?.Value 
+                              ?? Context.User?.FindFirst("user_id")?.Value;
+            
+            if (int.TryParse(userIdClaim, out int userId))
+            {
+                _userConnections.TryRemove(userId, out _);
+                Console.WriteLine($"[MessageHub] User {userId} disconnected");
+                
+                // Lưu thời điểm offline vào database
+                try
+                {
+                    await _context.Users
+                        .Where(u => u.user_id == userId)
+                        .ExecuteUpdateAsync(u => u.SetProperty(x => x.last_seen, DateTime.UtcNow));
+                    Console.WriteLine($"[MessageHub] Updated last_seen for user {userId}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[MessageHub] Error updating last_seen: {ex.Message}");
+                }
+                
+                // Thông báo cho user đã offline
+                await Clients.Others.SendAsync("UserOffline", userId);
+            }
+
+            await base.OnDisconnectedAsync(exception);
+        }
+
+        // Gửi tin nhắn
+        public async Task SendMessage(SendMessageDto dto)
+        {
+            try
+            {
+                // JWT sử dụng "nameid" cho user ID, không phải "user_id"
+                var userIdClaim = Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+                                  ?? Context.User?.FindFirst("nameid")?.Value 
+                                  ?? Context.User?.FindFirst("user_id")?.Value;
+                
+                if (!int.TryParse(userIdClaim, out int senderId))
+                {
+                    Console.WriteLine($"[MessageHub] SendMessage - Unauthorized. Claims: {string.Join(", ", Context.User?.Claims.Select(c => $"{c.Type}={c.Value}") ?? new string[0])}");
+                    await Clients.Caller.SendAsync("Error", "Unauthorized");
+                    return;
+                }
+
+                Console.WriteLine($"[MessageHub] SendMessage - senderId: {senderId}, receiverId: {dto.receiver_id}, content: {dto.content}");
+
+                // Gửi tin nhắn qua service
+                var message = await _messageService.SendMessageAsync(senderId, dto);
+
+                if (message == null)
+                {
+                    await Clients.Caller.SendAsync("Error", "Failed to send message");
+                    return;
+                }
+
+                // Gửi tin nhắn cho người gửi (confirmation)
+                await Clients.Caller.SendAsync("MessageSent", message);
+
+                // Gửi tin nhắn cho người nhận nếu họ đang online
+                if (_userConnections.TryGetValue(dto.receiver_id, out string? receiverConnectionId))
+                {
+                    await Clients.Client(receiverConnectionId).SendAsync("ReceiveMessage", message);
+                }
+
+                Console.WriteLine($"[MessageHub] Message sent from {senderId} to {dto.receiver_id}");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                await Clients.Caller.SendAsync("Error", ex.Message);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MessageHub] Error: {ex.Message}");
+                await Clients.Caller.SendAsync("Error", "An error occurred while sending message");
+            }
+        }
+
+        // Đánh dấu đã đọc
+        public async Task MarkAsRead(int conversationId)
+        {
+            try
+            {
+                var userIdClaim = Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+                                  ?? Context.User?.FindFirst("nameid")?.Value 
+                                  ?? Context.User?.FindFirst("user_id")?.Value;
+                
+                if (!int.TryParse(userIdClaim, out int userId))
+                {
+                    await Clients.Caller.SendAsync("Error", "Unauthorized");
+                    return;
+                }
+
+                await _messageService.MarkAsReadAsync(conversationId, userId);
+
+                // Thông báo cho người gửi rằng tin nhắn đã được đọc
+                await Clients.Caller.SendAsync("MessagesRead", new { conversationId, userId });
+
+                Console.WriteLine($"[MessageHub] User {userId} marked conversation {conversationId} as read");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MessageHub] Error marking as read: {ex.Message}");
+                await Clients.Caller.SendAsync("Error", "An error occurred");
+            }
+        }
+
+        // Typing indicator
+        public async Task UserTyping(int receiverId, bool isTyping)
+        {
+            try
+            {
+                var userIdClaim = Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+                                  ?? Context.User?.FindFirst("nameid")?.Value 
+                                  ?? Context.User?.FindFirst("user_id")?.Value;
+                
+                if (!int.TryParse(userIdClaim, out int senderId))
+                {
+                    return;
+                }
+
+                if (_userConnections.TryGetValue(receiverId, out string? receiverConnectionId))
+                {
+                    await Clients.Client(receiverConnectionId).SendAsync("UserTyping", new 
+                    { 
+                        userId = senderId, 
+                        isTyping 
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MessageHub] Error in UserTyping: {ex.Message}");
+            }
+        }
+
+        // Lấy danh sách users online
+        public async Task GetOnlineUsers()
+        {
+            try
+            {
+                var onlineUserIds = _userConnections.Keys.ToList();
+                await Clients.Caller.SendAsync("OnlineUsers", onlineUserIds);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MessageHub] Error getting online users: {ex.Message}");
+            }
+        }
+
+        // Xóa tin nhắn
+        public async Task DeleteMessage(int messageId)
+        {
+            try
+            {
+                var userIdClaim = Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+                                  ?? Context.User?.FindFirst("nameid")?.Value 
+                                  ?? Context.User?.FindFirst("user_id")?.Value;
+                
+                if (!int.TryParse(userIdClaim, out int userId))
+                {
+                    await Clients.Caller.SendAsync("Error", "Unauthorized");
+                    return;
+                }
+
+                var success = await _messageService.DeleteMessageAsync(messageId, userId);
+
+                if (success)
+                {
+                    await Clients.Caller.SendAsync("MessageDeleted", messageId);
+                    Console.WriteLine($"[MessageHub] Message {messageId} deleted by user {userId}");
+                }
+                else
+                {
+                    await Clients.Caller.SendAsync("Error", "Failed to delete message");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MessageHub] Error deleting message: {ex.Message}");
+                await Clients.Caller.SendAsync("Error", "An error occurred");
+            }
+        }
+
+        // Thu hồi tin nhắn
+        public async Task RecallMessage(int messageId)
+        {
+            try
+            {
+                var userIdClaim = Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+                                  ?? Context.User?.FindFirst("nameid")?.Value 
+                                  ?? Context.User?.FindFirst("user_id")?.Value;
+                
+                if (!int.TryParse(userIdClaim, out int userId))
+                {
+                    await Clients.Caller.SendAsync("Error", "Unauthorized");
+                    return;
+                }
+
+                Console.WriteLine($"[MessageHub] RecallMessage - messageId: {messageId}, userId: {userId}");
+
+                var recalledMessage = await _messageService.RecallMessageAsync(messageId, userId);
+
+                if (recalledMessage == null)
+                {
+                    await Clients.Caller.SendAsync("Error", "Failed to recall message");
+                    return;
+                }
+
+                // Broadcast to both sender and receiver
+                await Clients.All.SendAsync("MessageRecalled", recalledMessage);
+                Console.WriteLine($"[MessageHub] Message {messageId} recalled by user {userId}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MessageHub] Error recalling message: {ex.Message}");
+                await Clients.Caller.SendAsync("Error", "An error occurred");
+            }
+        }
+    }
+}
