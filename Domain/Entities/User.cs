@@ -25,7 +25,7 @@ namespace UngDungMangXaHoi.Domain.Entities
         public string? hometown { get; set; }
         public string? job { get; set; }
         public string? website { get; set; }
-
+public DateTime? last_seen { get; set; } // Track when user was last online
         public Account Account { get; set; } = null!;
     }
 }

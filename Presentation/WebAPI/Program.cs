@@ -114,7 +114,8 @@ builder.Services.AddScoped<IShareRepository, ShareRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddScoped<IBlockRepository, BlockRepository>();
-
+builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
+builder.Services.AddScoped<IMessageRepository, MessageRepository>();
 // ======================================
 // 6️⃣ Đăng ký Service
 // ======================================
@@ -135,6 +136,7 @@ builder.Services.AddScoped<ShareService>();
 builder.Services.AddScoped<NotificationManagementService>();
 builder.Services.AddScoped<CommentService>();
 builder.Services.AddScoped<SearchService>();
+builder.Services.AddScoped<MessageService>();
 builder.Services.AddScoped<IRealTimeNotificationService, UngDungMangXaHoi.Presentation.WebAPI.Hubs.SignalRNotificationService>();
 
 // External Services
@@ -252,11 +254,31 @@ app.UseStaticFiles(new StaticFileOptions
         }
     }
 });
+
+// Serve uploaded images
+var uploadsPath = Path.Combine(builder.Environment.ContentRootPath, "Uploads");
+if (!Directory.Exists(uploadsPath))
+{
+    Directory.CreateDirectory(uploadsPath);
+}
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(uploadsPath),
+    RequestPath = "/uploads",
+    ContentTypeProvider = contentTypeProvider,
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers["Cache-Control"] = "public, max-age=604800"; // 7 days
+    }
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<UngDungMangXaHoi.Presentation.WebAPI.Hubs.NotificationHub>("/hubs/notifications");
 app.MapHub<CommentHub>("/hubs/comments");
+app.MapHub<MessageHub>("/hubs/messages");
 
 app.Run();

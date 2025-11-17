@@ -31,6 +31,9 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
     // Stories
     public DbSet<Story> Stories { get; set; }
     public DbSet<StoryView> StoryViews { get; set; }
+    // Messages - New messaging system
+    public DbSet<Conversation> ConversationsNew { get; set; } = null!;
+    public DbSet<Message> MessagesNew { get; set; } = null!;
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -57,6 +60,8 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new CommentEditHistoryConfiguration());
             modelBuilder.ApplyConfiguration(new StoryConfiguration());
             modelBuilder.ApplyConfiguration(new StoryViewConfiguration());
+            modelBuilder.ApplyConfiguration(new ConversationConfiguration());
+            modelBuilder.ApplyConfiguration(new MessageConfiguration());
         }
     }
 }
