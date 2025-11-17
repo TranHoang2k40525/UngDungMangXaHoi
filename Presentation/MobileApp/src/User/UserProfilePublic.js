@@ -231,7 +231,7 @@ export default function UserProfilePublic() {
 
       <ScrollView 
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 16 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
         refreshControl={
           <RefreshControl 
             refreshing={refreshing} 
