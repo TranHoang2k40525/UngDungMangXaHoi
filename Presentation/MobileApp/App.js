@@ -25,6 +25,14 @@ import CreateStory from "./src/Home/CreateStory";
 
 import Doanchat from "./src/Messegers/Doanchat";
 import Messenger from "./src/Messegers/Messenger";
+import GroupListScreen from "./src/Messegers/GroupListScreen";
+import GroupDetailScreen from "./src/Messegers/GroupDetailScreen";
+import GroupChatScreen from "./src/Messegers/GroupChatScreen";
+import GroupMembersScreen from "./src/Messegers/GroupMembersScreen";
+import PinnedMessagesScreen from "./src/Messegers/PinnedMessagesScreen";
+import MediaLinksScreen from "./src/Messegers/MediaLinksScreen";
+import InviteMemberScreen from "./src/Messegers/InviteMemberScreen";
+import CreateGroupScreen from "./src/Messegers/CreateGroupScreen";
 import Search from "./src/Searchs/Search";
 import Profile from "./src/User/Profile";
 import UserProfilePublic from "./src/User/UserProfilePublic";
@@ -294,6 +302,14 @@ function AppNavigator() {
                         <Stack.Screen name="MainTabs" component={MainTabs} />
                         <Stack.Screen name="Messenger" component={Messenger} />
                         <Stack.Screen name="Doanchat" component={Doanchat} />
+                        <Stack.Screen name="GroupList" component={GroupListScreen} />
+                        <Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
+                        <Stack.Screen name="GroupChat" component={GroupChatScreen} />
+                        <Stack.Screen name="GroupMembers" component={GroupMembersScreen} />
+                        <Stack.Screen name="PinnedMessages" component={PinnedMessagesScreen} />
+                        <Stack.Screen name="MediaLinks" component={MediaLinksScreen} />
+                        <Stack.Screen name="InviteMember" component={InviteMemberScreen} />
+                        <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
                         <Stack.Screen name="CreateStory" component={CreateStory} />
                         <Stack.Screen
                             name="ChangePassword"

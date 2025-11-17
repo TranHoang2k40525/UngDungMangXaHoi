@@ -6,7 +6,8 @@ import { Platform } from "react-native";
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
 // Nếu test trên máy tính: dùng localhost
 // Nếu test trên điện thoại thật: dùng IP của máy tính (xem bằng ipconfig)
-export const API_BASE_URL = "http://10.181.28.105:5297"; // Backend đang chạy trên IP máy tính
+export const API_BASE_URL = "http://192.168.1.102:5297"; // Backend đang chạy trên IP máy tính
+
 
 // Hàm helper để gọi API
 const apiCall = async (endpoint, options = {}) => {
@@ -349,6 +350,7 @@ export const updateAvatar = async ({
   return json;
 };
 
+
 // =================== BLOCK APIs ===================
 export const blockUser = async (userId) => {
   const headers = await getAuthHeaders();
@@ -372,6 +374,45 @@ export const getBlockedUsers = async () => {
   return result?.data || [];
 };
 
+
+
+// Upload group avatar and persist on server
+export const uploadGroupAvatar = async (conversationId, { uri, name = 'group_avatar.jpg', type = 'image/jpeg' }) => {
+  const headers = await getAuthHeaders();
+  const form = new FormData();
+
+  try {
+    const compressed = await compressImage(uri, 1080, 0.8);
+    uri = compressed || uri;
+  } catch (e) {
+    console.warn('[API] uploadGroupAvatar compress failed', e);
+  }
+
+  // Normalize iOS ph:// URIs
+  try { uri = await normalizeUri(uri); } catch (e) { console.warn('[API] normalizeUri failed', e); }
+
+  form.append('file', { uri, name, type });
+
+  const res = await fetch(`${API_BASE_URL}/api/groupchat/${conversationId}/avatar`, {
+    method: 'POST',
+    headers: {
+      ...headers,
+      Accept: 'application/json',
+    },
+    body: form,
+  });
+
+  const text = await res.text();
+  let json = null;
+  try { json = text ? JSON.parse(text) : null; } catch (e) { console.warn('[API] uploadGroupAvatar parse error', e); }
+
+  if (!res.ok) {
+    throw new Error(json?.message || `Upload thất bại (${res.status})`);
+  }
+
+  // return { success: true, data: { avatarUrl } }
+  return json;
+};
 
 // Quên mật khẩu
 export const forgotPassword = async (email) => {
@@ -634,6 +675,21 @@ export const getUserProfile = async (userId) => {
     headers,
   });
   return result?.data || null;
+};
+
+// Tìm user theo username - Gọi endpoint backend để lấy thông tin user
+export const getUserByUsername = async (username) => {
+  try {
+    const headers = await getAuthHeaders();
+    const result = await apiCall(`/api/users/username/${encodeURIComponent(username)}/profile`, {
+      method: "GET",
+      headers,
+    });
+    return result?.data || null;
+  } catch (error) {
+    console.log('[API] getUserByUsername error:', error);
+    return null;
+  }
 };
 
 // Follow user
@@ -1084,4 +1140,193 @@ export const instantSearchPosts = async (query, limit = 5) => {
             headers,
         }
     );
+  };
+// ============================================
+// GROUP CHAT APIs
+// ============================================
+
+// Lấy thông tin chi tiết của một nhóm chat
+export const getGroupInfo = async (conversationId) => {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/groupchat/${conversationId}`, {
+      method: 'GET',
+      headers: { ...headers, Accept: 'application/json' },
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorJson = null;
+      try { errorJson = errorText ? JSON.parse(errorText) : null; } catch {}
+      throw new Error(errorJson?.message || `HTTP error! status: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.log('[API] getGroupInfo error:', error);
+    throw error;
+  }
+};
+
+// Lấy danh sách thành viên của một nhóm
+export const getGroupMembers = async (conversationId) => {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/groupchat/${conversationId}/members`, {
+      method: 'GET',
+      headers: { ...headers, Accept: 'application/json' },
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorJson = null;
+      try { errorJson = errorText ? JSON.parse(errorText) : null; } catch {}
+      throw new Error(errorJson?.message || `HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data.members || [];
+  } catch (error) {
+    console.log('[API] getGroupMembers error:', error);
+    throw error;
+  }
+};
+
+// Update group name via API (persist and let server broadcast)
+export const updateGroupName = async (conversationId, newName) => {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE_URL}/api/groupchat/${conversationId}/name`, {
+    method: 'PUT',
+    headers: { ...headers, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ name: newName }),
+  });
+
+  const text = await res.text();
+  let json = null;
+  try { json = text ? JSON.parse(text) : null; } catch {}
+  if (!res.ok) {
+    throw new Error(json?.message || `HTTP error! status: ${res.status}`);
+  }
+  return json;
+};
+
+// Mời một user vào nhóm chat
+export const inviteToGroup = async (conversationId, userId) => {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/groupchat/${conversationId}/invite`, {
+      method: 'POST',
+      headers: { 
+        ...headers, 
+        'Content-Type': 'application/json',
+        Accept: 'application/json' 
+      },
+      body: JSON.stringify({ userId }),
+    });
+    
+    const responseText = await response.text();
+    let result = null;
+    
+    try {
+      result = responseText ? JSON.parse(responseText) : null;
+    } catch (parseError) {
+      console.warn('[API] inviteToGroup parse error:', parseError);
+      throw new Error('Server trả về dữ liệu không hợp lệ');
+    }
+    
+    if (!response.ok) {
+      throw new Error(result?.message || `HTTP error! status: ${response.status}`);
+    }
+    
+    return result;
+  } catch (error) {
+    console.log('[API] inviteToGroup error:', error);
+    throw error;
+  }
+};
+
+// Tạo nhóm chat mới
+export const createGroup = async (groupName, memberIds, invitePermission = 'all', maxMembers = null) => {
+  try {
+    const headers = await getAuthHeaders();
+    const requestBody = {
+      name: groupName,
+      memberIds: memberIds,
+      invitePermission: invitePermission
+    };
+    
+    // Chỉ thêm maxMembers nếu có giá trị
+    if (maxMembers) {
+      requestBody.maxMembers = maxMembers;
+    }
+
+    console.log('[API] createGroup request:', requestBody);
+    
+    const response = await fetch(`${API_BASE_URL}/api/groupchat/create`, {
+      method: 'POST',
+      headers: { 
+        ...headers, 
+        'Content-Type': 'application/json',
+        Accept: 'application/json' 
+      },
+      body: JSON.stringify(requestBody),
+    });
+    
+    const responseText = await response.text();
+    let result = null;
+    
+    try {
+      result = responseText ? JSON.parse(responseText) : null;
+    } catch (parseError) {
+      console.warn('[API] createGroup parse error:', parseError);
+      throw new Error('Server trả về dữ liệu không hợp lệ');
+    }
+    
+    if (!response.ok) {
+      throw new Error(result?.message || `HTTP error! status: ${response.status}`);
+    }
+
+    console.log('[API] createGroup success:', result);
+    return result;
+  } catch (error) {
+    console.log('[API] createGroup error:', error);
+    throw error;
+  }
+};
+
+// Lấy danh sách tất cả nhóm chat của user
+export const getMyGroups = async () => {
+  try {
+    const headers = await getAuthHeaders();
+    
+    console.log('[API] getMyGroups request');
+    
+    const response = await fetch(`${API_BASE_URL}/api/groupchat/my-groups`, {
+      method: 'GET',
+      headers: { 
+        ...headers, 
+        Accept: 'application/json' 
+      },
+    });
+    
+    const responseText = await response.text();
+    let result = null;
+    
+    try {
+      result = responseText ? JSON.parse(responseText) : null;
+    } catch (parseError) {
+      console.warn('[API] getMyGroups parse error:', parseError);
+      throw new Error('Server trả về dữ liệu không hợp lệ');
+    }
+    
+    if (!response.ok) {
+      throw new Error(result?.message || `HTTP error! status: ${response.status}`);
+    }
+
+    console.log('[API] getMyGroups success:', result.groups?.length, 'groups');
+    return result.groups || [];
+  } catch (error) {
+    console.log('[API] getMyGroups error:', error);
+    throw error;
+  }
 };

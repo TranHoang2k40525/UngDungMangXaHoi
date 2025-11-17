@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using UngDungMangXaHoi.Application.DTOs;
 using UngDungMangXaHoi.Application.Services;
+using Microsoft.AspNetCore.SignalR;
+using UngDungMangXaHoi.Presentation.WebAPI.Hubs;
 
 namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers;
 
@@ -12,10 +14,12 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers;
 public class CommentsController : ControllerBase
 {
     private readonly CommentService _commentService;
+    private readonly IHubContext<CommentHub> _commentHubContext;
 
-    public CommentsController(CommentService commentService)
+    public CommentsController(CommentService commentService, IHubContext<CommentHub> commentHubContext)
     {
         _commentService = commentService;
+        _commentHubContext = commentHubContext;
     }
 
     private int GetCurrentAccountId()
@@ -140,6 +144,25 @@ public class CommentsController : ControllerBase
                 likesCount = 0
             };
             
+            // Broadcast to clients watching this post. If it's a reply, use CommentReplyAdded
+            try
+            {
+                if (response.parentCommentId != null && response.parentCommentId != 0)
+                {
+                    await _commentHubContext.Clients.Group($"post_{dto.PostId}").SendAsync("CommentReplyAdded", new
+                    {
+                        parentCommentId = response.parentCommentId,
+                        replyComment = response,
+                        timestamp = DateTime.UtcNow
+                    });
+                }
+                else
+                {
+                    await _commentHubContext.Clients.Group($"post_{dto.PostId}").SendAsync("ReceiveComment", response);
+                }
+            }
+            catch { /* don't let realtime errors block API response */ }
+
             return CreatedAtAction(nameof(GetCommentsByPost), new { postId = dto.PostId }, response);
         }
         catch (Exception ex)
@@ -172,6 +195,14 @@ public class CommentsController : ControllerBase
         {
             var accountId = GetCurrentAccountId();
             var comment = await _commentService.UpdateCommentAsync(commentId, dto.Content, accountId);
+
+            // Broadcast updated comment
+            try
+            {
+                await _commentHubContext.Clients.Group($"post_{comment.PostId}").SendAsync("CommentUpdated", comment);
+            }
+            catch { }
+
             return Ok(comment);
         }
         catch (UnauthorizedAccessException ex)
@@ -191,7 +222,21 @@ public class CommentsController : ControllerBase
         try
         {
             var accountId = GetCurrentAccountId();
-            await _commentService.DeleteCommentAsync(commentId, accountId);
+            var deletedComment = await _commentService.DeleteCommentAsync(commentId, accountId);
+
+            // Broadcast deletion to post group
+            try
+            {
+                await _commentHubContext.Clients.Group($"post_{deletedComment.PostId}").SendAsync("CommentDeleted", new
+                {
+                    postId = deletedComment.PostId,
+                    commentId = commentId,
+                    deletedBy = accountId,
+                    timestamp = DateTime.UtcNow
+                });
+            }
+            catch { }
+
             return NoContent();
         }
         catch (UnauthorizedAccessException ex)

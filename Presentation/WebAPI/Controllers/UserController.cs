@@ -103,6 +103,63 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         }
 
         /// <summary>
+        /// Lấy thông tin public của một user khác (by username)
+        /// GET /api/users/username/{username}/profile
+        /// </summary>
+        [HttpGet("username/{username}/profile")]
+        public async Task<IActionResult> GetUserProfileByUsername(string username)
+        {
+            var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
+            {
+                return Unauthorized(new { message = "Token không hợp lệ!" });
+            }
+
+            var currentUser = await _userRepository.GetByAccountIdAsync(accountId);
+            if (currentUser == null)
+            {
+                return BadRequest(new { message = "Không tìm thấy user hiện tại." });
+            }
+
+            var targetUser = await _userRepository.GetByUsernameAsync(username);
+            if (targetUser == null)
+            {
+                return NotFound(new { message = "Không tìm thấy user." });
+            }
+
+            // If target user has blocked current user, behave as if user not found (privacy)
+            var blockedByTarget = await _blockRepository.IsBlockedAsync(targetUser.user_id, currentUser.user_id);
+            if (blockedByTarget)
+            {
+                return NotFound(new { message = "Không tìm thấy user." });
+            }
+
+            var postsCount = await _postRepository.CountPostsByUserIdAsync(targetUser.user_id);
+            var followersCount = await _userRepository.GetFollowersCountAsync(targetUser.user_id);
+            var followingCount = await _userRepository.GetFollowingCountAsync(targetUser.user_id);
+            var isFollowing = await _userRepository.IsFollowingAsync(currentUser.user_id, targetUser.user_id);
+
+            var dto = new PublicProfileDto
+            {
+                UserId = targetUser.user_id,
+                Username = targetUser.username.Value,
+                FullName = targetUser.full_name,
+                AvatarUrl = targetUser.avatar_url?.Value,
+                Bio = targetUser.bio,
+                Website = targetUser.website,
+                Address = targetUser.address,
+                Hometown = targetUser.hometown,
+                Gender = targetUser.gender.ToString(),
+                PostsCount = postsCount,
+                FollowersCount = followersCount,
+                FollowingCount = followingCount,
+                IsFollowing = isFollowing
+            };
+
+            return Ok(new { message = "Lấy thông tin user thành công", data = dto });
+        }
+
+        /// <summary>
         /// Block a user
         /// POST /api/users/{userId}/block
         /// </summary>

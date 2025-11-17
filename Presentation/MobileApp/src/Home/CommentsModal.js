@@ -18,11 +18,13 @@ import {
     Alert,
     ActionSheetIOS,
     TouchableWithoutFeedback,
+    Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import MentionText from "../Components/MentionText";
-import { getComments, addComment, addCommentReaction, removeCommentReaction, deleteComment, API_BASE_URL } from "../API/Api";
+import { getComments, addComment, addCommentReaction, removeCommentReaction, deleteComment, updateComment, getUserByUsername, API_BASE_URL } from "../API/Api";
+import commentService from "../ServicesSingalR/commentService";
 
 const { height } = Dimensions.get("window");
 
@@ -205,9 +207,11 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
     
     // State cho currentUserId - User đang đăng nhập
     const [currentUserId, setCurrentUserId] = useState(null);
+    const [currentUserAvatar, setCurrentUserAvatar] = useState(null);
     
     // States cho reply và edit
     const [replyingTo, setReplyingTo] = useState(null); // { id, username }
@@ -219,6 +223,7 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
     const [commentFilter, setCommentFilter] = useState('recent'); // Mặc định là bình luận mới nhất
     
     const inputRef = useRef(null);
+    const flatListRef = useRef(null);
 
     // Load current user từ AsyncStorage (giống Home.js)
     useEffect(() => {
@@ -249,14 +254,19 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
                     if (Number.isFinite(uidNum)) {
                         setCurrentUserId(uidNum);
                         console.log('[CommentsModal] ✅ Current user loaded:', uidNum);
+                        
+                        // Lấy avatar của user hiện tại
+                        const avatar = user?.AvatarUrl || user?.avatarUrl || user?.avatar_url || user?.Avatar || null;
+                        setCurrentUserAvatar(avatar);
+                        console.log('[CommentsModal] 🖼️ Current user avatar:', avatar);
                     } else {
                         console.warn('[CommentsModal] ⚠️ Could not extract valid userId from userInfo');
                     }
                 } else {
-                    console.warn('[CommentsModal] ⚠️ No userInfo found in AsyncStorage');
+                    console.warn('[CommentsModal]  No userInfo found in AsyncStorage');
                 }
             } catch (error) {
-                console.error('[CommentsModal] ❌ Error loading user:', error);
+                console.error('[CommentsModal]  Error loading user:', error);
             }
         };
         loadCurrentUser();
@@ -269,6 +279,107 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
         }
     }, [visible, postId]);
 
+    // Kết nối SignalR và đăng ký các handler khi modal mở để nhận realtime comments
+    useEffect(() => {
+        let joined = false;
+        if (visible && postId) {
+            (async () => {
+                try {
+                    await commentService.connectRealtime();
+                    await commentService.joinPostRoom(postId);
+                    joined = true;
+
+                    // Handlers
+                    commentService.onReceiveComment((c) => {
+                        try {
+                            const mapped = mapServerCommentToUI(c);
+                            setComments(prev => {
+                                // Avoid duplicates
+                                if (prev.find(x => x.id === String(mapped.id))) return prev;
+                                return [mapped, ...prev];
+                            });
+                        } catch (e) { console.error('[CommentsModal] onReceiveComment handler error', e); }
+                    });
+
+                    commentService.onCommentUpdated((c) => {
+                        try {
+                            const mapped = mapServerCommentToUI(c);
+                            setComments(prev => prev.map(item => item.id === String(mapped.id) ? mapped : item));
+                        } catch (e) { console.error('[CommentsModal] onCommentUpdated handler error', e); }
+                    });
+
+                    commentService.onCommentDeleted((payload) => {
+                        try {
+                            const cid = payload?.commentId ?? payload;
+                            const idStr = String(cid);
+                            setComments(prev => prev.filter(c => c.id !== idStr));
+                        } catch (e) { console.error('[CommentsModal] onCommentDeleted handler error', e); }
+                    });
+
+                    commentService.onCommentReplyAdded((payload) => {
+                        try {
+                            const reply = payload?.replyComment ?? payload;
+                            const mapped = mapServerCommentToUI(reply);
+                            setComments(prev => {
+                                if (prev.find(x => x.id === String(mapped.id))) return prev;
+                                return [mapped, ...prev];
+                            });
+                        } catch (e) { console.error('[CommentsModal] onCommentReplyAdded handler error', e); }
+                    });
+                } catch (error) {
+                    console.error('[CommentsModal] SignalR connect/join error', error);
+                }
+            })();
+        }
+
+        return () => {
+            (async () => {
+                try {
+                    if (joined) await commentService.leavePostRoom(postId);
+                } catch (e) { /* ignore */ }
+                try { commentService.removeAllListeners(); } catch (e) { /* ignore */ }
+            })();
+        };
+    }, [visible, postId]);
+
+    // Helper: map server CommentDto to UI comment format (same mapping used in loadComments)
+    const mapServerCommentToUI = (c) => {
+        const userIdNum = c.userId != null ? Number(c.userId) : null;
+        return {
+            id: String(c.commentId),
+            userId: Number.isFinite(userIdNum) ? userIdNum : null,
+            username: c.username || "Người dùng",
+            avatar: c.userAvatar,
+            comment: c.content || "",
+            likes: Number(c.likesCount) || 0,
+            createdAt: c.createdAt,
+            isLiked: Boolean(c.isLiked),
+            isEdited: Boolean(c.isEdited),
+            parentId: c.parentCommentId ? String(c.parentCommentId) : null,
+        };
+    };
+
+    // Keyboard event listeners để điều chỉnh layout
+    useEffect(() => {
+        const keyboardWillShow = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+            (e) => {
+                setKeyboardHeight(e.endCoordinates.height);
+            }
+        );
+        const keyboardWillHide = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+            () => {
+                setKeyboardHeight(0);
+            }
+        );
+
+        return () => {
+            keyboardWillShow.remove();
+            keyboardWillHide.remove();
+        };
+    }, []);
+
     const loadComments = async (isRefreshing = false) => {
         try {
             if (isRefreshing) {
@@ -277,17 +388,17 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
                 setLoading(true);
             }
             
-            console.log('[CommentsModal] 🔄 Loading comments for postId:', postId);
+            console.log('[CommentsModal]  Loading comments for postId:', postId);
             const response = await getComments(postId);
-            console.log('[CommentsModal] 📦 API Response:', JSON.stringify(response, null, 2));
+            console.log('[CommentsModal]  API Response:', JSON.stringify(response, null, 2));
             
             // Backend trả về: { comments: [...], total, page, pageSize }
             const commentsData = response?.comments || [];
-            console.log('[CommentsModal] 📊 Comments count:', commentsData.length);
+            console.log('[CommentsModal]  Comments count:', commentsData.length);
             
             // DEBUG: Log toàn bộ raw data từ backend
             if (commentsData.length > 0) {
-                console.log('[CommentsModal] 🔍 FIRST COMMENT RAW DATA:', JSON.stringify(commentsData[0], null, 2));
+                console.log('[CommentsModal]  FIRST COMMENT RAW DATA:', JSON.stringify(commentsData[0], null, 2));
             }
             
             // Map sang format UI component
@@ -301,7 +412,7 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
                 // userId này dùng để điều hướng đến UserProfilePublic
                 const userIdNum = c.userId != null ? Number(c.userId) : null;
                 
-                console.log('[CommentsModal] 🔍 Mapping comment:', {
+                console.log('[CommentsModal]  Mapping comment:', {
                     commentId: c.commentId,
                     userId: c.userId,
                     userIdNum,
@@ -324,9 +435,9 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
             });
 
             setComments(mappedComments);
-            console.log('[CommentsModal] ✅ Comments loaded successfully');
+            console.log('[CommentsModal]  Comments loaded successfully');
         } catch (error) {
-            console.error("[CommentsModal] ❌ Load comments error:", error);
+            console.error("[CommentsModal]  Load comments error:", error);
             console.error("[CommentsModal] Error details:", error.message);
             setComments([]);
         } finally {
@@ -350,29 +461,36 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
             
             // Kiểm tra xem đang edit hay add mới
             if (editingComment) {
-                // ĐANG EDIT: Chỉ update local state, KHÔNG gửi backend
-                console.log('[CommentsModal]  Editing comment (local only):', editingComment.id);
+                // ĐANG EDIT: Gửi đến backend để lưu thay đổi
+                console.log('[CommentsModal]  Editing comment:', editingComment.id);
                 
-                // Update comment trong state (frontend only)
-                setComments(prev => prev.map(c => 
-                    c.id === editingComment.id 
-                        ? { ...c, comment: newComment.trim(), isEdited: true }
-                        : c
-                ));
-                
-                // TODO: Nếu muốn gửi backend thực sự, uncomment dòng này:
-                // await editComment(editingComment.id, newComment.trim());
-                
-                setEditingComment(null);
-                setNewComment("");
+                try {
+                    // Gọi API để update comment
+                    await updateComment(editingComment.id, newComment.trim());
+                    console.log('[CommentsModal]  Comment updated on backend');
+                    
+                    // Update comment trong state (frontend)
+                    setComments(prev => prev.map(c => 
+                        c.id === editingComment.id 
+                            ? { ...c, comment: newComment.trim(), isEdited: true }
+                            : c
+                    ));
+                    
+                    setEditingComment(null);
+                    setNewComment("");
+                } catch (error) {
+                    console.error('[CommentsModal]  Error updating comment:', error);
+                    alert("Không thể cập nhật bình luận. Vui lòng thử lại.");
+                    return; // Thoát khỏi function nếu có lỗi
+                }
                 
             } else if (replyingTo) {
                 // Đang reply comment - GỬI parentCommentId đến backend
-                console.log('[CommentsModal] 💬 Replying to:', replyingTo);
+                console.log('[CommentsModal]  Replying to:', replyingTo);
                 
                 // ✅ SỬA: Gửi parentCommentId (replyingTo.id) đến backend
                 const response = await addComment(postId, newComment.trim(), replyingTo.id);
-                console.log('[CommentsModal] 📬 Add reply response:', JSON.stringify(response, null, 2));
+                console.log('[CommentsModal]  Add reply response:', JSON.stringify(response, null, 2));
                 
                 // Backend giờ trả về đầy đủ thông tin, bao gồm parentCommentId
                 const userIdNum = response?.userId != null ? Number(response.userId) : currentUserId;
@@ -390,17 +508,17 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
                     parentId: response?.parentCommentId ? String(response.parentCommentId) : replyingTo.id, // Dùng từ backend hoặc fallback
                 };
                 
-                console.log('[CommentsModal] ✅ Reply added:', newCommentData);
+                console.log('[CommentsModal]  Reply added:', newCommentData);
                 
                 setComments([newCommentData, ...comments]);
                 setReplyingTo(null);
                 setNewComment("");
             } else {
                 // Add comment mới bình thường (không phải reply)
-                console.log('[CommentsModal] ✍️ Adding comment:', newComment);
+                console.log('[CommentsModal]  Adding comment:', newComment);
                 
                 const response = await addComment(postId, newComment.trim(), null); // parentCommentId = null
-                console.log('[CommentsModal] 📬 Add comment response:', JSON.stringify(response, null, 2));
+                console.log('[CommentsModal]  Add comment response:', JSON.stringify(response, null, 2));
                 
                 // Backend giờ trả về đầy đủ thông tin
                 const userIdNum = response?.userId != null ? Number(response.userId) : currentUserId;
@@ -418,7 +536,7 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
                     parentId: response?.parentCommentId ? String(response.parentCommentId) : null, // Phải là null cho comment gốc
                 };
                 
-                console.log('[CommentsModal] ✅ Comment added:', newCommentData);
+                console.log('[CommentsModal]  Comment added:', newCommentData);
                 
                 setComments([newCommentData, ...comments]);
                 setNewComment("");
@@ -429,7 +547,7 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
                 onCommentAdded(postId);
             }
         } catch (error) {
-            console.error("[CommentsModal] ❌ Error:", error);
+            console.error("[CommentsModal]  Error:", error);
             console.error("[CommentsModal] Error details:", error.message);
             alert("Không thể thực hiện. Vui lòng thử lại.");
         } finally {
@@ -765,40 +883,79 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
             commentUsername
         });
         
-        // Kiểm tra xem có phải comment của chính mình không
-        const isMyComment = currentUserId != null && commentUserId != null && Number(commentUserId) === Number(currentUserId);
+        // Đóng modal trước khi điều hướng
+        onClose();
         
-        if (isMyComment) {
-            // Điều hướng đến trang Profile của mình
-            console.log('[CommentsModal] Navigate to own Profile');
-            navigation.navigate('Profile');
-        } else {
-            // Điều hướng đến trang UserProfilePublic của người khác
-            console.log('[CommentsModal] Navigate to UserProfilePublic:', { userId: commentUserId, username: commentUsername });
-            navigation.navigate('UserProfilePublic', {
-                userId: commentUserId,
-                username: commentUsername
-            });
-        }
+        // Dùng setTimeout để đảm bảo modal đã đóng hoàn toàn trước khi navigate
+        setTimeout(() => {
+            // Kiểm tra xem có phải comment của chính mình không
+            const isMyComment = currentUserId != null && commentUserId != null && Number(commentUserId) === Number(currentUserId);
+            
+            if (isMyComment) {
+                // Điều hướng đến trang Profile của mình
+                console.log('[CommentsModal] Navigate to own Profile');
+                navigation.navigate('Profile');
+            } else {
+                // Điều hướng đến trang UserProfilePublic của người khác
+                console.log('[CommentsModal] Navigate to UserProfilePublic:', { userId: commentUserId, username: commentUsername });
+                navigation.navigate('UserProfilePublic', {
+                    userId: commentUserId,
+                    username: commentUsername
+                });
+            }
+        }, 300); // Đợi 300ms để animation đóng modal hoàn tất
     };
     
     // Handle click on @mention trong comment text
-    const handleMentionPress = (username) => {
+    const handleMentionPress = async (username) => {
         console.log('[CommentsModal] 🔗 Mention clicked:', username);
         
-        // Tìm comment có username này để lấy userId
-        const mentionedComment = comments.find(c => c.username === username);
+        // Đóng modal trước khi điều hướng
+        onClose();
         
-        if (mentionedComment) {
-            // Tìm thấy user trong comments hiện tại
-            handleNavigateToProfile(mentionedComment);
-        } else {
-            // Không tìm thấy trong comments, navigate bằng username thôi
-            console.log('[CommentsModal] User not found in comments, navigate by username');
-            navigation.navigate('UserProfilePublic', {
-                username: username
-            });
-        }
+        // Dùng setTimeout để đảm bảo modal đã đóng hoàn toàn trước khi navigate
+        setTimeout(async () => {
+            // Bước 1: Tìm trong comments hiện tại trước
+            let mentionedComment = comments.find(c => c.username === username);
+            let userId = mentionedComment?.userId;
+            
+            // Bước 2: Nếu không tìm thấy trong comments, gọi API search
+            if (!userId) {
+                console.log('[CommentsModal] 🔍 User not in comments, searching by username...');
+                try {
+                    const userProfile = await getUserByUsername(username);
+                    if (userProfile) {
+                        userId = userProfile.UserId || userProfile.userId || userProfile.user_id || userProfile.id;
+                        console.log('[CommentsModal] ✅ Found user via API:', { username, userId });
+                    } else {
+                        console.log('[CommentsModal] ⚠️ User not found via API');
+                    }
+                } catch (error) {
+                    console.error('[CommentsModal] ❌ Error searching user:', error);
+                }
+            }
+            
+            // Bước 3: Navigate nếu tìm thấy userId
+            if (userId) {
+                const isMyComment = currentUserId != null && Number(userId) === Number(currentUserId);
+                
+                if (isMyComment) {
+                    navigation.navigate('Profile');
+                } else {
+                    navigation.navigate('UserProfilePublic', {
+                        userId: Number(userId),
+                        username: username
+                    });
+                }
+            } else {
+                // Không tìm thấy user
+                Alert.alert(
+                    'Không tìm thấy người dùng',
+                    `Người dùng @${username} không tồn tại hoặc đã bị xóa.`,
+                    [{ text: 'OK' }]
+                );
+            }
+        }, 300); // Đợi 300ms để animation đóng modal hoàn tất
     };
 
     const handleEmojiPress = (emoji) => {
@@ -922,16 +1079,26 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
             animationType="slide"
             onRequestClose={onClose}
         >
-            <TouchableOpacity
-                style={styles.modalOverlay}
-                activeOpacity={1}
-                onPress={onClose}
+            <KeyboardAvoidingView
+                behavior={Platform.OS === "ios" ? "padding" : undefined}
+                style={{ flex: 1 }}
+                keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
             >
-                <TouchableOpacity 
-                    style={styles.modalContent} 
+                <TouchableOpacity
+                    style={styles.modalOverlay}
                     activeOpacity={1}
-                    onPress={() => setShowMenuForComment(null)}
+                    onPress={onClose}
                 >
+                    <TouchableOpacity 
+                        style={[
+                            styles.modalContent,
+                            Platform.OS === 'android' && keyboardHeight > 0 && {
+                                maxHeight: height - keyboardHeight - 50
+                            }
+                        ]} 
+                        activeOpacity={1}
+                        onPress={() => setShowMenuForComment(null)}
+                    >
                     {/* Header */}
                     <View style={styles.modalHeader}>
                         <View style={styles.modalHandle} />
@@ -987,12 +1154,14 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
                         </View>
                     ) : (
                         <FlatList
+                            ref={flatListRef}
                             data={getFilteredComments()}
                             renderItem={renderComment}
                             keyExtractor={(item) => item.id}
                             contentContainerStyle={styles.commentsList}
                             showsVerticalScrollIndicator={false}
                             keyboardShouldPersistTaps="handled"
+                            keyboardDismissMode="on-drag"
                             nestedScrollEnabled={true}
                             scrollEnabled={true}
                             onScrollBeginDrag={() => setShowMenuForComment(null)}
@@ -1062,10 +1231,7 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
                     </View>
 
                     {/* Input */}
-                    <KeyboardAvoidingView
-                        behavior={Platform.OS === "ios" ? "padding" : "height"}
-                        style={styles.inputContainer}
-                    >
+                    <View style={styles.inputContainer}>
                         {/* Hiển thị banner khi đang reply hoặc edit */}
                         {(replyingTo || editingComment) && (
                             <View style={styles.replyBanner}>
@@ -1092,7 +1258,7 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
                         )}
                         
                         <View style={styles.inputRow}>
-                            <UserAvatar uri={null} style={styles.inputAvatar} />
+                            <UserAvatar uri={currentUserAvatar} style={styles.inputAvatar} />
                             <TextInput
                                 ref={inputRef}
                                 style={styles.input}
@@ -1107,6 +1273,7 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
                                 value={newComment}
                                 onChangeText={setNewComment}
                                 multiline
+                                maxLength={500}
                                 editable={!submitting}
                             />
                             {submitting ? (
@@ -1122,7 +1289,7 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
                                 </TouchableOpacity>
                             ) : null}
                         </View>
-                    </KeyboardAvoidingView>
+                    </View>
                 </TouchableOpacity>
             </TouchableOpacity>
 
@@ -1204,6 +1371,7 @@ const CommentsModal = ({ visible, onClose, postId, navigation, onCommentAdded })
                     </TouchableOpacity>
                 );
             })() : null}
+            </KeyboardAvoidingView>
         </Modal>
     );
 };
@@ -1218,7 +1386,8 @@ const styles = StyleSheet.create({
         backgroundColor: "#FFFFFF",
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
-        maxHeight: height * 0.85,
+        maxHeight: height * 0.90,
+        flex: 1,
         paddingBottom: 0,
     },
     modalHeader: {

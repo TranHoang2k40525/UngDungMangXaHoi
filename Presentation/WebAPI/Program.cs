@@ -61,13 +61,13 @@ Console.WriteLine($"[DB CONFIG] Using connection: {connectionString.Substring(0,
 builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(connectionString));
 
 // JWT Authentication - ƯU TIÊN .env, fallback appsettings.json
-var jwtAccessSecret = Environment.GetEnvironmentVariable("JWT_ACCESS_SECRET") 
+var jwtAccessSecret = Environment.GetEnvironmentVariable("JWT_ACCESS_SECRET")
     ?? builder.Configuration["JwtSettings:AccessSecret"];
 
-var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER") 
+var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER")
     ?? builder.Configuration["JwtSettings:Issuer"];
 
-var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") 
+var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE")
     ?? builder.Configuration["JwtSettings:Audience"];
 
 if (string.IsNullOrEmpty(jwtAccessSecret))
@@ -91,6 +91,24 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = jwtAudience,
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
+        };
+
+        // Cấu hình cho SignalR - lấy token từ query string
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+
+                // Nếu request đến SignalR hub và có token trong query
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -116,6 +134,12 @@ builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddScoped<IBlockRepository, BlockRepository>();
 builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
 builder.Services.AddScoped<IMessageRepository, MessageRepository>();
+
+// Group Chat Repositories
+builder.Services.AddScoped<IGroupConversationRepository, GroupConversationRepository>();
+builder.Services.AddScoped<IGroupMessageRepository, GroupMessageRepository>(); // ✅ Thêm GroupMessageRepository
+builder.Services.AddScoped<IGroupMessageRestrictionRepository, GroupMessageRestrictionRepository>();
+
 // ======================================
 // 6️⃣ Đăng ký Service
 // ======================================
@@ -138,6 +162,11 @@ builder.Services.AddScoped<CommentService>();
 builder.Services.AddScoped<SearchService>();
 builder.Services.AddScoped<MessageService>();
 builder.Services.AddScoped<IRealTimeNotificationService, UngDungMangXaHoi.Presentation.WebAPI.Hubs.SignalRNotificationService>();
+// Group Chat Services
+builder.Services.AddScoped<GroupChatService>();
+builder.Services.AddScoped<GroupMessageService>(); //  Message service cho GROUP CHAT
+// SignalR Service for broadcasting
+builder.Services.AddScoped<UngDungMangXaHoi.WebAPI.Services.ISignalRService, UngDungMangXaHoi.WebAPI.Services.SignalRService>();
 
 // External Services
 builder.Services.AddScoped<CloudinaryService>(provider =>
@@ -151,7 +180,7 @@ builder.Services.AddScoped<CloudinaryService>(provider =>
 
     if (string.IsNullOrEmpty(cloudName) || string.IsNullOrEmpty(apiKey) || string.IsNullOrEmpty(apiSecret))
     {
-        throw new InvalidOperationException("❌ Cloudinary config not found! Check appsettings.json or CLOUDINARY_* env vars.");
+        throw new InvalidOperationException(" Cloudinary config not found! Check appsettings.json or CLOUDINARY_* env vars.");
     }
 
     Console.WriteLine($"[CLOUDINARY] Using cloud: {cloudName}");
@@ -177,11 +206,13 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
+
         policy
             .AllowAnyOrigin() // Cho phép mọi domain
             .AllowAnyMethod()
             .AllowAnyHeader();
-        // .AllowCredentials(); // Nếu dùng AllowAnyOrigin thì không dùng AllowCredentials
+              // .AllowCredentials(); // Nếu dùng AllowAnyOrigin thì không dùng AllowCredential
+
     });
 });
 
@@ -279,6 +310,10 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<UngDungMangXaHoi.Presentation.WebAPI.Hubs.NotificationHub>("/hubs/notifications");
 app.MapHub<CommentHub>("/hubs/comments");
+
 app.MapHub<MessageHub>("/hubs/messages");
+
+app.MapHub<UngDungMangXaHoi.Presentation.WebAPI.Hubs.GroupChatHub>("/hubs/chat"); // Chat Hub cho Group Chat
+
 
 app.Run();

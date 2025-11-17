@@ -77,8 +77,8 @@ public class CommentService
         return MapToDto(updatedComment);
     }
 
-    // Delete Comment (soft delete)
-    public async Task<bool> DeleteCommentAsync(int commentId, int currentAccountId)
+    // Delete Comment (soft delete) - returns deleted comment dto for broadcasting
+    public async Task<CommentDto> DeleteCommentAsync(int commentId, int currentAccountId)
     {
         var comment = await _commentRepository.GetByIdAsync(commentId);
         
@@ -89,7 +89,14 @@ public class CommentService
         if (user == null || comment.UserId != user.user_id)
             throw new UnauthorizedAccessException("You can only delete your own comments");
 
-        return await _commentRepository.SoftDeleteAsync(commentId);
+        // Map to DTO before soft-deleting so callers can broadcast the postId / commentId
+        var dto = MapToDto(comment);
+
+        var deleted = await _commentRepository.SoftDeleteAsync(commentId);
+        if (!deleted)
+            throw new Exception("Failed to delete comment");
+
+        return dto;
     }
 
     // Get Comments by Post

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import axios from 'axios';
 import {
   View,
@@ -18,8 +18,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MessageAPI from '../API/MessageAPI';
-import {API_BASE_URL} from '../API/Api';
+import { getProfile, getMyGroups, API_BASE_URL } from '../API/Api';
 import MessageWebSocketService from '../Services/MessageWebSocketService';
+import signalRService from '../ServicesSingalR/signalRService';
 
 export default function Messenger() {
   const [searchText, setSearchText] = useState('');
@@ -27,7 +28,10 @@ export default function Messenger() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
-  const [currentUserName, setCurrentUserName] = useState(''); // Tên user hiện tại
+  const [userProfile, setUserProfile] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUserName, setCurrentUserName] = useState('');
+  const joinedGroupsRef = useRef(new Set());
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
 
@@ -35,11 +39,11 @@ export default function Messenger() {
   useEffect(() => {
     const loadCurrentUser = async () => {
       try {
-        const userInfoStr = await AsyncStorage.getItem('userInfo');
-        if (userInfoStr) {
-          const userInfo = JSON.parse(userInfoStr);
-          setCurrentUserName(userInfo.fullName || userInfo.username || 'User');
-        }
+        const profile = await getProfile();
+        setUserProfile(profile);
+        setCurrentUserName(profile?.fullName || profile?.username || 'User');
+        const uid = profile?.user_id ?? profile?.id ?? profile?.userId ?? null;
+        setCurrentUserId(uid);
       } catch (error) {
         console.error('[Messenger] Error loading current user:', error);
       }
@@ -47,39 +51,99 @@ export default function Messenger() {
     loadCurrentUser();
   }, []);
 
-  // Load conversations - hiển thị tất cả mutual followers
+  // Load conversations - cả 1:1 và groups
   const loadConversations = useCallback(async () => {
     try {
       setLoading(true);
       
-      // Lấy danh sách mutual followers (những người có thể nhắn tin)
+      // Lấy danh sách 1:1 (mutual followers)
       const mutualResponse = await MessageAPI.getMutualFollowers();
       console.log('[Messenger] Mutual followers response:', mutualResponse);
       
+      let oneToOneConversations = [];
       if (mutualResponse.success && mutualResponse.data) {
-        // Backend trả về ConversationDto với last_message và unread_count
-        const conversations = mutualResponse.data.map(conv => {
-          // Xử lý avatar URL - thêm base URL nếu là relative path  
+        oneToOneConversations = mutualResponse.data.map(conv => {
           let avatarUrl = conv.other_user_avatar_url;
           if (avatarUrl && !avatarUrl.startsWith('http')) {
             avatarUrl = `${API_BASE_URL}${avatarUrl}`;
           }
-
           return {
-            ...conv,
-            other_user_avatar_url: avatarUrl
+            id: conv.conversation_id,
+            name: conv.other_user_full_name,
+            avatarUrl: avatarUrl,
+            isGroup: false,
+            otherUserId: conv.other_user_id,
+            username: conv.other_user_username,
+            lastMessage: conv.last_message,
+            unreadCount: conv.unread_count || 0,
+            time: conv.last_message?.created_at,
+            lastSeen: conv.other_user_last_seen,
+            raw: conv,
           };
         });
-        
-        setConversations(conversations);
-        console.log('[Messenger] Loaded conversations with messages:', conversations.length);
+      }
+
+      // Lấy danh sách groups
+      let groupConversations = [];
+      try {
+        const groups = await getMyGroups();
+        console.log('[Messenger] Loaded groups:', groups.length);
+        groupConversations = await Promise.all(groups.map(async (g) => {
+          const convId = g.conversationId ?? g.conversation_id ?? g.id ?? g.groupId ?? g.group_id;
+          const name = g.name ?? g.groupName ?? g.group_name ?? g.title ?? `Group ${convId}`;
+          const avatarField = g.avatarUrl ?? g.avatar_url ?? g.avatar ?? g.groupAvatar ?? g.imageUrl ?? null;
+          const memberCount = g.currentMemberCount ?? g.current_member_count ?? g.memberCount ?? g.membersCount ?? null;
+          const unreadCount = g.unreadCount ?? g.unread_count ?? g.unread ?? 0;
+          const lastMessageTime = g.lastMessageTime ?? g.last_message_time ?? null;
+
+          const savedAvatarKey = `groupAvatar_${convId}`;
+          let savedAvatar = null;
+          try { savedAvatar = await AsyncStorage.getItem(savedAvatarKey); } catch (e) { console.warn('[Messenger] read saved avatar failed', e); }
+
+          return {
+            id: convId,
+            name: name,
+            avatarUrl: savedAvatar ?? avatarField,
+            isGroup: true,
+            memberCount: memberCount,
+            unreadCount: unreadCount,
+            time: lastMessageTime,
+            raw: g,
+          };
+        }));
+      } catch (error) {
+        console.error('Load groups error:', error);
+      }
+
+      // Merge và sort theo time mới nhất (desc)
+      const allConversations = [...oneToOneConversations, ...groupConversations].sort((a, b) => {
+        const timeA = new Date(a.time || 0).getTime();
+        const timeB = new Date(b.time || 0).getTime();
+        return timeB - timeA;
+      });
+
+      setConversations(allConversations);
+      console.log('[Messenger] Loaded all conversations:', allConversations.length);
+
+      // Join groups cho realtime
+      try {
+        await signalRService.connectToChat();
+        for (const conv of groupConversations) {
+          if (conv && conv.id) {
+            await signalRService.joinGroup(conv.id);
+            joinedGroupsRef.current.add(conv.id);
+            console.log('[Messenger] Joined group for realtime updates:', conv.id);
+          }
+        }
+      } catch (e) {
+        console.warn('[Messenger] connectToChat/join groups failed', e);
       }
     } catch (error) {
       console.error('[Messenger] Error loading conversations:', error);
     } finally {
       setLoading(false);
     }
-  }, []); // Empty deps - function doesn't depend on external variables
+  }, [currentUserId]);
 
   // Refresh conversations
   const onRefresh = async () => {
@@ -88,20 +152,17 @@ export default function Messenger() {
     setRefreshing(false);
   };
 
-  // Initialize WebSocket
+  // Initialize WebSocket for 1:1
   useEffect(() => {
     const initWebSocket = async () => {
       const connected = await MessageWebSocketService.initialize();
       
       if (connected) {
-        // Listen for new messages - ONLY reload if relevant
         const handleMessageReceived = (message) => {
           console.log('[Messenger] New message received:', message);
-          // Only reload if we need to update conversation list
           loadConversations();
         };
 
-        // Listen for online users
         const handleOnlineUsers = (userIds) => {
           setOnlineUsers(userIds);
         };
@@ -119,7 +180,6 @@ export default function Messenger() {
         MessageWebSocketService.on('userOnline', handleUserOnline);
         MessageWebSocketService.on('userOffline', handleUserOffline);
 
-        // Cleanup
         return () => {
           MessageWebSocketService.off('messageReceived', handleMessageReceived);
           MessageWebSocketService.off('onlineUsers', handleOnlineUsers);
@@ -130,22 +190,200 @@ export default function Messenger() {
     };
 
     initWebSocket();
-  }, []); // Empty deps - only run once on mount
+  }, [loadConversations]);
 
-  // Load conversations when screen focused
+  // SignalR handlers for groups (adapted from Branch_Vu)
+  useEffect(() => {
+    let mounted = true;
+    const avatarHandler = async (data) => {
+      if (!mounted || !data) return;
+      const convIdStr = String(data.conversationId ?? data.conversation_id ?? data.id ?? data.conversationId);
+      const avatarUrl = data.avatarUrl || data.avatar_url || data.avatar || null;
+      if (!convIdStr) return;
+
+      const key = `groupAvatar_${convIdStr}`;
+      try { await AsyncStorage.setItem(key, avatarUrl); } catch (e) { console.warn('[Messenger] save avatar override failed', e); }
+
+      setConversations(prev => prev.map(c => {
+        if (String(c.id) === convIdStr && c.isGroup) {
+          return { ...c, avatarUrl: avatarUrl };
+        }
+        return c;
+      }));
+    };
+
+    signalRService.connectToChat().catch(() => {});
+    signalRService.onGroupAvatarUpdated(avatarHandler);
+
+    return () => {
+      mounted = false;
+      try {
+        signalRService.removeHandler('GroupAvatarUpdated', avatarHandler);
+      } catch (e) { /* ignore */ }
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const readHandler = (data) => {
+      if (!mounted || !data) return;
+      const convIdStr = String(data.conversationId ?? data.conversation_id ?? data.conversationId);
+      const actorUserId = data.userId ?? data.user_id ?? data.actorUserId ?? null;
+      if (!convIdStr || String(actorUserId) !== String(currentUserId)) return;
+
+      setConversations(prev => {
+        const idx = prev.findIndex(c => String(c.id) === convIdStr && c.isGroup);
+        if (idx === -1) return prev;
+        const item = { ...prev[idx], unreadCount: 0 };
+        const copy = [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+        return [item, ...copy];
+      });
+    };
+
+    signalRService.onMessageRead(readHandler);
+
+    return () => {
+      mounted = false;
+      try {
+        signalRService.chatConnection.off('MessageRead', readHandler);
+      } catch (e) { /* ignore */ }
+    };
+  }, [currentUserId]);
+
+  useEffect(() => {
+    let mounted = true;
+    const messageHandler = (message) => {
+      if (!mounted || !message) return;
+      const convIdStr = String(message.conversationId ?? message.conversation_id ?? message.conversationId);
+      if (!convIdStr) return;
+
+      const senderId = message.userId ?? message.user_id ?? message.senderId ?? message.sender_id ?? null;
+      const content = message.content ?? message.Content ?? '';
+      const createdAt = message.createdAt ?? message.created_at ?? null;
+      const isFromMe = senderId && String(senderId) === String(currentUserId);
+
+      setConversations(prev => {
+        const existingIdx = prev.findIndex(c => String(c.id) === convIdStr);
+        let existing = null;
+        let rest = prev;
+        if (existingIdx !== -1) {
+          existing = { ...prev[existingIdx] };
+          rest = [...prev.slice(0, existingIdx), ...prev.slice(existingIdx + 1)];
+        }
+
+        const newItem = existing ? { ...existing } : { 
+          id: convIdStr, 
+          name: message.groupName || message.conversationName || `Group ${convIdStr}`, 
+          isGroup: true 
+        };
+        newItem.time = createdAt ? String(createdAt) : newItem.time;
+        newItem.lastMessage = { content };
+        newItem.unreadCount = (Number(newItem.unreadCount) || 0) + (isFromMe ? 0 : 1);
+
+        return [newItem, ...rest];
+      });
+    };
+
+    signalRService.onReceiveMessage(messageHandler);
+
+    return () => {
+      mounted = false;
+      try {
+        signalRService.chatConnection.off('ReceiveMessage', messageHandler);
+      } catch (e) { /* ignore */ }
+    };
+  }, [currentUserId]);
+
+  useEffect(() => {
+    let mounted = true;
+    const removedHandler = async (data) => {
+      if (!mounted || !data) return;
+      const convId = Number(data.conversationId || data.conversation_id);
+      const removedUserId = Number(data.removedUserId || data.userId || data.user_id);
+      if (!convId || !removedUserId) return;
+
+      if (String(removedUserId) === String(currentUserId)) {
+        setConversations(prev => prev.filter(c => Number(c.id) !== convId));
+        try {
+          await AsyncStorage.removeItem(`groupMembers_${convId}`);
+          await AsyncStorage.removeItem(`groupInfo_${convId}`);
+          await AsyncStorage.removeItem(`group_messages_${convId}`);
+          await AsyncStorage.removeItem(`groupAvatar_${convId}`);
+        } catch (e) {
+          console.warn('[Messenger] cleanup after being removed failed', e);
+        }
+      } else {
+        setConversations(prev => prev.map(c => {
+          if (Number(c.id) === convId && c.isGroup) {
+            const curr = Number(c.memberCount) || 0;
+            return { ...c, memberCount: Math.max(0, curr - 1) };
+          }
+          return c;
+        }));
+      }
+    };
+
+    signalRService.onMemberRemoved(removedHandler);
+
+    return () => {
+      mounted = false;
+      try {
+        signalRService.chatConnection.off('MemberRemoved', removedHandler);
+      } catch (e) { /* ignore */ }
+    };
+  }, [currentUserId]);
+
+  useEffect(() => {
+    let mounted = true;
+    const deletedHandler = async (data) => {
+      if (!mounted || !data) return;
+      const convId = Number(data.conversationId || data.conversation_id);
+      if (!convId) return;
+
+      setConversations(prev => prev.filter(c => Number(c.id) !== convId));
+
+      try {
+        await AsyncStorage.removeItem(`groupMembers_${convId}`);
+        await AsyncStorage.removeItem(`groupInfo_${convId}`);
+        await AsyncStorage.removeItem(`group_messages_${convId}`);
+        await AsyncStorage.removeItem(`groupAvatar_${convId}`);
+      } catch (e) {
+        console.warn('[Messenger] cleanup after group deleted failed', e);
+      }
+    };
+
+    signalRService.onGroupDeleted(deletedHandler);
+
+    return () => {
+      mounted = false;
+      try {
+        signalRService.chatConnection.off('GroupDeleted', deletedHandler);
+      } catch (e) { /* ignore */ }
+    };
+  }, []);
+
+  // Leave groups on unmount
+  useEffect(() => {
+    return () => {
+      const ids = Array.from(joinedGroupsRef.current || []);
+      for (const id of ids) {
+        signalRService.leaveGroup(id).catch(e => console.warn('[Messenger] leaveGroup failed', id, e));
+      }
+    };
+  }, []);
+
+  // Load on focus
   useFocusEffect(
     useCallback(() => {
       console.log('[Messenger] Screen focused - loading conversations');
       loadConversations();
-      
-      // Cleanup on unfocus
       return () => {
         console.log('[Messenger] Screen unfocused');
       };
-    }, [loadConversations]) // Depend on stable loadConversations
+    }, [loadConversations])
   );
 
-  // Lọc danh sách conversations dựa trên searchText
+  // Lọc danh sách
   const filteredConversations = useMemo(() => {
     if (!searchText.trim()) {
       return conversations;
@@ -154,8 +392,8 @@ export default function Messenger() {
     const searchLower = searchText.toLowerCase().trim();
     
     return conversations.filter(conv => 
-      conv.other_user_full_name.toLowerCase().includes(searchLower) ||
-      conv.other_user_username.toLowerCase().includes(searchLower)
+      conv.name?.toLowerCase().includes(searchLower) ||
+      (!conv.isGroup && conv.username?.toLowerCase().includes(searchLower))
     );
   }, [searchText, conversations]);
 
@@ -176,18 +414,17 @@ export default function Messenger() {
     return `${diffDays}d`;
   };
 
-  // Check if user is online
+  // Check online for 1:1
   const isUserOnline = (userId) => {
     return onlineUsers.includes(userId);
   };
 
-  // Format offline time - "7m ago", "2h ago" (ngắn gọn)
+  // Format offline time
   const formatOfflineTime = (lastSeen) => {
     if (!lastSeen) return '';
     
-    // lastSeen từ backend là UTC, cần convert sang VN time để tính chênh lệch chính xác
     const lastSeenDate = new Date(lastSeen);
-    const now = new Date(); // Current time ở VN (thiết bị đã set múi giờ VN)
+    const now = new Date();
     
     const diffMs = now - lastSeenDate;
     const diffMins = Math.floor(diffMs / 60000);
@@ -202,6 +439,29 @@ export default function Messenger() {
     return `${diffDays}d`;
   };
 
+  // Get avatar URI
+  const getAvatarUri = (avatarUrl) => {
+    if (!avatarUrl) return null;
+    if (avatarUrl.startsWith('file://') || avatarUrl.startsWith('http')) {
+      return avatarUrl;
+    }
+    return `${API_BASE_URL}${avatarUrl}`;
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} />
+        <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top }]}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#3B82F6" />
+            <Text style={styles.loadingText}>Đang tải...</Text>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar
@@ -212,7 +472,7 @@ export default function Messenger() {
       <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top }]}>
       
       <View style={styles.content}>
-        {/* Header */}
+        {/* Header - ưu tiên HEAD */}
         <View style={styles.header}>
           <TouchableOpacity 
             style={styles.backButton}
@@ -221,9 +481,17 @@ export default function Messenger() {
             <Ionicons name="chevron-back" size={24} color="#111827" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{currentUserName || 'Messages'}</Text>
-          <TouchableOpacity style={styles.composeButton}>
-            <Ionicons name="create-outline" size={24} color="#111827" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity 
+              style={styles.groupButton}
+              onPress={() => navigation.navigate('GroupList')}
+            >
+              <Ionicons name="people-outline" size={24} color="#111827" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.composeButton}>
+              <Ionicons name="create-outline" size={24} color="#111827" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search Bar */}
@@ -254,87 +522,102 @@ export default function Messenger() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#3B82F6" />
-            </View>
-          ) : filteredConversations.length > 0 ? (
+          {filteredConversations.length > 0 ? (
             filteredConversations.map((conv) => (
               <TouchableOpacity 
-                key={conv.conversation_id} 
+                key={conv.isGroup ? `group_${conv.id}` : `user_${conv.otherUserId ?? conv.id}`} 
                 style={styles.conversationItem}
                 activeOpacity={0.7}
-                onPress={() => navigation.navigate('Doanchat', { 
-                  userId: conv.other_user_id,
-                  userName: conv.other_user_full_name,
-                  userAvatar: conv.other_user_avatar_url,
-                  username: conv.other_user_username
-                })}
+                onPress={() => {
+                  if (conv.isGroup) {
+                    navigation.navigate('GroupChat', { 
+                      conversationId: conv.id,
+                      groupName: conv.name 
+                    });
+                  } else {
+                    navigation.navigate('Doanchat', { 
+                      userId: conv.otherUserId,
+                      userName: conv.name,
+                      userAvatar: conv.avatarUrl,
+                      username: conv.username
+                    });
+                  }
+                }}
               >
                 <View style={styles.avatarContainer}>
-                  {conv.other_user_avatar_url ? (
+                  {getAvatarUri(conv.avatarUrl) ? (
                     <Image 
-                      source={{ uri: conv.other_user_avatar_url }} 
+                      source={{ uri: getAvatarUri(conv.avatarUrl) }} 
                       style={styles.avatar} 
                     />
                   ) : (
                     <View style={[styles.avatar, styles.defaultAvatar]}>
                       <Text style={styles.defaultAvatarText}>
-                        {conv.other_user_full_name ? conv.other_user_full_name.charAt(0).toUpperCase() : 'U'}
+                        {conv.name ? conv.name.charAt(0).toUpperCase() : (conv.isGroup ? 'G' : 'U')}
                       </Text>
                     </View>
                   )}
-                  {/* Online indicator - chấm xanh */}
-                  {isUserOnline(conv.other_user_id) && (
+                  {/* Unread badge cho cả hai, position top-right */}
+                  {conv.unreadCount > 0 && (
+                    <View style={styles.unreadBadge}>
+                      <Text style={styles.unreadText}>{conv.unreadCount > 99 ? '99+' : String(conv.unreadCount)}</Text>
+                    </View>
+                  )}
+                  {/* Online indicator cho 1:1 */}
+                  {!conv.isGroup && isUserOnline(conv.otherUserId) && (
                     <View style={styles.onlineIndicator} />
                   )}
-                  {/* Offline time - đè lên góc dưới avatar */}
-                  {!isUserOnline(conv.other_user_id) && conv.other_user_last_seen && (
+                  {/* Offline time cho 1:1 */}
+                  {!conv.isGroup && !isUserOnline(conv.otherUserId) && conv.lastSeen && (
                     <View style={styles.offlineTimeContainer}>
                       <Text style={styles.offlineTimeText}>
-                        {formatOfflineTime(conv.other_user_last_seen)}
+                        {formatOfflineTime(conv.lastSeen)}
                       </Text>
+                    </View>
+                  )}
+                  {/* Group badge cho groups */}
+                  {conv.isGroup && (
+                    <View style={styles.groupBadge}>
+                      <Ionicons name="people" size={10} color="#FFFFFF" />
                     </View>
                   )}
                 </View>
                 <View style={styles.conversationContent}>
                   <View style={styles.conversationHeader}>
-                    <Text style={styles.conversationName}>{conv.other_user_full_name}</Text>
-                    <Text style={styles.conversationTime}>
-                      {conv.last_message ? formatTime(conv.last_message.created_at) : ''}
-                    </Text>
-                  </View>
-                  
-                  {/* Hiển thị tin nhắn gần nhất */}
-                  {conv.last_message && (
-                    <View style={styles.messageRow}>
-                      <Text 
-                        style={[
-                          styles.conversationMessage,
-                          conv.unread_count > 0 && styles.unreadMessage // Chữ đậm nếu chưa đọc
-                        ]} 
-                        numberOfLines={1}
-                      >
-                        {conv.last_message.content}
-                      </Text>
-                      {conv.unread_count > 0 && (
-                        <View style={styles.unreadBadge}>
-                          <Text style={styles.unreadCount}>
-                            {conv.unread_count > 99 ? '99+' : conv.unread_count}
-                          </Text>
-                        </View>
+                    <View style={styles.nameContainer}>
+                      <Text style={styles.conversationName}>{conv.name}</Text>
+                      {conv.isGroup && conv.memberCount && (
+                        <Text style={styles.memberCount}>({conv.memberCount})</Text>
                       )}
                     </View>
-                  )}
+                    {conv.time && <Text style={styles.conversationTime}>{formatTime(conv.time)}</Text>}
+                  </View>
+                  
+                  {/* Last message */}
+                  <View style={styles.messageRow}>
+                    <Text 
+                      style={[
+                        styles.conversationMessage,
+                        conv.unreadCount > 0 && styles.unreadMessage
+                      ]} 
+                      numberOfLines={1}
+                    >
+                      {conv.lastMessage?.content || (conv.isGroup ? `Nhóm · ${conv.memberCount || 0} thành viên` : 'Chưa có tin nhắn')}
+                    </Text>
+                  </View>
                 </View>
               </TouchableOpacity>
             ))
           ) : (
             <View style={styles.emptyState}>
-              <Ionicons name="search-outline" size={48} color="#D1D5DB" />
-              <Text style={styles.emptyStateText}>No results found</Text>
+              <Ionicons name="chatbubbles-outline" size={64} color="#D1D5DB" />
+              <Text style={styles.emptyStateText}>
+                {searchText ? 'Không tìm thấy cuộc trò chuyện' : 'Chưa có tin nhắn'}
+              </Text>
               <Text style={styles.emptyStateSubtext}>
-                Try searching for a different name
+                {searchText 
+                  ? 'Thử tìm kiếm với từ khóa khác' 
+                  : 'Bắt đầu cuộc trò chuyện mới với bạn bè'}
               </Text>
             </View>
           )}
@@ -376,6 +659,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111827',
     letterSpacing: 0.5,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  groupButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   composeButton: {
     width: 40,
@@ -454,16 +748,48 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -2,
     right: -2,
-    backgroundColor: '#FFFFFF', // Nền trắng
+    backgroundColor: '#FFFFFF',
     borderRadius: 8,
     paddingHorizontal: 4,
     paddingVertical: 2,
     borderWidth: 1,
-    borderColor: '#D1D5DB', // Viền xám rõ hơn
+    borderColor: '#D1D5DB',
   },
   offlineTimeText: {
     fontSize: 10,
-    color: '#10B981', // Màu xanh lá giống chấm online
+    color: '#10B981',
+    fontWeight: '700',
+  },
+  groupBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#10B981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  unreadText: {
+    color: '#FFFFFF',
+    fontSize: 11,
     fontWeight: '700',
   },
   conversationContent: {
@@ -475,14 +801,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
+  nameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
   conversationName: {
     fontSize: 15,
     fontWeight: '600',
     color: '#111827',
   },
+  memberCount: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginLeft: 4,
+  },
   conversationTime: {
     fontSize: 13,
     color: '#9CA3AF',
+    marginLeft: 8,
   },
   messageRow: {
     flexDirection: 'row',
@@ -492,27 +829,12 @@ const styles = StyleSheet.create({
   conversationMessage: {
     flex: 1,
     fontSize: 14,
-    color: '#6B7280', // Màu nhạt cho tin nhắn đã đọc
+    color: '#6B7280',
     lineHeight: 20,
   },
   unreadMessage: {
-    fontWeight: '700', // Chữ đậm cho tin nhắn chưa đọc
-    color: '#111827', // Màu đen đậm
-  },
-  unreadBadge: {
-    backgroundColor: '#3B82F6',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    marginLeft: 8,
-  },
-  unreadCount: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: '#111827',
   },
   emptyState: {
     alignItems: 'center',
@@ -531,5 +853,10 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     marginTop: 8,
     textAlign: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#6B7280',
   },
 });
