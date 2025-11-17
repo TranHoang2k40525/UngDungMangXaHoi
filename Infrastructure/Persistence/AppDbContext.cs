@@ -30,6 +30,16 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
     // Stories
     public DbSet<Story> Stories { get; set; }
     public DbSet<StoryView> StoryViews { get; set; }
+    // Group Chat
+    public DbSet<GroupConversation> Conversations { get; set; }
+    public DbSet<GroupConversationMember> ConversationMembers { get; set; }
+    public DbSet<GroupMessage> Messages { get; set; } // ✅ Thêm DbSet GroupMessage
+    public DbSet<GroupMessageReaction> MessageReactions { get; set; }
+    public DbSet<GroupMessageRead> MessageReads { get; set; }
+
+    public DbSet<Block> Blocks { get; set; }
+    public DbSet<GroupMessageRestriction> MessageRestrictions { get; set; }
+ 
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -55,6 +65,15 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new CommentEditHistoryConfiguration());
             modelBuilder.ApplyConfiguration(new StoryConfiguration());
             modelBuilder.ApplyConfiguration(new StoryViewConfiguration());
+            modelBuilder.ApplyConfiguration(new GroupConversationConfiguration());
+            modelBuilder.ApplyConfiguration(new GroupConversationMemberConfiguration());
+            modelBuilder.ApplyConfiguration(new BlockConfiguration());
+            modelBuilder.ApplyConfiguration(new GroupMessageRestrictionConfiguration());
+
+            // Configure composite keys for group message reactions and reads
+            modelBuilder.Entity<GroupMessageReaction>().HasKey(r => new { r.message_id, r.user_id });
+            modelBuilder.Entity<GroupMessageRead>().HasKey(r => new { r.message_id, r.user_id });
+
         }
     }
 }

@@ -88,6 +88,24 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
         };
+        
+        // Cấu hình cho SignalR - lấy token từ query string
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                
+                // Nếu request đến SignalR hub và có token trong query
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization(options =>
@@ -109,6 +127,11 @@ builder.Services.AddScoped<IReactionRepository, ReactionRepository>();
 builder.Services.AddScoped<IShareRepository, ShareRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<ICommentRepository, CommentRepository>();
+// Group Chat Repositories
+builder.Services.AddScoped<IGroupConversationRepository, GroupConversationRepository>();
+builder.Services.AddScoped<IGroupMessageRepository, GroupMessageRepository>(); // ✅ Thêm GroupMessageRepository
+builder.Services.AddScoped<IBlockRepository, BlockRepository>();
+builder.Services.AddScoped<IGroupMessageRestrictionRepository, GroupMessageRestrictionRepository>();
 
 // ======================================
 // 6️⃣ Đăng ký Service
@@ -130,6 +153,11 @@ builder.Services.AddScoped<ShareService>();
 builder.Services.AddScoped<NotificationManagementService>();
 builder.Services.AddScoped<CommentService>();
 builder.Services.AddScoped<IRealTimeNotificationService, UngDungMangXaHoi.Presentation.WebAPI.Hubs.SignalRNotificationService>();
+// Group Chat Services
+builder.Services.AddScoped<GroupChatService>();
+builder.Services.AddScoped<GroupMessageService>(); // ✅ Message service cho GROUP CHAT
+// SignalR Service for broadcasting
+builder.Services.AddScoped<UngDungMangXaHoi.WebAPI.Services.ISignalRService, UngDungMangXaHoi.WebAPI.Services.SignalRService>();
 
 // External Services
 builder.Services.AddScoped<CloudinaryService>(provider =>
@@ -167,7 +195,10 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "http://localhost:5173") // Thêm origin của frontend
+        policy.WithOrigins(
+                "http://localhost:3000", 
+                "http://localhost:5173"
+            )
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials(); // Quan trọng cho SignalR
@@ -228,5 +259,6 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<UngDungMangXaHoi.Presentation.WebAPI.Hubs.NotificationHub>("/hubs/notifications");
 app.MapHub<CommentHub>("/hubs/comments");
+app.MapHub<UngDungMangXaHoi.Presentation.WebAPI.Hubs.GroupChatHub>("/hubs/chat"); // Chat Hub cho Group Chat
 
 app.Run();
