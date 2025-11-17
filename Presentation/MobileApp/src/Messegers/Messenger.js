@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,25 +9,140 @@ import {
   Image,
   ScrollView,
   Platform,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const conversations = [
-  { id: 1, name: 'Hoàng Phạm', message: 'I have a nice day, bro!', time: 'now', avatar: require('../Assets/trai.png'), },
-  { id: 2, name: 'Linh Nguyễn', message: 'I heard this is a good movie. s...', time: 'now', avatar: require('../Assets/gai1.png'),},
-  { id: 3, name: 'Trang Thu', message: 'See you on the next meeting!', time: '15m', avatar: require('../Assets/gai2.png'), },
-  { id: 4, name: 'Noo', message: 'Sounds good', time: '20m', avatar: require('../Assets/noo.png'),},
-  { id: 5, name: 'Tùng', message: 'The new design is looks cool, b...', time: '1m', avatar: require('../Assets/sontung.png'),},
-  { id: 6, name: 'Việt Lê', message: 'That kind UI is pretty good', time: '5h', avatar: require('../Assets/embe.png'), },
-  { id: 7, name: 'Vinh Nguyễn', message: 'Wow, I\'m going to travel in To...', time: '4h', avatar: require('../Assets/meo.png'),},
-];
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {MessageAPI, BASE_URL} from '../API/MessageAPI';
+import {API_BASE_URL} from '../API/Api';
+import MessageWebSocketService from '../Services/MessageWebSocketService';
 
 export default function Messenger() {
   const [searchText, setSearchText] = useState('');
+  const [conversations, setConversations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [currentUserName, setCurrentUserName] = useState(''); // Tên user hiện tại
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+
+  // Load current user info
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const userInfoStr = await AsyncStorage.getItem('userInfo');
+        if (userInfoStr) {
+          const userInfo = JSON.parse(userInfoStr);
+          setCurrentUserName(userInfo.fullName || userInfo.username || 'User');
+        }
+      } catch (error) {
+        console.error('[Messenger] Error loading current user:', error);
+      }
+    };
+    loadCurrentUser();
+  }, []);
+
+  // Load conversations - hiển thị tất cả mutual followers
+  const loadConversations = useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      // Lấy danh sách mutual followers (những người có thể nhắn tin)
+      const mutualResponse = await MessageAPI.getMutualFollowers();
+      console.log('[Messenger] Mutual followers response:', mutualResponse);
+      
+      if (mutualResponse.success && mutualResponse.data) {
+        // Backend trả về ConversationDto với last_message và unread_count
+        const conversations = mutualResponse.data.map(conv => {
+          // Xử lý avatar URL - thêm base URL nếu là relative path  
+          let avatarUrl = conv.other_user_avatar_url;
+          if (avatarUrl && !avatarUrl.startsWith('http')) {
+            avatarUrl = `${API_BASE_URL}${avatarUrl}`;
+          }
+
+          return {
+            ...conv,
+            other_user_avatar_url: avatarUrl
+          };
+        });
+        
+        setConversations(conversations);
+        console.log('[Messenger] Loaded conversations with messages:', conversations.length);
+      }
+    } catch (error) {
+      console.error('[Messenger] Error loading conversations:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []); // Empty deps - function doesn't depend on external variables
+
+  // Refresh conversations
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadConversations();
+    setRefreshing(false);
+  };
+
+  // Initialize WebSocket
+  useEffect(() => {
+    const initWebSocket = async () => {
+      const connected = await MessageWebSocketService.initialize();
+      
+      if (connected) {
+        // Listen for new messages - ONLY reload if relevant
+        const handleMessageReceived = (message) => {
+          console.log('[Messenger] New message received:', message);
+          // Only reload if we need to update conversation list
+          loadConversations();
+        };
+
+        // Listen for online users
+        const handleOnlineUsers = (userIds) => {
+          setOnlineUsers(userIds);
+        };
+
+        const handleUserOnline = (userId) => {
+          setOnlineUsers(prev => [...new Set([...prev, userId])]);
+        };
+
+        const handleUserOffline = (userId) => {
+          setOnlineUsers(prev => prev.filter(id => id !== userId));
+        };
+
+        MessageWebSocketService.on('messageReceived', handleMessageReceived);
+        MessageWebSocketService.on('onlineUsers', handleOnlineUsers);
+        MessageWebSocketService.on('userOnline', handleUserOnline);
+        MessageWebSocketService.on('userOffline', handleUserOffline);
+
+        // Cleanup
+        return () => {
+          MessageWebSocketService.off('messageReceived', handleMessageReceived);
+          MessageWebSocketService.off('onlineUsers', handleOnlineUsers);
+          MessageWebSocketService.off('userOnline', handleUserOnline);
+          MessageWebSocketService.off('userOffline', handleUserOffline);
+        };
+      }
+    };
+
+    initWebSocket();
+  }, []); // Empty deps - only run once on mount
+
+  // Load conversations when screen focused
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[Messenger] Screen focused - loading conversations');
+      loadConversations();
+      
+      // Cleanup on unfocus
+      return () => {
+        console.log('[Messenger] Screen unfocused');
+      };
+    }, [loadConversations]) // Depend on stable loadConversations
+  );
 
   // Lọc danh sách conversations dựa trên searchText
   const filteredConversations = useMemo(() => {
@@ -38,9 +153,53 @@ export default function Messenger() {
     const searchLower = searchText.toLowerCase().trim();
     
     return conversations.filter(conv => 
-      conv.name.toLowerCase().includes(searchLower)
+      conv.other_user_full_name.toLowerCase().includes(searchLower) ||
+      conv.other_user_username.toLowerCase().includes(searchLower)
     );
-  }, [searchText]);
+  }, [searchText, conversations]);
+
+  // Format time
+  const formatTime = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return 'now';
+    if (diffMins < 60) return `${diffMins}m`;
+    
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h`;
+    
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d`;
+  };
+
+  // Check if user is online
+  const isUserOnline = (userId) => {
+    return onlineUsers.includes(userId);
+  };
+
+  // Format offline time - "7m ago", "2h ago" (ngắn gọn)
+  const formatOfflineTime = (lastSeen) => {
+    if (!lastSeen) return '';
+    
+    // lastSeen từ backend là UTC, cần convert sang VN time để tính chênh lệch chính xác
+    const lastSeenDate = new Date(lastSeen);
+    const now = new Date(); // Current time ở VN (thiết bị đã set múi giờ VN)
+    
+    const diffMs = now - lastSeenDate;
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return 'now';
+    if (diffMins < 60) return `${diffMins}m`;
+    
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h`;
+    
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d`;
+  };
 
   return (
     <View style={styles.container}>
@@ -60,7 +219,7 @@ export default function Messenger() {
           >
             <Ionicons name="chevron-back" size={24} color="#111827" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Vũ_Dũng</Text>
+          <Text style={styles.headerTitle}>{currentUserName || 'Messages'}</Text>
           <TouchableOpacity style={styles.composeButton}>
             <Ionicons name="create-outline" size={24} color="#111827" />
           </TouchableOpacity>
@@ -90,24 +249,82 @@ export default function Messenger() {
         <ScrollView 
           style={styles.conversationsList}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
-          {filteredConversations.length > 0 ? (
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#3B82F6" />
+            </View>
+          ) : filteredConversations.length > 0 ? (
             filteredConversations.map((conv) => (
               <TouchableOpacity 
-                key={conv.id} 
+                key={conv.conversation_id} 
                 style={styles.conversationItem}
                 activeOpacity={0.7}
-                onPress={() => conv.name === 'Trang Thu' ? navigation.navigate('Doanchat') : null}
+                onPress={() => navigation.navigate('Doanchat', { 
+                  userId: conv.other_user_id,
+                  userName: conv.other_user_full_name,
+                  userAvatar: conv.other_user_avatar_url,
+                  username: conv.other_user_username
+                })}
               >
-                <Image source={conv.avatar} style={styles.avatar} />
+                <View style={styles.avatarContainer}>
+                  {conv.other_user_avatar_url ? (
+                    <Image 
+                      source={{ uri: conv.other_user_avatar_url }} 
+                      style={styles.avatar} 
+                    />
+                  ) : (
+                    <View style={[styles.avatar, styles.defaultAvatar]}>
+                      <Text style={styles.defaultAvatarText}>
+                        {conv.other_user_full_name ? conv.other_user_full_name.charAt(0).toUpperCase() : 'U'}
+                      </Text>
+                    </View>
+                  )}
+                  {/* Online indicator - chấm xanh */}
+                  {isUserOnline(conv.other_user_id) && (
+                    <View style={styles.onlineIndicator} />
+                  )}
+                  {/* Offline time - đè lên góc dưới avatar */}
+                  {!isUserOnline(conv.other_user_id) && conv.other_user_last_seen && (
+                    <View style={styles.offlineTimeContainer}>
+                      <Text style={styles.offlineTimeText}>
+                        {formatOfflineTime(conv.other_user_last_seen)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
                 <View style={styles.conversationContent}>
                   <View style={styles.conversationHeader}>
-                    <Text style={styles.conversationName}>{conv.name}</Text>
-                    <Text style={styles.conversationTime}>{conv.time}</Text>
+                    <Text style={styles.conversationName}>{conv.other_user_full_name}</Text>
+                    <Text style={styles.conversationTime}>
+                      {conv.last_message ? formatTime(conv.last_message.created_at) : ''}
+                    </Text>
                   </View>
-                  <Text style={styles.conversationMessage} numberOfLines={1}>
-                    {conv.message}
-                  </Text>
+                  
+                  {/* Hiển thị tin nhắn gần nhất */}
+                  {conv.last_message && (
+                    <View style={styles.messageRow}>
+                      <Text 
+                        style={[
+                          styles.conversationMessage,
+                          conv.unread_count > 0 && styles.unreadMessage // Chữ đậm nếu chưa đọc
+                        ]} 
+                        numberOfLines={1}
+                      >
+                        {conv.last_message.content}
+                      </Text>
+                      {conv.unread_count > 0 && (
+                        <View style={styles.unreadBadge}>
+                          <Text style={styles.unreadCount}>
+                            {conv.unread_count > 99 ? '99+' : conv.unread_count}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
                 </View>
               </TouchableOpacity>
             ))
@@ -189,6 +406,12 @@ const styles = StyleSheet.create({
   conversationsList: {
     flex: 1,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
   conversationItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -196,11 +419,51 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: '#FFFFFF',
   },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 12,
+  },
   avatar: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    marginRight: 12,
+  },
+  defaultAvatar: {
+    backgroundColor: '#1DA1F2',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  defaultAvatarText: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  onlineIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#10B981',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  offlineTimeContainer: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#FFFFFF', // Nền trắng
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: '#D1D5DB', // Viền xám rõ hơn
+  },
+  offlineTimeText: {
+    fontSize: 10,
+    color: '#10B981', // Màu xanh lá giống chấm online
+    fontWeight: '700',
   },
   conversationContent: {
     flex: 1,
@@ -220,10 +483,35 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#9CA3AF',
   },
+  messageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   conversationMessage: {
+    flex: 1,
     fontSize: 14,
-    color: '#6B7280',
+    color: '#6B7280', // Màu nhạt cho tin nhắn đã đọc
     lineHeight: 20,
+  },
+  unreadMessage: {
+    fontWeight: '700', // Chữ đậm cho tin nhắn chưa đọc
+    color: '#111827', // Màu đen đậm
+  },
+  unreadBadge: {
+    backgroundColor: '#3B82F6',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    marginLeft: 8,
+  },
+  unreadCount: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600',
   },
   emptyState: {
     alignItems: 'center',
