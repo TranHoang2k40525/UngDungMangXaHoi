@@ -1,109 +1,207 @@
-**Messaging Module — Toàn bộ phân tích (frontend + backend)**
+# Phân tích chi tiết xử lý thời gian thực (Realtime) trong module nhắn tin
 
-**Tổng Quan**
-- Vị trí code:
-  - Backend hubs/services/controllers: `Presentation/WebAPI/Hubs/MessageHub.cs`, `GroupChatHub.cs`, `NotificationHub.cs`, `Presentation/WebAPI/Controllers/MessagesController.cs`, `Application/Services/MessageService.cs`, `Application/Services/GroupMessageService.cs`, repositories trong `Infrastructure/Repositories`.
-  - Mobile frontend: `Presentation/MobileApp/src/Messegers/` (ví dụ `Messenger.js`, `Doanchat.js`), realtime services: `Presentation/MobileApp/src/Services/MessageWebSocketService.js`, `Presentation/MobileApp/src/ServicesSingalR/signalRService.js`, `groupChatService.js`.
-- Mục tiêu: Hệ thống hỗ trợ chat 1:1 (direct) và group chat; realtime dùng SignalR; HTTP REST dùng cho CRUD, pagination, fallback và sync.
-
-**Các file chính (tổng hợp)**
-- Backend
-  - Hubs: `MessageHub.cs`, `GroupChatHub.cs`, `CommentHub.cs`, `NotificationHub.cs`.
-  - Controllers: `MessagesController.cs` (1:1 endpoints), group endpoints under `groupchat`/`groupmessage` (services + controllers observed in client REST paths).
-  - Services: `MessageService.cs`, `GroupMessageService.cs`, `SignalRService.cs`.
-  - Repositories: `MessageRepository.cs`, `GroupMessageRepository.cs`.
-  - DbContext: `AppDbContext.cs` (entities: `MessagesNew`, `GroupMessage`, `GroupMessageRead`, `GroupMessageReaction`, `ConversationsNew`, `GroupConversation`).
-- Frontend (mobile)
-  - Screens: `Messegers/Messenger.js` (conversation list), `Messegers/Doanchat.js` (1:1 chat), plus group chat screens referenced elsewhere.
-  - Realtime & durable services: `Services/MessageWebSocketService.js` (1:1 via `/hubs/messages`), `ServicesSingalR/signalRService.js` (group chat + comments + notifications), `ServicesSingalR/groupChatService.js` (outbox, REST wrappers, durable send).
-
-**Kiến trúc realtime & naming conventions**
-- Hub routes (mapped in `Program.cs`):
-  - `/hubs/messages` → `MessageHub` (1:1 chat)
-  - `/hubs/chat` → `GroupChatHub` (group chat)
-  - `/hubs/comments` → `CommentHub`
-  - `/hubs/notifications` → `NotificationHub`
-- Group names / conventions:
-  - Group chat: conversationId (string) used as group name.
-  - Post/comment groups: `post_{postId}`.
-  - User notifications: `user_{userId}` groups.
-
-**Luồng chính (flows)**
-- 1:1 chat (MessageHub + MessageWebSocketService):
-  - Client (`MessageWebSocketService.initialize`) connects to `/hubs/messages` với token.
-  - `SendMessage` (client invoke) → `MessageHub.SendMessage` → `MessageService.SendMessageAsync` lưu DB → hub trả `MessageSent` cho caller và `ReceiveMessage` cho receiver nếu online.
-  - Presence: `_userConnections` map (server) user → single connectionId; client can `GetOnlineUsers`.
-  - Read receipts via `MarkAsRead` → hub/service mark read and broadcast `MessagesRead`.
-  - Typing indicator via `UserTyping`.
-- Group chat (GroupChatHub + signalRService + groupChatService):
-  - Client `signalRService.connectToChat()` và `joinGroup(conversationId)` để vào group.
-  - `SendMessage` on client → `GroupChatHub.SendMessage` nhận payload, validate membership, `GroupMessageService.SendMessageAsync` lưu DB rồi `Clients.Group.SendAsync("ReceiveMessage", payload)` để broadcast.
-  - Durable client-side outbox: `pending_group_outbox_v1` (AsyncStorage). `groupChatService.sendMessageRealtime` enqueue, try SignalR, fallback to POST `/api/groupmessage/send`. On reconnect, auto flush pending outbox.
-  - Read receipts: `OpenGroup`/`MarkMessageAsRead` calls and `MessageRead` broadcasts.
-  - Reactions/pin/unpin via hub methods and REST endpoints; both broadcast to group.
-
-**Storage keys (client)**
-- `pending_group_outbox_v1` — pending group messages.
-- `groupAvatar_{convId}` — override avatar per-group.
-- `group_messages_{conversationId}` — cached messages for purge.
-- `accessToken` — token expected by most services.
-- `userInfo` — contains current user id for `Doanchat`.
-- Note: `Doanchat.sendImageMessage` uses `token` and `API_URL` keys (inconsistent).
-
-**Event names used (frontend ↔ backend)**
-- Common: `ReceiveMessage`, `MessageSent`, `MessageSaveFailed`, `MessageRead`/`MessagesRead`, `MessageDeleted`, `MessageRecalled`.
-- Group-specific: `UserJoined`, `UserLeft`, `UserTyping`, `UserStoppedTyping`, `ReactionAdded`, `ReactionRemoved`, `MessagePinned`, `MessageUnpinned`, `GroupAvatarUpdated`, `GroupNameUpdated`, `MemberRemoved`, `GroupDeleted`.
-
-**Các vấn đề, rủi ro & inconsistencies (phát hiện)**
-1. Token key inconsistency
-   - Hầu hết client dùng `accessToken`; `Doanchat` upload image dùng `token` and `API_URL` keys → upload có thể fail in production if keys differ.
-2. Hai client stack cho messaging
-   - 1:1 uses `MessageWebSocketService` (own reconnect policy), group uses `signalRService` (different policy). UX inconsistent.
-3. Presence multi-device mismatch
-   - `MessageHub` maps user to a single `ConnectionId` (single device). `NotificationHub` uses multiple connectionIds per user. If user uses multiple devices, presence behavior will be inconsistent.
-4. Rejoin & missed events
-   - Client re-joins tracked groups on `onreconnected`, but join failures are logged and not retried aggressively.
-   - No built-in "catch-up" API after reconnect; missed messages require manual refresh or paginated fetch.
-5. Server-side scaling
-   - In-memory connection/group maps do not work across multiple instances; need Redis backplane or Azure SignalR Service for scale.
-6. Pending outbox durability
-   - `pending_group_outbox_v1` can grow; no TTL or purge policy; server must honor `ClientTempId` to avoid double-saves.
-7. Hardcoded baseURL in `MessageWebSocketService.initialize` (dev host) — not environment-safe.
-
-**Bảo mật & privacy**
-- Token in query string (SignalR) is common but must be used only over HTTPS and tokens should be short-lived.
-- Avoid logging tokens or request URLs containing tokens.
-
-**Khuyến nghị (ưu tiên hành động)**
-1. Fix token/config inconsistencies (high priority)
-   - Standardize on `accessToken` and `API_BASE_URL` across all mobile code. Replace `token`/`API_URL` in `Doanchat.sendImageMessage`.
-2. Add "catch-up" sync endpoints
-   - Implement `GET /api/groupmessage/{conversationId}?sinceMessageId=xxx` or `?since=timestamp` and call after reconnect to fetch missed messages.
-3. Improve client rejoin reliability
-   - In `signalRService.joinGroup` implement exponential retry (3 attempts) on invoke failure and surface error to UI if cannot join.
-4. Harmonize reconnect policies
-   - Use single transport abstraction or align reconnection/backoff across 1:1 and group clients.
-5. Multi-device presence
-   - If multiple devices per user supported, change `MessageHub` to map user → HashSet(connectionIds) (like `NotificationHub`). Update presence events accordingly.
-6. Server scaling
-   - Add Redis backplane (or Azure SignalR Service) before autoscaling; persist minimal presence state in shared store.
-7. Durable outbox improvements
-   - Add TTL/size limit for `pending_group_outbox_v1`; expose queued status in UI; ensure server honors `ClientTempId` idempotency.
-8. Media upload flow
-   - Standardize to use `API_BASE_URL` + `accessToken` and centralize upload helper.
-
-**Gợi ý patch code (quick fixes)**
-- Replace `token` usage in `Doanchat.sendImageMessage` with `accessToken` and `API_BASE_URL` (single-line change).
-- Add retry loop inside `signalRService.joinGroup` around `invoke('JoinGroup', ...)` (3 attempts with backoff).
-- Add client-side `syncAfterReconnect` in `groupChatService` to call `getMessages(conversationId, 1, pageSize)` for joined groups on reconnect and merge.
-
-**Next steps đề xuất (tôi có thể thực hiện)**
-- A: Tôi sẽ patch `Doanchat.sendImageMessage` để dùng `accessToken` + `API_BASE_URL` (small, safe).
-- B: Tôi sẽ patch `signalRService.joinGroup` để thêm retry logic on join failure.
-- C: Tôi sẽ thêm `docs/messaging-module.md` (đã tạo) và tiếp tục implement a small client sync after reconnect.
-
-**Vị trí tài liệu**
-- File này được tạo tại: `docs/messaging-module.md` (root repo).
+Tài liệu này tường trình bằng tiếng Việt, nhằm giải thích cụ thể cách backend (ASP.NET Core + SignalR) và frontend (React Native + @microsoft/signalr) xử lý các tính năng realtime chính trong module messenger của dự án: hiển thị chấm xanh (presence), hiển thị tin nhắn realtime, hiển thị đang soạn (typing), xóa/thu hồi tin nhắn realtime và các chức năng kèm theo (reaction, read receipts, durable outbox). Mục đích là để bạn hiểu từng bước, payload, điểm yếu hiện tại và các khuyến nghị cải thiện.
 
 ---
-*Nếu bạn muốn tôi áp dụng 1 patch cụ thể (A hoặc B), chọn một — tôi sẽ thực hiện thay đổi mã và chạy quick checks.*
+
+**Tổng quan ngắn**:
+- **Backend:** `Presentation/WebAPI/Hubs/MessageHub.cs`, `GroupChatHub.cs`, `NotificationHub.cs` (SignalR hubs); `Application/Services/*` (business logic); `Infrastructure/Repositories/*` (data access)
+- **Frontend:** `Presentation/MobileApp/src/ServicesSingalR/signalRService.js`, `Presentation/MobileApp/src/Services/MessageWebSocketService.js`, `Presentation/MobileApp/src/ServicesSingalR/groupChatService.js`, cùng các màn hình `Messenger.js`, `Doanchat.js`.
+
+---
+
+**1) Cách hệ thống hiện tại quản lý Presence (chấm xanh)**
+
+- **Mục tiêu:** Hiển thị ai đang online ngay lập tức trên giao diện trò chuyện.
+- **Backend (server):**
+  - Hub chính: `MessageHub.cs` (1:1 messaging). Có cơ chế map user -> connectionId (hiện code lưu 1 connectionId cho mỗi user). Khi một kết nối mới được thiết lập, server thêm mapping và broadcast event `UserOnline` tới các client cần biết. Khi ngắt kết nối, server broadcast `UserOffline`.
+  - `NotificationHub.cs` dùng cấu trúc set để quản lý nhiều connection cho một user (hỗ trợ multi-device) — nhưng `MessageHub` hiện đang chỉ dùng 1 connection (khác nhau giữa hub có thể gây không đồng bộ về presence).
+
+- **Frontend (client):**
+  - `MessageWebSocketService.js` hoặc `signalRService.js` khởi tạo kết nối tới `/hubs/messages` (hoặc `/hubs/chat` cho group) với token (đọc từ `AsyncStorage`) và gán handler `on('UserOnline', ...)`, `on('UserOffline', ...)`.
+  - `Messenger.js` duy trì state `onlineUsers` (thường là một map hoặc set userId => true) và hiển thị chấm xanh nếu userId tồn tại trong đó.
+
+- **Luồng sự kiện tóm tắt:**
+  1. Client kết nối và server nhận `OnConnectedAsync` → lưu `userId -> connectionId` và gọi `Clients.Groups(...).SendAsync("UserOnline", userId)` (gửi cho các người nhận quan tâm).
+  2. Các client lắng nghe `UserOnline` và cập nhật `onlineUsers` local → UI vẽ chấm xanh.
+  3. Khi connection ngắt, server gọi `UserOffline` → client cập nhật remove khỏi `onlineUsers`.
+
+- **Vấn đề hiện tại:**
+  - `MessageHub` lưu duy nhất một `connectionId` cho user → nếu user đăng nhập nhiều thiết bị, việc báo online/offline sẽ không chính xác.
+  - Mapping presence lưu trong bộ nhớ server → không đúng khi có nhiều instance (không scale), cần backplane (Redis) hoặc Azure SignalR Service.
+  - Không có cơ chế sync sau reconnect: nếu client bỏ lỡ event khi offline, không có bước đồng bộ để lấy trạng thái hiện tại của các user.
+
+- **Khuyến nghị:**
+  - Chuyển `MessageHub` sang lưu nhiều connectionId (Set) giống `NotificationHub`.
+  - Dùng shared store (Redis) để lưu presence khi chạy multi-instance.
+  - Khi client reconnect, thực hiện một call `GetOnlineUsers` (API/Hub method) để sync trạng thái hiện tại.
+
+---
+
+**2) Hiển thị tin nhắn realtime (ReceiveMessage / MessageSent)**
+
+- **Mục tiêu:** Khi một người gửi tin nhắn (1:1 hoặc group), người nhận xem thấy tin nhắn ngay mà không cần refresh.
+
+- **Backend:**
+  - `MessageHub.cs` (1:1): Khi nhận lệnh `SendMessage`, server gọi `MessageService` để lưu message vào DB, sau đó gửi `ReceiveMessage` hoặc `MessageSent` tới target connection(s). Event names có thể gồm `ReceiveMessage` (dành cho người nhận) và `MessageSent` (feedback cho sender).
+  - `GroupChatHub.cs` (group): Khi `SendMessageToGroup` được gọi, server lưu `GroupMessage` rồi broadcast `ReceiveGroupMessage` tới group.
+
+- **Frontend:**
+  - `signalRService.js` hoặc `MessageWebSocketService.js` gắn handler `onReceiveMessage` / `on('ReceiveMessage', handler)`. Khi nhận payload, UI thêm message vào danh sách (state) và đánh dấu read/unread tùy logic.
+  - Giao diện màn hình chat (`Doanchat.js`) cập nhật list ngay khi event tới, scroll tới cuối nếu cần.
+
+- **Payload mẫu (ví dụ):**
+  - ReceiveMessage: { messageId, conversationId, fromUserId, toUserId, content, createdAtUtc, attachments[] }
+
+- **Edge cases & fallback:**
+  - Nếu SignalR thất bại (không connect), client gọi REST `POST /api/messages` để gửi, server vẫn lưu và sẽ deliver khi recipient connect tiếp.
+  - Group messages có thêm durable outbox phía client (`pending_group_outbox_v1` trong `AsyncStorage`) để đảm bảo gửi khi offline.
+
+- **Vấn đề hiện tại:**
+  - Hai client implementations khác nhau (MessageWebSocketService cho 1:1 và signalRService cho nhiều hub) dẫn đến chính sách reconnect khác nhau; có thể lead to inconsistent behavior.
+
+- **Khuyến nghị:**
+  - Chuẩn hoá một abstraction client SignalR dùng cho cả 1:1 và group, thống nhất retry/backoff và rejoin behavior.
+  - Sau reconnect, client nên gọi API sync để lấy các message mới (từ lastSeenMessageId hoặc lastSyncTimestamp) để tránh mất message.
+
+---
+
+**3) Typing indicator (đang soạn)**
+
+- **Mục tiêu:** Hiển thị cho người kia biết rằng đối phương đang nhập văn bản.
+
+- **Backend:**
+  - Hub triển khai method `UserTyping`/`UserStoppedTyping` hoặc `Typing` với payload { conversationId, userId, isTyping }.
+  - Server broadcast event đến participant(s) trong conversation hoặc group: `UserTyping`.
+
+- **Frontend:**
+  - Khi người dùng bắt đầu gõ, client gửi `invoke('Typing', { conversationId, isTyping: true })` với debounce (ví dụ gửi khi có nhập sau 300ms) và gửi `isTyping:false` khi user ngưng trong N ms.
+  - Màn hình chat lắng nghe `on('UserTyping', handler)` để hiển thị dòng chữ "Đang soạn..." và ẩn khi nhận `isTyping:false` hoặc sau timeout.
+
+- **Vấn đề & lưu ý:**
+  - Không nên gửi typing event quá thường xuyên — cần debounce/throttle để giảm tần suất.
+  - Nếu device disconnect, cần timeout trên client để ẩn trạng thái typing.
+
+- **Khuyến nghị:**
+  - Dùng debounce 300–700ms khi gửi typing, và server broadcast đến những người cần nhận (không broadcast toàn bộ group nếu không cần thiết).
+
+---
+
+**4) Xóa / Thu hồi tin nhắn realtime (Recall/Delete)**
+
+- **Mục tiêu:** Khi người gửi thu hồi tin nhắn, tất cả client liên quan (người nhận, nhóm) cập nhật giao diện ngay.
+
+- **Backend:**
+  - Hub method `RecallMessage(messageId, conversationId, requestingUserId)` gọi `MessageService.RecallMessage` (đánh dấu isRecalled = true trong DB hoặc xóa tuỳ nghiệp vụ). Sau khi cập nhật DB, server gọi `Clients.Group(conversationGroup).SendAsync('MessageRecalled', { messageId, conversationId, recallBy })` hoặc `Clients.User(targetUser).SendAsync('MessageDeleted', payload)`.
+
+- **Frontend:**
+  - Lắng nghe event `MessageRecalled` / `MessageDeleted` và cập nhật list: tìm messageId và chuyển nội dung sang "Đã thu hồi" hoặc remove hoàn toàn.
+  - Nếu message có attachment, client có thể xoá/ẩn UI attachment tương ứng.
+
+- **Edge cases:**
+  - Nếu client offline khi recall xảy ra, khi reconnect và sync, client cần nhận cập nhật (qua event missed hoặc khi gọi API sync)
+
+- **Khuyến nghị:**
+  - Ghi status recall trong DB (field `isRecalled`), broadcast event và cung cấp API `GET /api/conversations/{id}/messages?sinceId=` để client sync.
+
+---
+
+**5) Các chức năng kèm theo: Reaction, Read receipts (đã đọc)**
+
+- **Reaction:**
+  - Backend: hub method `ReactToMessage(reactionDto)` lưu vào `MessageReaction` table rồi broadcast `ReactionAdded` (hoặc `ReactionRemoved`).
+  - Frontend: nhận `ReactionAdded` cập nhật UI (badges, counts, who reacted).
+
+- **Read receipts:**
+  - Backend: khi client mở convo, gửi `MarkAsRead(conversationId, messageIds)` hoặc server nhận `Seen` event và ghi vào `MessageRead` table; server broadcast `MessageRead` để cập nhật trạng thái trên UI của sender.
+  - Frontend: khi user vào màn hình chat, gửi mark-as-read; lắng nghe `MessageRead` và cập nhật message items (isRead true, readAt timestamp).
+
+---
+
+**6) Offline handling và Durable Outbox (đã có trong code)**
+
+- **Client-side durable outbox:** `groupChatService.js` dùng `AsyncStorage` key `pending_group_outbox_v1` để lưu tạm các group message chưa gửi. Khi reconnect, service flush queue: gửi qua SignalR và nếu fail thì fallback REST.
+
+- **Ưu điểm:** đảm bảo message nhóm không mất khi mất mạng ngắn.
+- **Khuyến nghị bổ sung:**
+  - Thêm metadata (uuid client-generated, local timestamp, retry count).
+  - Khi REST fallback được sử dụng, ensure idempotency (server nên ignore duplicate client-generated uuid nếu cùng message đã lưu).
+
+---
+
+**7) Reconnect, rejoin groups và đồng bộ (catch-up)**
+
+- **Vấn đề chính:** Nếu client disconnect rồi reconnect, có khả năng bỏ lỡ sự kiện (message, reaction, recall) xảy ra trong thời gian offline.
+
+- **Quy trình khuyến nghị cho client khi reconnect:**
+  1. Tự động re-establish SignalR connection với same token (đã có trong `signalRService` hiện tại có `withAutomaticReconnect`).
+  2. Re-attach tất cả handlers (nếu abstraction chưa làm sẵn).
+  3. Re-join rooms/groups đã đăng ký (dựng list `_joinedChatRooms`, `_joinedPostRooms` trong `signalRService.js`). Thực hiện rejoin với retry/backoff logic (thử 3 lần, delay tăng dần).
+  4. Gọi API `GET /api/conversations/sync?since={lastMessageIdOrTs}` để lấy các message/reaction/recall/read đã xảy ra trong lúc offline (server trả theo server-time hoặc lastId). Nếu server không có endpoint này, call `GET /api/conversations/{id}/messages?limit=...` cho từng conversation cần sync.
+  5. Apply dedup logic trên client (dựa trên messageId hoặc clientUuid) để tránh trùng lặp.
+
+- **Server hỗ trợ cần có:**
+  - Endpoint sync lấy message theo lastMessageId hoặc since timestamp.
+  - Hub method `GetOnlineUsers`/`GetMissingEvents` tùy chọn giúp client refresh state.
+
+---
+
+**8) Bảo mật (Token handling) và lưu ý**
+
+- **Hiện tại:** `Program.cs` cho phép lấy token từ query string (`access_token`) cho hubs để SignalR JS client truyền token trong query (common pattern). Tuy nhiên gửi token qua query string có rủi ro (token lộ trong logs) — cần dùng HTTPS và token ngắn hạn.
+- **Khuyến nghị:**
+  - Dùng `access_token` chỉ qua HTTPS và rút ngắn TTL.
+  - Nếu có thể, dùng cookie auth / negotiate hoặc Azure SignalR Service để tránh query token.
+  - Thực hiện kiểm tra CSRF/Origin restrict cho hubs nếu cần.
+
+---
+
+**9) Scaling (multi-instance)**
+
+- **Vấn đề:** lưu presence hoặc group connection list trong bộ nhớ server không phù hợp khi run nhiều instance.
+- **Giải pháp:**
+  - Dùng Redis pub/sub để chia sẻ presence và broadcasting, hoặc cấu hình SignalR backplane / Azure SignalR Service.
+
+---
+
+**10) Prioritized action list (những việc nên làm sớm)**
+
+1. Chuẩn hoá presence multi-connection: sửa `MessageHub` để hỗ trợ set of connectionIds per user.
+2. Thêm API sync để client gọi khi reconnect (GET messages since lastId/timestamp).
+3. Chuẩn hoá token key trên client (đồng nhất `accessToken` hoặc `token` trong AsyncStorage) và kiểm tra mọi module upload dùng đúng key.
+4. Thống nhất 1 client SignalR abstraction để cả 1:1 và group dùng chung logic reconnect/rejoin/handlers.
+5. Dùng Redis hoặc Azure SignalR Service khi scale > 1 instance.
+
+---
+
+**11) Appendix — Số event và method chính (ví dụ)**
+
+- Event server -> client:
+  - `UserOnline(userId)`, `UserOffline(userId)`
+  - `ReceiveMessage(payload)`, `MessageSent(payload)`
+  - `ReceiveGroupMessage(payload)`
+  - `UserTyping({conversationId, userId, isTyping})`
+  - `MessageRecalled({messageId, conversationId, recallBy})`
+  - `ReactionAdded({messageId, reaction})`, `MessageRead({messageId, readBy})`
+
+- Hub methods client -> server:
+  - `SendMessage({conversationId, content, attachments, clientUuid})`
+  - `MarkAsRead({conversationId, messageIds})`
+  - `Typing({conversationId, isTyping})`
+  - `RecallMessage({messageId})` / `ReactToMessage({...})`
+
+- File tham khảo trong repo:
+  - `Presentation/WebAPI/Hubs/MessageHub.cs`
+  - `Presentation/WebAPI/Hubs/GroupChatHub.cs`
+  - `Presentation/WebAPI/Hubs/NotificationHub.cs`
+  - `Presentation/MobileApp/src/ServicesSingalR/signalRservice.js`
+  - `Presentation/MobileApp/src/Services/MessageWebSocketService.js`
+  - `Presentation/MobileApp/src/ServicesSingalR/groupChatService.js`
+
+---
+
+Nếu bạn muốn, tôi có thể tiếp tục và:
+- Áp patch nhỏ (ví dụ: cập nhật `MessageHub` để hỗ trợ multi-connection hoặc thêm rejoin retry ở `signalRService.js`).
+- Tạo checklist sửa code cụ thể và patch tự động.
+
+Hãy cho tôi biết bạn muốn ưu tiên làm việc nào tiếp theo.
