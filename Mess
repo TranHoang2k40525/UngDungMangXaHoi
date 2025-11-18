@@ -1,0 +1,109 @@
+**Messaging Module — Toàn bộ phân tích (frontend + backend)**
+
+**Tổng Quan**
+- Vị trí code:
+  - Backend hubs/services/controllers: `Presentation/WebAPI/Hubs/MessageHub.cs`, `GroupChatHub.cs`, `NotificationHub.cs`, `Presentation/WebAPI/Controllers/MessagesController.cs`, `Application/Services/MessageService.cs`, `Application/Services/GroupMessageService.cs`, repositories trong `Infrastructure/Repositories`.
+  - Mobile frontend: `Presentation/MobileApp/src/Messegers/` (ví dụ `Messenger.js`, `Doanchat.js`), realtime services: `Presentation/MobileApp/src/Services/MessageWebSocketService.js`, `Presentation/MobileApp/src/ServicesSingalR/signalRService.js`, `groupChatService.js`.
+- Mục tiêu: Hệ thống hỗ trợ chat 1:1 (direct) và group chat; realtime dùng SignalR; HTTP REST dùng cho CRUD, pagination, fallback và sync.
+
+**Các file chính (tổng hợp)**
+- Backend
+  - Hubs: `MessageHub.cs`, `GroupChatHub.cs`, `CommentHub.cs`, `NotificationHub.cs`.
+  - Controllers: `MessagesController.cs` (1:1 endpoints), group endpoints under `groupchat`/`groupmessage` (services + controllers observed in client REST paths).
+  - Services: `MessageService.cs`, `GroupMessageService.cs`, `SignalRService.cs`.
+  - Repositories: `MessageRepository.cs`, `GroupMessageRepository.cs`.
+  - DbContext: `AppDbContext.cs` (entities: `MessagesNew`, `GroupMessage`, `GroupMessageRead`, `GroupMessageReaction`, `ConversationsNew`, `GroupConversation`).
+- Frontend (mobile)
+  - Screens: `Messegers/Messenger.js` (conversation list), `Messegers/Doanchat.js` (1:1 chat), plus group chat screens referenced elsewhere.
+  - Realtime & durable services: `Services/MessageWebSocketService.js` (1:1 via `/hubs/messages`), `ServicesSingalR/signalRService.js` (group chat + comments + notifications), `ServicesSingalR/groupChatService.js` (outbox, REST wrappers, durable send).
+
+**Kiến trúc realtime & naming conventions**
+- Hub routes (mapped in `Program.cs`):
+  - `/hubs/messages` → `MessageHub` (1:1 chat)
+  - `/hubs/chat` → `GroupChatHub` (group chat)
+  - `/hubs/comments` → `CommentHub`
+  - `/hubs/notifications` → `NotificationHub`
+- Group names / conventions:
+  - Group chat: conversationId (string) used as group name.
+  - Post/comment groups: `post_{postId}`.
+  - User notifications: `user_{userId}` groups.
+
+**Luồng chính (flows)**
+- 1:1 chat (MessageHub + MessageWebSocketService):
+  - Client (`MessageWebSocketService.initialize`) connects to `/hubs/messages` với token.
+  - `SendMessage` (client invoke) → `MessageHub.SendMessage` → `MessageService.SendMessageAsync` lưu DB → hub trả `MessageSent` cho caller và `ReceiveMessage` cho receiver nếu online.
+  - Presence: `_userConnections` map (server) user → single connectionId; client can `GetOnlineUsers`.
+  - Read receipts via `MarkAsRead` → hub/service mark read and broadcast `MessagesRead`.
+  - Typing indicator via `UserTyping`.
+- Group chat (GroupChatHub + signalRService + groupChatService):
+  - Client `signalRService.connectToChat()` và `joinGroup(conversationId)` để vào group.
+  - `SendMessage` on client → `GroupChatHub.SendMessage` nhận payload, validate membership, `GroupMessageService.SendMessageAsync` lưu DB rồi `Clients.Group.SendAsync("ReceiveMessage", payload)` để broadcast.
+  - Durable client-side outbox: `pending_group_outbox_v1` (AsyncStorage). `groupChatService.sendMessageRealtime` enqueue, try SignalR, fallback to POST `/api/groupmessage/send`. On reconnect, auto flush pending outbox.
+  - Read receipts: `OpenGroup`/`MarkMessageAsRead` calls and `MessageRead` broadcasts.
+  - Reactions/pin/unpin via hub methods and REST endpoints; both broadcast to group.
+
+**Storage keys (client)**
+- `pending_group_outbox_v1` — pending group messages.
+- `groupAvatar_{convId}` — override avatar per-group.
+- `group_messages_{conversationId}` — cached messages for purge.
+- `accessToken` — token expected by most services.
+- `userInfo` — contains current user id for `Doanchat`.
+- Note: `Doanchat.sendImageMessage` uses `token` and `API_URL` keys (inconsistent).
+
+**Event names used (frontend ↔ backend)**
+- Common: `ReceiveMessage`, `MessageSent`, `MessageSaveFailed`, `MessageRead`/`MessagesRead`, `MessageDeleted`, `MessageRecalled`.
+- Group-specific: `UserJoined`, `UserLeft`, `UserTyping`, `UserStoppedTyping`, `ReactionAdded`, `ReactionRemoved`, `MessagePinned`, `MessageUnpinned`, `GroupAvatarUpdated`, `GroupNameUpdated`, `MemberRemoved`, `GroupDeleted`.
+
+**Các vấn đề, rủi ro & inconsistencies (phát hiện)**
+1. Token key inconsistency
+   - Hầu hết client dùng `accessToken`; `Doanchat` upload image dùng `token` and `API_URL` keys → upload có thể fail in production if keys differ.
+2. Hai client stack cho messaging
+   - 1:1 uses `MessageWebSocketService` (own reconnect policy), group uses `signalRService` (different policy). UX inconsistent.
+3. Presence multi-device mismatch
+   - `MessageHub` maps user to a single `ConnectionId` (single device). `NotificationHub` uses multiple connectionIds per user. If user uses multiple devices, presence behavior will be inconsistent.
+4. Rejoin & missed events
+   - Client re-joins tracked groups on `onreconnected`, but join failures are logged and not retried aggressively.
+   - No built-in "catch-up" API after reconnect; missed messages require manual refresh or paginated fetch.
+5. Server-side scaling
+   - In-memory connection/group maps do not work across multiple instances; need Redis backplane or Azure SignalR Service for scale.
+6. Pending outbox durability
+   - `pending_group_outbox_v1` can grow; no TTL or purge policy; server must honor `ClientTempId` to avoid double-saves.
+7. Hardcoded baseURL in `MessageWebSocketService.initialize` (dev host) — not environment-safe.
+
+**Bảo mật & privacy**
+- Token in query string (SignalR) is common but must be used only over HTTPS and tokens should be short-lived.
+- Avoid logging tokens or request URLs containing tokens.
+
+**Khuyến nghị (ưu tiên hành động)**
+1. Fix token/config inconsistencies (high priority)
+   - Standardize on `accessToken` and `API_BASE_URL` across all mobile code. Replace `token`/`API_URL` in `Doanchat.sendImageMessage`.
+2. Add "catch-up" sync endpoints
+   - Implement `GET /api/groupmessage/{conversationId}?sinceMessageId=xxx` or `?since=timestamp` and call after reconnect to fetch missed messages.
+3. Improve client rejoin reliability
+   - In `signalRService.joinGroup` implement exponential retry (3 attempts) on invoke failure and surface error to UI if cannot join.
+4. Harmonize reconnect policies
+   - Use single transport abstraction or align reconnection/backoff across 1:1 and group clients.
+5. Multi-device presence
+   - If multiple devices per user supported, change `MessageHub` to map user → HashSet(connectionIds) (like `NotificationHub`). Update presence events accordingly.
+6. Server scaling
+   - Add Redis backplane (or Azure SignalR Service) before autoscaling; persist minimal presence state in shared store.
+7. Durable outbox improvements
+   - Add TTL/size limit for `pending_group_outbox_v1`; expose queued status in UI; ensure server honors `ClientTempId` idempotency.
+8. Media upload flow
+   - Standardize to use `API_BASE_URL` + `accessToken` and centralize upload helper.
+
+**Gợi ý patch code (quick fixes)**
+- Replace `token` usage in `Doanchat.sendImageMessage` with `accessToken` and `API_BASE_URL` (single-line change).
+- Add retry loop inside `signalRService.joinGroup` around `invoke('JoinGroup', ...)` (3 attempts with backoff).
+- Add client-side `syncAfterReconnect` in `groupChatService` to call `getMessages(conversationId, 1, pageSize)` for joined groups on reconnect and merge.
+
+**Next steps đề xuất (tôi có thể thực hiện)**
+- A: Tôi sẽ patch `Doanchat.sendImageMessage` để dùng `accessToken` + `API_BASE_URL` (small, safe).
+- B: Tôi sẽ patch `signalRService.joinGroup` để thêm retry logic on join failure.
+- C: Tôi sẽ thêm `docs/messaging-module.md` (đã tạo) và tiếp tục implement a small client sync after reconnect.
+
+**Vị trí tài liệu**
+- File này được tạo tại: `docs/messaging-module.md` (root repo).
+
+---
+*Nếu bạn muốn tôi áp dụng 1 patch cụ thể (A hoặc B), chọn một — tôi sẽ thực hiện thay đổi mã và chạy quick checks.*
