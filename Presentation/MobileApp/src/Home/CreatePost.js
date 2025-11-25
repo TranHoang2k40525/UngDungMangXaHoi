@@ -22,7 +22,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import * as MediaLibrary from "expo-media-library";
 import * as ImagePicker from "expo-image-picker";
 import { VideoView, useVideoPlayer } from "expo-video";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 
 const { width } = Dimensions.get("window");
 const numColumns = 3;
@@ -80,22 +80,30 @@ export default function CreatePost() {
         try {
           let videoUri = selectedImage.uri;
 
-          // iOS: Convert ph:// to file://
+          // iOS: Convert ph:// to file:// using MediaLibrary
           if (Platform.OS === "ios" && videoUri.startsWith("ph://")) {
-            const filename = videoUri.split("/").pop() || "video";
-            const ext = filename.includes(".") ? "" : ".mp4";
-            const dest = `${FileSystem.cacheDirectory}${filename}${ext}`;
+            const assetId = videoUri.replace("ph://", "").split("/")[0];
+            const asset = await MediaLibrary.getAssetInfoAsync(assetId);
 
-            await FileSystem.copyAsync({
-              from: videoUri,
-              to: dest,
-            });
-
-            videoUri = dest;
-            console.log(
-              "[CreatePost] Converted iOS ph:// video URI to:",
-              videoUri
-            );
+            if (asset && asset.localUri) {
+              // Remove iOS metadata hash if present
+              videoUri = asset.localUri.split("#")[0];
+              console.log(
+                "[CreatePost] Converted iOS ph:// video URI to:",
+                videoUri
+              );
+            } else if (asset && asset.uri) {
+              // Remove iOS metadata hash if present
+              videoUri = asset.uri.split("#")[0];
+              console.log(
+                "[CreatePost] Converted iOS ph:// video URI to:",
+                videoUri
+              );
+            } else {
+              console.warn(
+                "[CreatePost] Could not convert iOS ph:// video URI"
+              );
+            }
           }
 
           // Use replaceAsync instead of replace for better performance

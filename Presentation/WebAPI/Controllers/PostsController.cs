@@ -117,10 +117,16 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             if (video != null)
             {
+                Console.WriteLine($"[CreatePost] Video received - FileName: '{video.FileName}', Length: {video.Length}, ContentType: '{video.ContentType}'");
+                
                 var allowedVideoExt = new[] { ".mp4", ".mov", ".m4v", ".avi", ".wmv", ".mkv" };
                 var vext = Path.GetExtension(video.FileName).ToLowerInvariant();
+                
+                Console.WriteLine($"[CreatePost] Video extension extracted: '{vext}'");
+                
                 if (!allowedVideoExt.Contains(vext))
                 {
+                    Console.WriteLine($"[CreatePost] Video extension '{vext}' not in allowed list: {string.Join(", ", allowedVideoExt)}");
                     return BadRequest(new { message = "Định dạng video không hợp lệ." });
                 }
             }
