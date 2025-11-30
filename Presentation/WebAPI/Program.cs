@@ -14,6 +14,8 @@ using UngDungMangXaHoi.Domain.Interfaces;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.FileProviders;
 using UngDungMangXaHoi.Presentation.WebAPI.Hubs;
+using Microsoft.OpenApi.Models;
+using UngDungMangXaHoi.Application.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,14 +35,45 @@ catch (Exception)
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()); // Thêm dòng này
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 
 builder.Services.AddEndpointsApiExplorer();
+
+// 2. Add Swagger Gen (Đã gộp code của bạn và code bảo mật)
 builder.Services.AddSwaggerGen(options =>
 {
-    // Use full type name (replace '+' from nested types) to generate unique schema ids
+    // --- Phần của bạn (Giữ nguyên) ---
+    // Dùng full name để tránh trùng tên Schema khi có class lồng nhau
     options.CustomSchemaIds(type => (type.FullName ?? type.Name).Replace("+", "."));
+
+    // --- Phần thêm mới: Cấu hình nút Authorize (Ổ khóa) ---
+    options.SwaggerDoc("v1", new OpenApiInfo { Title = "UngDungMangXaHoi API", Version = "v1" });
+
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        In = ParameterLocation.Header,
+        Description = "Vui lòng nhập token (chỉ cần paste chuỗi token, không cần chữ Bearer)",
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        BearerFormat = "JWT",
+        Scheme = "Bearer"
+    });
+
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] { }
+        }
+    });
 });
 
 // ======================================
@@ -152,6 +185,11 @@ builder.Services.AddScoped<INotificationService, EmailService>();
 builder.Services.AddScoped<UserProfileService>();
 builder.Services.AddScoped<JwtTokenService>();
 
+// Application layer services (refactor: register new application services)
+builder.Services.AddScoped<UngDungMangXaHoi.Application.Services.PostsService>();
+builder.Services.AddScoped<UngDungMangXaHoi.Application.Services.UserService>();
+builder.Services.AddScoped<UngDungMangXaHoi.Application.Services.AdminService>();
+
 // Dịch vụ chạy nền để dọn Story hết hạn
 builder.Services.AddHostedService<ExpiredStoriesCleanupService>();
 builder.Services.AddScoped<VideoTranscodeService>();
@@ -167,7 +205,8 @@ builder.Services.AddScoped<GroupChatService>();
 builder.Services.AddScoped<GroupMessageService>(); //  Message service cho GROUP CHAT
 // SignalR Service for broadcasting
 builder.Services.AddScoped<UngDungMangXaHoi.WebAPI.Services.ISignalRService, UngDungMangXaHoi.WebAPI.Services.SignalRService>();
-
+// Dich vu cho bash user new
+builder.Services.AddScoped<IDashboardRepository, DashBoardRepository>();
 // External Services
 builder.Services.AddScoped<CloudinaryService>(provider =>
 {
@@ -188,6 +227,8 @@ builder.Services.AddScoped<CloudinaryService>(provider =>
     return new CloudinaryService(cloudName, apiKey, apiSecret);
 });
 
+//Quan ly danh cho admin
+builder.Services.AddScoped<IDashBoardService, DashBoardService>();
 // ======================================
 //  Use Case Layer
 // ======================================
@@ -207,11 +248,10 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowAll", policy =>
     {
 
-        policy
-            .AllowAnyOrigin() // Cho phép mọi domain
-            .AllowAnyMethod()
-            .AllowAnyHeader();
-              // .AllowCredentials(); // Nếu dùng AllowAnyOrigin thì không dùng AllowCredential
+        policy.SetIsOriginAllowed(_ => true)
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials(); // Nếu dùng AllowAnyOrigin thì không dùng AllowCredential
 
     });
 });
