@@ -22,6 +22,8 @@ namespace UngDungMangXaHoi.Domain.Entities
 
         // Navigation
         public User User { get; set; } = null!;
+        public ICollection<ContentModeration> ContentModerations { get; set; } = new List<ContentModeration>();
+
         public ICollection<PostMedia> Media { get; set; } = new List<PostMedia>();
         public ICollection<Comment> Comments { get; set; } = new List<Comment>();
     }
