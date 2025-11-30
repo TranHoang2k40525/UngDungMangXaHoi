@@ -39,7 +39,7 @@ namespace UngDungMangXaHoi.Domain.Entities
         
         public DateTime created_at { get; set; } = DateTime.UtcNow;
         
-        public DateTime? updated_at { get; set; }
+        public DateTime? updated_at { get; set; } = DateTime.UtcNow;
 
     // Pinned message support
     // Ghim tin nhắn trong group chat

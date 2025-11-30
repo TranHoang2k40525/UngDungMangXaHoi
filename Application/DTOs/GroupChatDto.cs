@@ -63,4 +63,10 @@ namespace UngDungMangXaHoi.Application.DTOs
         public string Role { get; set; } = "member";
         public DateTime JoinedAt { get; set; }
     }
+
+    public class ChangeRoleRequest
+    {
+        public string Role { get; set; } = "member";
+        public bool TransferOwnership { get; set; } = false;
+    }
 }

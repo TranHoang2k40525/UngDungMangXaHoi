@@ -229,7 +229,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         /// </summary>
     [HttpPost("avatar")]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> UpdateAvatar([FromForm] IFormFile avatarFile, [FromForm] UpdateAvatarRequest request)
+    public async Task<IActionResult> UpdateAvatar(IFormFile avatarFile,UpdateAvatarRequest request)
         {
             try
             {

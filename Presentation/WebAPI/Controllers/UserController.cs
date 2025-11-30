@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using UngDungMangXaHoi.Domain.Interfaces;
 using UngDungMangXaHoi.Domain.ValueObjects;
+using UngDungMangXaHoi.Application.DTOs;
+using UngDungMangXaHoi.Application.Services;
 using System.Security.Claims;
 using System.Linq;
 
@@ -19,30 +21,14 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
     private readonly IUserRepository _userRepository;
     private readonly IPostRepository _postRepository;
     private readonly IBlockRepository _blockRepository;
+    private readonly UserService _userService;
 
         public UserController(IUserRepository userRepository, IPostRepository postRepository, IBlockRepository blockRepository)
         {
             _userRepository = userRepository;
             _postRepository = postRepository;
             _blockRepository = blockRepository;
-        }
-
-        // DTO for public profile response
-        public class PublicProfileDto
-        {
-            public int UserId { get; set; }
-            public string Username { get; set; } = string.Empty;
-            public string FullName { get; set; } = string.Empty;
-            public string? AvatarUrl { get; set; }
-            public string? Bio { get; set; }
-            public string? Website { get; set; }
-            public string? Address { get; set; }
-            public string? Hometown { get; set; }
-            public string Gender { get; set; } = string.Empty;
-            public int PostsCount { get; set; }
-            public int FollowersCount { get; set; }
-            public int FollowingCount { get; set; }
-            public bool IsFollowing { get; set; }
+            _userService = new UserService(userRepository, postRepository, blockRepository);
         }
 
         /// <summary>
@@ -57,49 +43,9 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             {
                 return Unauthorized(new { message = "Token không hợp lệ!" });
             }
-
-            var currentUser = await _userRepository.GetByAccountIdAsync(accountId);
-            if (currentUser == null)
-            {
-                return BadRequest(new { message = "Không tìm thấy user hiện tại." });
-            }
-
-            var targetUser = await _userRepository.GetByIdAsync(userId);
-            if (targetUser == null)
-            {
-                return NotFound(new { message = "Không tìm thấy user." });
-            }
-
-            // If target user has blocked current user, behave as if user not found (privacy)
-            var blockedByTarget = await _blockRepository.IsBlockedAsync(targetUser.user_id, currentUser.user_id);
-            if (blockedByTarget)
-            {
-                return NotFound(new { message = "Không tìm thấy user." });
-            }
-
-            var postsCount = await _postRepository.CountPostsByUserIdAsync(userId);
-            var followersCount = await _userRepository.GetFollowersCountAsync(userId);
-            var followingCount = await _userRepository.GetFollowingCountAsync(userId);
-            var isFollowing = await _userRepository.IsFollowingAsync(currentUser.user_id, userId);
-
-            var dto = new PublicProfileDto
-            {
-                UserId = targetUser.user_id,
-                Username = targetUser.username.Value,
-                FullName = targetUser.full_name,
-                AvatarUrl = targetUser.avatar_url?.Value,
-                Bio = targetUser.bio,
-                Website = targetUser.website,
-                Address = targetUser.address,
-                Hometown = targetUser.hometown,
-                Gender = targetUser.gender.ToString(),
-                PostsCount = postsCount,
-                FollowersCount = followersCount,
-                FollowingCount = followingCount,
-                IsFollowing = isFollowing
-            };
-
-            return Ok(new { message = "Lấy thông tin user thành công", data = dto });
+            var profile = await _userService.GetPublicProfileByIdAsync(accountId, userId);
+            if (profile == null) return NotFound(new { message = "Không tìm thấy user." });
+            return Ok(new { message = "Lấy thông tin user thành công", data = profile });
         }
 
         /// <summary>
@@ -114,49 +60,9 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             {
                 return Unauthorized(new { message = "Token không hợp lệ!" });
             }
-
-            var currentUser = await _userRepository.GetByAccountIdAsync(accountId);
-            if (currentUser == null)
-            {
-                return BadRequest(new { message = "Không tìm thấy user hiện tại." });
-            }
-
-            var targetUser = await _userRepository.GetByUsernameAsync(username);
-            if (targetUser == null)
-            {
-                return NotFound(new { message = "Không tìm thấy user." });
-            }
-
-            // If target user has blocked current user, behave as if user not found (privacy)
-            var blockedByTarget = await _blockRepository.IsBlockedAsync(targetUser.user_id, currentUser.user_id);
-            if (blockedByTarget)
-            {
-                return NotFound(new { message = "Không tìm thấy user." });
-            }
-
-            var postsCount = await _postRepository.CountPostsByUserIdAsync(targetUser.user_id);
-            var followersCount = await _userRepository.GetFollowersCountAsync(targetUser.user_id);
-            var followingCount = await _userRepository.GetFollowingCountAsync(targetUser.user_id);
-            var isFollowing = await _userRepository.IsFollowingAsync(currentUser.user_id, targetUser.user_id);
-
-            var dto = new PublicProfileDto
-            {
-                UserId = targetUser.user_id,
-                Username = targetUser.username.Value,
-                FullName = targetUser.full_name,
-                AvatarUrl = targetUser.avatar_url?.Value,
-                Bio = targetUser.bio,
-                Website = targetUser.website,
-                Address = targetUser.address,
-                Hometown = targetUser.hometown,
-                Gender = targetUser.gender.ToString(),
-                PostsCount = postsCount,
-                FollowersCount = followersCount,
-                FollowingCount = followingCount,
-                IsFollowing = isFollowing
-            };
-
-            return Ok(new { message = "Lấy thông tin user thành công", data = dto });
+            var profile = await _userService.GetPublicProfileByUsernameAsync(accountId, username);
+            if (profile == null) return NotFound(new { message = "Không tìm thấy user." });
+            return Ok(new { message = "Lấy thông tin user thành công", data = profile });
         }
 
         /// <summary>
@@ -179,7 +85,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             var target = await _userRepository.GetByIdAsync(userId);
             if (target == null) return NotFound(new { message = "Không tìm thấy user." });
 
-            await _blockRepository.BlockUserAsync(currentUser.user_id, userId);
+            await _userService.BlockUserAsync(currentUser.user_id, userId);
 
             return Ok(new { message = "Đã chặn user" });
         }
@@ -200,7 +106,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             var currentUser = await _userRepository.GetByAccountIdAsync(accountId);
             if (currentUser == null) return BadRequest(new { message = "Không tìm thấy user hiện tại." });
 
-            await _blockRepository.UnblockUserAsync(currentUser.user_id, userId);
+            await _userService.UnblockUserAsync(currentUser.user_id, userId);
             return Ok(new { message = "Đã bỏ chặn user" });
         }
 
@@ -220,7 +126,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             var currentUser = await _userRepository.GetByAccountIdAsync(accountId);
             if (currentUser == null) return BadRequest(new { message = "Không tìm thấy user hiện tại." });
 
-            var list = await _blockRepository.GetBlockedUsersAsync(currentUser.user_id);
+                var list = await _userService.GetBlockedUsersAsync(currentUser.user_id);
             return Ok(new { message = "Lấy danh sách chặn thành công", data = list });
         }
 
@@ -255,7 +161,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 return NotFound(new { message = "Không tìm thấy user cần theo dõi." });
             }
 
-            await _userRepository.FollowUserAsync(currentUser.user_id, userId);
+            await _userService.FollowUserAsync(currentUser.user_id, userId);
 
             return Ok(new { message = "Đã theo dõi user thành công" });
         }
@@ -279,7 +185,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 return BadRequest(new { message = "Không tìm thấy user hiện tại." });
             }
 
-            await _userRepository.UnfollowUserAsync(currentUser.user_id, userId);
+            await _userService.UnfollowUserAsync(currentUser.user_id, userId);
 
             return Ok(new { message = "Đã hủy theo dõi user" });
         }

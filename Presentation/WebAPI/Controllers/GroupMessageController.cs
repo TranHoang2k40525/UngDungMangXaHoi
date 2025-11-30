@@ -35,7 +35,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
         /// Form fields: file (IFormFile), mediaType (optional: image|video|file)
         /// </summary>
         [HttpPost("upload")]
-        public async Task<IActionResult> Upload([FromForm] IFormFile file, [FromForm] string? mediaType)
+        public async Task<IActionResult> Upload( IFormFile file,  string? mediaType)
         {
             try
             {
@@ -194,7 +194,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
         /// Body: { "emoji": "❤️" }
         /// </summary>
         [HttpPost("{messageId}/reaction")]
-        public async Task<IActionResult> AddReaction(int messageId, [FromBody] AddReactionRequest request)
+        public async Task<IActionResult> AddReaction(int messageId, [FromBody] AddReactionDto request)
         {
             try
             {
@@ -260,7 +260,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
         /// Body: { "emoji": "❤️" }
         /// </summary>
         [HttpDelete("{messageId}/reaction")]
-        public async Task<IActionResult> RemoveReaction(int messageId, [FromBody] AddReactionRequest request)
+        public async Task<IActionResult> RemoveReaction(int messageId, [FromBody] AddReactionDto request)
         {
             try
             {
@@ -491,12 +491,5 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
         }
     }
 
-    // ============================================
-    // Request DTOs for API
-    // ============================================
-
-    public class AddReactionRequest
-    {
-        public string Emoji { get; set; } = string.Empty;
-    }
+    // Duplicate request DTOs removed: use `Application.DTOs.AddReactionDto` instead
 }

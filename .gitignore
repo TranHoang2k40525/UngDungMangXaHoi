@@ -46,3 +46,11 @@ configs/*.conf
 **/ios/
 **/android/
 **/*.xcodeproj/
+
+# Entity Framework Core migrations (auto-generated)
+# Ignore all `Migrations` folders and their generated files
+**/Migrations/
+
+# Optionally ignore EF Core snapshot and designer files specifically
+**/*ModelSnapshot*.cs
+**/*Designer.cs

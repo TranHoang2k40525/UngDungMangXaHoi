@@ -38,7 +38,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         /// Form field: file (IFormFile)
         /// </summary>
         [HttpPost("{conversationId}/avatar")]
-        public async Task<IActionResult> UpdateGroupAvatar(int conversationId, [FromForm] IFormFile file)
+        public async Task<IActionResult> UpdateGroupAvatar(int conversationId, IFormFile file)
         {
             try
             {
@@ -603,10 +603,6 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             }
         }
 
-        public class ChangeRoleRequest
-        {
-            public string Role { get; set; } = "member";
-            public bool TransferOwnership { get; set; } = false;
-        }
+        // ChangeRoleRequest moved to Application.DTOs.ChangeRoleRequest
     }
 }

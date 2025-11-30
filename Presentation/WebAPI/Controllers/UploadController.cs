@@ -18,7 +18,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
         }
 
         [HttpPost("image")]
-        public async Task<IActionResult> UploadImage([FromForm] IFormFile file)
+        public async Task<IActionResult> UploadImage( IFormFile file)
         {
             try
             {

@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using UngDungMangXaHoi.Domain.Entities;
 using UngDungMangXaHoi.Domain.Interfaces;
+using UngDungMangXaHoi.Application.DTOs;
 
 namespace UngDungMangXaHoi.WebAPI.Controllers
 {
@@ -20,213 +21,53 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
     private readonly IPostRepository _postRepository;
     private readonly IUserRepository _userRepository;
     private readonly ICommentRepository _commentRepository;
-    private readonly UngDungMangXaHoi.Infrastructure.Services.VideoTranscodeService _videoTranscoder;
+    private readonly Application.Services.PostsService _postsService;
 
         public PostsController(
-            IPostRepository postRepository, 
-            IUserRepository userRepository, 
+            IPostRepository postRepository,
+            IUserRepository userRepository,
             ICommentRepository commentRepository,
-            UngDungMangXaHoi.Infrastructure.Services.VideoTranscodeService videoTranscoder)
+            Application.Services.PostsService postsService)
         {
             _postRepository = postRepository;
             _userRepository = userRepository;
             _commentRepository = commentRepository;
-            _videoTranscoder = videoTranscoder;
+            _postsService = postsService;
         }
 
-        // DTO for create request via multipart/form-data
-        public class CreatePostForm
-        {
-            public string? Caption { get; set; }
-            public string? Location { get; set; }
-            public string Privacy { get; set; } = "public"; // public | private | followers
-            public List<IFormFile>? Images { get; set; }
-            public IFormFile? Video { get; set; }
-            // Optional JSON arrays encoded as strings, e.g. "[1,2,3]"
-            public string? Mentions { get; set; }
-            public string? Tags { get; set; }
-        }
-
-        // DTOs for update operations
-        public class UpdatePrivacyDto
-        {
-            public string Privacy { get; set; } = "public"; // public | private | followers
-        }
-
-        public class UpdateCaptionDto
-        {
-            public string Caption { get; set; } = string.Empty;
-        }
-
-        public class UpdateTagsDto
-        {
-            // array of user ids
-            public int[]? Tags { get; set; }
-        }
+        // Using DTOs from Application.DTOs: CreatePostForm, UpdatePrivacyDto, UpdateCaptionDto, UpdateTagsDto
 
     [HttpPost]
     [Consumes("multipart/form-data")]
         [RequestFormLimits(MultipartBodyLengthLimit = 150_000_000)] // 150MB total
         [RequestSizeLimit(150_000_000)]
-    public async Task<IActionResult> CreatePost([FromForm] CreatePostForm form)
-        {
-            // Validate privacy
-            var allowedPrivacy = new[] { "public", "private", "followers" };
-            var incomingPrivacy = (form.Privacy ?? "public").Trim().ToLowerInvariant();
-            if (!allowedPrivacy.Contains(incomingPrivacy))
+        public async Task<IActionResult> CreatePost(CreatePostForm form)
             {
-                return BadRequest(new { message = "privacy phải là public/private/followers" });
-            }
-
-            // Get accountId then user
-            var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
-            {
-                return Unauthorized(new { message = "Token không hợp lệ!" });
-            }
-
-            var user = await _userRepository.GetByAccountIdAsync(accountId);
-            if (user == null)
-            {
-                return BadRequest(new { message = "Không tìm thấy user tương ứng với tài khoản." });
-            }
-
-            // Validate media
-            var images = form.Images ?? new List<IFormFile>();
-            var video = form.Video;
-            if (images.Count == 0 && video == null)
-            {
-                return BadRequest(new { message = "Bài đăng phải có ít nhất 1 ảnh hoặc 1 video." });
-            }
-
-            if (video != null && video.Length > 100L * 1024 * 1024)
-            {
-                return BadRequest(new { message = "Video vượt quá dung lượng tối đa 100MB." });
-            }
-
-            // Validate file extensions
-            var allowedImageExt = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
-            foreach (var img in images)
-            {
-                var ext = Path.GetExtension(img.FileName).ToLowerInvariant();
-                if (!allowedImageExt.Contains(ext))
+                var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
                 {
-                    return BadRequest(new { message = $"Ảnh không hợp lệ: {img.FileName}" });
-                }
-            }
-
-            if (video != null)
-            {
-                var allowedVideoExt = new[] { ".mp4", ".mov", ".m4v", ".avi", ".wmv", ".mkv" };
-                var vext = Path.GetExtension(video.FileName).ToLowerInvariant();
-                if (!allowedVideoExt.Contains(vext))
-                {
-                    return BadRequest(new { message = "Định dạng video không hợp lệ." });
-                }
-            }
-
-            // Parse optional mentions/tags (JSON arrays) and store as CSV on Post
-            int[]? mentionIds = null;
-            int[]? tagIds = null;
-            try
-            {
-                if (!string.IsNullOrEmpty(form.Mentions))
-                {
-                    mentionIds = System.Text.Json.JsonSerializer.Deserialize<int[]>(form.Mentions);
-                }
-            }
-            catch { /* ignore parse errors */ }
-            try
-            {
-                if (!string.IsNullOrEmpty(form.Tags))
-                {
-                    tagIds = System.Text.Json.JsonSerializer.Deserialize<int[]>(form.Tags);
-                }
-            }
-            catch { /* ignore parse errors */ }
-
-            // Create post first
-            var post = new Post
-            {
-                user_id = user.user_id,
-                caption = form.Caption,
-                location = form.Location,
-                privacy = incomingPrivacy,
-                is_visible = true,
-                created_at = DateTimeOffset.UtcNow,
-                MentionedUserIds = (mentionIds != null && mentionIds.Length > 0) ? string.Join(",", mentionIds) : null,
-                TaggedUserIds = (tagIds != null && tagIds.Length > 0) ? string.Join(",", tagIds) : null
-            };
-
-            var createdPost = await _postRepository.AddAsync(post);
-
-            // Prepare directories
-            var root = Directory.GetCurrentDirectory();
-            var imagesDir = Path.Combine(root, "Assets", "Images");
-            var videosDir = Path.Combine(root, "Assets", "Videos");
-            if (!Directory.Exists(imagesDir)) Directory.CreateDirectory(imagesDir);
-            if (!Directory.Exists(videosDir)) Directory.CreateDirectory(videosDir);
-
-            // Save images
-            int order = 0;
-            foreach (var img in images)
-            {
-                var ext = Path.GetExtension(img.FileName).ToLowerInvariant();
-                var fileName = $"{user.username.Value}_{Guid.NewGuid().ToString("N").Substring(0, 8)}{ext}";
-                var filePath = Path.Combine(imagesDir, fileName);
-                using (var stream = new FileStream(filePath, FileMode.Create))
-                {
-                    await img.CopyToAsync(stream);
+                    return Unauthorized(new { message = "Token không hợp lệ!" });
                 }
 
-                // Lưu vào DB: chỉ tên file theo yêu cầu
-                var media = new PostMedia
-                {
-                    post_id = createdPost.post_id,
-                    media_url = fileName,
-                    media_type = "Image",
-                    media_order = order++,
-                    created_at = DateTimeOffset.UtcNow
-                };
-                await _postRepository.AddMediaAsync(media);
-            }
-
-            // Save single video if provided
-            if (video != null)
-            {
-                var vext = Path.GetExtension(video.FileName).ToLowerInvariant();
-                var vname = $"{user.username.Value}_{Guid.NewGuid().ToString("N").Substring(0, 8)}{vext}";
-                var vpath = Path.Combine(videosDir, vname);
-                using (var vstream = new FileStream(vpath, FileMode.Create))
-                {
-                    await video.CopyToAsync(vstream);
-                }
-
-                // Attempt to normalize for broad compatibility; keep original if transcoding fails
                 try
                 {
-                    var compatPath = await _videoTranscoder.TryNormalizeAsync(vpath, videosDir);
-                    if (!string.IsNullOrEmpty(compatPath) && System.IO.File.Exists(compatPath))
-                    {
-                        // Switch to compat file for serving
-                        vname = Path.GetFileName(compatPath);
-                    }
+                    var postId = await _postsService.CreatePostAsync(accountId, form);
+                    return Ok(new { message = "Đăng bài thành công", PostId = postId });
                 }
-                catch { /* ignore and fall back to original */ }
-
-                var vmedia = new PostMedia
+                catch (ArgumentException aex)
                 {
-                    post_id = createdPost.post_id,
-                    media_url = vname, // chỉ lưu tên file
-                    media_type = "Video",
-                    media_order = order,
-                    created_at = DateTimeOffset.UtcNow
-                };
-                await _postRepository.AddMediaAsync(vmedia);
+                    return BadRequest(new { message = aex.Message });
+                }
+                catch (InvalidOperationException iex)
+                {
+                    return BadRequest(new { message = iex.Message });
+                }
+                catch (Exception ex)
+                {
+                    return StatusCode(500, new { message = ex.Message });
+                }
             }
-
-            return Ok(new { message = "Đăng bài thành công", PostId = createdPost.post_id });
-        }
+        
 
         [HttpGet("feed")]
         [AllowAnonymous]
