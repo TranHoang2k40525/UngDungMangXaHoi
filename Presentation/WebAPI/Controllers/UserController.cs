@@ -19,12 +19,18 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
     private readonly IUserRepository _userRepository;
     private readonly IPostRepository _postRepository;
     private readonly IBlockRepository _blockRepository;
+    private readonly UngDungMangXaHoi.Application.Services.UserFollowService _userFollowService;
 
-        public UserController(IUserRepository userRepository, IPostRepository postRepository, IBlockRepository blockRepository)
+        public UserController(
+            IUserRepository userRepository, 
+            IPostRepository postRepository, 
+            IBlockRepository blockRepository,
+            UngDungMangXaHoi.Application.Services.UserFollowService userFollowService)
         {
             _userRepository = userRepository;
             _postRepository = postRepository;
             _blockRepository = blockRepository;
+            _userFollowService = userFollowService;
         }
 
         // DTO for public profile response
@@ -255,7 +261,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 return NotFound(new { message = "Không tìm thấy user cần theo dõi." });
             }
 
-            await _userRepository.FollowUserAsync(currentUser.user_id, userId);
+            await _userFollowService.FollowUserAsync(currentUser.user_id, userId);
 
             return Ok(new { message = "Đã theo dõi user thành công" });
         }
@@ -279,7 +285,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 return BadRequest(new { message = "Không tìm thấy user hiện tại." });
             }
 
-            await _userRepository.UnfollowUserAsync(currentUser.user_id, userId);
+            await _userFollowService.UnfollowUserAsync(currentUser.user_id, userId);
 
             return Ok(new { message = "Đã hủy theo dõi user" });
         }

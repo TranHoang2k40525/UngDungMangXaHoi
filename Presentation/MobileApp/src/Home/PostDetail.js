@@ -152,6 +152,20 @@ export default function PostDetail() {
     }
   }, [posts, initialIndex]);
 
+  // Tự động mở comment modal khi có param openComments
+  useEffect(() => {
+    const shouldOpenComments = route.params?.openComments;
+    if (shouldOpenComments && posts.length > 0) {
+      // Mở comment cho post đầu tiên (trong single post mode)
+      const firstPost = posts[0];
+      if (firstPost?.id) {
+        setTimeout(() => {
+          setActiveCommentsPostId(firstPost.id);
+        }, 500);
+      }
+    }
+  }, [posts, route.params?.openComments]);
+
   // Helper functions
   const getOwnerId = () => {
     // Ưu tiên dùng context user
@@ -872,7 +886,12 @@ export default function PostDetail() {
   return (
     <SafeAreaView edges={["top"]} style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity
+          onPress={() => {
+            // Luôn dùng goBack() để giữ nguyên navigation stack
+            navigation.goBack();
+          }}
+        >
           <Ionicons name="arrow-back" size={28} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
@@ -1296,6 +1315,7 @@ export default function PostDetail() {
         <CommentsModal
           visible={!!activeCommentsPostId}
           postId={activeCommentsPostId}
+          highlightCommentId={route.params?.highlightCommentId}
           onClose={() => setActiveCommentsPostId(null)}
           onCommentAdded={() => {
             setPostStates((prev) => ({

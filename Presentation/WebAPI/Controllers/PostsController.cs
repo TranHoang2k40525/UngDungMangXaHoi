@@ -403,6 +403,49 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             return Ok(dtoList5);
         }
 
+    // GET: api/posts/{id} - Lấy thông tin 1 post theo ID
+    [HttpGet("{id:int}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetPostById([FromRoute] int id)
+        {
+            try
+            {
+                int? currentUserId = null;
+                try
+                {
+                    var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                    if (!string.IsNullOrEmpty(accountIdStr) && int.TryParse(accountIdStr, out var accountId))
+                    {
+                        var u = await _userRepository.GetByAccountIdAsync(accountId);
+                        if (u != null) currentUserId = u.user_id;
+                    }
+                }
+                catch { }
+
+                var post = await _postRepository.GetByIdWithMediaAsync(id);
+                if (post == null)
+                {
+                    return NotFound(new { message = "Post not found" });
+                }
+
+                // Kiểm tra quyền xem post
+                if (post.privacy == "private" && currentUserId != post.user_id)
+                {
+                    return Forbid();
+                }
+
+                // Load comment count
+                var commentsCount = await _commentRepository.GetCommentCountByPostIdAsync(id);
+
+                var postDto = await MapPostToDtoAsync(post, commentsCount);
+                return Ok(postDto);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error retrieving post", error = ex.Message });
+            }
+        }
+
     [HttpGet("user/{userId:int}")]
     [AllowAnonymous]
     public async Task<IActionResult> GetUserPosts([FromRoute] int userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)

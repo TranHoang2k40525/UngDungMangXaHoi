@@ -100,6 +100,10 @@ namespace UngDungMangXaHoi.Application.Services
                 SenderAvatar = notification.Sender?.avatar_url?.Value,
                 Type = notification.type,
                 PostId = notification.post_id,
+                CommentId = notification.comment_id,
+                ReactionType = notification.reaction_type,
+                ConversationId = notification.conversation_id,
+                MessageId = notification.message_id,
                 Content = notification.content,
                 IsRead = notification.is_read,
                 CreatedAt = notification.created_at

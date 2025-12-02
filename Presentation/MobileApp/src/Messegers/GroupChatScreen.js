@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -18,47 +18,82 @@ import {
   Linking,
   FlatList,
   Dimensions,
-} from 'react-native';
-import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SignalR from '@microsoft/signalr';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
-import * as Clipboard from 'expo-clipboard';
-import * as VideoThumbnails from 'expo-video-thumbnails';
-import { Video } from 'expo-av';
-import { getGroupInfo, getGroupMembers, API_BASE_URL, getProfile } from '../API/Api';
-import groupChatService from '../ServicesSingalR/groupChatService.js';
-import signalRService from '../ServicesSingalR/signalRService.js';
+} from "react-native";
+import {
+  useNavigation,
+  useRoute,
+  useFocusEffect,
+} from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SignalR from "@microsoft/signalr";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
+import * as Clipboard from "expo-clipboard";
+import * as VideoThumbnails from "expo-video-thumbnails";
+import { Video } from "expo-av";
+import {
+  getGroupInfo,
+  getGroupMembers,
+  API_BASE_URL,
+  getProfile,
+} from "../API/Api";
+import groupChatService from "../ServicesSingalR/groupChatService.js";
+import signalRService from "../ServicesSingalR/signalRService.js";
 
-import ImageViewer from '../Components/ImageViewer';
+import ImageViewer from "../Components/ImageViewer";
 //import { Video } from 'expo-av';
 
 const EMOJI_LIST = [
-  '❤️', '😂', '😮', '😢', '😡', '👍', '👎', '🔥', '🎉', '😍',
-  '😘', '😊', '😎', '🤔', '😴', '😭', '🤗', '🙏', '👏', '💪',
-  '✨', '🌟', '💯', '🎊', '🎈', '🌈', '☀️', '⭐', '💖', '💕',
+  "❤️",
+  "😂",
+  "😮",
+  "😢",
+  "😡",
+  "👍",
+  "👎",
+  "🔥",
+  "🎉",
+  "😍",
+  "😘",
+  "😊",
+  "😎",
+  "🤔",
+  "😴",
+  "😭",
+  "🤗",
+  "🙏",
+  "👏",
+  "💪",
+  "✨",
+  "🌟",
+  "💯",
+  "🎊",
+  "🎈",
+  "🌈",
+  "☀️",
+  "⭐",
+  "💖",
+  "💕",
 ];
 
-const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '😡', '👍'];
+const QUICK_REACTIONS = ["❤️", "😂", "😮", "😢", "😡", "👍"];
 
 export default function GroupChatScreen() {
-
   // Helper: determine whether a message contains only emoji (and spaces)
   // We treat emoji-only messages specially (large display) but MUST exclude
   // numeric-only strings so numbers don't render as emoji.
   const isEmojiOnly = (txt) => {
     try {
-      const s = String(txt ?? '').trim();
+      const s = String(txt ?? "").trim();
       if (!s) return false;
       // Exclude strings that contain digits
       if (/\d/.test(s)) return false;
       // Limit length so long sequences of emoji/text don't trigger
       if (s.length > 8) return false;
       // Unicode emoji detection (may throw on some engines, so wrapped)
-      return (/^[\p{Emoji_Presentation}\p{Emoji}\uFE0F\s]+$/u.test(s));
+      return /^[\p{Emoji_Presentation}\p{Emoji}\uFE0F\s]+$/u.test(s);
     } catch (e) {
       return false;
     }
@@ -69,29 +104,38 @@ export default function GroupChatScreen() {
     if (!uri) return null;
     try {
       const s = String(uri);
-      if (s.startsWith('http') || s.startsWith('file://') || s.startsWith('content://')) return s;
+      if (
+        s.startsWith("http") ||
+        s.startsWith("file://") ||
+        s.startsWith("content://")
+      )
+        return s;
       // Some backends return paths starting with /uploads, handle that
-      if (s.startsWith('/')) return `${API_BASE_URL}${s}`;
+      if (s.startsWith("/")) return `${API_BASE_URL}${s}`;
       // If it's already a full URL-like value
-      if (s.includes('://')) return s;
+      if (s.includes("://")) return s;
       return `${API_BASE_URL}/${s}`;
-    } catch (e) { return uri; }
+    } catch (e) {
+      return uri;
+    }
   };
 
   const handlePickFile = async () => {
     try {
-      const res = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
-      if (res.type === 'success' && res.uri) {
+      const res = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+      });
+      if (res.type === "success" && res.uri) {
         setShowMediaPicker(false);
-        await handleSend(res.uri, 'file');
+        await handleSend(res.uri, "file");
       }
     } catch (err) {
-      console.error('[GroupChat] pick file error:', err);
-      Alert.alert('Lỗi', 'Không thể chọn tệp');
+      console.error("[GroupChat] pick file error:", err);
+      Alert.alert("Lỗi", "Không thể chọn tệp");
     }
   };
 
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false); // ✅ NEW: Loading more messages
@@ -108,7 +152,7 @@ export default function GroupChatScreen() {
   const [pinnedMessages, setPinnedMessages] = useState([]);
   const [showMoreOptions, setShowMoreOptions] = useState(false); // Menu cấp 2
   const [showMentionList, setShowMentionList] = useState(false); // Hiện danh sách mention
-  const [mentionSearch, setMentionSearch] = useState(''); // Text sau @
+  const [mentionSearch, setMentionSearch] = useState(""); // Text sau @
   const [cursorPosition, setCursorPosition] = useState(0); // Vị trí con trỏ
   const [mentionStartIndex, setMentionStartIndex] = useState(-1); // Vị trí bắt đầu @
   const [selectedMentionedUser, setSelectedMentionedUser] = useState(null); // User được mention được chọn
@@ -129,14 +173,23 @@ export default function GroupChatScreen() {
   // If navigated from PinnedMessages with a messageId to scroll to
   useEffect(() => {
     const scrollToId = route.params?.scrollToMessageId;
-    if (scrollToId && messages && messages.length > 0) {
-      // delay slightly to ensure layout ready
-      setTimeout(() => {
+    console.log("[GroupChat] useEffect scrollToMessageId:", {
+      scrollToId,
+      hasMessages: messages && messages.length > 0,
+      messagesCount: messages?.length,
+      routeParams: route.params,
+      loading: loading,
+    });
+
+    if (scrollToId && messages && messages.length > 0 && !loading) {
+      // delay để đảm bảo layout đã sẵn sàng
+      setTimeout(async () => {
+        console.log("[GroupChat] Attempting to scroll to message:", scrollToId);
         // don't show an alert if message not found via route param
-        scrollToMessage(scrollToId, { showNotFoundAlert: false });
-      }, 200);
+        await scrollToMessage(scrollToId, { showNotFoundAlert: true });
+      }, 800); // Tăng delay lên 800ms để đảm bảo layout đã render xong
     }
-  }, [route.params, messages]);
+  }, [route.params?.scrollToMessageId, messages, loading]);
 
   useEffect(() => {
     loadGroupData();
@@ -147,26 +200,52 @@ export default function GroupChatScreen() {
     const doOpenGroup = async () => {
       try {
         // determine last message id (newest) in current messages
-        const lastMsg = messages && messages.length > 0 ? messages[messages.length - 1] : null;
-        const lastId = lastMsg && (lastMsg.id || lastMsg.messageId) ? Number(lastMsg.id || lastMsg.messageId) : 0;
-        if (signalRService && signalRService.chatConnection && signalRService.chatConnection.state === 1) {
+        const lastMsg =
+          messages && messages.length > 0
+            ? messages[messages.length - 1]
+            : null;
+        const lastId =
+          lastMsg && (lastMsg.id || lastMsg.messageId)
+            ? Number(lastMsg.id || lastMsg.messageId)
+            : 0;
+        if (
+          signalRService &&
+          signalRService.chatConnection &&
+          signalRService.chatConnection.state === 1
+        ) {
           try {
-            await signalRService.invokeOpenGroup(String(conversationId), lastId);
-            console.log('[GroupChat] Invoked OpenGroup via SignalR', conversationId, lastId);
+            await signalRService.invokeOpenGroup(
+              String(conversationId),
+              lastId
+            );
+            console.log(
+              "[GroupChat] Invoked OpenGroup via SignalR",
+              conversationId,
+              lastId
+            );
           } catch (e) {
-            console.warn('[GroupChat] OpenGroup SignalR invoke failed', e);
+            console.warn("[GroupChat] OpenGroup SignalR invoke failed", e);
           }
         } else {
           // Optionally call REST fallback if you have one
           try {
-            if (groupChatService && typeof groupChatService.openGroup === 'function') {
+            if (
+              groupChatService &&
+              typeof groupChatService.openGroup === "function"
+            ) {
               await groupChatService.openGroup(conversationId, lastId);
-              console.log('[GroupChat] OpenGroup REST fallback called', conversationId, lastId);
+              console.log(
+                "[GroupChat] OpenGroup REST fallback called",
+                conversationId,
+                lastId
+              );
             }
-          } catch (e) { /* ignore */ }
+          } catch (e) {
+            /* ignore */
+          }
         }
       } catch (err) {
-        console.warn('[GroupChat] doOpenGroup failed', err);
+        console.warn("[GroupChat] doOpenGroup failed", err);
       }
     };
 
@@ -180,7 +259,12 @@ export default function GroupChatScreen() {
     const generate = async () => {
       try {
         if (!messages || messages.length === 0) return;
-        const need = messages.filter(m => (m.mediaType === 'video' || m.messageType === 'video') && !m.thumbnailUri && (m.mediaUri || m.fileUrl));
+        const need = messages.filter(
+          (m) =>
+            (m.mediaType === "video" || m.messageType === "video") &&
+            !m.thumbnailUri &&
+            (m.mediaUri || m.fileUrl)
+        );
         if (need.length === 0) return;
 
         const updates = {};
@@ -189,42 +273,65 @@ export default function GroupChatScreen() {
           const key = `video_thumb_${encodeURIComponent(uri)}`;
           try {
             const cached = await AsyncStorage.getItem(key);
-            if (cached) { updates[m.id] = cached; continue; }
+            if (cached) {
+              updates[m.id] = cached;
+              continue;
+            }
           } catch {}
 
           try {
-            const { uri: thumb } = await VideoThumbnails.getThumbnailAsync(uri, { time: 1000 });
+            const { uri: thumb } = await VideoThumbnails.getThumbnailAsync(
+              uri,
+              { time: 1000 }
+            );
             if (thumb) {
-              try { await AsyncStorage.setItem(key, thumb); } catch {}
+              try {
+                await AsyncStorage.setItem(key, thumb);
+              } catch {}
               updates[m.id] = thumb;
             }
           } catch (err) {
-            console.log('[GroupChat] thumbnail error for', uri, err?.message || err);
+            console.log(
+              "[GroupChat] thumbnail error for",
+              uri,
+              err?.message || err
+            );
           }
         }
 
         if (mounted && Object.keys(updates).length > 0) {
-          setMessages(prev => prev.map(pm => ({ ...(pm), ...(updates[pm.id] ? { thumbnailUri: updates[pm.id] } : {}) })));
+          setMessages((prev) =>
+            prev.map((pm) => ({
+              ...pm,
+              ...(updates[pm.id] ? { thumbnailUri: updates[pm.id] } : {}),
+            }))
+          );
         }
       } catch (err) {
-        console.error('[GroupChat] generate thumbnails error', err);
+        console.error("[GroupChat] generate thumbnails error", err);
       }
     };
     generate();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [messages]);
 
   // DEBUG: Log khi showMentionList thay đổi
   useEffect(() => {
-    console.log('[GroupChat] showMentionList changed:', showMentionList, {
+    console.log("[GroupChat] showMentionList changed:", showMentionList, {
       members: members.length,
       currentUserId: currentUserId,
       mentionSearch: mentionSearch,
-      mentionStartIndex: mentionStartIndex
+      mentionStartIndex: mentionStartIndex,
     });
     if (showMentionList) {
       const mentionableMembers = getMentionableMembers();
-      console.log('[GroupChat] Mentionable members when list shows:', mentionableMembers.length, mentionableMembers.map(m => m.username));
+      console.log(
+        "[GroupChat] Mentionable members when list shows:",
+        mentionableMembers.length,
+        mentionableMembers.map((m) => m.username)
+      );
     }
   }, [showMentionList]);
 
@@ -232,16 +339,24 @@ export default function GroupChatScreen() {
   useFocusEffect(
     useCallback(() => {
       const checkAndReload = async () => {
-        const userStr = await AsyncStorage.getItem('user');
-        const userId = userStr ? JSON.parse(userStr).user_id || JSON.parse(userStr).userId : null;
-        
+        const userStr = await AsyncStorage.getItem("user");
+        const userId = userStr
+          ? JSON.parse(userStr).user_id || JSON.parse(userStr).userId
+          : null;
+
         // Nếu userId thay đổi, reload lại
         if (userId && userId !== currentUserId) {
-          console.log('[GroupChat] User changed, reloading...', 'old:', currentUserId, 'new:', userId);
+          console.log(
+            "[GroupChat] User changed, reloading...",
+            "old:",
+            currentUserId,
+            "new:",
+            userId
+          );
           loadGroupData();
         }
       };
-      
+
       checkAndReload();
     }, [currentUserId])
   );
@@ -252,15 +367,20 @@ export default function GroupChatScreen() {
 
     const setupSignalR = async () => {
       if (!currentUserId) {
-        console.log('[GroupChat] Skipping SignalR setup until currentUserId is available');
+        console.log(
+          "[GroupChat] Skipping SignalR setup until currentUserId is available"
+        );
         return;
       }
       try {
-        console.log('[GroupChat] Setting up SignalR for conversation:', conversationId);
+        console.log(
+          "[GroupChat] Setting up SignalR for conversation:",
+          conversationId
+        );
 
         // Connect to chat hub
         await signalRService.connectToChat();
-        
+
         // Join this group
         await signalRService.joinGroup(conversationId);
 
@@ -272,73 +392,118 @@ export default function GroupChatScreen() {
           let payload = null;
           try {
             for (const a of args) {
-              if (a && typeof a === 'object' && (a.id || a.messageId || a.content || a.createdAt || a.fileUrl)) {
+              if (
+                a &&
+                typeof a === "object" &&
+                (a.id || a.messageId || a.content || a.createdAt || a.fileUrl)
+              ) {
                 payload = a;
                 break;
               }
             }
             if (!payload) payload = args[0] || null;
           } catch (e) {
-            console.warn('[SignalR] ReceiveMessage normalization error', e);
+            console.warn("[SignalR] ReceiveMessage normalization error", e);
             payload = args[0] || null;
           }
 
-          console.log('[SignalR] ReceiveMessage payload:', payload);
+          console.log("[SignalR] ReceiveMessage payload:", payload);
 
-          if (!payload || typeof payload !== 'object') {
-            console.warn('[GroupChat] Ignoring invalid ReceiveMessage payload', payload);
+          if (!payload || typeof payload !== "object") {
+            console.warn(
+              "[GroupChat] Ignoring invalid ReceiveMessage payload",
+              payload
+            );
             return;
           }
 
           // Build normalized message object (defensive parsing)
-          const rawTimestamp = payload.timestamp || payload.createdAt || payload.created_at || null;
+          const rawTimestamp =
+            payload.timestamp ||
+            payload.createdAt ||
+            payload.created_at ||
+            null;
           const parsedTs = rawTimestamp ? new Date(rawTimestamp) : null;
           const timestampValid = parsedTs && !isNaN(parsedTs.getTime());
 
           const newMessage = {
             id: payload.id || payload.messageId || null,
             userId: payload.userId || payload.user_id || null,
-            userName: payload.userName || payload.user_name || payload.user || null,
+            userName:
+              payload.userName || payload.user_name || payload.user || null,
             userAvatar: payload.userAvatar || payload.user_avatar || null,
             message: payload.content || payload.message || null,
             timestamp: timestampValid ? parsedTs.toISOString() : null,
             messageType: payload.messageType || payload.MessageType || null,
             mediaUri: payload.fileUrl || payload.file_url || null,
-            mediaType: (payload.messageType === 'text' || payload.MessageType === 'text') ? null : (payload.messageType || payload.MessageType || null),
+            mediaType:
+              payload.messageType === "text" || payload.MessageType === "text"
+                ? null
+                : payload.messageType || payload.MessageType || null,
             fileUrl: payload.fileUrl || payload.file_url || null,
             replyTo: payload.replyTo || payload.ReplyTo || null,
             reactions: payload.reactions || payload.Reactions || {},
             readBy: payload.readBy || payload.ReadBy || [],
-            isMine: String(payload.userId || payload.user_id) === String(currentUserId)
+            isMine:
+              String(payload.userId || payload.user_id) ===
+              String(currentUserId),
           };
 
           // Skip malformed messages: empty sender, empty content and no media, or invalid timestamp
-          const hasSender = newMessage.userId !== null && newMessage.userId !== undefined && String(newMessage.userId).trim() !== '';
-          const hasContentOrMedia = (newMessage.message && String(newMessage.message).trim() !== '') || newMessage.mediaUri || newMessage.fileUrl;
+          const hasSender =
+            newMessage.userId !== null &&
+            newMessage.userId !== undefined &&
+            String(newMessage.userId).trim() !== "";
+          const hasContentOrMedia =
+            (newMessage.message && String(newMessage.message).trim() !== "") ||
+            newMessage.mediaUri ||
+            newMessage.fileUrl;
           const hasValidTimestamp = newMessage.timestamp !== null;
 
           if (!hasSender || !hasContentOrMedia || !hasValidTimestamp) {
-            console.warn('[GroupChat] Skipping malformed message (sender/content/timestamp invalid):', { hasSender, hasContentOrMedia, hasValidTimestamp, payload });
+            console.warn(
+              "[GroupChat] Skipping malformed message (sender/content/timestamp invalid):",
+              { hasSender, hasContentOrMedia, hasValidTimestamp, payload }
+            );
             return;
           }
 
-          setMessages(prev => {
+          setMessages((prev) => {
             // If server provided clientTempId, reconcile optimistic message (replace temp)
             const tempId = payload.clientTempId || payload.clientTempID || null;
             if (tempId) {
-              const idx = prev.findIndex(m => m.id === tempId || m.tempId === tempId);
+              const idx = prev.findIndex(
+                (m) => m.id === tempId || m.tempId === tempId
+              );
               if (idx >= 0) {
                 const copy = [...prev];
                 copy[idx] = { ...newMessage };
-                try { groupChatService.removePendingMessage(conversationId, tempId).catch(e => console.warn('[GroupChat] removePendingMessage failed', e)); } catch (e) { console.warn('[GroupChat] removePendingMessage sync error', e); }
+                try {
+                  groupChatService
+                    .removePendingMessage(conversationId, tempId)
+                    .catch((e) =>
+                      console.warn("[GroupChat] removePendingMessage failed", e)
+                    );
+                } catch (e) {
+                  console.warn(
+                    "[GroupChat] removePendingMessage sync error",
+                    e
+                  );
+                }
                 return copy;
               }
             }
 
             // Prevent duplicate by id
-            if (newMessage.id && prev.find(m => String(m.id) === String(newMessage.id))) return prev;
+            if (
+              newMessage.id &&
+              prev.find((m) => String(m.id) === String(newMessage.id))
+            )
+              return prev;
             const combined = [...prev, newMessage];
-            combined.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            combined.sort(
+              (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+            );
             return combined;
           });
 
@@ -346,20 +511,30 @@ export default function GroupChatScreen() {
           try {
             const rb = payload.readBy || [];
             if (Array.isArray(rb) && rb.length > 0) {
-              setLastReadMap(prev => {
+              setLastReadMap((prev) => {
                 const copy = { ...(prev || {}) };
                 for (const r of rb) {
                   try {
                     const readerId = String(r.user_id || r.userId || r);
                     if (!readerId) continue;
                     // place this reader's last-read at this message (server sent this read info)
-                    copy[readerId] = { messageId: String(newMessage.id), readAt: r.readAt || new Date().toISOString() };
-                  } catch (e) { /* ignore per-reader errors */ }
+                    copy[readerId] = {
+                      messageId: String(newMessage.id),
+                      readAt: r.readAt || new Date().toISOString(),
+                    };
+                  } catch (e) {
+                    /* ignore per-reader errors */
+                  }
                 }
                 return copy;
               });
             }
-          } catch (e) { console.warn('[GroupChat] onReceiveMessage update lastReadMap failed', e); }
+          } catch (e) {
+            console.warn(
+              "[GroupChat] onReceiveMessage update lastReadMap failed",
+              e
+            );
+          }
 
           // Scroll to bottom
           setTimeout(() => {
@@ -370,80 +545,101 @@ export default function GroupChatScreen() {
         // ✅ Listen for read receipts
         signalRService.onMessageRead((data) => {
           if (!mounted) return;
-          
-          console.log('[SignalR] MessageRead:', data);
-          
+
+          console.log("[SignalR] MessageRead:", data);
+
           // Update per-message readBy (keep for compatibility) and update lastReadMap to place
           // the user's read marker on their latest-read message.
-          setMessages(prev => prev.map(msg => {
-            if (msg.id === data.messageId) {
-              const newReadBy = [...(msg.readBy || [])];
-              // Add if not already in list
-              if (!newReadBy.find(r => String(r.userId) === String(data.userId))) {
-                newReadBy.push({
-                  userId: data.userId,
-                  readAt: data.readAt
-                });
+          setMessages((prev) =>
+            prev.map((msg) => {
+              if (msg.id === data.messageId) {
+                const newReadBy = [...(msg.readBy || [])];
+                // Add if not already in list
+                if (
+                  !newReadBy.find(
+                    (r) => String(r.userId) === String(data.userId)
+                  )
+                ) {
+                  newReadBy.push({
+                    userId: data.userId,
+                    readAt: data.readAt,
+                  });
+                }
+                return { ...msg, readBy: newReadBy };
               }
-              return { ...msg, readBy: newReadBy };
-            }
-            return msg;
-          }));
+              return msg;
+            })
+          );
 
           try {
-            setLastReadMap(prev => {
+            setLastReadMap((prev) => {
               const copy = { ...(prev || {}) };
               const uid = String(data.userId);
               const existing = copy[uid];
               // Only advance forward (message ids assumed increasing)
-              if (!existing || (data.messageId && Number(data.messageId) >= Number(existing.messageId))) {
-                copy[uid] = { messageId: data.messageId, readAt: data.readAt || new Date().toISOString() };
+              if (
+                !existing ||
+                (data.messageId &&
+                  Number(data.messageId) >= Number(existing.messageId))
+              ) {
+                copy[uid] = {
+                  messageId: data.messageId,
+                  readAt: data.readAt || new Date().toISOString(),
+                };
               }
               return copy;
             });
           } catch (e) {
-            console.warn('[GroupChat] update lastReadMap failed', e);
+            console.warn("[GroupChat] update lastReadMap failed", e);
           }
         });
 
         // ✅ Listen for reactions
         signalRService.onReactionAdded((data) => {
           if (!mounted) return;
-          
-          console.log('[SignalR] ReactionAdded:', data);
-          
-          setMessages(prev => prev.map(msg => {
-            if (msg.id === data.messageId) {
-              return { ...msg, reactions: data.reactions || {} };
-            }
-            return msg;
-          }));
+
+          console.log("[SignalR] ReactionAdded:", data);
+
+          setMessages((prev) =>
+            prev.map((msg) => {
+              if (msg.id === data.messageId) {
+                return { ...msg, reactions: data.reactions || {} };
+              }
+              return msg;
+            })
+          );
         });
 
         signalRService.onReactionRemoved((data) => {
           if (!mounted) return;
-          
-          console.log('[SignalR] ReactionRemoved:', data);
-          
-          setMessages(prev => prev.map(msg => {
-            if (msg.id === data.messageId) {
-              return { ...msg, reactions: data.reactions || {} };
-            }
-            return msg;
-          }));
+
+          console.log("[SignalR] ReactionRemoved:", data);
+
+          setMessages((prev) =>
+            prev.map((msg) => {
+              if (msg.id === data.messageId) {
+                return { ...msg, reactions: data.reactions || {} };
+              }
+              return msg;
+            })
+          );
         });
 
         // ✅ Listen for server notification that a client-side optimistic message failed to save
         signalRService.onMessageSaveFailed((data) => {
           if (!mounted) return;
           try {
-            console.log('[SignalR] MessageSaveFailed:', data);
+            console.log("[SignalR] MessageSaveFailed:", data);
             const clientTempId = data?.clientTempId || data?.clientTempID;
             if (!clientTempId) return;
 
-            setMessages(prev => prev.filter(m => !(m.id === clientTempId || m.tempId === clientTempId)));
+            setMessages((prev) =>
+              prev.filter(
+                (m) => !(m.id === clientTempId || m.tempId === clientTempId)
+              )
+            );
           } catch (err) {
-            console.error('Error handling MessageSaveFailed:', err);
+            console.error("Error handling MessageSaveFailed:", err);
           }
         });
 
@@ -451,18 +647,27 @@ export default function GroupChatScreen() {
         signalRService.onGroupAvatarUpdated(async (payload) => {
           try {
             if (!mounted || !payload) return;
-            const convId = Number(payload.conversationId || payload.conversationId);
+            const convId = Number(
+              payload.conversationId || payload.conversationId
+            );
             const avatarUrl = payload.avatarUrl;
             if (String(convId) !== String(conversationId)) return; // only care about this conversation
 
             // Persist override locally so it survives reloads
-            try { await AsyncStorage.setItem(`groupAvatar_${convId}`, avatarUrl); } catch (e) { console.warn('[GroupChat] save avatar override failed', e); }
+            try {
+              await AsyncStorage.setItem(`groupAvatar_${convId}`, avatarUrl);
+            } catch (e) {
+              console.warn("[GroupChat] save avatar override failed", e);
+            }
 
             // Update local state
-            setGroupInfo(prev => ({ ...(prev || {}), avatarUrl }));
-            console.log('[GroupChat] Applied GroupAvatarUpdated payload', payload);
+            setGroupInfo((prev) => ({ ...(prev || {}), avatarUrl }));
+            console.log(
+              "[GroupChat] Applied GroupAvatarUpdated payload",
+              payload
+            );
           } catch (e) {
-            console.error('[GroupChat] onGroupAvatarUpdated handler error', e);
+            console.error("[GroupChat] onGroupAvatarUpdated handler error", e);
           }
         });
 
@@ -470,7 +675,9 @@ export default function GroupChatScreen() {
         signalRService.onGroupNameUpdated(async (payload) => {
           try {
             if (!mounted || !payload) return;
-            const convId = Number(payload.conversationId || payload.conversationId);
+            const convId = Number(
+              payload.conversationId || payload.conversationId
+            );
             const newName = payload.newName || payload.name || payload.Name;
             if (String(convId) !== String(conversationId)) return;
 
@@ -481,20 +688,24 @@ export default function GroupChatScreen() {
               const info = saved ? JSON.parse(saved) : {};
               info.name = newName;
               await AsyncStorage.setItem(key, JSON.stringify(info));
-            } catch (e) { console.warn('[GroupChat] save group name override failed', e); }
+            } catch (e) {
+              console.warn("[GroupChat] save group name override failed", e);
+            }
 
             // Update local state
-            setGroupInfo(prev => ({ ...(prev || {}), name: newName }));
-            console.log('[GroupChat] Applied GroupNameUpdated payload', payload);
+            setGroupInfo((prev) => ({ ...(prev || {}), name: newName }));
+            console.log(
+              "[GroupChat] Applied GroupNameUpdated payload",
+              payload
+            );
           } catch (e) {
-            console.error('[GroupChat] onGroupNameUpdated handler error', e);
+            console.error("[GroupChat] onGroupNameUpdated handler error", e);
           }
         });
 
-        console.log('[GroupChat] SignalR setup complete');
-
+        console.log("[GroupChat] SignalR setup complete");
       } catch (error) {
-        console.error('[GroupChat] SignalR setup error:', error);
+        console.error("[GroupChat] SignalR setup error:", error);
       }
     };
 
@@ -503,12 +714,23 @@ export default function GroupChatScreen() {
     // Cleanup
     return () => {
       mounted = false;
-      console.log('[GroupChat] Cleaning up SignalR...');
+      console.log("[GroupChat] Cleaning up SignalR...");
       // Flush pending optimistic messages before leaving the group
-      try { groupChatService.flushPendingMessages(conversationId).catch(e => console.warn('[GroupChat] flushPendingMessages failed on cleanup', e)); } catch (e) { console.warn('[GroupChat] flushPendingMessages sync error', e); }
-      signalRService.leaveGroup(conversationId).catch(err => 
-        console.error('Error leaving group:', err)
-      );
+      try {
+        groupChatService
+          .flushPendingMessages(conversationId)
+          .catch((e) =>
+            console.warn(
+              "[GroupChat] flushPendingMessages failed on cleanup",
+              e
+            )
+          );
+      } catch (e) {
+        console.warn("[GroupChat] flushPendingMessages sync error", e);
+      }
+      signalRService
+        .leaveGroup(conversationId)
+        .catch((err) => console.error("Error leaving group:", err));
     };
   }, [conversationId, currentUserId]);
 
@@ -517,9 +739,16 @@ export default function GroupChatScreen() {
     useCallback(() => {
       return () => {
         try {
-          groupChatService.flushPendingMessages(conversationId).catch(e => console.warn('[GroupChat] flushPendingMessages failed on blur', e));
+          groupChatService
+            .flushPendingMessages(conversationId)
+            .catch((e) =>
+              console.warn("[GroupChat] flushPendingMessages failed on blur", e)
+            );
         } catch (e) {
-          console.warn('[GroupChat] flushPendingMessages sync error on blur', e);
+          console.warn(
+            "[GroupChat] flushPendingMessages sync error on blur",
+            e
+          );
         }
       };
     }, [conversationId])
@@ -533,14 +762,22 @@ export default function GroupChatScreen() {
 
       (async () => {
         try {
-          const pending = await groupChatService.getPendingMessages(conversationId);
+          const pending = await groupChatService.getPendingMessages(
+            conversationId
+          );
           if (pending && pending.length > 0) {
-            console.log('[GroupChat] Pending messages detected on navigation - flushing', pending.length);
+            console.log(
+              "[GroupChat] Pending messages detected on navigation - flushing",
+              pending.length
+            );
             await groupChatService.flushPendingMessages(conversationId);
-            console.log('[GroupChat] Pending messages flushed');
+            console.log("[GroupChat] Pending messages flushed");
           }
         } catch (err) {
-          console.warn('[GroupChat] Error flushing pending messages on beforeRemove', err);
+          console.warn(
+            "[GroupChat] Error flushing pending messages on beforeRemove",
+            err
+          );
         } finally {
           // Now allow the navigation to proceed
           navigation.dispatch(e.data.action);
@@ -548,9 +785,11 @@ export default function GroupChatScreen() {
       })();
     };
 
-    const unsub = navigation.addListener('beforeRemove', beforeRemoveHandler);
+    const unsub = navigation.addListener("beforeRemove", beforeRemoveHandler);
     return () => {
-      try { unsub(); } catch (e) {}
+      try {
+        unsub();
+      } catch (e) {}
     };
   }, [conversationId, navigation]);
 
@@ -560,13 +799,13 @@ export default function GroupChatScreen() {
 
     const timer = setTimeout(() => {
       // Find unread messages from others
-      const unreadMessages = messages.filter(msg => {
+      const unreadMessages = messages.filter((msg) => {
         if (msg.isMine) return false; // Skip own messages
-        
+
         // Check if already read by current user
         let readBy = [];
         try {
-          if (typeof msg.readBy === 'string') {
+          if (typeof msg.readBy === "string") {
             readBy = JSON.parse(msg.readBy);
           } else if (Array.isArray(msg.readBy)) {
             readBy = msg.readBy;
@@ -574,45 +813,73 @@ export default function GroupChatScreen() {
         } catch (error) {
           readBy = [];
         }
-        
-        const alreadyRead = readBy.some(r => {
+
+        const alreadyRead = readBy.some((r) => {
           const readerId = r.user_id || r.userId || r;
           return Number(readerId) === Number(currentUserId);
         });
-        
+
         return !alreadyRead;
       });
 
       // Mark unread messages as read using SignalR when available (real-time broadcast + persist)
-      const idsToMark = unreadMessages.map(m => m.id).filter(Boolean);
+      const idsToMark = unreadMessages.map((m) => m.id).filter(Boolean);
       if (idsToMark.length === 0) return;
 
       (async () => {
         try {
-          if (signalRService && signalRService.chatConnection && signalRService.chatConnection.state === 1 /* Connected */) {
+          if (
+            signalRService &&
+            signalRService.chatConnection &&
+            signalRService.chatConnection.state === 1 /* Connected */
+          ) {
             // Use SignalR to mark messages as read so server will broadcast to group
             await signalRService.markMessagesAsRead(conversationId, idsToMark);
-            console.log('[GroupChat] Marked messages as read via SignalR:', idsToMark);
+            console.log(
+              "[GroupChat] Marked messages as read via SignalR:",
+              idsToMark
+            );
             // Optimistically update lastReadMap for current user to the latest message marked
             try {
-              const maxId = idsToMark.map(id => Number(id)).filter(n => !isNaN(n)).reduce((a,b) => Math.max(a,b), 0);
+              const maxId = idsToMark
+                .map((id) => Number(id))
+                .filter((n) => !isNaN(n))
+                .reduce((a, b) => Math.max(a, b), 0);
               if (maxId > 0 && currentUserId) {
-                setLastReadMap(prev => ({ ...(prev || {}), [String(currentUserId)]: { messageId: String(maxId), readAt: new Date().toISOString() } }));
+                setLastReadMap((prev) => ({
+                  ...(prev || {}),
+                  [String(currentUserId)]: {
+                    messageId: String(maxId),
+                    readAt: new Date().toISOString(),
+                  },
+                }));
               }
-            } catch (e) { console.warn('[GroupChat] optimistic lastReadMap update failed', e); }
+            } catch (e) {
+              console.warn(
+                "[GroupChat] optimistic lastReadMap update failed",
+                e
+              );
+            }
           } else {
             // Fallback to REST API if SignalR not connected
             for (const id of idsToMark) {
               try {
                 await groupChatService.markMessageAsRead(id);
               } catch (err) {
-                console.error('[GroupChat] markMessageAsRead fallback error for', id, err);
+                console.error(
+                  "[GroupChat] markMessageAsRead fallback error for",
+                  id,
+                  err
+                );
               }
             }
-            console.log('[GroupChat] Marked messages as read via REST fallback:', idsToMark);
+            console.log(
+              "[GroupChat] Marked messages as read via REST fallback:",
+              idsToMark
+            );
           }
         } catch (error) {
-          console.error('[GroupChat] Error marking messages as read:', error);
+          console.error("[GroupChat] Error marking messages as read:", error);
         }
       })();
     }, 1000); // Wait 1 second before marking as read
@@ -623,33 +890,42 @@ export default function GroupChatScreen() {
   const loadGroupData = async () => {
     try {
       setLoading(true);
-      
+
       // Lấy current user ID TRƯỚC: try 'user', then 'userInfo', then fallback to API profile
       let userId = null;
       try {
-        let userStr = await AsyncStorage.getItem('user');
-        if (!userStr) userStr = await AsyncStorage.getItem('userInfo');
+        let userStr = await AsyncStorage.getItem("user");
+        if (!userStr) userStr = await AsyncStorage.getItem("userInfo");
         if (userStr) {
           const user = JSON.parse(userStr);
           userId = user.user_id || user.userId;
           setCurrentUserId(userId);
-          console.log('[GroupChat] loadGroupData - Current userId from storage:', userId);
+          console.log(
+            "[GroupChat] loadGroupData - Current userId from storage:",
+            userId
+          );
         } else {
           // Fallback: call profile API (may refresh token internally)
           try {
             const profile = await getProfile();
             if (profile) {
-              await AsyncStorage.setItem('userInfo', JSON.stringify(profile));
+              await AsyncStorage.setItem("userInfo", JSON.stringify(profile));
               userId = profile.userId || profile.user_id;
               setCurrentUserId(userId);
-              console.log('[GroupChat] loadGroupData - Current userId from API profile:', userId);
+              console.log(
+                "[GroupChat] loadGroupData - Current userId from API profile:",
+                userId
+              );
             }
           } catch (err) {
-            console.warn('[GroupChat] getProfile fallback failed:', err);
+            console.warn("[GroupChat] getProfile fallback failed:", err);
           }
         }
       } catch (err) {
-        console.warn('[GroupChat] Error reading user from storage or profile API:', err);
+        console.warn(
+          "[GroupChat] Error reading user from storage or profile API:",
+          err
+        );
       }
 
       // Lấy thông tin nhóm và thành viên
@@ -661,7 +937,7 @@ export default function GroupChatScreen() {
       // Check if there's a saved avatar in AsyncStorage
       const savedAvatarKey = `groupAvatar_${conversationId}`;
       const savedAvatar = await AsyncStorage.getItem(savedAvatarKey);
-      
+
       if (savedAvatar) {
         groupData.avatarUrl = savedAvatar;
       }
@@ -670,29 +946,35 @@ export default function GroupChatScreen() {
       setMembers(membersData);
 
       // DEBUG: Log members để xem cấu trúc
-      console.log('[GroupChat] Members loaded:', JSON.stringify(membersData, null, 2));
+      console.log(
+        "[GroupChat] Members loaded:",
+        JSON.stringify(membersData, null, 2)
+      );
       if (membersData.length > 0) {
-        console.log('[GroupChat] First member structure:', {
+        console.log("[GroupChat] First member structure:", {
           userId: membersData[0].userId,
           username: membersData[0].username,
           fullName: membersData[0].fullName,
-          avatarUrl: membersData[0].avatarUrl
+          avatarUrl: membersData[0].avatarUrl,
         });
       }
 
       // Xóa các tin nhắn cục bộ không tồn tại trên server (không có trong DB)
       try {
         await groupChatService.purgeLocalUnsavedMessages(conversationId);
-        console.log('[GroupChat] Purged local unsaved messages for conversation', conversationId);
+        console.log(
+          "[GroupChat] Purged local unsaved messages for conversation",
+          conversationId
+        );
       } catch (err) {
-        console.warn('[GroupChat] purgeLocalUnsavedMessages failed:', err);
+        console.warn("[GroupChat] purgeLocalUnsavedMessages failed:", err);
       }
 
       // Load messages từ server (PHẢI load SAU khi có userId và members)
       await loadMessages();
     } catch (error) {
-      console.error('Load group data error:', error);
-      Alert.alert('Lỗi', 'Không thể tải dữ liệu nhóm');
+      console.error("Load group data error:", error);
+      Alert.alert("Lỗi", "Không thể tải dữ liệu nhóm");
     } finally {
       setLoading(false);
     }
@@ -709,15 +991,15 @@ export default function GroupChatScreen() {
       }
 
       // Get current user
-      let userStr = await AsyncStorage.getItem('user');
+      let userStr = await AsyncStorage.getItem("user");
       if (!userStr) {
-        userStr = await AsyncStorage.getItem('userInfo');
+        userStr = await AsyncStorage.getItem("userInfo");
       }
-      
+
       if (!userStr) {
-        console.error('[GroupChat] No user found in AsyncStorage');
-        Alert.alert('Lỗi', 'Vui lòng đăng nhập lại');
-        navigation.navigate('Login');
+        console.error("[GroupChat] No user found in AsyncStorage");
+        Alert.alert("Lỗi", "Vui lòng đăng nhập lại");
+        navigation.navigate("Login");
         return;
       }
 
@@ -725,12 +1007,17 @@ export default function GroupChatScreen() {
       const userId = user.userId || user.user_id;
 
       if (!userId) {
-        console.error('[GroupChat] userId is null/undefined!');
-        Alert.alert('Lỗi', 'Thông tin người dùng không hợp lệ');
+        console.error("[GroupChat] userId is null/undefined!");
+        Alert.alert("Lỗi", "Thông tin người dùng không hợp lệ");
         return;
       }
 
-      console.log('[GroupChat] Loading messages from API, page:', pageNum, 'userId:', userId);
+      console.log(
+        "[GroupChat] Loading messages from API, page:",
+        pageNum,
+        "userId:",
+        userId
+      );
 
       // ✅ Fetch from API
       const PAGE_SIZE = 10;
@@ -744,26 +1031,54 @@ export default function GroupChatScreen() {
           const total = Number(meta?.totalCount ?? meta?.total ?? 0) || 0;
           const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
           usedPage = lastPage;
-          data = await groupChatService.getMessages(conversationId, usedPage, PAGE_SIZE);
-          if ((!data || !data.messages || data.messages.length === 0) && total > 0 && usedPage > 1) {
+          data = await groupChatService.getMessages(
+            conversationId,
+            usedPage,
+            PAGE_SIZE
+          );
+          if (
+            (!data || !data.messages || data.messages.length === 0) &&
+            total > 0 &&
+            usedPage > 1
+          ) {
             usedPage = Math.max(1, usedPage - 1);
-            data = await groupChatService.getMessages(conversationId, usedPage, PAGE_SIZE);
+            data = await groupChatService.getMessages(
+              conversationId,
+              usedPage,
+              PAGE_SIZE
+            );
           }
         } catch (err) {
-          console.warn('[GroupChat] initial last-page fetch failed, falling back', err);
-          data = await groupChatService.getMessages(conversationId, pageNum, PAGE_SIZE);
+          console.warn(
+            "[GroupChat] initial last-page fetch failed, falling back",
+            err
+          );
+          data = await groupChatService.getMessages(
+            conversationId,
+            pageNum,
+            PAGE_SIZE
+          );
           usedPage = pageNum;
         }
       } else {
-        data = await groupChatService.getMessages(conversationId, pageNum, PAGE_SIZE);
+        data = await groupChatService.getMessages(
+          conversationId,
+          pageNum,
+          PAGE_SIZE
+        );
         usedPage = pageNum;
       }
-      
-      console.log('[GroupChat] API Response:', data);
-      console.log('[GroupChat] Loaded messages:', data.messages?.length || 0, 'total:', data.totalCount);
+
+      console.log("[GroupChat] API Response:", data);
+      console.log(
+        "[GroupChat] Loaded messages:",
+        data.messages?.length || 0,
+        "total:",
+        data.totalCount
+      );
 
       if (!data.messages || data.messages.length === 0) {
-        console.log('[GroupChat] No messages returned from API');
+        console.log("[GroupChat] No messages returned from API");
         setMessages([]);
         setHasMore(false);
         return;
@@ -771,41 +1086,70 @@ export default function GroupChatScreen() {
 
       // Map API response to component state
       // Handle both PascalCase and camelCase from backend
-      const mappedMessages = data.messages.map(msg => ({
-        id: msg.messageId || msg.MessageId,              // DB ID (integer)
+      const mappedMessages = data.messages.map((msg) => ({
+        id: msg.messageId || msg.MessageId, // DB ID (integer)
         userId: msg.userId || msg.UserId,
-        userName: msg.userName || msg.UserName,         // ✅ From API, not members array
-        userAvatar: msg.userAvatar || msg.UserAvatar,     // ✅ From API
+        userName: msg.userName || msg.UserName, // ✅ From API, not members array
+        userAvatar: msg.userAvatar || msg.UserAvatar, // ✅ From API
         message: msg.content || msg.Content,
         timestamp: new Date(msg.createdAt || msg.CreatedAt),
-        messageType: msg.messageType || msg.MessageType || 'text',
-        mediaUri: msg.fileUrl || msg.FileUrl,          // Rename for compatibility
-        mediaType: (msg.messageType || msg.MessageType) === 'text' ? null : (msg.messageType || msg.MessageType),
+        messageType: msg.messageType || msg.MessageType || "text",
+        mediaUri: msg.fileUrl || msg.FileUrl, // Rename for compatibility
+        mediaType:
+          (msg.messageType || msg.MessageType) === "text"
+            ? null
+            : msg.messageType || msg.MessageType,
         fileUrl: msg.fileUrl || msg.FileUrl,
-        replyTo: (msg.replyTo || msg.ReplyTo) ? {        // ✅ Thread support
-          id: (msg.replyTo || msg.ReplyTo).messageId || (msg.replyTo || msg.ReplyTo).MessageId,
-          userId: (msg.replyTo || msg.ReplyTo).userId || (msg.replyTo || msg.ReplyTo).UserId,
-          userName: (msg.replyTo || msg.ReplyTo).userName || (msg.replyTo || msg.ReplyTo).UserName,
-          message: (msg.replyTo || msg.ReplyTo).content || (msg.replyTo || msg.ReplyTo).Content,
-          mediaUri: (msg.replyTo || msg.ReplyTo).fileUrl || (msg.replyTo || msg.ReplyTo).FileUrl,
-          messageId: (msg.replyTo || msg.ReplyTo).messageId || (msg.replyTo || msg.ReplyTo).MessageId
-        } : null,
+        replyTo:
+          msg.replyTo || msg.ReplyTo
+            ? {
+                // ✅ Thread support
+                id:
+                  (msg.replyTo || msg.ReplyTo).messageId ||
+                  (msg.replyTo || msg.ReplyTo).MessageId,
+                userId:
+                  (msg.replyTo || msg.ReplyTo).userId ||
+                  (msg.replyTo || msg.ReplyTo).UserId,
+                userName:
+                  (msg.replyTo || msg.ReplyTo).userName ||
+                  (msg.replyTo || msg.ReplyTo).UserName,
+                message:
+                  (msg.replyTo || msg.ReplyTo).content ||
+                  (msg.replyTo || msg.ReplyTo).Content,
+                mediaUri:
+                  (msg.replyTo || msg.ReplyTo).fileUrl ||
+                  (msg.replyTo || msg.ReplyTo).FileUrl,
+                messageId:
+                  (msg.replyTo || msg.ReplyTo).messageId ||
+                  (msg.replyTo || msg.ReplyTo).MessageId,
+              }
+            : null,
         reactions: msg.reactions || msg.Reactions || {}, // ✅ Reactions from DB
-        readBy: msg.readBy || msg.ReadBy || [],       // ✅ Read receipts from DB
-        isMine: (msg.userId || msg.UserId) === userId
+        readBy: msg.readBy || msg.ReadBy || [], // ✅ Read receipts from DB
+        isMine: (msg.userId || msg.UserId) === userId,
       }));
 
-      console.log('[GroupChat] Mapped messages sample:', mappedMessages[0]);
+      console.log("[GroupChat] Mapped messages sample:", mappedMessages[0]);
 
       // Ensure chronological order (oldest first) and deduplicate by id
-      mappedMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      mappedMessages.sort(
+        (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+      );
 
       // If server returned the entire history in a single response (totalCount equals returned length),
       // trim to the last PAGE_SIZE messages so the UI opens at the newest messages and pagination still works.
       try {
         const totalReported = Number(data?.totalCount ?? data?.total ?? 0) || 0;
-        if (totalReported > 0 && Array.isArray(data.messages) && data.messages.length === totalReported && totalReported > PAGE_SIZE && !append) {
-          console.warn('[GroupChat] Server returned full history in one response; trimming to last PAGE_SIZE messages');
+        if (
+          totalReported > 0 &&
+          Array.isArray(data.messages) &&
+          data.messages.length === totalReported &&
+          totalReported > PAGE_SIZE &&
+          !append
+        ) {
+          console.warn(
+            "[GroupChat] Server returned full history in one response; trimming to last PAGE_SIZE messages"
+          );
           const start = Math.max(0, mappedMessages.length - PAGE_SIZE);
           const tail = mappedMessages.slice(start);
           // reflect trimmed list
@@ -814,11 +1158,14 @@ export default function GroupChatScreen() {
           // mark that there are older pages available
           setHasMore(true);
           // compute usedPage as last page
-          const inferredLastPage = Math.max(1, Math.ceil(totalReported / PAGE_SIZE));
+          const inferredLastPage = Math.max(
+            1,
+            Math.ceil(totalReported / PAGE_SIZE)
+          );
           usedPage = inferredLastPage;
         }
       } catch (e) {
-        console.warn('[GroupChat] trimming fallback failed', e);
+        console.warn("[GroupChat] trimming fallback failed", e);
       }
 
       // Compute per-user last-read map: iterate chronologically so later messages override earlier reads
@@ -832,25 +1179,32 @@ export default function GroupChatScreen() {
                 const readerId = String(r.user_id || r.userId || r);
                 if (!readerId) continue;
                 // Always set/override since messages are chronological (later messages overwrite earlier)
-                map[readerId] = { messageId: String(m.id), readAt: r.readAt || new Date().toISOString() };
-              } catch (e) { /* ignore malformed entries */ }
+                map[readerId] = {
+                  messageId: String(m.id),
+                  readAt: r.readAt || new Date().toISOString(),
+                };
+              } catch (e) {
+                /* ignore malformed entries */
+              }
             }
           }
         }
         setLastReadMap(map);
       } catch (e) {
-        console.warn('[GroupChat] compute lastReadMap failed', e);
+        console.warn("[GroupChat] compute lastReadMap failed", e);
       }
 
       if (append) {
         // Append older messages at the start and keep chronological order
-        setMessages(prev => {
+        setMessages((prev) => {
           const combined = [...mappedMessages, ...prev];
           const seen = new Map();
-          combined.forEach(m => {
+          combined.forEach((m) => {
             if (m && m.id != null) seen.set(String(m.id), m);
           });
-          const result = Array.from(seen.values()).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+          const result = Array.from(seen.values()).sort(
+            (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+          );
           return result;
         });
       } else {
@@ -864,22 +1218,29 @@ export default function GroupChatScreen() {
               scrollViewRef.current?.scrollToEnd({ animated: false });
               initialScrollDoneRef.current = true;
             }
-          } catch (e) { /* ignore */ }
+          } catch (e) {
+            /* ignore */
+          }
         }, 150);
       }
 
       try {
-        if (typeof data.hasMore !== 'undefined') setHasMore(Boolean(data.hasMore));
+        if (typeof data.hasMore !== "undefined")
+          setHasMore(Boolean(data.hasMore));
         else setHasMore(usedPage > 1);
-      } catch (e) { setHasMore(usedPage > 1); }
+      } catch (e) {
+        setHasMore(usedPage > 1);
+      }
 
       setPage(usedPage);
 
-      console.log('[GroupChat] Messages state updated, total:', append ? messages.length + mappedMessages.length : mappedMessages.length);
-
+      console.log(
+        "[GroupChat] Messages state updated, total:",
+        append ? messages.length + mappedMessages.length : mappedMessages.length
+      );
     } catch (error) {
-      console.error('[GroupChat] Load messages error:', error);
-      Alert.alert('Lỗi', 'Không thể tải tin nhắn. Vui lòng thử lại.');
+      console.error("[GroupChat] Load messages error:", error);
+      Alert.alert("Lỗi", "Không thể tải tin nhắn. Vui lòng thử lại.");
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -889,7 +1250,7 @@ export default function GroupChatScreen() {
   // ✅ NEW: Handle load more messages (pagination)
   const handleLoadMore = () => {
     if (!loadingMore && hasMore) {
-      console.log('[GroupChat] Loading more messages, page:', page + 1);
+      console.log("[GroupChat] Loading more messages, page:", page + 1);
       loadMessages(page + 1, true); // append=true
     }
   };
@@ -899,13 +1260,13 @@ export default function GroupChatScreen() {
 
     try {
       // Get current user
-      let userStr = await AsyncStorage.getItem('user');
+      let userStr = await AsyncStorage.getItem("user");
       if (!userStr) {
-        userStr = await AsyncStorage.getItem('userInfo');
+        userStr = await AsyncStorage.getItem("userInfo");
       }
-      
+
       if (!userStr) {
-        Alert.alert('Lỗi', 'Vui lòng đăng nhập lại');
+        Alert.alert("Lỗi", "Vui lòng đăng nhập lại");
         return;
       }
 
@@ -913,20 +1274,24 @@ export default function GroupChatScreen() {
       const userId = currentUser?.userId || currentUser?.user_id;
 
       if (!userId) {
-        Alert.alert('Lỗi', 'Thông tin người dùng không hợp lệ');
+        Alert.alert("Lỗi", "Thông tin người dùng không hợp lệ");
         return;
       }
 
-      console.log('[GroupChat] Sending message, userId:', userId);
+      console.log("[GroupChat] Sending message, userId:", userId);
 
       // Determine message type: prefer mediaType when sending media, detect link messages
-      let sendType = mediaType || 'text';
+      let sendType = mediaType || "text";
       if (!mediaUri && message && /^https?:\/\//i.test(message.trim())) {
-        sendType = 'link';
+        sendType = "link";
       }
 
       // Prefer sending via SignalR hub when connected (lower latency, server will persist and broadcast)
-      const sendViaSignalR = signalRService && signalRService.chatConnection && signalRService.chatConnection.state === SignalR.HubConnectionState.Connected;
+      const sendViaSignalR =
+        signalRService &&
+        signalRService.chatConnection &&
+        signalRService.chatConnection.state ===
+          SignalR.HubConnectionState.Connected;
 
       // Prepare DTO similar to SendGroupMessageDto
       const clientTempId = `temp-${Date.now()}`;
@@ -934,11 +1299,11 @@ export default function GroupChatScreen() {
       // which is case-sensitive here, so send PascalCase keys to match SendGroupMessageDto
       const dto = {
         ConversationId: conversationId,
-        Content: message.trim() || '',
+        Content: message.trim() || "",
         MessageType: sendType,
         FileUrl: mediaUri || null,
         ReplyToMessageId: replyingTo?.id || null,
-        ClientTempId: clientTempId
+        ClientTempId: clientTempId,
       };
 
       if (sendViaSignalR) {
@@ -948,7 +1313,7 @@ export default function GroupChatScreen() {
             id: clientTempId,
             tempId: clientTempId,
             userId: userId,
-            userName: currentUser?.fullName || currentUser?.username || 'Bạn',
+            userName: currentUser?.fullName || currentUser?.username || "Bạn",
             userAvatar: null,
             message: message.trim(),
             timestamp: new Date().toISOString(),
@@ -959,23 +1324,32 @@ export default function GroupChatScreen() {
             replyTo: replyingTo || null,
             reactions: {},
             readBy: [],
-            isMine: true
+            isMine: true,
           };
 
-          setMessages(prev => [...prev, optimistic]);
+          setMessages((prev) => [...prev, optimistic]);
           // Persist optimistic message in local pending queue so it won't be lost if user leaves
           try {
-            await groupChatService.queuePendingMessage(conversationId, optimistic);
-            console.log('[GroupChat] queued optimistic message', clientTempId);
+            await groupChatService.queuePendingMessage(
+              conversationId,
+              optimistic
+            );
+            console.log("[GroupChat] queued optimistic message", clientTempId);
           } catch (e) {
-            console.warn('[GroupChat] queuePendingMessage failed', e);
+            console.warn("[GroupChat] queuePendingMessage failed", e);
           }
 
           // Invoke hub - server will persist and broadcast ReceiveMessage
           await signalRService.sendMessage(conversationId, dto);
-          console.log('[GroupChat] Sent message via SignalR, tempId:', clientTempId);
+          console.log(
+            "[GroupChat] Sent message via SignalR, tempId:",
+            clientTempId
+          );
         } catch (err) {
-          console.error('[GroupChat] SignalR send failed, falling back to REST:', err);
+          console.error(
+            "[GroupChat] SignalR send failed, falling back to REST:",
+            err
+          );
           // Fallback to REST
           const savedMessage = await groupChatService.sendMessage(
             conversationId,
@@ -992,17 +1366,23 @@ export default function GroupChatScreen() {
             userName: savedMessage.userName || savedMessage.UserName,
             userAvatar: savedMessage.userAvatar || savedMessage.UserAvatar,
             message: savedMessage.content || savedMessage.Content,
-            timestamp: new Date(savedMessage.createdAt || savedMessage.CreatedAt),
-            messageType: savedMessage.messageType || savedMessage.MessageType || 'text',
+            timestamp: new Date(
+              savedMessage.createdAt || savedMessage.CreatedAt
+            ),
+            messageType:
+              savedMessage.messageType || savedMessage.MessageType || "text",
             mediaUri: savedMessage.fileUrl || savedMessage.FileUrl,
-            mediaType: (savedMessage.messageType || savedMessage.MessageType) === 'text' ? null : (savedMessage.messageType || savedMessage.MessageType),
+            mediaType:
+              (savedMessage.messageType || savedMessage.MessageType) === "text"
+                ? null
+                : savedMessage.messageType || savedMessage.MessageType,
             fileUrl: savedMessage.fileUrl || savedMessage.FileUrl,
             replyTo: savedMessage.replyTo || savedMessage.ReplyTo,
             reactions: savedMessage.reactions || savedMessage.Reactions || {},
             readBy: savedMessage.readBy || savedMessage.ReadBy || [],
-            isMine: true
+            isMine: true,
           };
-          setMessages(prev => [...prev, newMessage]);
+          setMessages((prev) => [...prev, newMessage]);
         }
       } else {
         // SignalR not connected => use REST API
@@ -1022,57 +1402,64 @@ export default function GroupChatScreen() {
           userAvatar: savedMessage.userAvatar || savedMessage.UserAvatar,
           message: savedMessage.content || savedMessage.Content,
           timestamp: new Date(savedMessage.createdAt || savedMessage.CreatedAt),
-          messageType: savedMessage.messageType || savedMessage.MessageType || 'text',
+          messageType:
+            savedMessage.messageType || savedMessage.MessageType || "text",
           mediaUri: savedMessage.fileUrl || savedMessage.FileUrl,
-          mediaType: (savedMessage.messageType || savedMessage.MessageType) === 'text' ? null : (savedMessage.messageType || savedMessage.MessageType),
+          mediaType:
+            (savedMessage.messageType || savedMessage.MessageType) === "text"
+              ? null
+              : savedMessage.messageType || savedMessage.MessageType,
           fileUrl: savedMessage.fileUrl || savedMessage.FileUrl,
           replyTo: savedMessage.replyTo || savedMessage.ReplyTo,
           reactions: savedMessage.reactions || savedMessage.Reactions || {},
           readBy: savedMessage.readBy || savedMessage.ReadBy || [],
-          isMine: true
+          isMine: true,
         };
 
-        setMessages(prev => [...prev, newMessage]);
+        setMessages((prev) => [...prev, newMessage]);
       }
-      
+
       // Clear input
-      setMessage('');
+      setMessage("");
       setReplyingTo(null);
       Keyboard.dismiss();
-      
+
       // Scroll to bottom
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
-
     } catch (error) {
-      console.error('[GroupChat] Send message error:', error);
-      Alert.alert('Lỗi', 'Không thể gửi tin nhắn. Vui lòng thử lại.');
+      console.error("[GroupChat] Send message error:", error);
+      Alert.alert("Lỗi", "Không thể gửi tin nhắn. Vui lòng thử lại.");
     }
   };
 
   const handlePickMedia = async (type) => {
     try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
       if (!permissionResult.granted) {
-        Alert.alert('Thông báo', 'Cần cấp quyền truy cập thư viện ảnh');
+        Alert.alert("Thông báo", "Cần cấp quyền truy cập thư viện ảnh");
         return;
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: type === 'video' ? ImagePicker.MediaTypeOptions.Videos : ImagePicker.MediaTypeOptions.Images,
+        mediaTypes:
+          type === "video"
+            ? ImagePicker.MediaTypeOptions.Videos
+            : ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        quality: type === 'video' ? 0.8 : 0.9,
+        quality: type === "video" ? 0.8 : 0.9,
         videoMaxDuration: 30, // 30 seconds max
       });
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
-        
+
         // Validate video duration
-        if (type === 'video' && asset.duration && asset.duration > 30000) {
-          Alert.alert('Thông báo', 'Video không được quá 30 giây');
+        if (type === "video" && asset.duration && asset.duration > 30000) {
+          Alert.alert("Thông báo", "Video không được quá 30 giây");
           return;
         }
 
@@ -1080,8 +1467,8 @@ export default function GroupChatScreen() {
         await handleSend(asset.uri, type);
       }
     } catch (error) {
-      console.error('Pick media error:', error);
-      Alert.alert('Lỗi', 'Không thể chọn file');
+      console.error("Pick media error:", error);
+      Alert.alert("Lỗi", "Không thể chọn file");
     }
   };
 
@@ -1093,147 +1480,188 @@ export default function GroupChatScreen() {
   // Xử lý khi thay đổi text input
   const handleMessageChange = (text) => {
     setMessage(text);
-    
-    console.log('[GroupChat] Text changed:', text, 'Current members:', members.length, 'currentUserId:', currentUserId);
-    
+
+    console.log(
+      "[GroupChat] Text changed:",
+      text,
+      "Current members:",
+      members.length,
+      "currentUserId:",
+      currentUserId
+    );
+
     // Tìm @ gần nhất (tìm từ cuối về đầu)
-    const lastAtIndex = text.lastIndexOf('@');
-    
+    const lastAtIndex = text.lastIndexOf("@");
+
     if (lastAtIndex !== -1) {
       // Lấy text sau @ (đến cuối string)
       const textAfterAt = text.substring(lastAtIndex + 1);
-      
-      console.log('[GroupChat] Found @ at index:', lastAtIndex, 'Text after @:', textAfterAt);
-      
+
+      console.log(
+        "[GroupChat] Found @ at index:",
+        lastAtIndex,
+        "Text after @:",
+        textAfterAt
+      );
+
       // Tìm space hoặc newline ĐẦU TIÊN sau @
       const spaceIndex = textAfterAt.search(/[\s\n]/);
-      
+
       if (spaceIndex !== -1) {
         // Nếu có space SAU @, đóng mention list
-        console.log('[GroupChat] Space found after @, closing mention list');
+        console.log("[GroupChat] Space found after @, closing mention list");
         setShowMentionList(false);
         setMentionStartIndex(-1);
-        setMentionSearch('');
+        setMentionSearch("");
       } else {
         // Không có space, hiện mention list
-        console.log('[GroupChat] No space after @, showing mention list');
+        console.log("[GroupChat] No space after @, showing mention list");
         setShowMentionList(true);
         setMentionStartIndex(lastAtIndex);
         setMentionSearch(textAfterAt.toLowerCase());
       }
     } else {
       // Không có @, đóng mention list
-      console.log('[GroupChat] No @ found, closing mention list');
+      console.log("[GroupChat] No @ found, closing mention list");
       setShowMentionList(false);
       setMentionStartIndex(-1);
-      setMentionSearch('');
+      setMentionSearch("");
     }
   };
 
   // Xử lý khi chọn mention
   const handleSelectMention = (user) => {
     if (mentionStartIndex === -1) return;
-    
-    const isAll = user.userId === 'all';
-    const mentionText = isAll ? '@All' : `@${user.username}`;
-    
+
+    const isAll = user.userId === "all";
+    const mentionText = isAll ? "@All" : `@${user.username}`;
+
     // Thay thế text từ @ đến cuối string bằng mention
     const beforeMention = message.substring(0, mentionStartIndex);
-    const afterMention = message.substring(mentionStartIndex + 1 + mentionSearch.length);
-    const newMessage = beforeMention + mentionText + ' ' + afterMention;
-    
-    console.log('[GroupChat] Selected mention:', mentionText, 'New message:', newMessage);
-    
+    const afterMention = message.substring(
+      mentionStartIndex + 1 + mentionSearch.length
+    );
+    const newMessage = beforeMention + mentionText + " " + afterMention;
+
+    console.log(
+      "[GroupChat] Selected mention:",
+      mentionText,
+      "New message:",
+      newMessage
+    );
+
     setMessage(newMessage);
     setShowMentionList(false);
     setMentionStartIndex(-1);
-    setMentionSearch('');
+    setMentionSearch("");
   };
 
   // Lấy danh sách members để mention (trừ bản thân)
   const getMentionableMembers = () => {
-    console.log('[GroupChat] getMentionableMembers - All members:', members.length, 'currentUserId:', currentUserId);
-    
+    console.log(
+      "[GroupChat] getMentionableMembers - All members:",
+      members.length,
+      "currentUserId:",
+      currentUserId
+    );
+
     // Filter trừ bản thân
-    const filtered = members.filter(m => {
+    const filtered = members.filter((m) => {
       const isNotMe = Number(m.userId) !== Number(currentUserId);
-      console.log('[GroupChat] Checking member:', m.username, 'userId:', m.userId, 'isNotMe:', isNotMe);
+      console.log(
+        "[GroupChat] Checking member:",
+        m.username,
+        "userId:",
+        m.userId,
+        "isNotMe:",
+        isNotMe
+      );
       return isNotMe;
     });
-    
-    console.log('[GroupChat] After filtering self, members:', filtered.length);
-    
+
+    console.log("[GroupChat] After filtering self, members:", filtered.length);
+
     // Filter theo search text
     let result = filtered;
     if (mentionSearch) {
-      result = filtered.filter(m => {
-        const name = (m.fullName || m.username || '').toLowerCase();
-        const username = (m.username || '').toLowerCase();
-        const matches = name.includes(mentionSearch) || username.includes(mentionSearch);
-        console.log('[GroupChat] Search filter:', m.username, 'matches:', matches);
+      result = filtered.filter((m) => {
+        const name = (m.fullName || m.username || "").toLowerCase();
+        const username = (m.username || "").toLowerCase();
+        const matches =
+          name.includes(mentionSearch) || username.includes(mentionSearch);
+        console.log(
+          "[GroupChat] Search filter:",
+          m.username,
+          "matches:",
+          matches
+        );
         return matches;
       });
     }
-    
-    console.log('[GroupChat] After search filter, members:', result.length);
-    
+
+    console.log("[GroupChat] After search filter, members:", result.length);
+
     // Thêm @All ở cuối (chỉ hiện khi search rỗng hoặc search "all"/"mọi")
-    if (!mentionSearch || 'all'.includes(mentionSearch) || 'mọi người'.includes(mentionSearch)) {
+    if (
+      !mentionSearch ||
+      "all".includes(mentionSearch) ||
+      "mọi người".includes(mentionSearch)
+    ) {
       result.push({
-        userId: 'all',
-        username: 'All',
-        fullName: 'Mọi người',
+        userId: "all",
+        username: "All",
+        fullName: "Mọi người",
         avatarUrl: null,
       });
-      console.log('[GroupChat] Added @All option');
+      console.log("[GroupChat] Added @All option");
     }
-    
-    console.log('[GroupChat] Final mentionable members:', result.length);
+
+    console.log("[GroupChat] Final mentionable members:", result.length);
     return result;
   };
 
   // Xử lý khi tap vào mention trong tin nhắn
   const handleTapMention = (mentionedUser) => {
     // Nếu là @All thì không hiện menu
-    if (mentionedUser.userId === 'all') {
+    if (mentionedUser.userId === "all") {
       return;
     }
-    
+
     setSelectedMentionedUser(mentionedUser);
     setShowMentionMenu(true);
   };
 
   const handleViewProfile = async () => {
     setShowMentionMenu(false);
-    
+
     // Lấy userId của người dùng hiện tại để so sánh
-    let userStr = await AsyncStorage.getItem('user');
+    let userStr = await AsyncStorage.getItem("user");
     if (!userStr) {
-      userStr = await AsyncStorage.getItem('userInfo');
+      userStr = await AsyncStorage.getItem("userInfo");
     }
-    
+
     if (userStr) {
       const currentUser = JSON.parse(userStr);
       const currentUserId = Number(currentUser?.userId || currentUser?.user_id);
       const targetUserId = Number(selectedMentionedUser?.userId);
-      
+
       // Nếu là chính mình -> quay về MainTabs và chuyển sang tab Profile
       if (currentUserId === targetUserId) {
-        navigation.navigate('MainTabs', { screen: 'Profile' });
+        navigation.navigate("MainTabs", { screen: "Profile" });
       } else {
         // Nếu là người khác -> chuyển đến UserProfilePublic
-        navigation.navigate('UserProfilePublic', { 
+        navigation.navigate("UserProfilePublic", {
           userId: selectedMentionedUser.userId,
           username: selectedMentionedUser.username,
-          avatarUrl: selectedMentionedUser.avatarUrl
+          avatarUrl: selectedMentionedUser.avatarUrl,
         });
       }
     } else {
       // Không tìm thấy user info -> mặc định chuyển đến UserProfilePublic
-      navigation.navigate('UserProfilePublic', { 
+      navigation.navigate("UserProfilePublic", {
         userId: selectedMentionedUser.userId,
         username: selectedMentionedUser.username,
-        avatarUrl: selectedMentionedUser.avatarUrl
+        avatarUrl: selectedMentionedUser.avatarUrl,
       });
     }
   };
@@ -1241,19 +1669,25 @@ export default function GroupChatScreen() {
   const handleDirectMessage = () => {
     setShowMentionMenu(false);
     // Navigate to DM
-    Alert.alert('Thông báo', 'Tính năng nhắn tin riêng đang được phát triển');
+    Alert.alert("Thông báo", "Tính năng nhắn tin riêng đang được phát triển");
   };
 
   const handleBlockUser = () => {
     setShowMentionMenu(false);
     Alert.alert(
-      'Chặn người dùng',
-      `Bạn có chắc muốn chặn ${selectedMentionedUser?.fullName || selectedMentionedUser?.username}?`,
+      "Chặn người dùng",
+      `Bạn có chắc muốn chặn ${
+        selectedMentionedUser?.fullName || selectedMentionedUser?.username
+      }?`,
       [
-        { text: 'Hủy', style: 'cancel' },
-        { text: 'Chặn', style: 'destructive', onPress: () => {
-          Alert.alert('Thành công', 'Đã chặn người dùng');
-        }},
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Chặn",
+          style: "destructive",
+          onPress: () => {
+            Alert.alert("Thành công", "Đã chặn người dùng");
+          },
+        },
       ]
     );
   };
@@ -1262,21 +1696,23 @@ export default function GroupChatScreen() {
     try {
       if (!message) return;
       // If it's a video, open video modal
-      if (message.mediaType === 'video' || (message.messageType === 'video')) {
+      if (message.mediaType === "video" || message.messageType === "video") {
         setVideoUri(message.mediaUri || message.fileUrl);
         setShowVideoModal(true);
         return;
       }
 
       // Otherwise open image viewer for images
-      const allImages = messages.filter(m => m.mediaType === 'image' && m.mediaUri);
-      const imageIndex = allImages.findIndex(m => m.id === message.id);
+      const allImages = messages.filter(
+        (m) => m.mediaType === "image" && m.mediaUri
+      );
+      const imageIndex = allImages.findIndex((m) => m.id === message.id);
       if (imageIndex !== -1) {
         setSelectedImageIndex(imageIndex);
         setShowImageViewer(true);
       }
     } catch (err) {
-      console.error('[GroupChat] handleImagePress error:', err);
+      console.error("[GroupChat] handleImagePress error:", err);
     }
   };
 
@@ -1287,40 +1723,43 @@ export default function GroupChatScreen() {
   const handleQuickLike = async () => {
     // Tạo tin nhắn chỉ có emoji like (không có nền)
     // Lấy thông tin user hiện tại - Thử cả 2 key
-    let userStr = await AsyncStorage.getItem('user');
+    let userStr = await AsyncStorage.getItem("user");
     if (!userStr) {
-      userStr = await AsyncStorage.getItem('userInfo');
+      userStr = await AsyncStorage.getItem("userInfo");
     }
-    
+
     if (!userStr) {
-      Alert.alert('Lỗi', 'Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.');
+      Alert.alert(
+        "Lỗi",
+        "Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại."
+      );
       return;
     }
-    
+
     const currentUser = JSON.parse(userStr);
     const userId = Number(currentUser?.userId || currentUser?.user_id);
 
     if (!userId || userId === 0) {
-      Alert.alert('Lỗi', 'userId không hợp lệ. Vui lòng đăng nhập lại.');
+      Alert.alert("Lỗi", "userId không hợp lệ. Vui lòng đăng nhập lại.");
       return;
     }
 
     const newMessage = {
       id: Date.now(),
       userId: userId,
-      userName: currentUser?.fullName || currentUser?.username || 'Bạn',
+      userName: currentUser?.fullName || currentUser?.username || "Bạn",
       userAvatar: null,
-      message: '👍', // Like message
+      message: "👍", // Like message
       mediaUri: null,
       mediaType: null,
       timestamp: new Date().toISOString(),
       isMine: true,
     };
-    
+
     const updatedMessages = [...messages, newMessage];
     setMessages(updatedMessages);
     // ❌ REMOVED: await saveMessages(updatedMessages); - Messages now saved via API
-    
+
     // Scroll to bottom
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -1349,37 +1788,55 @@ export default function GroupChatScreen() {
 
     const messageId = selectedMessage.id;
     const reactionsMap = selectedMessage.reactions || {};
-    const usersForEmoji = Array.isArray(reactionsMap[emoji]) ? reactionsMap[emoji] : [];
-    const reactedByMe = usersForEmoji.find(u => String(u) === String(currentUserId));
+    const usersForEmoji = Array.isArray(reactionsMap[emoji])
+      ? reactionsMap[emoji]
+      : [];
+    const reactedByMe = usersForEmoji.find(
+      (u) => String(u) === String(currentUserId)
+    );
 
     // Optimistic update: toggle current user's reaction in local state
-    setMessages(prev => prev.map(m => {
-      if (String(m.id) !== String(messageId)) return m;
-      try {
-        const newReactions = { ...(m.reactions || {}) };
-        const list = Array.isArray(newReactions[emoji]) ? [...newReactions[emoji]] : [];
-        if (reactedByMe) {
-          // remove current user from list
-          const filtered = list.filter(u => String(u) !== String(currentUserId));
-          if (filtered.length > 0) newReactions[emoji] = filtered;
-          else delete newReactions[emoji];
-        } else {
-          // add current user
-          if (!list.find(u => String(u) === String(currentUserId))) list.push(currentUserId);
-          newReactions[emoji] = list;
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (String(m.id) !== String(messageId)) return m;
+        try {
+          const newReactions = { ...(m.reactions || {}) };
+          const list = Array.isArray(newReactions[emoji])
+            ? [...newReactions[emoji]]
+            : [];
+          if (reactedByMe) {
+            // remove current user from list
+            const filtered = list.filter(
+              (u) => String(u) !== String(currentUserId)
+            );
+            if (filtered.length > 0) newReactions[emoji] = filtered;
+            else delete newReactions[emoji];
+          } else {
+            // add current user
+            if (!list.find((u) => String(u) === String(currentUserId)))
+              list.push(currentUserId);
+            newReactions[emoji] = list;
+          }
+          return { ...m, reactions: newReactions };
+        } catch (e) {
+          return m;
         }
-        return { ...m, reactions: newReactions };
-      } catch (e) {
-        return m;
-      }
-    }));
+      })
+    );
 
     // Send to server: prefer SignalR realtime, fallback to REST
     try {
-      const isConnected = signalRService && signalRService.chatConnection && signalRService.chatConnection.state === 1;
+      const isConnected =
+        signalRService &&
+        signalRService.chatConnection &&
+        signalRService.chatConnection.state === 1;
       if (isConnected) {
         // Hub method toggles reaction server-side and broadcasts
-        await groupChatService.reactToMessageRealtime(conversationId, messageId, emoji);
+        await groupChatService.reactToMessageRealtime(
+          conversationId,
+          messageId,
+          emoji
+        );
       } else {
         if (reactedByMe) {
           // remove via REST
@@ -1390,9 +1847,13 @@ export default function GroupChatScreen() {
         }
       }
     } catch (err) {
-      console.error('[GroupChat] Reaction API error:', err);
+      console.error("[GroupChat] Reaction API error:", err);
       // On error we could reload messages to reflect authoritative state; for now, try to reload this message
-      try { await loadMessages(1, false); } catch (e) { /* ignore */ }
+      try {
+        await loadMessages(1, false);
+      } catch (e) {
+        /* ignore */
+      }
     }
   };
 
@@ -1409,7 +1870,7 @@ export default function GroupChatScreen() {
   const handleCopy = async () => {
     if (selectedMessage?.message) {
       await Clipboard.setStringAsync(selectedMessage.message);
-      Alert.alert('Thành công', 'Đã sao chép tin nhắn');
+      Alert.alert("Thành công", "Đã sao chép tin nhắn");
     }
     setShowContextMenu(false);
     setShowMoreOptions(false);
@@ -1417,17 +1878,19 @@ export default function GroupChatScreen() {
 
   const handleDelete = async () => {
     Alert.alert(
-      'Xóa tin nhắn',
-      selectedMessage?.isMine 
-        ? 'Bạn có chắc muốn xóa tin nhắn này?' 
-        : 'Tin nhắn chỉ được xóa ở phía bạn, người khác vẫn có thể xem.',
+      "Xóa tin nhắn",
+      selectedMessage?.isMine
+        ? "Bạn có chắc muốn xóa tin nhắn này?"
+        : "Tin nhắn chỉ được xóa ở phía bạn, người khác vẫn có thể xem.",
       [
-        { text: 'Hủy', style: 'cancel' },
+        { text: "Hủy", style: "cancel" },
         {
-          text: 'Xóa',
-          style: 'destructive',
+          text: "Xóa",
+          style: "destructive",
           onPress: async () => {
-            const updatedMessages = messages.filter(m => m.id !== selectedMessage.id);
+            const updatedMessages = messages.filter(
+              (m) => m.id !== selectedMessage.id
+            );
             setMessages(updatedMessages);
             // ❌ REMOVED: await saveMessages(updatedMessages); - Delete will be handled via API later
             setShowContextMenu(false);
@@ -1440,122 +1903,142 @@ export default function GroupChatScreen() {
   const handleForward = () => {
     setShowContextMenu(false);
     setShowMoreOptions(false);
-    Alert.alert('Thông báo', 'Tính năng chuyển tiếp đang được phát triển');
+    Alert.alert("Thông báo", "Tính năng chuyển tiếp đang được phát triển");
   };
 
   const handleReport = () => {
     setShowContextMenu(false);
     setShowMoreOptions(false);
-    Alert.alert('Báo cáo', 'Bạn muốn báo cáo tin nhắn này?', [
-      { text: 'Hủy', style: 'cancel' },
-      { text: 'Báo cáo', onPress: () => Alert.alert('Thành công', 'Đã gửi báo cáo') },
+    Alert.alert("Báo cáo", "Bạn muốn báo cáo tin nhắn này?", [
+      { text: "Hủy", style: "cancel" },
+      {
+        text: "Báo cáo",
+        onPress: () => Alert.alert("Thành công", "Đã gửi báo cáo"),
+      },
     ]);
   };
 
   const handlePin = async () => {
     setShowContextMenu(false);
     setShowMoreOptions(false);
-    
+
     try {
       // Check if message is already pinned
       const isPinned = selectedMessage.isPinned === true;
-      
+
       if (isPinned) {
         // Unpin message
         Alert.alert(
-          'Bỏ ghim tin nhắn',
-          'Bạn có chắc muốn bỏ ghim tin nhắn này?',
+          "Bỏ ghim tin nhắn",
+          "Bạn có chắc muốn bỏ ghim tin nhắn này?",
           [
-            { text: 'Hủy', style: 'cancel' },
+            { text: "Hủy", style: "cancel" },
             {
-              text: 'Bỏ ghim',
+              text: "Bỏ ghim",
               onPress: async () => {
                 try {
                   // Call API to unpin
-                  await groupChatService.unpinMessage(conversationId, selectedMessage.id);
+                  await groupChatService.unpinMessage(
+                    conversationId,
+                    selectedMessage.id
+                  );
                   // Optimistically update local state
-                  const updatedMessages = messages.map(m => {
+                  const updatedMessages = messages.map((m) => {
                     if (m.id === selectedMessage.id) {
-                      return { ...m, isPinned: false, pinnedAt: null, pinnedBy: null };
+                      return {
+                        ...m,
+                        isPinned: false,
+                        pinnedAt: null,
+                        pinnedBy: null,
+                      };
                     }
                     return m;
                   });
                   setMessages(updatedMessages);
-                  Alert.alert('Thành công', 'Đã bỏ ghim tin nhắn');
+                  Alert.alert("Thành công", "Đã bỏ ghim tin nhắn");
                 } catch (err) {
-                  console.error('Unpin error:', err);
-                  Alert.alert('Lỗi', 'Không thể bỏ ghim tin nhắn');
+                  console.error("Unpin error:", err);
+                  Alert.alert("Lỗi", "Không thể bỏ ghim tin nhắn");
                 }
-              }
-            }
+              },
+            },
           ]
         );
       } else {
         // Pin message
         try {
-          const result = await groupChatService.pinMessage(conversationId, selectedMessage.id);
+          const result = await groupChatService.pinMessage(
+            conversationId,
+            selectedMessage.id
+          );
           // result may contain pinnedAt/PinnedAt
-          const pinnedAt = result?.pinnedAt || result?.PinnedAt || new Date().toISOString();
+          const pinnedAt =
+            result?.pinnedAt || result?.PinnedAt || new Date().toISOString();
 
-          const updatedMessages = messages.map(m => {
+          const updatedMessages = messages.map((m) => {
             if (m.id === selectedMessage.id) {
-              return { 
-                ...m, 
-                isPinned: true, 
+              return {
+                ...m,
+                isPinned: true,
                 pinnedAt: pinnedAt,
-                pinnedBy: currentUserId
+                pinnedBy: currentUserId,
               };
             }
             return m;
           });
 
           setMessages(updatedMessages);
-          Alert.alert('Thành công', 'Đã ghim tin nhắn');
+          Alert.alert("Thành công", "Đã ghim tin nhắn");
         } catch (err) {
-          console.error('Pin error:', err);
-          Alert.alert('Lỗi', 'Không thể ghim tin nhắn');
+          console.error("Pin error:", err);
+          Alert.alert("Lỗi", "Không thể ghim tin nhắn");
         }
       }
     } catch (error) {
-      console.error('Pin message error:', error);
-      Alert.alert('Lỗi', 'Không thể ghim tin nhắn');
+      console.error("Pin message error:", error);
+      Alert.alert("Lỗi", "Không thể ghim tin nhắn");
     }
   };
 
   const formatTime = (date) => {
     const dateObj = date instanceof Date ? date : new Date(date);
-    if (!dateObj || isNaN(dateObj.getTime())) return '';
-    const hours = dateObj.getHours().toString().padStart(2, '0');
-    const minutes = dateObj.getMinutes().toString().padStart(2, '0');
+    if (!dateObj || isNaN(dateObj.getTime())) return "";
+    const hours = dateObj.getHours().toString().padStart(2, "0");
+    const minutes = dateObj.getMinutes().toString().padStart(2, "0");
     return `${hours}:${minutes}`;
   };
 
   const formatDate = (date) => {
     const today = new Date();
     const messageDate = date instanceof Date ? date : new Date(date);
-    if (!messageDate || isNaN(messageDate.getTime())) return '';
+    if (!messageDate || isNaN(messageDate.getTime())) return "";
 
     if (messageDate.toDateString() === today.toDateString()) {
-      return 'Hôm nay';
+      return "Hôm nay";
     }
 
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     if (messageDate.toDateString() === yesterday.toDateString()) {
-      return 'Hôm qua';
+      return "Hôm qua";
     }
 
-    return messageDate.toLocaleDateString('vi-VN', { 
-      day: '2-digit', 
-      month: '2-digit',
-      year: 'numeric' 
+    return messageDate.toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
     });
   };
 
   // Scroll đến tin nhắn cụ thể và highlight
   // options: { showNotFoundAlert: boolean }
-  const scrollToMessage = (messageId, options = {}) => {
+  const scrollToMessage = async (messageId, options = {}) => {
     const { showNotFoundAlert = false } = options;
+    console.log("[GroupChat] scrollToMessage called with:", {
+      messageId,
+      messagesCount: messages.length,
+    });
+
     // Try to find message by various id shapes (string/number/tempId/messageId)
     const findIndexById = (id) => {
       if (id == null) return -1;
@@ -1571,20 +2054,50 @@ export default function GroupChatScreen() {
       return -1;
     };
 
-    const messageIndex = findIndexById(messageId);
+    let messageIndex = findIndexById(messageId);
+    console.log("[GroupChat] Message index found:", messageIndex);
+
+    // Nếu không tìm thấy và còn messages để load, thử load thêm
+    if (messageIndex === -1 && hasMore && !loadingMore) {
+      console.log(
+        "[GroupChat] Message not found, trying to load more messages..."
+      );
+      try {
+        await loadMessages(page + 1, true);
+        // Thử tìm lại sau khi load
+        messageIndex = findIndexById(messageId);
+        console.log(
+          "[GroupChat] After loading more, message index:",
+          messageIndex
+        );
+      } catch (err) {
+        console.error("[GroupChat] Error loading more messages:", err);
+      }
+    }
+
     if (messageIndex === -1) {
       const msg = `scrollToMessage: message ${messageId} not found`;
       console.warn(msg);
+      console.log(
+        "[GroupChat] Available message IDs:",
+        messages
+          .slice(0, 10)
+          .map((m) => ({ id: m.id, messageId: m.messageId, tempId: m.tempId }))
+      );
       if (showNotFoundAlert) {
         // only show alert when explicitly requested (user action)
-        Alert.alert('Thông báo', 'Không tìm thấy tin nhắn gốc');
+        Alert.alert("Thông báo", "Không tìm thấy tin nhắn");
       }
       return;
     }
 
     // Highlight tin nhắn (use the canonical id from state if possible)
-    const canonical = messages[messageIndex]?.id || messages[messageIndex]?.messageId || messages[messageIndex]?.tempId;
+    const canonical =
+      messages[messageIndex]?.id ||
+      messages[messageIndex]?.messageId ||
+      messages[messageIndex]?.tempId;
     setHighlightedMessageId(canonical);
+    console.log("[GroupChat] Highlighting message:", canonical);
 
     // Try to scroll to measured position using refs when available
     const targetId = String(canonical);
@@ -1593,19 +2106,32 @@ export default function GroupChatScreen() {
     if (pos != null) {
       const offset = Math.max(pos - 120, 0);
       scrollViewRef.current?.scrollTo({ y: offset, animated: true });
+      console.log("[GroupChat] Scrolled using measured position:", offset);
+
+      // Tắt highlight sau 2 giây
+      setTimeout(() => {
+        setHighlightedMessageId(null);
+      }, 2000);
       return;
     }
 
     // Fallback: try to measure the ref if available
     const ref = messageRefs.current && messageRefs.current[targetId];
-    if (ref && typeof ref.measure === 'function') {
+    if (ref && typeof ref.measure === "function") {
       try {
         ref.measure((fx, fy, width, height, px, py) => {
           const offset = Math.max(py - 120, 0);
           scrollViewRef.current?.scrollTo({ y: offset, animated: true });
+          console.log("[GroupChat] Scrolled using ref measure:", offset);
         });
+
+        // Tắt highlight sau 2 giây
+        setTimeout(() => {
+          setHighlightedMessageId(null);
+        }, 2000);
         return;
       } catch (err) {
+        console.warn("[GroupChat] ref.measure error:", err);
         // continue to estimate
       }
     }
@@ -1624,12 +2150,17 @@ export default function GroupChatScreen() {
   const renderMessageText = (text, isMine) => {
     // ✅ FIX: Safe handling for text, numbers, mixed content
     // Convert to string first (handles numbers like 123)
-    const textStr = String(text || '');
-    
-    console.log('[GroupChat] renderMessageText - Input:', textStr, 'Type:', typeof text);
-    
+    const textStr = String(text || "");
+
+    console.log(
+      "[GroupChat] renderMessageText - Input:",
+      textStr,
+      "Type:",
+      typeof text
+    );
+
     // ✅ If no mentions (@), render simple text (handles numbers correctly)
-    if (!textStr.includes('@')) {
+    if (!textStr.includes("@")) {
       // Also detect URLs and make them clickable
       const urlRegex = /(https?:\/\/[^\s]+)/g;
       const parts = textStr.split(urlRegex).filter(Boolean);
@@ -1640,9 +2171,13 @@ export default function GroupChatScreen() {
               return (
                 <Text
                   key={i}
-                  style={{ color: '#D1E9FF', textDecorationLine: 'underline' }}
+                  style={{ color: "#D1E9FF", textDecorationLine: "underline" }}
                   onPress={() => {
-                    try { Linking.openURL(part); } catch (e) { console.error('OpenURL error', e); }
+                    try {
+                      Linking.openURL(part);
+                    } catch (e) {
+                      console.error("OpenURL error", e);
+                    }
                   }}
                 >
                   {part}
@@ -1654,7 +2189,7 @@ export default function GroupChatScreen() {
         </Text>
       );
     }
-    
+
     // ✅ Parse mentions (only if @ exists)
     const mentionRegex = /@(\w+)/g;
     const parts = [];
@@ -1662,24 +2197,30 @@ export default function GroupChatScreen() {
     let match;
 
     while ((match = mentionRegex.exec(textStr)) !== null) {
-      console.log('[GroupChat] Found mention:', match[0], 'username:', match[1]);
-      
+      console.log(
+        "[GroupChat] Found mention:",
+        match[0],
+        "username:",
+        match[1]
+      );
+
       // Add text before mention
       if (match.index > lastIndex) {
         parts.push({
-          type: 'text',
+          type: "text",
           content: textStr.substring(lastIndex, match.index),
         });
       }
 
       // Add mention
       const username = match[1];
-      const mentionedMember = username === 'All' 
-        ? { userId: 'all', username: 'All', fullName: 'Mọi người' }
-        : members.find(m => m.username === username);
+      const mentionedMember =
+        username === "All"
+          ? { userId: "all", username: "All", fullName: "Mọi người" }
+          : members.find((m) => m.username === username);
 
       parts.push({
-        type: 'mention',
+        type: "mention",
         content: match[0],
         user: mentionedMember,
       });
@@ -1690,36 +2231,42 @@ export default function GroupChatScreen() {
     // Add remaining text
     if (lastIndex < textStr.length) {
       parts.push({
-        type: 'text',
+        type: "text",
         content: textStr.substring(lastIndex),
       });
     }
 
-    console.log('[GroupChat] Parsed parts:', parts.length);
+    console.log("[GroupChat] Parsed parts:", parts.length);
 
     // Render parts with mentions
     return (
       <Text style={isMine ? styles.myMessageText : styles.otherMessageText}>
         {parts.map((part, index) => {
-          if (part.type === 'mention') {
-            const isAll = part.user?.userId === 'all';
-            
+          if (part.type === "mention") {
+            const isAll = part.user?.userId === "all";
+
             // Style mention khác nhau cho tin nhắn của mình vs người khác
             let mentionStyle;
             if (isMine) {
               // Tin nhắn của mình (nền xanh) - mention màu TRẮNG
-              mentionStyle = isAll ? styles.mentionAllTextMine : styles.mentionTextMine;
+              mentionStyle = isAll
+                ? styles.mentionAllTextMine
+                : styles.mentionTextMine;
             } else {
               // Tin nhắn người khác (nền xám) - mention màu xanh/tím
               mentionStyle = isAll ? styles.mentionAllText : styles.mentionText;
             }
-            
+
             return (
               <Text
                 key={index}
                 style={mentionStyle}
                 onPress={() => {
-                  console.log('[GroupChat] Mention tapped:', part.content, part.user);
+                  console.log(
+                    "[GroupChat] Mention tapped:",
+                    part.content,
+                    part.user
+                  );
                   if (part.user && !isAll) {
                     handleTapMention(part.user);
                   }
@@ -1731,7 +2278,9 @@ export default function GroupChatScreen() {
           }
           // For plain text parts, detect URLs and make them clickable
           const urlRegexInner = /(https?:\/\/[^\s]+)/g;
-          const partsInner = String(part.content || '').split(urlRegexInner).filter(Boolean);
+          const partsInner = String(part.content || "")
+            .split(urlRegexInner)
+            .filter(Boolean);
           return (
             <Text key={index}>
               {partsInner.map((p, idx) => {
@@ -1739,8 +2288,17 @@ export default function GroupChatScreen() {
                   return (
                     <Text
                       key={`${index}-${idx}`}
-                      style={{ color: isMine ? '#D1E9FF' : '#1D4ED8', textDecorationLine: 'underline' }}
-                      onPress={() => { try { Linking.openURL(p); } catch (e) { console.error('OpenURL error', e); } }}
+                      style={{
+                        color: isMine ? "#D1E9FF" : "#1D4ED8",
+                        textDecorationLine: "underline",
+                      }}
+                      onPress={() => {
+                        try {
+                          Linking.openURL(p);
+                        } catch (e) {
+                          console.error("OpenURL error", e);
+                        }
+                      }}
                     >
                       {p}
                     </Text>
@@ -1760,9 +2318,14 @@ export default function GroupChatScreen() {
     if (!replyTo) return null;
 
     // Lấy text thuần túy, không parse mention - Xử lý an toàn
-    let replyText = 'Tin nhắn';
+    let replyText = "Tin nhắn";
     try {
-      const candidates = [replyTo.message, replyTo.content, replyTo.Content, replyTo.text];
+      const candidates = [
+        replyTo.message,
+        replyTo.content,
+        replyTo.Content,
+        replyTo.text,
+      ];
       for (const c of candidates) {
         if (c !== null && c !== undefined) {
           const s = String(c).trim();
@@ -1773,38 +2336,60 @@ export default function GroupChatScreen() {
         }
       }
     } catch (error) {
-      console.log('[GroupChat] Error parsing reply message:', error);
-      replyText = 'Tin nhắn';
+      console.log("[GroupChat] Error parsing reply message:", error);
+      replyText = "Tin nhắn";
     }
 
     return (
-      <TouchableOpacity 
-        style={[styles.replyPreviewInMessage, isMine ? styles.replyPreviewMine : styles.replyPreviewOther]}
+      <TouchableOpacity
+        style={[
+          styles.replyPreviewInMessage,
+          isMine ? styles.replyPreviewMine : styles.replyPreviewOther,
+        ]}
         onPress={() => {
           // Scroll đến tin nhắn được reply - try multiple id forms
-          const targetId = replyTo?.id || replyTo?.messageId || replyTo?.MessageId || replyTo?.messageId;
+          const targetId =
+            replyTo?.id ||
+            replyTo?.messageId ||
+            replyTo?.MessageId ||
+            replyTo?.messageId;
           scrollToMessage(targetId);
         }}
         activeOpacity={0.7}
       >
         <View style={styles.replyPreviewContent}>
-          <Text style={[styles.replyPreviewName, isMine && styles.replyPreviewNameMine]} numberOfLines={1}>
-            {replyTo.userName || 'Người dùng'}
+          <Text
+            style={[
+              styles.replyPreviewName,
+              isMine && styles.replyPreviewNameMine,
+            ]}
+            numberOfLines={1}
+          >
+            {replyTo.userName || "Người dùng"}
           </Text>
           {replyTo.mediaType ? (
             <View style={styles.replyPreviewMedia}>
-              <Ionicons 
-                name={replyTo.mediaType === 'image' ? 'image' : 'videocam'} 
-                size={14} 
-                color={isMine ? 'rgba(255,255,255,0.9)' : '#6B7280'} 
+              <Ionicons
+                name={replyTo.mediaType === "image" ? "image" : "videocam"}
+                size={14}
+                color={isMine ? "rgba(255,255,255,0.9)" : "#6B7280"}
               />
-              <Text style={[styles.replyPreviewText, isMine && styles.replyPreviewTextMine]} numberOfLines={1}>
-                {replyTo.mediaType === 'image' ? 'Ảnh' : 'Video'}
+              <Text
+                style={[
+                  styles.replyPreviewText,
+                  isMine && styles.replyPreviewTextMine,
+                ]}
+                numberOfLines={1}
+              >
+                {replyTo.mediaType === "image" ? "Ảnh" : "Video"}
               </Text>
             </View>
           ) : (
-            <Text 
-              style={[styles.replyPreviewText, isMine && styles.replyPreviewTextMine]} 
+            <Text
+              style={[
+                styles.replyPreviewText,
+                isMine && styles.replyPreviewTextMine,
+              ]}
               numberOfLines={2}
               ellipsizeMode="tail"
             >
@@ -1836,13 +2421,15 @@ export default function GroupChatScreen() {
         .filter(Boolean);
 
       // Exclude current user (optionally) - keep it consistent with Messenger (you may hide your own marker)
-      const otherReaders = readersForThisMsg.filter(u => String(u) !== String(currentUserId));
+      const otherReaders = readersForThisMsg.filter(
+        (u) => String(u) !== String(currentUserId)
+      );
       if (otherReaders.length === 0) return null;
 
       // Map to avatar objects and limit to 3 visible avatars
-      const avatarObjs = otherReaders.slice(0, 3).map(uid => {
-        const member = members.find(m => String(m.userId) === String(uid));
-        const name = member?.fullName || member?.username || 'User';
+      const avatarObjs = otherReaders.slice(0, 3).map((uid) => {
+        const member = members.find((m) => String(m.userId) === String(uid));
+        const name = member?.fullName || member?.username || "User";
         const avatar = member?.avatarUrl || member?.avatar || null;
         return { id: uid, avatar, name };
       });
@@ -1851,7 +2438,7 @@ export default function GroupChatScreen() {
 
       // Position markers outside the bubble: for own messages align right, for others align near sender avatar
       const containerStyle = {
-        position: 'absolute',
+        position: "absolute",
         // place below the bubble (increase negative bottom to push it down)
         bottom: -12,
         right: msg.isMine ? -8 : undefined,
@@ -1861,26 +2448,41 @@ export default function GroupChatScreen() {
 
       return (
         <View style={[styles.readReceipts, containerStyle]}>
-          {avatarObjs.map((r, idx) => (
+          {avatarObjs.map((r, idx) =>
             r.avatar ? (
               <Image
                 key={r.id}
-                source={{ uri: r.avatar.startsWith('http') || r.avatar.startsWith('file://') ? r.avatar : `${API_BASE_URL}${r.avatar}` }}
-                style={[styles.readReceiptAvatar, { marginLeft: idx > 0 ? -8 : 0 }]}
+                source={{
+                  uri:
+                    r.avatar.startsWith("http") ||
+                    r.avatar.startsWith("file://")
+                      ? r.avatar
+                      : `${API_BASE_URL}${r.avatar}`,
+                }}
+                style={[
+                  styles.readReceiptAvatar,
+                  { marginLeft: idx > 0 ? -8 : 0 },
+                ]}
               />
             ) : (
-              <View key={r.id} style={[styles.readReceiptAvatarPlaceholder, { marginLeft: idx > 0 ? -8 : 0 }]}>
-                <Text style={styles.readReceiptAvatarText}>{(r.name || 'U').charAt(0).toUpperCase()}</Text>
+              <View
+                key={r.id}
+                style={[
+                  styles.readReceiptAvatarPlaceholder,
+                  { marginLeft: idx > 0 ? -8 : 0 },
+                ]}
+              >
+                <Text style={styles.readReceiptAvatarText}>
+                  {(r.name || "U").charAt(0).toUpperCase()}
+                </Text>
               </View>
             )
-          ))}
-          {extra > 0 && (
-            <Text style={styles.readReceiptCount}>+{extra}</Text>
           )}
+          {extra > 0 && <Text style={styles.readReceiptCount}>+{extra}</Text>}
         </View>
       );
     } catch (e) {
-      console.warn('[GroupChat] renderReadReceipts error', e);
+      console.warn("[GroupChat] renderReadReceipts error", e);
       return null;
     }
   };
@@ -1896,19 +2498,42 @@ export default function GroupChatScreen() {
       const items = entries.map(([emoji, users]) => ({
         emoji,
         count: Array.isArray(users) ? users.length : 0,
-        reactedByMe: Array.isArray(users) ? users.find(u => String(u) === String(currentUserId)) != null : false
+        reactedByMe: Array.isArray(users)
+          ? users.find((u) => String(u) === String(currentUserId)) != null
+          : false,
       }));
 
       // Sort by count desc, show up to 4
-      items.sort((a,b) => b.count - a.count);
-      const visible = items.slice(0,4);
+      items.sort((a, b) => b.count - a.count);
+      const visible = items.slice(0, 4);
 
       return (
-        <View style={[styles.reactionBadge, { flexDirection: 'row', paddingHorizontal: 6, paddingVertical: 4 }]}> 
+        <View
+          style={[
+            styles.reactionBadge,
+            { flexDirection: "row", paddingHorizontal: 6, paddingVertical: 4 },
+          ]}
+        >
           {visible.map((it, idx) => (
-            <View key={it.emoji + idx} style={{ flexDirection: 'row', alignItems: 'center', marginLeft: idx === 0 ? 0 : 6 }}>
-              <Text style={[styles.reactionText, it.reactedByMe ? { fontWeight: '700' } : null]}>{it.emoji}</Text>
-              <Text style={{ fontSize: 12, marginLeft: 4 }}>{it.count > 1 ? it.count : ''}</Text>
+            <View
+              key={it.emoji + idx}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginLeft: idx === 0 ? 0 : 6,
+              }}
+            >
+              <Text
+                style={[
+                  styles.reactionText,
+                  it.reactedByMe ? { fontWeight: "700" } : null,
+                ]}
+              >
+                {it.emoji}
+              </Text>
+              <Text style={{ fontSize: 12, marginLeft: 4 }}>
+                {it.count > 1 ? it.count : ""}
+              </Text>
             </View>
           ))}
         </View>
@@ -1921,7 +2546,8 @@ export default function GroupChatScreen() {
   // Reply indicator đã bị xóa - Reply preview giờ nằm hoàn toàn bên TRONG bubble
 
   const renderMessage = (msg, index) => {
-    const showDate = index === 0 || 
+    const showDate =
+      index === 0 ||
       formatDate(messages[index - 1].timestamp) !== formatDate(msg.timestamp);
 
     const isHighlighted = highlightedMessageId === msg.id;
@@ -1929,16 +2555,24 @@ export default function GroupChatScreen() {
     // Determine grouping: first / middle / last in a consecutive chain
     const prev = messages[index - 1];
     const next = messages[index + 1];
-    const sameSender = (a, b) => !!(a && b && String(a.userId) === String(b.userId));
+    const sameSender = (a, b) =>
+      !!(a && b && String(a.userId) === String(b.userId));
     const within2Min = (a, b) => {
       if (!a || !b) return false;
       try {
-        return Math.abs(new Date(a.timestamp) - new Date(b.timestamp)) < 2 * 60 * 1000;
-      } catch (e) { return false; }
+        return (
+          Math.abs(new Date(a.timestamp) - new Date(b.timestamp)) <
+          2 * 60 * 1000
+        );
+      } catch (e) {
+        return false;
+      }
     };
 
-    const isFirstInChain = !prev || !sameSender(prev, msg) || !within2Min(prev, msg);
-    const isLastInChain = !next || !sameSender(next, msg) || !within2Min(msg, next);
+    const isFirstInChain =
+      !prev || !sameSender(prev, msg) || !within2Min(prev, msg);
+    const isLastInChain =
+      !next || !sameSender(next, msg) || !within2Min(msg, next);
 
     // Avatar visible only for messages from others and only on the last message in a chain
     const showAvatar = !msg.isMine && isLastInChain;
@@ -1947,13 +2581,13 @@ export default function GroupChatScreen() {
     const verticalSpacing = isLastInChain ? 12 : 4; // last message gets larger bottom margin
 
     // DEBUG: Log để kiểm tra
-    console.log('[GroupChat] Rendering message:', {
+    console.log("[GroupChat] Rendering message:", {
       message: msg.message,
       userId: msg.userId,
       currentUserId: currentUserId,
       isMine: msg.isMine,
       userName: msg.userName,
-      userAvatar: msg.userAvatar
+      userAvatar: msg.userAvatar,
     });
 
     // Dynamic bubble style based on chain position
@@ -2003,129 +2637,186 @@ export default function GroupChatScreen() {
     const verticalTop = isFirstInChain ? 12 : 4;
 
     return (
-      <View 
+      <View
         key={msg.id}
-        ref={(r) => { 
-          try { 
+        ref={(r) => {
+          try {
             const keys = [msg.id, msg.messageId, msg.MessageId, msg.tempId];
-            keys.forEach(k => { if (k != null) messageRefs.current[String(k)] = r; });
-          } catch(e){}
+            keys.forEach((k) => {
+              if (k != null) messageRefs.current[String(k)] = r;
+            });
+          } catch (e) {}
         }}
-        onLayout={(e) => { 
-          try { 
+        onLayout={(e) => {
+          try {
             const y = e.nativeEvent.layout.y;
             const keys = [msg.id, msg.messageId, msg.MessageId, msg.tempId];
-            keys.forEach(k => { if (k != null) messagePositions.current[String(k)] = y; });
-          } catch(e){}
+            keys.forEach((k) => {
+              if (k != null) messagePositions.current[String(k)] = y;
+            });
+          } catch (e) {}
         }}
-        style={[ isHighlighted ? styles.highlightedMessageContainer : null, { marginTop: verticalTop, marginBottom: verticalSpacing, position: 'relative' } ]}
+        style={[
+          isHighlighted ? styles.highlightedMessageContainer : null,
+          {
+            marginTop: verticalTop,
+            marginBottom: verticalSpacing,
+            position: "relative",
+          },
+        ]}
       >
         {showDate && (
           <View style={styles.dateContainer}>
             <Text style={styles.dateText}>{formatDate(msg.timestamp)}</Text>
           </View>
         )}
-        
+
         {msg.isMine ? (
           // Tin nhắn của mình - BÊN PHẢI, MÀU XANH
           <TouchableOpacity
-            style={[styles.myMessageContainer, { marginBottom: verticalSpacing }]}
+            style={[
+              styles.myMessageContainer,
+              { marginBottom: verticalSpacing },
+            ]}
             onLongPress={() => handleLongPress(msg)}
             delayLongPress={500}
           >
             {/* Nếu chỉ có media (không có text), không dùng bubble */}
             {msg.mediaType && !msg.message ? (
               <View>
-                {msg.mediaType === 'image' && (
+                {msg.mediaType === "image" && (
                   <TouchableOpacity
                     onPress={() => handleImagePress(msg)}
                     onLongPress={() => handleLongPress(msg)}
                     delayLongPress={500}
                     activeOpacity={0.9}
                   >
-                    <Image 
-                      source={{ uri: getMediaUri(msg.mediaUri || msg.fileUrl) }} 
+                    <Image
+                      source={{ uri: getMediaUri(msg.mediaUri || msg.fileUrl) }}
                       style={[styles.messageImage, styles.messageImageOnly]}
                       resizeMode="cover"
                     />
                   </TouchableOpacity>
                 )}
-                {msg.mediaType === 'video' && (
+                {msg.mediaType === "video" && (
                   <TouchableOpacity
                     onPress={() => handleImagePress(msg)}
                     onLongPress={() => handleLongPress(msg)}
                     delayLongPress={500}
                     activeOpacity={0.9}
                   >
-                    <View style={[styles.videoContainer, styles.messageImageOnly]}>
-                      <Image 
-                        source={{ uri: msg.mediaUri }} 
+                    <View
+                      style={[styles.videoContainer, styles.messageImageOnly]}
+                    >
+                      <Image
+                        source={{ uri: msg.mediaUri }}
                         style={styles.messageImage}
                       />
                       <View style={styles.videoOverlay}>
-                        <Ionicons name="play-circle" size={48} color="#FFFFFF" />
+                        <Ionicons
+                          name="play-circle"
+                          size={48}
+                          color="#FFFFFF"
+                        />
                       </View>
                     </View>
                   </TouchableOpacity>
                 )}
                 {renderReactions(msg)}
-                <Text style={[styles.myMessageTime, styles.mediaTimeOnly]}>{formatTime(msg.timestamp)}</Text>
+                <Text style={[styles.myMessageTime, styles.mediaTimeOnly]}>
+                  {formatTime(msg.timestamp)}
+                </Text>
               </View>
             ) : msg.message && !msg.mediaType && isEmojiOnly(msg.message) ? (
               // ✅ FIX: Chỉ có emoji (KHÔNG có @mention, KHÔNG có số), không có bubble
               (() => {
-                console.log('[GroupChat] Rendering emoji-only message:', msg.message);
+                console.log(
+                  "[GroupChat] Rendering emoji-only message:",
+                  msg.message
+                );
                 return (
                   <View>
                     <Text style={styles.emojiOnly}>{msg.message}</Text>
                     {renderReactions(msg)}
-                    <Text style={[styles.myMessageTime, styles.mediaTimeOnly]}>{formatTime(msg.timestamp)}</Text>
+                    <Text style={[styles.myMessageTime, styles.mediaTimeOnly]}>
+                      {formatTime(msg.timestamp)}
+                    </Text>
                   </View>
                 );
               })()
             ) : (
               // Có text, dùng bubble bình thường
               (() => {
-                console.log('[GroupChat] Rendering text message with bubble:', msg.message);
+                console.log(
+                  "[GroupChat] Rendering text message with bubble:",
+                  msg.message
+                );
                 return (
                   <View style={[styles.myMessageBubble, myBubbleDynamic]}>
                     {/* Reply Preview */}
                     {msg.replyTo && renderReplyPreview(msg.replyTo, true)}
-                    
-                    {msg.mediaType === 'image' && (
+
+                    {msg.mediaType === "image" && (
                       <TouchableOpacity
                         onPress={() => handleImagePress(msg)}
                         onLongPress={() => handleLongPress(msg)}
                         delayLongPress={500}
                         activeOpacity={0.9}
                       >
-                        <Image 
-                          source={{ uri: getMediaUri(msg.mediaUri || msg.fileUrl) }} 
+                        <Image
+                          source={{
+                            uri: getMediaUri(msg.mediaUri || msg.fileUrl),
+                          }}
                           style={styles.messageImage}
                           resizeMode="cover"
                         />
                       </TouchableOpacity>
                     )}
-                    {msg.mediaType === 'file' && msg.fileUrl && (
+                    {msg.mediaType === "file" && msg.fileUrl && (
                       <TouchableOpacity
                         onPress={() => {
-                          try { Linking.openURL(msg.fileUrl); } catch (e) { console.error('Open file URL error', e); }
+                          try {
+                            Linking.openURL(msg.fileUrl);
+                          } catch (e) {
+                            console.error("Open file URL error", e);
+                          }
                         }}
                         onLongPress={() => handleLongPress(msg)}
                         delayLongPress={500}
                         activeOpacity={0.9}
-                        style={{ padding: 12, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 8, marginBottom: 6 }}
+                        style={{
+                          padding: 12,
+                          backgroundColor: "rgba(255,255,255,0.05)",
+                          borderRadius: 8,
+                          marginBottom: 6,
+                        }}
                       >
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Ionicons name="document-text-outline" size={28} color="#FFFFFF" />
+                        <View
+                          style={{ flexDirection: "row", alignItems: "center" }}
+                        >
+                          <Ionicons
+                            name="document-text-outline"
+                            size={28}
+                            color="#FFFFFF"
+                          />
                           <View style={{ marginLeft: 10, maxWidth: 200 }}>
-                            <Text style={{ color: '#FFFFFF', fontWeight: '600' }} numberOfLines={1} ellipsizeMode="tail">{msg.fileName || msg.fileUrl}</Text>
-                            <Text style={{ color: '#E5F2FF', fontSize: 12 }}>{msg.fileSize ? `${(msg.fileSize/1024).toFixed(1)} KB` : ''}</Text>
+                            <Text
+                              style={{ color: "#FFFFFF", fontWeight: "600" }}
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
+                            >
+                              {msg.fileName || msg.fileUrl}
+                            </Text>
+                            <Text style={{ color: "#E5F2FF", fontSize: 12 }}>
+                              {msg.fileSize
+                                ? `${(msg.fileSize / 1024).toFixed(1)} KB`
+                                : ""}
+                            </Text>
                           </View>
                         </View>
                       </TouchableOpacity>
                     )}
-                    {msg.mediaType === 'video' && (
+                    {msg.mediaType === "video" && (
                       <TouchableOpacity
                         onPress={() => handleImagePress(msg)}
                         onLongPress={() => handleLongPress(msg)}
@@ -2133,19 +2824,27 @@ export default function GroupChatScreen() {
                         activeOpacity={0.9}
                       >
                         <View style={styles.videoContainer}>
-                          <Image 
-                            source={{ uri: getMediaUri(msg.mediaUri || msg.fileUrl) }} 
+                          <Image
+                            source={{
+                              uri: getMediaUri(msg.mediaUri || msg.fileUrl),
+                            }}
                             style={styles.messageImage}
                           />
                           <View style={styles.videoOverlay}>
-                            <Ionicons name="play-circle" size={48} color="#FFFFFF" />
+                            <Ionicons
+                              name="play-circle"
+                              size={48}
+                              color="#FFFFFF"
+                            />
                           </View>
                         </View>
                       </TouchableOpacity>
                     )}
                     {msg.message && renderMessageText(msg.message, true)}
                     {renderReactions(msg)}
-                    <Text style={styles.myMessageTime}>{formatTime(msg.timestamp)}</Text>
+                    <Text style={styles.myMessageTime}>
+                      {formatTime(msg.timestamp)}
+                    </Text>
                     {/* ✅ Read Receipts */}
                     {renderReadReceipts(msg)}
                   </View>
@@ -2156,14 +2855,19 @@ export default function GroupChatScreen() {
         ) : (
           // Tin nhắn của người khác
           <TouchableOpacity
-            style={[styles.otherMessageContainer, { marginBottom: verticalSpacing }]}
+            style={[
+              styles.otherMessageContainer,
+              { marginBottom: verticalSpacing },
+            ]}
             onLongPress={() => handleLongPress(msg)}
             delayLongPress={500}
           >
             {/* Avatar: only render for last message in a chain; otherwise render spacer to align content */}
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => {
-                const user = members.find(m => Number(m.userId) === Number(msg.userId));
+                const user = members.find(
+                  (m) => Number(m.userId) === Number(msg.userId)
+                );
                 if (user) {
                   setSelectedMentionedUser(user);
                   setShowMentionMenu(true);
@@ -2175,23 +2879,32 @@ export default function GroupChatScreen() {
                 (() => {
                   let avatarUri = msg.userAvatar;
                   if (!avatarUri) {
-                    const user = members.find(m => Number(m.userId) === Number(msg.userId));
+                    const user = members.find(
+                      (m) => Number(m.userId) === Number(msg.userId)
+                    );
                     avatarUri = user?.avatar || user?.avatarUrl;
                   }
                   return avatarUri ? (
-                    <Image 
-                      source={{ 
-                        uri: avatarUri.startsWith('file://') || avatarUri.startsWith('http') 
-                          ? avatarUri 
-                          : `${API_BASE_URL}${avatarUri}` 
+                    <Image
+                      source={{
+                        uri:
+                          avatarUri.startsWith("file://") ||
+                          avatarUri.startsWith("http")
+                            ? avatarUri
+                            : `${API_BASE_URL}${avatarUri}`,
                       }}
                       style={styles.messageAvatar}
-                      onError={(e) => console.log('[GroupChat] Avatar load error:', e.nativeEvent.error)}
+                      onError={(e) =>
+                        console.log(
+                          "[GroupChat] Avatar load error:",
+                          e.nativeEvent.error
+                        )
+                      }
                     />
                   ) : (
                     <View style={styles.messageAvatarPlaceholder}>
                       <Text style={styles.messageAvatarText}>
-                        {msg.userName?.charAt(0)?.toUpperCase() || 'U'}
+                        {msg.userName?.charAt(0)?.toUpperCase() || "U"}
                       </Text>
                     </View>
                   );
@@ -2201,10 +2914,12 @@ export default function GroupChatScreen() {
               )}
             </TouchableOpacity>
             <View style={styles.otherMessageContent}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => {
                   // Tìm user từ members array
-                  const user = members.find(m => Number(m.userId) === Number(msg.userId));
+                  const user = members.find(
+                    (m) => Number(m.userId) === Number(msg.userId)
+                  );
                   if (user) {
                     setSelectedMentionedUser(user);
                     setShowMentionMenu(true);
@@ -2215,44 +2930,52 @@ export default function GroupChatScreen() {
                   <Text style={styles.messageSenderName}>{msg.userName}</Text>
                 )}
               </TouchableOpacity>
-              
+
               {/* Nếu chỉ có media (không có text), không dùng bubble */}
               {msg.mediaType && !msg.message ? (
                 <View>
-                  {msg.mediaType === 'image' && (
+                  {msg.mediaType === "image" && (
                     <TouchableOpacity
                       onPress={() => handleImagePress(msg)}
                       onLongPress={() => handleLongPress(msg)}
                       delayLongPress={500}
                       activeOpacity={0.9}
                     >
-                      <Image 
-                        source={{ uri: msg.mediaUri }} 
+                      <Image
+                        source={{ uri: msg.mediaUri }}
                         style={[styles.messageImage, styles.messageImageOnly]}
                         resizeMode="cover"
                       />
                     </TouchableOpacity>
                   )}
-                  {msg.mediaType === 'video' && (
+                  {msg.mediaType === "video" && (
                     <TouchableOpacity
                       onPress={() => handleImagePress(msg)}
                       onLongPress={() => handleLongPress(msg)}
                       delayLongPress={500}
                       activeOpacity={0.9}
                     >
-                      <View style={[styles.videoContainer, styles.messageImageOnly]}>
-                        <Image 
-                          source={{ uri: msg.mediaUri }} 
+                      <View
+                        style={[styles.videoContainer, styles.messageImageOnly]}
+                      >
+                        <Image
+                          source={{ uri: msg.mediaUri }}
                           style={styles.messageImage}
                         />
                         <View style={styles.videoOverlay}>
-                          <Ionicons name="play-circle" size={48} color="#FFFFFF" />
+                          <Ionicons
+                            name="play-circle"
+                            size={48}
+                            color="#FFFFFF"
+                          />
                         </View>
                       </View>
                     </TouchableOpacity>
                   )}
                   {renderReactions(msg)}
-                  <Text style={[styles.otherMessageTime, styles.mediaTimeOnly]}>{formatTime(msg.timestamp)}</Text>
+                  <Text style={[styles.otherMessageTime, styles.mediaTimeOnly]}>
+                    {formatTime(msg.timestamp)}
+                  </Text>
                   {renderReadReceipts(msg)}
                 </View>
               ) : msg.message && !msg.mediaType && isEmojiOnly(msg.message) ? (
@@ -2260,7 +2983,9 @@ export default function GroupChatScreen() {
                 <View>
                   <Text style={styles.emojiOnly}>{msg.message}</Text>
                   {renderReactions(msg)}
-                  <Text style={[styles.otherMessageTime, styles.mediaTimeOnly]}>{formatTime(msg.timestamp)}</Text>
+                  <Text style={[styles.otherMessageTime, styles.mediaTimeOnly]}>
+                    {formatTime(msg.timestamp)}
+                  </Text>
                   {renderReadReceipts(msg)}
                 </View>
               ) : (
@@ -2269,35 +2994,77 @@ export default function GroupChatScreen() {
                   <View style={[styles.otherMessageBubble, otherBubbleDynamic]}>
                     {/* Reply Preview */}
                     {msg.replyTo && renderReplyPreview(msg.replyTo, false)}
-                    
-                    {msg.mediaType === 'image' && (
-                      <TouchableOpacity onPress={() => handleImagePress(msg)} activeOpacity={0.9}>
-                        <Image 
-                          source={{ uri: msg.mediaUri }} 
+
+                    {msg.mediaType === "image" && (
+                      <TouchableOpacity
+                        onPress={() => handleImagePress(msg)}
+                        activeOpacity={0.9}
+                      >
+                        <Image
+                          source={{ uri: msg.mediaUri }}
                           style={styles.messageImage}
                           resizeMode="cover"
                         />
                       </TouchableOpacity>
                     )}
-                    {msg.mediaType === 'video' && (
+                    {msg.mediaType === "video" && (
                       <View style={styles.videoContainer}>
-                        <Image 
-                          source={{ uri: msg.mediaUri }} 
+                        <Image
+                          source={{ uri: msg.mediaUri }}
                           style={styles.messageImage}
                         />
                         <View style={styles.videoOverlay}>
-                          <Ionicons name="play-circle" size={48} color="#FFFFFF" />
+                          <Ionicons
+                            name="play-circle"
+                            size={48}
+                            color="#FFFFFF"
+                          />
                         </View>
                       </View>
                     )}
-                    {msg.mediaType === 'file' && msg.fileUrl && (
-                      <TouchableOpacity onPress={() => { try { Linking.openURL(msg.fileUrl); } catch (e) { console.error('Open file URL error', e); } }} activeOpacity={0.9}>
-                        <View style={{ padding: 12, backgroundColor: '#F3F4F6', borderRadius: 8, marginBottom: 6 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <Ionicons name="document-text-outline" size={28} color="#111827" />
+                    {msg.mediaType === "file" && msg.fileUrl && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          try {
+                            Linking.openURL(msg.fileUrl);
+                          } catch (e) {
+                            console.error("Open file URL error", e);
+                          }
+                        }}
+                        activeOpacity={0.9}
+                      >
+                        <View
+                          style={{
+                            padding: 12,
+                            backgroundColor: "#F3F4F6",
+                            borderRadius: 8,
+                            marginBottom: 6,
+                          }}
+                        >
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                            }}
+                          >
+                            <Ionicons
+                              name="document-text-outline"
+                              size={28}
+                              color="#111827"
+                            />
                             <View style={{ marginLeft: 10, maxWidth: 200 }}>
-                              <Text style={{ color: '#111827', fontWeight: '600' }} numberOfLines={1} ellipsizeMode="tail">{msg.fileName || msg.fileUrl}</Text>
-                              <Text style={{ color: '#6B7280', fontSize: 12 }}>{msg.fileSize ? `${(msg.fileSize/1024).toFixed(1)} KB` : ''}</Text>
+                              <Text
+                                style={{ color: "#111827", fontWeight: "600" }}
+                                numberOfLines={1}
+                                ellipsizeMode="tail"
+                              >
+                                {msg.fileName || msg.fileUrl}
+                              </Text>
+                              <Text style={{ color: "#6B7280", fontSize: 12 }}>
+                                {msg.fileSize
+                                  ? `${(msg.fileSize / 1024).toFixed(1)} KB`
+                                  : ""}
+                              </Text>
                             </View>
                           </View>
                         </View>
@@ -2306,7 +3073,9 @@ export default function GroupChatScreen() {
                     {msg.message && renderMessageText(msg.message, false)}
                   </View>
                   {renderReactions(msg)}
-                    <Text style={styles.otherMessageTime}>{formatTime(msg.timestamp)}</Text>
+                  <Text style={styles.otherMessageTime}>
+                    {formatTime(msg.timestamp)}
+                  </Text>
                   {renderReadReceipts(msg)}
                 </View>
               )}
@@ -2326,39 +3095,44 @@ export default function GroupChatScreen() {
   }
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
     >
       <StatusBar
         barStyle="dark-content"
         backgroundColor="#FFFFFF"
         translucent={false}
       />
-      
+
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
           <Ionicons name="chevron-back" size={24} color="#111827" />
         </TouchableOpacity>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={styles.headerCenter}
-          onPress={() => navigation.navigate('GroupDetail', { 
-            conversationId, 
-            groupName: groupInfo?.name || groupName 
-          })}
+          onPress={() =>
+            navigation.navigate("GroupDetail", {
+              conversationId,
+              groupName: groupInfo?.name || groupName,
+            })
+          }
           activeOpacity={0.7}
         >
           {groupInfo?.avatarUrl ? (
-            <Image 
-              source={{ uri: groupInfo.avatarUrl.startsWith('file://') || groupInfo.avatarUrl.startsWith('http') 
-                ? groupInfo.avatarUrl 
-                : `${API_BASE_URL}${groupInfo.avatarUrl}` 
+            <Image
+              source={{
+                uri:
+                  groupInfo.avatarUrl.startsWith("file://") ||
+                  groupInfo.avatarUrl.startsWith("http")
+                    ? groupInfo.avatarUrl
+                    : `${API_BASE_URL}${groupInfo.avatarUrl}`,
               }}
               style={styles.headerAvatar}
             />
@@ -2368,25 +3142,35 @@ export default function GroupChatScreen() {
             </View>
           )}
           <View style={styles.headerTextContainer}>
-            <Text style={styles.headerName}>{groupInfo?.name || groupName}</Text>
+            <Text style={styles.headerName}>
+              {groupInfo?.name || groupName}
+            </Text>
             <Text style={styles.headerMemberCount}>
               {members.length} thành viên
             </Text>
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.headerIcon}
-          onPress={() => navigation.navigate('GroupDetail', { 
-            conversationId, 
-            groupName: groupInfo?.name || groupName 
-          })}
+          onPress={() =>
+            navigation.navigate("GroupDetail", {
+              conversationId,
+              groupName: groupInfo?.name || groupName,
+            })
+          }
         >
-          <Ionicons name="information-circle-outline" size={24} color="#111827" />
+          <Ionicons
+            name="information-circle-outline"
+            size={24}
+            color="#111827"
+          />
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.headerIcon, { marginLeft: 8 }]}
-          onPress={() => navigation.navigate('PinnedMessages', { conversationId })}
+          onPress={() =>
+            navigation.navigate("PinnedMessages", { conversationId })
+          }
         >
           <Ionicons name="pin" size={22} color="#111827" />
         </TouchableOpacity>
@@ -2394,7 +3178,7 @@ export default function GroupChatScreen() {
 
       {/* Chat Content */}
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView 
+        <ScrollView
           ref={scrollViewRef}
           style={styles.chatContent}
           contentContainerStyle={styles.chatContentContainer}
@@ -2406,7 +3190,9 @@ export default function GroupChatScreen() {
                 scrollViewRef.current?.scrollToEnd({ animated: false });
                 initialScrollDoneRef.current = true;
               }
-            } catch (e) { /* ignore */ }
+            } catch (e) {
+              /* ignore */
+            }
           }}
           onScroll={(e) => {
             const { contentOffset } = e.nativeEvent;
@@ -2419,9 +3205,9 @@ export default function GroupChatScreen() {
         >
           {/* ✅ Loading indicator for pagination */}
           {loadingMore && (
-            <View style={{ padding: 16, alignItems: 'center' }}>
+            <View style={{ padding: 16, alignItems: "center" }}>
               <ActivityIndicator size="small" color="#007AFF" />
-              <Text style={{ fontSize: 12, color: '#999', marginTop: 8 }}>
+              <Text style={{ fontSize: 12, color: "#999", marginTop: 8 }}>
                 Đang tải thêm tin nhắn...
               </Text>
             </View>
@@ -2437,14 +3223,14 @@ export default function GroupChatScreen() {
             </View>
           ) : (
             messages
-              .filter(m => {
-                if (!m || typeof m !== 'object') return false;
+              .filter((m) => {
+                if (!m || typeof m !== "object") return false;
                 // valid if has id/tempId
                 if (m.id || m.tempId) return true;
                 // or has media
                 if (m.mediaUri || m.fileUrl) return true;
                 // or has non-empty message text
-                if (m.message && String(m.message).trim() !== '') return true;
+                if (m.message && String(m.message).trim() !== "") return true;
                 return false;
               })
               .map((msg, index) => renderMessage(msg, index))
@@ -2453,56 +3239,69 @@ export default function GroupChatScreen() {
       </TouchableWithoutFeedback>
 
       {/* Mention List - Hiện phía trên input khi gõ @ */}
-      {showMentionList && (() => {
-        const mentionableMembers = getMentionableMembers();
-        console.log('[GroupChat] Rendering mention list, members:', mentionableMembers.length);
-        return (
-          <View style={styles.mentionListContainer}>
-            <ScrollView style={styles.mentionList} keyboardShouldPersistTaps="always">
-              {mentionableMembers.length > 0 ? (
-                mentionableMembers.map((member) => (
-                  <TouchableOpacity
-                    key={member.userId}
-                    style={styles.mentionItem}
-                    onPress={() => handleSelectMention(member)}
-                  >
-                    {member.userId === 'all' ? (
-                      <View style={styles.mentionAvatarAll}>
-                        <Ionicons name="people" size={20} color="#FFFFFF" />
+      {showMentionList &&
+        (() => {
+          const mentionableMembers = getMentionableMembers();
+          console.log(
+            "[GroupChat] Rendering mention list, members:",
+            mentionableMembers.length
+          );
+          return (
+            <View style={styles.mentionListContainer}>
+              <ScrollView
+                style={styles.mentionList}
+                keyboardShouldPersistTaps="always"
+              >
+                {mentionableMembers.length > 0 ? (
+                  mentionableMembers.map((member) => (
+                    <TouchableOpacity
+                      key={member.userId}
+                      style={styles.mentionItem}
+                      onPress={() => handleSelectMention(member)}
+                    >
+                      {member.userId === "all" ? (
+                        <View style={styles.mentionAvatarAll}>
+                          <Ionicons name="people" size={20} color="#FFFFFF" />
+                        </View>
+                      ) : member.avatarUrl ? (
+                        <Image
+                          source={{ uri: `${API_BASE_URL}${member.avatarUrl}` }}
+                          style={styles.mentionAvatar}
+                        />
+                      ) : (
+                        <View style={styles.mentionAvatarPlaceholder}>
+                          <Ionicons name="person" size={20} color="#FFFFFF" />
+                        </View>
+                      )}
+                      <View style={styles.mentionInfo}>
+                        <Text style={styles.mentionName}>
+                          {member.fullName || member.username}
+                        </Text>
+                        <Text style={styles.mentionUsername}>
+                          @{member.username}
+                          {member.userId === "all" &&
+                            " • Tag toàn bộ thành viên"}
+                        </Text>
                       </View>
-                    ) : member.avatarUrl ? (
-                      <Image
-                        source={{ uri: `${API_BASE_URL}${member.avatarUrl}` }}
-                        style={styles.mentionAvatar}
-                      />
-                    ) : (
-                      <View style={styles.mentionAvatarPlaceholder}>
-                        <Ionicons name="person" size={20} color="#FFFFFF" />
-                      </View>
-                    )}
-                    <View style={styles.mentionInfo}>
-                      <Text style={styles.mentionName}>{member.fullName || member.username}</Text>
-                      <Text style={styles.mentionUsername}>
-                        @{member.username}
-                        {member.userId === 'all' && ' • Tag toàn bộ thành viên'}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))
-              ) : (
-                <View style={{ padding: 20, alignItems: 'center' }}>
-                  <Text style={{ color: '#6B7280' }}>
-                    Không tìm thấy thành viên
-                  </Text>
-                  <Text style={{ color: '#9CA3AF', fontSize: 12, marginTop: 4 }}>
-                    DEBUG: members={members.length}, currentUserId={currentUserId}
-                  </Text>
-                </View>
-              )}
-            </ScrollView>
-          </View>
-        );
-      })()}
+                    </TouchableOpacity>
+                  ))
+                ) : (
+                  <View style={{ padding: 20, alignItems: "center" }}>
+                    <Text style={{ color: "#6B7280" }}>
+                      Không tìm thấy thành viên
+                    </Text>
+                    <Text
+                      style={{ color: "#9CA3AF", fontSize: 12, marginTop: 4 }}
+                    >
+                      DEBUG: members={members.length}, currentUserId=
+                      {currentUserId}
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          );
+        })()}
 
       {/* Reply Input Bar - Hiển thị khi đang reply */}
       {replyingTo && (
@@ -2514,37 +3313,39 @@ export default function GroupChatScreen() {
             </View>
             <View style={styles.replyInputInfo}>
               <Text style={styles.replyInputName} numberOfLines={1}>
-                Trả lời {replyingTo.userName || 'Người dùng'}
+                Trả lời {replyingTo.userName || "Người dùng"}
               </Text>
               {replyingTo.mediaType ? (
                 <View style={styles.replyInputMediaPreview}>
-                  <Ionicons 
-                    name={replyingTo.mediaType === 'image' ? 'image' : 'videocam'} 
-                    size={14} 
-                    color="#6B7280" 
+                  <Ionicons
+                    name={
+                      replyingTo.mediaType === "image" ? "image" : "videocam"
+                    }
+                    size={14}
+                    color="#6B7280"
                   />
                   <Text style={styles.replyInputText} numberOfLines={1}>
-                    {replyingTo.mediaType === 'image' ? 'Ảnh' : 'Video'}
+                    {replyingTo.mediaType === "image" ? "Ảnh" : "Video"}
                   </Text>
                 </View>
               ) : (
-                <Text 
-                  style={styles.replyInputText} 
+                <Text
+                  style={styles.replyInputText}
                   numberOfLines={2}
                   ellipsizeMode="tail"
                 >
                   {(() => {
                     try {
-                      const msg = String(replyingTo.message || '').trim();
-                      return msg || 'Tin nhắn';
+                      const msg = String(replyingTo.message || "").trim();
+                      return msg || "Tin nhắn";
                     } catch (e) {
-                      return 'Tin nhắn';
+                      return "Tin nhắn";
                     }
                   })()}
                 </Text>
               )}
             </View>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.replyInputClose}
               onPress={() => setReplyingTo(null)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -2557,13 +3358,13 @@ export default function GroupChatScreen() {
 
       {/* Message Input */}
       <View style={styles.messageInputContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.attachButton}
           onPress={() => setShowMediaPicker(true)}
         >
           <Ionicons name="add-circle-outline" size={28} color="#3B82F6" />
         </TouchableOpacity>
-        
+
         <View style={styles.inputWrapper}>
           <TextInput
             ref={messageInputRef}
@@ -2572,7 +3373,9 @@ export default function GroupChatScreen() {
             placeholderTextColor="#9CA3AF"
             value={message}
             onChangeText={handleMessageChange}
-            onSelectionChange={(e) => setCursorPosition(e.nativeEvent.selection.end)}
+            onSelectionChange={(e) =>
+              setCursorPosition(e.nativeEvent.selection.end)
+            }
             multiline
             maxLength={1000}
             secureTextEntry={false}
@@ -2583,7 +3386,7 @@ export default function GroupChatScreen() {
             autoCorrect={true}
             spellCheck={true}
           />
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.emojiButton}
             onPress={() => setShowEmojiPicker(!showEmojiPicker)}
           >
@@ -2592,19 +3395,16 @@ export default function GroupChatScreen() {
         </View>
 
         {message.trim() ? (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.sendButton}
             onPress={() => handleSend()}
           >
             <Ionicons name="send" size={24} color="#3B82F6" />
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity 
-            onPress={handleQuickLike}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity onPress={handleQuickLike} activeOpacity={0.8}>
             <LinearGradient
-              colors={['#0084FF', '#0066CC']}
+              colors={["#0084FF", "#0066CC"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.likeButton}
@@ -2637,7 +3437,10 @@ export default function GroupChatScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
-                <ScrollView style={styles.emojiGrid} showsVerticalScrollIndicator={false}>
+                <ScrollView
+                  style={styles.emojiGrid}
+                  showsVerticalScrollIndicator={false}
+                >
                   <View style={styles.emojiGridContent}>
                     {EMOJI_LIST.map((emoji, index) => (
                       <TouchableOpacity
@@ -2667,20 +3470,22 @@ export default function GroupChatScreen() {
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
               <View style={styles.mediaPickerContainer}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.mediaOption}
-                  onPress={() => handlePickMedia('image')}
+                  onPress={() => handlePickMedia("image")}
                 >
                   <Ionicons name="image" size={32} color="#3B82F6" />
                   <Text style={styles.mediaOptionText}>Chọn ảnh</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.mediaOption}
-                  onPress={() => handlePickMedia('video')}
+                  onPress={() => handlePickMedia("video")}
                 >
                   <Ionicons name="videocam" size={32} color="#3B82F6" />
                   <Text style={styles.mediaOptionText}>Chọn video</Text>
-                  <Text style={styles.mediaOptionSubtext}>(Tối đa 30 giây)</Text>
+                  <Text style={styles.mediaOptionSubtext}>
+                    (Tối đa 30 giây)
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.mediaOption}
@@ -2717,14 +3522,18 @@ export default function GroupChatScreen() {
                       <Text style={styles.quickReactionEmoji}>{emoji}</Text>
                     </TouchableOpacity>
                   ))}
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.quickReactionButton}
                     onPress={() => {
                       setShowContextMenu(false);
                       // Có thể mở emoji picker để chọn thêm
                     }}
                   >
-                    <Ionicons name="add-circle-outline" size={28} color="#6B7280" />
+                    <Ionicons
+                      name="add-circle-outline"
+                      size={28}
+                      color="#6B7280"
+                    />
                   </TouchableOpacity>
                 </View>
 
@@ -2735,32 +3544,74 @@ export default function GroupChatScreen() {
                     selectedMessage?.isMine ? (
                       // Tin nhắn của mình - Cấp 1
                       <>
-                        <TouchableOpacity style={styles.contextMenuItem} onPress={handleReply}>
-                          <Ionicons name="arrow-undo" size={22} color="#111827" />
+                        <TouchableOpacity
+                          style={styles.contextMenuItem}
+                          onPress={handleReply}
+                        >
+                          <Ionicons
+                            name="arrow-undo"
+                            size={22}
+                            color="#111827"
+                          />
                           <Text style={styles.contextMenuText}>Trả lời</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.contextMenuItem} onPress={handleCopy}>
-                          <Ionicons name="copy-outline" size={22} color="#111827" />
+                        <TouchableOpacity
+                          style={styles.contextMenuItem}
+                          onPress={handleCopy}
+                        >
+                          <Ionicons
+                            name="copy-outline"
+                            size={22}
+                            color="#111827"
+                          />
                           <Text style={styles.contextMenuText}>Sao chép</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.contextMenuItem} onPress={handleShowMore}>
-                          <Ionicons name="ellipsis-horizontal-circle" size={22} color="#111827" />
+                        <TouchableOpacity
+                          style={styles.contextMenuItem}
+                          onPress={handleShowMore}
+                        >
+                          <Ionicons
+                            name="ellipsis-horizontal-circle"
+                            size={22}
+                            color="#111827"
+                          />
                           <Text style={styles.contextMenuText}>Khác</Text>
                         </TouchableOpacity>
                       </>
                     ) : (
                       // Tin nhắn người khác - Cấp 1
                       <>
-                        <TouchableOpacity style={styles.contextMenuItem} onPress={handleReply}>
-                          <Ionicons name="arrow-undo" size={22} color="#111827" />
+                        <TouchableOpacity
+                          style={styles.contextMenuItem}
+                          onPress={handleReply}
+                        >
+                          <Ionicons
+                            name="arrow-undo"
+                            size={22}
+                            color="#111827"
+                          />
                           <Text style={styles.contextMenuText}>Trả lời</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.contextMenuItem} onPress={handleCopy}>
-                          <Ionicons name="copy-outline" size={22} color="#111827" />
+                        <TouchableOpacity
+                          style={styles.contextMenuItem}
+                          onPress={handleCopy}
+                        >
+                          <Ionicons
+                            name="copy-outline"
+                            size={22}
+                            color="#111827"
+                          />
                           <Text style={styles.contextMenuText}>Sao chép</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.contextMenuItem} onPress={handleShowMore}>
-                          <Ionicons name="ellipsis-horizontal-circle" size={22} color="#111827" />
+                        <TouchableOpacity
+                          style={styles.contextMenuItem}
+                          onPress={handleShowMore}
+                        >
+                          <Ionicons
+                            name="ellipsis-horizontal-circle"
+                            size={22}
+                            color="#111827"
+                          />
                           <Text style={styles.contextMenuText}>Khác</Text>
                         </TouchableOpacity>
                       </>
@@ -2768,45 +3619,115 @@ export default function GroupChatScreen() {
                   ) : (
                     // MENU CẤP 2 - Đầy đủ options
                     <>
-                      <TouchableOpacity style={styles.contextMenuItem} onPress={handleBackToMain}>
+                      <TouchableOpacity
+                        style={styles.contextMenuItem}
+                        onPress={handleBackToMain}
+                      >
                         <Ionicons name="arrow-back" size={22} color="#111827" />
                         <Text style={styles.contextMenuText}>Quay lại</Text>
                       </TouchableOpacity>
-                      
+
                       {selectedMessage?.isMine ? (
                         // Tin nhắn của mình - Cấp 2
                         <>
-                          <TouchableOpacity style={styles.contextMenuItem} onPress={handleForward}>
-                            <Ionicons name="arrow-forward" size={22} color="#111827" />
-                            <Text style={styles.contextMenuText}>Chuyển tiếp</Text>
+                          <TouchableOpacity
+                            style={styles.contextMenuItem}
+                            onPress={handleForward}
+                          >
+                            <Ionicons
+                              name="arrow-forward"
+                              size={22}
+                              color="#111827"
+                            />
+                            <Text style={styles.contextMenuText}>
+                              Chuyển tiếp
+                            </Text>
                           </TouchableOpacity>
-                          <TouchableOpacity style={styles.contextMenuItem} onPress={handlePin}>
-                            <Ionicons name={selectedMessage?.isPinned ? "pin-outline" : "pin"} size={22} color="#111827" />
-                            <Text style={styles.contextMenuText}>{selectedMessage?.isPinned ? "Bỏ ghim" : "Ghim"}</Text>
+                          <TouchableOpacity
+                            style={styles.contextMenuItem}
+                            onPress={handlePin}
+                          >
+                            <Ionicons
+                              name={
+                                selectedMessage?.isPinned
+                                  ? "pin-outline"
+                                  : "pin"
+                              }
+                              size={22}
+                              color="#111827"
+                            />
+                            <Text style={styles.contextMenuText}>
+                              {selectedMessage?.isPinned ? "Bỏ ghim" : "Ghim"}
+                            </Text>
                           </TouchableOpacity>
-                          <TouchableOpacity style={[styles.contextMenuItem, styles.contextMenuItemDanger]} onPress={handleDelete}>
+                          <TouchableOpacity
+                            style={[
+                              styles.contextMenuItem,
+                              styles.contextMenuItemDanger,
+                            ]}
+                            onPress={handleDelete}
+                          >
                             <Ionicons name="trash" size={22} color="#EF4444" />
-                            <Text style={styles.contextMenuTextDanger}>Xóa</Text>
+                            <Text style={styles.contextMenuTextDanger}>
+                              Xóa
+                            </Text>
                           </TouchableOpacity>
                         </>
                       ) : (
                         // Tin nhắn người khác - Cấp 2
                         <>
-                          <TouchableOpacity style={styles.contextMenuItem} onPress={handleForward}>
-                            <Ionicons name="arrow-forward" size={22} color="#111827" />
-                            <Text style={styles.contextMenuText}>Chuyển tiếp</Text>
+                          <TouchableOpacity
+                            style={styles.contextMenuItem}
+                            onPress={handleForward}
+                          >
+                            <Ionicons
+                              name="arrow-forward"
+                              size={22}
+                              color="#111827"
+                            />
+                            <Text style={styles.contextMenuText}>
+                              Chuyển tiếp
+                            </Text>
                           </TouchableOpacity>
-                                                   <TouchableOpacity style={styles.contextMenuItem} onPress={handleReport}>
-                            <Ionicons name="warning" size={22} color="#F59E0B" />
+                          <TouchableOpacity
+                            style={styles.contextMenuItem}
+                            onPress={handleReport}
+                          >
+                            <Ionicons
+                              name="warning"
+                              size={22}
+                              color="#F59E0B"
+                            />
                             <Text style={styles.contextMenuText}>Báo cáo</Text>
                           </TouchableOpacity>
-                          <TouchableOpacity style={styles.contextMenuItem} onPress={handlePin}>
-                            <Ionicons name={selectedMessage?.isPinned ? "pin-outline" : "pin"} size={22} color="#111827" />
-                            <Text style={styles.contextMenuText}>{selectedMessage?.isPinned ? "Bỏ ghim" : "Ghim"}</Text>
+                          <TouchableOpacity
+                            style={styles.contextMenuItem}
+                            onPress={handlePin}
+                          >
+                            <Ionicons
+                              name={
+                                selectedMessage?.isPinned
+                                  ? "pin-outline"
+                                  : "pin"
+                              }
+                              size={22}
+                              color="#111827"
+                            />
+                            <Text style={styles.contextMenuText}>
+                              {selectedMessage?.isPinned ? "Bỏ ghim" : "Ghim"}
+                            </Text>
                           </TouchableOpacity>
-                          <TouchableOpacity style={[styles.contextMenuItem, styles.contextMenuItemDanger]} onPress={handleDelete}>
+                          <TouchableOpacity
+                            style={[
+                              styles.contextMenuItem,
+                              styles.contextMenuItemDanger,
+                            ]}
+                            onPress={handleDelete}
+                          >
                             <Ionicons name="trash" size={22} color="#EF4444" />
-                            <Text style={styles.contextMenuTextDanger}>Xóa (chỉ ở phía bạn)</Text>
+                            <Text style={styles.contextMenuTextDanger}>
+                              Xóa (chỉ ở phía bạn)
+                            </Text>
                           </TouchableOpacity>
                         </>
                       )}
@@ -2833,7 +3754,9 @@ export default function GroupChatScreen() {
                 <View style={styles.mentionMenuHeader}>
                   {selectedMentionedUser?.avatarUrl ? (
                     <Image
-                      source={{ uri: `${API_BASE_URL}${selectedMentionedUser.avatarUrl}` }}
+                      source={{
+                        uri: `${API_BASE_URL}${selectedMentionedUser.avatarUrl}`,
+                      }}
                       style={styles.mentionMenuAvatar}
                     />
                   ) : (
@@ -2842,7 +3765,8 @@ export default function GroupChatScreen() {
                     </View>
                   )}
                   <Text style={styles.mentionMenuName}>
-                    {selectedMentionedUser?.fullName || selectedMentionedUser?.username}
+                    {selectedMentionedUser?.fullName ||
+                      selectedMentionedUser?.username}
                   </Text>
                   <Text style={styles.mentionMenuUsername}>
                     @{selectedMentionedUser?.username}
@@ -2850,17 +3774,39 @@ export default function GroupChatScreen() {
                 </View>
 
                 <View style={styles.mentionMenuOptions}>
-                  <TouchableOpacity style={styles.mentionMenuItem} onPress={handleViewProfile}>
-                    <Ionicons name="person-circle-outline" size={24} color="#111827" />
-                    <Text style={styles.mentionMenuText}>Xem trang cá nhân</Text>
+                  <TouchableOpacity
+                    style={styles.mentionMenuItem}
+                    onPress={handleViewProfile}
+                  >
+                    <Ionicons
+                      name="person-circle-outline"
+                      size={24}
+                      color="#111827"
+                    />
+                    <Text style={styles.mentionMenuText}>
+                      Xem trang cá nhân
+                    </Text>
                   </TouchableOpacity>
-                  
-                  <TouchableOpacity style={styles.mentionMenuItem} onPress={handleDirectMessage}>
-                    <Ionicons name="chatbubble-outline" size={24} color="#111827" />
+
+                  <TouchableOpacity
+                    style={styles.mentionMenuItem}
+                    onPress={handleDirectMessage}
+                  >
+                    <Ionicons
+                      name="chatbubble-outline"
+                      size={24}
+                      color="#111827"
+                    />
                     <Text style={styles.mentionMenuText}>Nhắn tin</Text>
                   </TouchableOpacity>
-                  
-                  <TouchableOpacity style={[styles.mentionMenuItem, styles.mentionMenuItemDanger]} onPress={handleBlockUser}>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.mentionMenuItem,
+                      styles.mentionMenuItemDanger,
+                    ]}
+                    onPress={handleBlockUser}
+                  >
                     <Ionicons name="ban-outline" size={24} color="#EF4444" />
                     <Text style={styles.mentionMenuTextDanger}>Chặn</Text>
                   </TouchableOpacity>
@@ -2874,7 +3820,7 @@ export default function GroupChatScreen() {
       {/* Image Viewer */}
       <ImageViewer
         visible={showImageViewer}
-        images={messages.filter(m => m.mediaType === 'image' && m.mediaUri)}
+        images={messages.filter((m) => m.mediaType === "image" && m.mediaUri)}
         initialIndex={selectedImageIndex}
         onClose={() => setShowImageViewer(false)}
       />
@@ -2887,8 +3833,11 @@ export default function GroupChatScreen() {
         onRequestClose={() => setShowVideoModal(false)}
       >
         <StatusBar barStyle="light-content" backgroundColor="#000" />
-        <View style={{ flex: 1, backgroundColor: '#000' }}>
-          <TouchableOpacity style={{ position: 'absolute', top: 40, left: 16, zIndex: 20 }} onPress={() => setShowVideoModal(false)}>
+        <View style={{ flex: 1, backgroundColor: "#000" }}>
+          <TouchableOpacity
+            style={{ position: "absolute", top: 40, left: 16, zIndex: 20 }}
+            onPress={() => setShowVideoModal(false)}
+          >
             <Ionicons name="close" size={28} color="#fff" />
           </TouchableOpacity>
           {videoUri ? (
@@ -2900,8 +3849,14 @@ export default function GroupChatScreen() {
               shouldPlay
             />
           ) : (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-              <Text style={{ color: '#fff' }}>Không thể tải video</Text>
+            <View
+              style={{
+                flex: 1,
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: "#fff" }}>Không thể tải video</Text>
             </View>
           )}
         </View>
@@ -2913,35 +3868,35 @@ export default function GroupChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    paddingTop: Platform.OS === 'ios' ? 50 : 12,
+    borderBottomColor: "#E5E7EB",
+    paddingTop: Platform.OS === "ios" ? 50 : 12,
   },
   backButton: {
     width: 40,
     height: 40,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
+    justifyContent: "center",
+    alignItems: "flex-start",
   },
   headerCenter: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginLeft: 8,
   },
   headerAvatar: {
@@ -2954,9 +3909,9 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#10B981',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#10B981",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 10,
   },
   headerTextContainer: {
@@ -2964,73 +3919,73 @@ const styles = StyleSheet.create({
   },
   headerName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
   },
   headerMemberCount: {
     fontSize: 12,
-    color: '#6B7280',
+    color: "#6B7280",
     marginTop: 2,
   },
   headerIcon: {
     width: 40,
     height: 40,
-    justifyContent: 'center',
-    alignItems: 'flex-end',
+    justifyContent: "center",
+    alignItems: "flex-end",
   },
   chatContent: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
   },
   chatContentContainer: {
     padding: 16,
     paddingBottom: 8,
   },
   emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingTop: 100,
     paddingHorizontal: 32,
   },
   emptyStateText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#6B7280',
+    fontWeight: "600",
+    color: "#6B7280",
     marginTop: 16,
   },
   emptyStateSubtext: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
     marginTop: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   dateContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginVertical: 16,
   },
   dateText: {
     fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
-    backgroundColor: '#E5E7EB',
+    color: "#6B7280",
+    fontWeight: "500",
+    backgroundColor: "#E5E7EB",
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
   },
   myMessageContainer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
+    flexDirection: "row",
+    justifyContent: "flex-end",
     marginBottom: 4,
     paddingLeft: 60, // Để cân đối với tin nhắn người khác có avatar
   },
   myMessageBubble: {
-    backgroundColor: '#0084FF', // Màu xanh Messenger
+    backgroundColor: "#0084FF", // Màu xanh Messenger
     borderRadius: 18,
     // dynamic corner radii applied per-chain (do not hardcode top-right here)
     paddingHorizontal: 16,
     paddingVertical: 10,
-    maxWidth: '75%',
-    shadowColor: '#000',
+    maxWidth: "75%",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 1,
@@ -3038,20 +3993,20 @@ const styles = StyleSheet.create({
   },
   myMessageText: {
     fontSize: 15,
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     lineHeight: 20,
   },
   myMessageTime: {
     fontSize: 11,
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     opacity: 0.7,
     marginTop: 4,
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
   },
   // ✅ Read Receipts Styles
   readReceipts: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     // container will often be absolutely positioned relative to message container
     marginTop: 0,
   },
@@ -3060,34 +4015,34 @@ const styles = StyleSheet.create({
     height: 21,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderColor: "#FFFFFF",
   },
   readReceiptAvatarPlaceholder: {
     width: 21,
     height: 21,
     borderRadius: 10,
-    backgroundColor: '#9CA3AF',
+    backgroundColor: "#9CA3AF",
     borderWidth: 1,
-    borderColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
   },
   readReceiptAvatarText: {
     fontSize: 10,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   readReceiptCount: {
     fontSize: 10,
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     opacity: 0.9,
     marginLeft: 6,
-    fontWeight: '650',
+    fontWeight: "650",
   },
   otherMessageContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginBottom: 8,
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
     paddingRight: 60, // Để cân đối
   },
   messageAvatar: {
@@ -3101,35 +4056,35 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#9CA3AF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#9CA3AF",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 8,
     marginTop: 2,
   },
   messageAvatarText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   otherMessageContent: {
     flex: 1,
-    maxWidth: '75%',
+    maxWidth: "75%",
   },
   messageSenderName: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#050505', // Màu đen đậm hơn để dễ đọc
+    fontWeight: "600",
+    color: "#050505", // Màu đen đậm hơn để dễ đọc
     marginBottom: 4,
     marginLeft: 12,
   },
   otherMessageBubble: {
-    backgroundColor: '#F0F2F5', // Màu xám nhạt Messenger
+    backgroundColor: "#F0F2F5", // Màu xám nhạt Messenger
     borderRadius: 18,
     // dynamic corner radii applied per-chain (do not hardcode top-left here)
     paddingHorizontal: 16,
     paddingVertical: 10,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 1,
@@ -3137,37 +4092,37 @@ const styles = StyleSheet.create({
   },
   otherMessageText: {
     fontSize: 15,
-    color: '#050505',
+    color: "#050505",
     lineHeight: 20,
   },
   otherMessageTime: {
     fontSize: 11,
-    color: '#65676B',
+    color: "#65676B",
     marginTop: 2,
     marginLeft: 12,
   },
   messageInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+    flexDirection: "row",
+    alignItems: "flex-end",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: "#E5E7EB",
   },
   attachButton: {
     width: 36,
     height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 8,
     marginBottom: 2,
   },
   inputWrapper: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    backgroundColor: '#F3F4F6',
+    flexDirection: "row",
+    alignItems: "flex-end",
+    backgroundColor: "#F3F4F6",
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -3177,22 +4132,22 @@ const styles = StyleSheet.create({
   messageInput: {
     flex: 1,
     fontSize: 15,
-    color: '#111827',
+    color: "#111827",
     paddingVertical: 0,
     minHeight: 24,
   },
   emojiButton: {
     width: 28,
     height: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginLeft: 8,
   },
   sendButton: {
     width: 36,
     height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginLeft: 8,
     marginBottom: 2,
   },
@@ -3200,8 +4155,8 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginLeft: 8,
     marginBottom: 2,
     // Gradient sẽ được apply qua LinearGradient component
@@ -3216,7 +4171,7 @@ const styles = StyleSheet.create({
     // Khi chỉ có ảnh/video, không có nền bubble
     marginBottom: 4,
     borderRadius: 18,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   mediaTimeOnly: {
     // Time cho media-only message
@@ -3224,16 +4179,16 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   reactionBadge: {
-    position: 'absolute',
+    position: "absolute",
     bottom: -8,
     right: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -3247,42 +4202,42 @@ const styles = StyleSheet.create({
     lineHeight: 56,
   },
   videoContainer: {
-    position: 'relative',
+    position: "relative",
     marginBottom: 4,
   },
   videoOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.3)",
     borderRadius: 12,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "flex-end",
   },
   emojiPickerContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 16,
     paddingBottom: 32,
-    maxHeight: '50%',
+    maxHeight: "50%",
   },
   quickReactionsBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexDirection: "row",
+    justifyContent: "space-around",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -3291,10 +4246,10 @@ const styles = StyleSheet.create({
   quickReactionButton: {
     width: 48,
     height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderRadius: 24,
-    backgroundColor: '#F0F2F5',
+    backgroundColor: "#F0F2F5",
   },
   quickReactionEmoji: {
     fontSize: 32,
@@ -3303,50 +4258,50 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   emojiGridContent: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     padding: 16,
   },
   emojiButton: {
-    width: '16.66%',
+    width: "16.66%",
     aspectRatio: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   emojiText: {
     fontSize: 32,
   },
   mediaPickerContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 20,
     marginHorizontal: 16,
     marginBottom: 32,
     padding: 24,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexDirection: "row",
+    justifyContent: "space-around",
   },
   mediaOption: {
-    alignItems: 'center',
+    alignItems: "center",
     padding: 20,
   },
   mediaOptionText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
     marginTop: 12,
   },
   mediaOptionSubtext: {
     fontSize: 12,
-    color: '#6B7280',
+    color: "#6B7280",
     marginTop: 4,
   },
   contextMenuContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     marginBottom: 0,
-    overflow: 'hidden',
-    shadowColor: '#000',
+    overflow: "hidden",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -3356,33 +4311,33 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   contextMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 24,
     paddingVertical: 16,
     gap: 16,
   },
   contextMenuItemDanger: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: "#FEF2F2",
   },
   contextMenuText: {
     fontSize: 16,
-    color: '#111827',
-    fontWeight: '500',
+    color: "#111827",
+    fontWeight: "500",
   },
   contextMenuTextDanger: {
     fontSize: 16,
-    color: '#EF4444',
-    fontWeight: '600',
+    color: "#EF4444",
+    fontWeight: "600",
   },
   // Mention styles
   mentionListContainer: {
     minHeight: 100,
     maxHeight: 250,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopWidth: 2,
-    borderTopColor: '#10B981', // DEBUG: Màu xanh lá để thấy rõ
-    shadowColor: '#000',
+    borderTopColor: "#10B981", // DEBUG: Màu xanh lá để thấy rõ
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -3392,12 +4347,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mentionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: "#F3F4F6",
   },
   mentionAvatar: {
     width: 40,
@@ -3409,18 +4364,18 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#9CA3AF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#9CA3AF",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
   mentionAvatarAll: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#0084FF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#0084FF",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
   mentionInfo: {
@@ -3428,50 +4383,50 @@ const styles = StyleSheet.create({
   },
   mentionName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
     marginBottom: 2,
   },
   mentionUsername: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   mentionText: {
-    color: '#0084FF',
-    fontWeight: '700',
-    textDecorationLine: 'underline',
+    color: "#0084FF",
+    fontWeight: "700",
+    textDecorationLine: "underline",
   },
   mentionAllText: {
-    color: '#7C3AED', // Màu tím để phân biệt @All
-    fontWeight: '700',
-    textDecorationLine: 'underline',
+    color: "#7C3AED", // Màu tím để phân biệt @All
+    fontWeight: "700",
+    textDecorationLine: "underline",
   },
   mentionTextMine: {
     // Style cho mention trong tin nhắn của mình (nền xanh)
-    color: '#FFFFFF',
-    fontWeight: '700',
-    textDecorationLine: 'underline',
-    textDecorationColor: '#FFFFFF',
+    color: "#FFFFFF",
+    fontWeight: "700",
+    textDecorationLine: "underline",
+    textDecorationColor: "#FFFFFF",
   },
   mentionAllTextMine: {
     // Style cho @All trong tin nhắn của mình (nền xanh)
-    color: '#FFD700', // Màu vàng để nổi bật
-    fontWeight: '700',
-    textDecorationLine: 'underline',
-    textDecorationColor: '#FFD700',
+    color: "#FFD700", // Màu vàng để nổi bật
+    fontWeight: "700",
+    textDecorationLine: "underline",
+    textDecorationColor: "#FFD700",
   },
   mentionMenuContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 20,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   mentionMenuHeader: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 24,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: "#E5E7EB",
   },
   mentionMenuAvatar: {
     width: 80,
@@ -3483,55 +4438,55 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#9CA3AF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#9CA3AF",
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 12,
   },
   mentionMenuName: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
     marginBottom: 4,
   },
   mentionMenuUsername: {
     fontSize: 16,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   mentionMenuOptions: {
     paddingTop: 8,
   },
   mentionMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 24,
     paddingVertical: 16,
     gap: 16,
   },
   mentionMenuItemDanger: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: "#FEF2F2",
   },
   mentionMenuText: {
     fontSize: 16,
-    color: '#111827',
-    fontWeight: '500',
+    color: "#111827",
+    fontWeight: "500",
   },
   mentionMenuTextDanger: {
     fontSize: 16,
-    color: '#EF4444',
-    fontWeight: '600',
+    color: "#EF4444",
+    fontWeight: "600",
   },
   // Reply styles
   replyInputBar: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
+    flexDirection: "row",
+    alignItems: "stretch",
     paddingLeft: 12,
     paddingRight: 16,
     paddingVertical: 10,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    shadowColor: '#000',
+    borderTopColor: "#E5E7EB",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: -1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -3539,68 +4494,68 @@ const styles = StyleSheet.create({
   },
   replyInputLeftLine: {
     width: 3,
-    backgroundColor: '#0084FF',
+    backgroundColor: "#0084FF",
     borderRadius: 2,
     marginRight: 12,
   },
   replyInputContent: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   replyInputIconContainer: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#E0F2FE',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#E0F2FE",
+    justifyContent: "center",
+    alignItems: "center",
   },
   replyInputInfo: {
     flex: 1,
   },
   replyInputName: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#0084FF',
+    fontWeight: "600",
+    color: "#0084FF",
     marginBottom: 3,
   },
   replyInputText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: "#6B7280",
     lineHeight: 18,
   },
   replyInputMediaPreview: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   replyInputClose: {
     padding: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   // Highlight message animation
   highlightedMessageContainer: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: "#FEF3C7",
     borderRadius: 8,
     marginHorizontal: -4,
     paddingHorizontal: 4,
   },
   replyPreviewInMessage: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
     paddingLeft: 8,
     paddingVertical: 6,
     paddingRight: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    backgroundColor: "rgba(0, 0, 0, 0.05)",
     borderRadius: 8,
     borderLeftWidth: 3,
-    borderLeftColor: '#0084FF',
+    borderLeftColor: "#0084FF",
     minWidth: 120,
-    maxWidth: '85%',
+    maxWidth: "85%",
   },
   replyPreviewLine: {
     // Line đã được thay thế bằng borderLeftWidth của replyPreviewInMessage
@@ -3610,60 +4565,60 @@ const styles = StyleSheet.create({
   },
   replyPreviewMine: {
     // Reply trong tin nhắn của mình (nền xanh) - màu trắng đục
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderLeftColor: 'rgba(255, 255, 255, 0.7)',
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    borderLeftColor: "rgba(255, 255, 255, 0.7)",
   },
   replyPreviewOther: {
     // Reply trong tin nhắn người khác (nền xám) - màu xanh nhạt
-    backgroundColor: 'rgba(0, 132, 255, 0.1)',
-    borderLeftColor: '#0084FF',
+    backgroundColor: "rgba(0, 132, 255, 0.1)",
+    borderLeftColor: "#0084FF",
   },
   replyPreviewContent: {
     flex: 1,
   },
   replyPreviewName: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
+    fontWeight: "600",
+    color: "#6B7280",
     marginBottom: 2,
   },
   replyPreviewNameMine: {
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: "rgba(255, 255, 255, 0.9)",
   },
   replyPreviewText: {
     fontSize: 13,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
     lineHeight: 18,
     flexShrink: 1,
-    flexWrap: 'wrap',
+    flexWrap: "wrap",
     flex: 1,
   },
   replyPreviewTextMine: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: "rgba(255, 255, 255, 0.8)",
   },
   replyPreviewMedia: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   // Reply Indicator - Messenger style (outside bubble)
   replyIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     marginBottom: 4,
     paddingHorizontal: 8,
   },
   replyIndicatorMine: {
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   replyIndicatorOther: {
-    justifyContent: 'flex-start',
+    justifyContent: "flex-start",
     marginLeft: 36, // Offset cho avatar
   },
   replyIndicatorText: {
     fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
+    color: "#6B7280",
+    fontWeight: "500",
   },
 });

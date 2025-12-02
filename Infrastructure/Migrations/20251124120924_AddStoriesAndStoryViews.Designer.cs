@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using UngDungMangXaHoi.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using UngDungMangXaHoi.Infrastructure.Persistence;
 namespace UngDungMangXaHoi.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251124120924_AddStoriesAndStoryViews")]
+    partial class AddStoriesAndStoryViews
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -720,17 +723,11 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("notification_id"));
 
-                    b.Property<int?>("comment_id")
-                        .HasColumnType("int");
-
                     b.Property<string>("content")
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)")
                         .HasColumnName("content");
-
-                    b.Property<int?>("conversation_id")
-                        .HasColumnType("int");
 
                     b.Property<DateTime>("created_at")
                         .ValueGeneratedOnAdd()
@@ -747,9 +744,6 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                     b.Property<int?>("post_id")
                         .HasColumnType("int")
                         .HasColumnName("post_id");
-
-                    b.Property<int?>("reaction_type")
-                        .HasColumnType("int");
 
                     b.Property<int?>("sender_id")
                         .HasColumnType("int")

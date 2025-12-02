@@ -1,13 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImageManipulator from "expo-image-manipulator";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
+import * as MediaLibrary from "expo-media-library";
 import { Platform } from "react-native";
 
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
 // Nếu test trên máy tính: dùng localhost
 // Nếu test trên điện thoại thật: dùng IP của máy tính (xem bằng ipconfig)
-export const API_BASE_URL = "http://192.168.1.102:5297"; // Backend đang chạy trên IP máy tính
-
+export const API_BASE_URL = "http://192.168.0.109:5297"; // Backend đang chạy trên IP máy tính
 
 // Hàm helper để gọi API
 const apiCall = async (endpoint, options = {}) => {
@@ -118,7 +118,6 @@ const apiCall = async (endpoint, options = {}) => {
     console.log("[API-CALL] API call successful");
     return result;
   } catch (error) {
-
     console.error("[API-CALL] API Error:", error);
 
     // Detect Android native OOM error string and provide a clearer message
@@ -162,7 +161,6 @@ const compressImage = async (uri, maxWidth = 1080, compress = 0.7) => {
   } catch (e) {
     console.warn("[API] compressImage failed, fallback to original uri", e);
     return uri;
-
   }
 };
 
@@ -170,25 +168,39 @@ const compressImage = async (uri, maxWidth = 1080, compress = 0.7) => {
 const normalizeUri = async (uri) => {
   if (!uri) return uri;
 
-  // iOS ph:// URIs need to be copied to cache first
+  // iOS ph:// URIs need to be converted to file:// URIs
   if (Platform.OS === "ios" && uri.startsWith("ph://")) {
     try {
-      const filename = uri.split("/").pop() || "asset";
-      const ext = filename.includes(".") ? "" : ".jpg";
-      const dest = `${FileSystem.cacheDirectory}${filename}${ext}`;
+      // Extract asset ID from ph:// URI
+      // Format: ph://ASSET-ID/L0/001 or similar
+      const assetId = uri.replace("ph://", "").split("/")[0];
 
-      // Copy from PhotoKit to cache
-      await FileSystem.copyAsync({
-        from: uri,
-        to: dest,
-      });
+      // Get asset info from MediaLibrary
+      const asset = await MediaLibrary.getAssetInfoAsync(assetId);
 
-      console.log(`[API] Converted iOS ph:// URI to: ${dest}`);
-      return dest;
+      if (asset && asset.localUri) {
+        // Remove iOS metadata hash if present (e.g., #YnBsaXN0MDDRAQJf...)
+        const cleanUri = asset.localUri.split("#")[0];
+        console.log(`[API] Converted iOS ph:// URI to: ${cleanUri}`);
+        return cleanUri;
+      } else if (asset && asset.uri) {
+        // Remove iOS metadata hash if present
+        const cleanUri = asset.uri.split("#")[0];
+        console.log(`[API] Converted iOS ph:// URI to: ${cleanUri}`);
+        return cleanUri;
+      }
+
+      console.warn("[API] Could not convert iOS ph:// URI, no localUri found");
+      return uri;
     } catch (e) {
       console.warn("[API] Failed to convert iOS ph:// URI:", e);
       return uri; // Fallback
     }
+  }
+
+  // For non-ph:// URIs, also strip hash if present
+  if (uri && uri.includes("#")) {
+    return uri.split("#")[0];
   }
 
   return uri;
@@ -350,12 +362,11 @@ export const updateAvatar = async ({
   return json;
 };
 
-
 // =================== BLOCK APIs ===================
 export const blockUser = async (userId) => {
   const headers = await getAuthHeaders();
   return apiCall(`/api/users/${userId}/block`, {
-    method: 'POST',
+    method: "POST",
     headers,
   });
 };
@@ -363,21 +374,25 @@ export const blockUser = async (userId) => {
 export const unblockUser = async (userId) => {
   const headers = await getAuthHeaders();
   return apiCall(`/api/users/${userId}/block`, {
-    method: 'DELETE',
+    method: "DELETE",
     headers,
   });
 };
 
 export const getBlockedUsers = async () => {
   const headers = await getAuthHeaders();
-  const result = await apiCall('/api/users/blocked', { method: 'GET', headers });
+  const result = await apiCall("/api/users/blocked", {
+    method: "GET",
+    headers,
+  });
   return result?.data || [];
 };
 
-
-
 // Upload group avatar and persist on server
-export const uploadGroupAvatar = async (conversationId, { uri, name = 'group_avatar.jpg', type = 'image/jpeg' }) => {
+export const uploadGroupAvatar = async (
+  conversationId,
+  { uri, name = "group_avatar.jpg", type = "image/jpeg" }
+) => {
   const headers = await getAuthHeaders();
   const form = new FormData();
 
@@ -385,26 +400,37 @@ export const uploadGroupAvatar = async (conversationId, { uri, name = 'group_ava
     const compressed = await compressImage(uri, 1080, 0.8);
     uri = compressed || uri;
   } catch (e) {
-    console.warn('[API] uploadGroupAvatar compress failed', e);
+    console.warn("[API] uploadGroupAvatar compress failed", e);
   }
 
   // Normalize iOS ph:// URIs
-  try { uri = await normalizeUri(uri); } catch (e) { console.warn('[API] normalizeUri failed', e); }
+  try {
+    uri = await normalizeUri(uri);
+  } catch (e) {
+    console.warn("[API] normalizeUri failed", e);
+  }
 
-  form.append('file', { uri, name, type });
+  form.append("file", { uri, name, type });
 
-  const res = await fetch(`${API_BASE_URL}/api/groupchat/${conversationId}/avatar`, {
-    method: 'POST',
-    headers: {
-      ...headers,
-      Accept: 'application/json',
-    },
-    body: form,
-  });
+  const res = await fetch(
+    `${API_BASE_URL}/api/groupchat/${conversationId}/avatar`,
+    {
+      method: "POST",
+      headers: {
+        ...headers,
+        Accept: "application/json",
+      },
+      body: form,
+    }
+  );
 
   const text = await res.text();
   let json = null;
-  try { json = text ? JSON.parse(text) : null; } catch (e) { console.warn('[API] uploadGroupAvatar parse error', e); }
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch (e) {
+    console.warn("[API] uploadGroupAvatar parse error", e);
+  }
 
   if (!res.ok) {
     throw new Error(json?.message || `Upload thất bại (${res.status})`);
@@ -541,7 +567,6 @@ export const createPost = async ({
   if (location) form.append("Location", location);
   form.append("Privacy", privacy);
 
-
   // Compress images before append to avoid OOM on Android
   for (let idx = 0; idx < images.length; idx++) {
     const img = images[idx];
@@ -568,6 +593,10 @@ export const createPost = async ({
   if (video) {
     // Normalize iOS ph:// URIs for video too
     const normalizedVideoUri = await normalizeUri(video.uri);
+    console.log("[API] createPost video - original:", video.uri);
+    console.log("[API] createPost video - normalized:", normalizedVideoUri);
+    console.log("[API] createPost video - name:", video.name);
+    console.log("[API] createPost video - type:", video.type);
     form.append("Video", {
       uri: normalizedVideoUri,
       name: video.name || "video.mp4",
@@ -584,7 +613,7 @@ export const createPost = async ({
       form.append("Tags", JSON.stringify(tags));
     }
   } catch (e) {
-    console.warn('[API] createPost: failed to append mentions/tags', e);
+    console.warn("[API] createPost: failed to append mentions/tags", e);
   }
 
   const res = await fetch(`${API_BASE_URL}/api/posts`, {
@@ -644,7 +673,6 @@ export const getFollowingReels = async (page = 1, pageSize = 20) => {
       headers,
     }
   );
-
 };
 
 export const getMyPosts = async (page = 1, pageSize = 20) => {
@@ -667,6 +695,15 @@ export const getUserPostsById = async (userId, page = 1, pageSize = 20) => {
   );
 };
 
+// Lấy thông tin 1 bài đăng theo ID
+export const getPostById = async (postId) => {
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/posts/${postId}`, {
+    method: "GET",
+    headers,
+  });
+};
+
 // Lấy thông tin profile public của user khác
 export const getUserProfile = async (userId) => {
   const headers = await getAuthHeaders();
@@ -681,13 +718,16 @@ export const getUserProfile = async (userId) => {
 export const getUserByUsername = async (username) => {
   try {
     const headers = await getAuthHeaders();
-    const result = await apiCall(`/api/users/username/${encodeURIComponent(username)}/profile`, {
-      method: "GET",
-      headers,
-    });
+    const result = await apiCall(
+      `/api/users/username/${encodeURIComponent(username)}/profile`,
+      {
+        method: "GET",
+        headers,
+      }
+    );
     return result?.data || null;
   } catch (error) {
-    console.log('[API] getUserByUsername error:', error);
+    console.log("[API] getUserByUsername error:", error);
     return null;
   }
 };
@@ -723,7 +763,10 @@ export const getFollowers = async (userId) => {
         uid = u?.user_id ?? u?.userId ?? u?.UserId ?? u?.id ?? null;
       }
     } catch (e) {
-      console.warn('[API] getFollowers: failed to read AsyncStorage userInfo', e);
+      console.warn(
+        "[API] getFollowers: failed to read AsyncStorage userInfo",
+        e
+      );
     }
     if (uid == null) {
       try {
@@ -736,7 +779,9 @@ export const getFollowers = async (userId) => {
   }
   if (uid == null) {
     // No user id to query -> return empty list to avoid making a bad request
-    console.warn('[API] getFollowers: no userId available, returning empty array');
+    console.warn(
+      "[API] getFollowers: no userId available, returning empty array"
+    );
     return [];
   }
   const result = await apiCall(`/api/users/${uid}/followers`, {
@@ -759,7 +804,10 @@ export const getFollowing = async (userId) => {
         uid = u?.user_id ?? u?.userId ?? u?.UserId ?? u?.id ?? null;
       }
     } catch (e) {
-      console.warn('[API] getFollowing: failed to read AsyncStorage userInfo', e);
+      console.warn(
+        "[API] getFollowing: failed to read AsyncStorage userInfo",
+        e
+      );
     }
     if (uid == null) {
       try {
@@ -771,7 +819,9 @@ export const getFollowing = async (userId) => {
     }
   }
   if (uid == null) {
-    console.warn('[API] getFollowing: no userId available, returning empty array');
+    console.warn(
+      "[API] getFollowing: no userId available, returning empty array"
+    );
     return [];
   }
 
@@ -780,7 +830,6 @@ export const getFollowing = async (userId) => {
     headers,
   });
   return result?.data || [];
-
 };
 
 // Cập nhật quyền riêng tư của bài đăng
@@ -798,9 +847,12 @@ export const updatePostPrivacy = async (postId, privacy) => {
     body: JSON.stringify({ Privacy: privacy }),
   });
   const text = await res.text();
-  let json = null; try { json = text ? JSON.parse(text) : null; } catch {}
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {}
   if (!res.ok) {
-    throw new Error(json?.message || 'Không thể cập nhật quyền riêng tư');
+    throw new Error(json?.message || "Không thể cập nhật quyền riêng tư");
   }
   return json; // server trả về post dto
 };
@@ -819,9 +871,12 @@ export const updatePostCaption = async (postId, caption) => {
     body: JSON.stringify({ Caption: caption }),
   });
   const text = await res.text();
-  let json = null; try { json = text ? JSON.parse(text) : null; } catch {}
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {}
   if (!res.ok) {
-    throw new Error(json?.message || 'Không thể cập nhật caption');
+    throw new Error(json?.message || "Không thể cập nhật caption");
   }
   return json;
 };
@@ -862,29 +917,54 @@ export const deletePost = async (postId) => {
 // Thêm hoặc cập nhật reaction cho bài đăng
 // reactionType: 1=Like, 2=Love, 3=Haha, 4=Wow, 5=Sad, 6=Angry
 export const addReaction = async (postId, reactionType) => {
+  console.log(
+    `[API] 🎯 addReaction called - postId: ${postId}, reactionType: ${reactionType}`
+  );
   const headers = await getAuthHeaders();
-  return apiCall("/api/reactions", {
+  const body = { postId, reactionType };
+  console.log(`[API] addReaction request body:`, body);
+
+  const result = await apiCall("/api/reactions", {
     method: "POST",
     headers: {
-      
       ...headers,
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: JSON.stringify({ postId, reactionType }),
+    body: JSON.stringify(body),
   });
+
+  console.log(`[API] ✅ addReaction response:`, result);
+  return result;
 };
 
 // Lấy thống kê reactions của bài đăng
 export const getReactionSummary = async (postId) => {
+  console.log(`[API] 📊 getReactionSummary called - postId: ${postId}`);
   const headers = await getAuthHeaders();
-  return apiCall(`/api/reactions/post/${postId}/summary`, {
+
+  const result = await apiCall(`/api/reactions/post/${postId}/summary`, {
     method: "GET",
     headers: {
       ...headers,
       Accept: "application/json",
     },
   });
+
+  console.log(
+    `[API] ✅ getReactionSummary raw response for post ${postId}:`,
+    result
+  );
+
+  // Backend returns { data: { totalReactions, reactionCounts, userReaction } }
+  // Extract the data field
+  const reactionData = result?.data || result;
+  console.log(
+    `[API] ✅ getReactionSummary extracted data for post ${postId}:`,
+    reactionData
+  );
+
+  return reactionData;
 };
 
 // ====== COMMENTS API ======
@@ -994,36 +1074,52 @@ export const removeCommentReaction = async (commentId) => {
 
 // =================== STORIES APIs ===================
 // Create story (multipart/form-data): Media (file), MediaType (image|video), Privacy
-export const createStory = async ({ media, mediaType = 'image', privacy = 'public', userId = null }) => {
+export const createStory = async ({
+  media,
+  mediaType = "image",
+  privacy = "public",
+  userId = null,
+}) => {
   const headers = await getAuthHeaders();
   const form = new FormData();
-  form.append('MediaType', mediaType);
-  form.append('Privacy', privacy);
-  if (userId) form.append('UserId', String(userId));
+  form.append("MediaType", mediaType);
+  form.append("Privacy", privacy);
+  if (userId) form.append("UserId", String(userId));
   if (media) {
-    form.append('Media', {
+    form.append("Media", {
       uri: media.uri,
-      name: media.name || (mediaType === 'video' ? 'story_video.mp4' : 'story_image.jpg'),
-      type: media.type || (mediaType === 'video' ? 'video/mp4' : 'image/jpeg'),
+      name:
+        media.name ||
+        (mediaType === "video" ? "story_video.mp4" : "story_image.jpg"),
+      type: media.type || (mediaType === "video" ? "video/mp4" : "image/jpeg"),
     });
   }
 
   const res = await fetch(`${API_BASE_URL}/api/stories`, {
-    method: 'POST',
+    method: "POST",
     headers: {
       ...headers,
-      Accept: 'application/json',
+      Accept: "application/json",
     },
     body: form,
   });
 
   const text = await res.text();
-  console.log('[createStory] response status:', res.status);
-  console.log('[createStory] response text:', text);
-  let json = null; try { json = text ? JSON.parse(text) : null; } catch (e) { console.warn('[createStory] failed to parse json', e); }
+  console.log("[createStory] response status:", res.status);
+  console.log("[createStory] response text:", text);
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch (e) {
+    console.warn("[createStory] failed to parse json", e);
+  }
   if (!res.ok) {
     // Provide detailed error in client logs to help diagnose 404/500
-    const serverMsg = json?.message || json?.Message || text || `Tạo story thất bại (${res.status})`;
+    const serverMsg =
+      json?.message ||
+      json?.Message ||
+      text ||
+      `Tạo story thất bại (${res.status})`;
     throw new Error(serverMsg);
   }
   return json;
@@ -1031,39 +1127,48 @@ export const createStory = async ({ media, mediaType = 'image', privacy = 'publi
 
 export const getUserStories = async (userId) => {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${API_BASE_URL}/api/stories/user/${userId}`, { headers });
-  if (!res.ok) throw new Error('Không lấy được stories của user');
+  const res = await fetch(`${API_BASE_URL}/api/stories/user/${userId}`, {
+    headers,
+  });
+  if (!res.ok) throw new Error("Không lấy được stories của user");
   return res.json();
 };
 
 export const getFeedStories = async () => {
   const headers = await getAuthHeaders();
   const res = await fetch(`${API_BASE_URL}/api/stories/feed`, { headers });
-  if (!res.ok) throw new Error('Không lấy được feed stories');
+  if (!res.ok) throw new Error("Không lấy được feed stories");
   return res.json();
 };
 
 export const viewStory = async (storyId) => {
   const headers = await getAuthHeaders();
   const res = await fetch(`${API_BASE_URL}/api/stories/${storyId}/view`, {
-    method: 'POST',
-    headers: { ...headers, 'Content-Type': 'application/json', Accept: 'application/json' },
+    method: "POST",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
     body: JSON.stringify({}),
   });
-  if (!res.ok) throw new Error('Không ghi được lượt xem');
+  if (!res.ok) throw new Error("Không ghi được lượt xem");
   return res.json();
 };
 
 export const deleteStory = async (storyId) => {
   const headers = await getAuthHeaders();
   const res = await fetch(`${API_BASE_URL}/api/stories/${storyId}`, {
-    method: 'DELETE',
-    headers: { ...headers, Accept: 'application/json' },
+    method: "DELETE",
+    headers: { ...headers, Accept: "application/json" },
   });
   if (!res.ok && res.status !== 204) {
     const text = await res.text();
-    let json = null; try { json = text ? JSON.parse(text) : null; } catch {}
-    throw new Error(json?.message || 'Không thể xóa story');
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {}
+    throw new Error(json?.message || "Không thể xóa story");
   }
   return true;
 };
@@ -1072,75 +1177,75 @@ export const deleteStory = async (storyId) => {
 // Tìm kiếm users theo từ khóa (hỗ trợ @ cho username)
 // Ví dụ: searchUsers("quan") hoặc searchUsers("@quan")
 export const searchUsers = async (query, page = 1, pageSize = 20) => {
-    const headers = await getAuthHeaders();
-    const encodedQuery = encodeURIComponent(query);
-    return apiCall(
-        `/api/search/users?q=${encodedQuery}&page=${page}&pageSize=${pageSize}`,
-        {
-            method: "GET",
-            headers,
-        }
-    );
+  const headers = await getAuthHeaders();
+  const encodedQuery = encodeURIComponent(query);
+  return apiCall(
+    `/api/search/users?q=${encodedQuery}&page=${page}&pageSize=${pageSize}`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
 };
 
 // Tìm kiếm posts theo caption/hashtags (hỗ trợ # cho hashtags)
 // Ví dụ: searchPosts("travel") hoặc searchPosts("#travel")
 export const searchPosts = async (query, page = 1, pageSize = 20) => {
-    const headers = await getAuthHeaders();
-    const encodedQuery = encodeURIComponent(query);
-    return apiCall(
-        `/api/search/posts?q=${encodedQuery}&page=${page}&pageSize=${pageSize}`,
-        {
-            method: "GET",
-            headers,
-        }
-    );
+  const headers = await getAuthHeaders();
+  const encodedQuery = encodeURIComponent(query);
+  return apiCall(
+    `/api/search/posts?q=${encodedQuery}&page=${page}&pageSize=${pageSize}`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
 };
 
 // Tìm kiếm tổng hợp cả users và posts
 export const searchAll = async (query) => {
-    const headers = await getAuthHeaders();
-    const encodedQuery = encodeURIComponent(query);
-    return apiCall(`/api/search/all?q=${encodedQuery}`, {
-        method: "GET",
-        headers,
-    });
+  const headers = await getAuthHeaders();
+  const encodedQuery = encodeURIComponent(query);
+  return apiCall(`/api/search/all?q=${encodedQuery}`, {
+    method: "GET",
+    headers,
+  });
 };
 
 // Lấy gợi ý tìm kiếm (trending hashtags, popular users)
 export const getSearchSuggestions = async () => {
-    const headers = await getAuthHeaders();
-    return apiCall("/api/search/suggestions", {
-        method: "GET",
-        headers,
-    });
+  const headers = await getAuthHeaders();
+  return apiCall("/api/search/suggestions", {
+    method: "GET",
+    headers,
+  });
 };
 
 // ====== INSTANT SEARCH API (for suggestions) ======
 // Tìm kiếm tức thời với kết quả giới hạn cho suggestions
 export const instantSearchUsers = async (query, limit = 5) => {
-    const headers = await getAuthHeaders();
-    const encodedQuery = encodeURIComponent(query);
-    return apiCall(
-        `/api/search/users?q=${encodedQuery}&page=1&pageSize=${limit}`,
-        {
-            method: "GET",
-            headers,
-        }
-    );
+  const headers = await getAuthHeaders();
+  const encodedQuery = encodeURIComponent(query);
+  return apiCall(
+    `/api/search/users?q=${encodedQuery}&page=1&pageSize=${limit}`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
 };
 
 export const instantSearchPosts = async (query, limit = 5) => {
-    const headers = await getAuthHeaders();
-    const encodedQuery = encodeURIComponent(query);
-    return apiCall(
-        `/api/search/posts?q=${encodedQuery}&page=1&pageSize=${limit}`,
-        {
-            method: "GET",
-            headers,
-        }
-    );
-  };
+  const headers = await getAuthHeaders();
+  const encodedQuery = encodeURIComponent(query);
+  return apiCall(
+    `/api/search/posts?q=${encodedQuery}&page=1&pageSize=${limit}`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+};
 // ============================================
 // GROUP CHAT APIs
 // ============================================
@@ -1149,21 +1254,28 @@ export const instantSearchPosts = async (query, limit = 5) => {
 export const getGroupInfo = async (conversationId) => {
   try {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}/api/groupchat/${conversationId}`, {
-      method: 'GET',
-      headers: { ...headers, Accept: 'application/json' },
-    });
-    
+    const response = await fetch(
+      `${API_BASE_URL}/api/groupchat/${conversationId}`,
+      {
+        method: "GET",
+        headers: { ...headers, Accept: "application/json" },
+      }
+    );
+
     if (!response.ok) {
       const errorText = await response.text();
       let errorJson = null;
-      try { errorJson = errorText ? JSON.parse(errorText) : null; } catch {}
-      throw new Error(errorJson?.message || `HTTP error! status: ${response.status}`);
+      try {
+        errorJson = errorText ? JSON.parse(errorText) : null;
+      } catch {}
+      throw new Error(
+        errorJson?.message || `HTTP error! status: ${response.status}`
+      );
     }
-    
+
     return await response.json();
   } catch (error) {
-    console.log('[API] getGroupInfo error:', error);
+    console.log("[API] getGroupInfo error:", error);
     throw error;
   }
 };
@@ -1172,22 +1284,29 @@ export const getGroupInfo = async (conversationId) => {
 export const getGroupMembers = async (conversationId) => {
   try {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}/api/groupchat/${conversationId}/members`, {
-      method: 'GET',
-      headers: { ...headers, Accept: 'application/json' },
-    });
-    
+    const response = await fetch(
+      `${API_BASE_URL}/api/groupchat/${conversationId}/members`,
+      {
+        method: "GET",
+        headers: { ...headers, Accept: "application/json" },
+      }
+    );
+
     if (!response.ok) {
       const errorText = await response.text();
       let errorJson = null;
-      try { errorJson = errorText ? JSON.parse(errorText) : null; } catch {}
-      throw new Error(errorJson?.message || `HTTP error! status: ${response.status}`);
+      try {
+        errorJson = errorText ? JSON.parse(errorText) : null;
+      } catch {}
+      throw new Error(
+        errorJson?.message || `HTTP error! status: ${response.status}`
+      );
     }
-    
+
     const data = await response.json();
     return data.members || [];
   } catch (error) {
-    console.log('[API] getGroupMembers error:', error);
+    console.log("[API] getGroupMembers error:", error);
     throw error;
   }
 };
@@ -1195,15 +1314,24 @@ export const getGroupMembers = async (conversationId) => {
 // Update group name via API (persist and let server broadcast)
 export const updateGroupName = async (conversationId, newName) => {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${API_BASE_URL}/api/groupchat/${conversationId}/name`, {
-    method: 'PUT',
-    headers: { ...headers, 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ name: newName }),
-  });
+  const res = await fetch(
+    `${API_BASE_URL}/api/groupchat/${conversationId}/name`,
+    {
+      method: "PUT",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ name: newName }),
+    }
+  );
 
   const text = await res.text();
   let json = null;
-  try { json = text ? JSON.parse(text) : null; } catch {}
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {}
   if (!res.ok) {
     throw new Error(json?.message || `HTTP error! status: ${res.status}`);
   }
@@ -1214,82 +1342,94 @@ export const updateGroupName = async (conversationId, newName) => {
 export const inviteToGroup = async (conversationId, userId) => {
   try {
     const headers = await getAuthHeaders();
-    const response = await fetch(`${API_BASE_URL}/api/groupchat/${conversationId}/invite`, {
-      method: 'POST',
-      headers: { 
-        ...headers, 
-        'Content-Type': 'application/json',
-        Accept: 'application/json' 
-      },
-      body: JSON.stringify({ userId }),
-    });
-    
+    const response = await fetch(
+      `${API_BASE_URL}/api/groupchat/${conversationId}/invite`,
+      {
+        method: "POST",
+        headers: {
+          ...headers,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ userId }),
+      }
+    );
+
     const responseText = await response.text();
     let result = null;
-    
+
     try {
       result = responseText ? JSON.parse(responseText) : null;
     } catch (parseError) {
-      console.warn('[API] inviteToGroup parse error:', parseError);
-      throw new Error('Server trả về dữ liệu không hợp lệ');
+      console.warn("[API] inviteToGroup parse error:", parseError);
+      throw new Error("Server trả về dữ liệu không hợp lệ");
     }
-    
+
     if (!response.ok) {
-      throw new Error(result?.message || `HTTP error! status: ${response.status}`);
+      throw new Error(
+        result?.message || `HTTP error! status: ${response.status}`
+      );
     }
-    
+
     return result;
   } catch (error) {
-    console.log('[API] inviteToGroup error:', error);
+    console.log("[API] inviteToGroup error:", error);
     throw error;
   }
 };
 
 // Tạo nhóm chat mới
-export const createGroup = async (groupName, memberIds, invitePermission = 'all', maxMembers = null) => {
+export const createGroup = async (
+  groupName,
+  memberIds,
+  invitePermission = "all",
+  maxMembers = null
+) => {
   try {
     const headers = await getAuthHeaders();
     const requestBody = {
       name: groupName,
       memberIds: memberIds,
-      invitePermission: invitePermission
+      invitePermission: invitePermission,
     };
-    
+
     // Chỉ thêm maxMembers nếu có giá trị
     if (maxMembers) {
       requestBody.maxMembers = maxMembers;
     }
 
-    console.log('[API] createGroup request:', requestBody);
-    
+    console.log("[API] createGroup request:", requestBody);
+
     const response = await fetch(`${API_BASE_URL}/api/groupchat/create`, {
-      method: 'POST',
-      headers: { 
-        ...headers, 
-        'Content-Type': 'application/json',
-        Accept: 'application/json' 
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json",
+        Accept: "application/json",
       },
       body: JSON.stringify(requestBody),
     });
-    
+
     const responseText = await response.text();
     let result = null;
-    
+
     try {
       result = responseText ? JSON.parse(responseText) : null;
     } catch (parseError) {
-      console.warn('[API] createGroup parse error:', parseError);
-      throw new Error('Server trả về dữ liệu không hợp lệ');
-    }
-    
-    if (!response.ok) {
-      throw new Error(result?.message || `HTTP error! status: ${response.status}`);
+      console.warn("[API] createGroup parse error:", parseError);
+      throw new Error("Server trả về dữ liệu không hợp lệ");
     }
 
-    console.log('[API] createGroup success:', result);
+    if (!response.ok) {
+      throw new Error(
+        result?.message || `HTTP error! status: ${response.status}`
+      );
+    }
+
+    console.log("[API] createGroup success:", result);
     return result;
   } catch (error) {
-    console.log('[API] createGroup error:', error);
+    console.log("[API] createGroup error:", error);
     throw error;
   }
 };
@@ -1298,35 +1438,37 @@ export const createGroup = async (groupName, memberIds, invitePermission = 'all'
 export const getMyGroups = async () => {
   try {
     const headers = await getAuthHeaders();
-    
-    console.log('[API] getMyGroups request');
-    
+
+    console.log("[API] getMyGroups request");
+
     const response = await fetch(`${API_BASE_URL}/api/groupchat/my-groups`, {
-      method: 'GET',
-      headers: { 
-        ...headers, 
-        Accept: 'application/json' 
+      method: "GET",
+      headers: {
+        ...headers,
+        Accept: "application/json",
       },
     });
-    
+
     const responseText = await response.text();
     let result = null;
-    
+
     try {
       result = responseText ? JSON.parse(responseText) : null;
     } catch (parseError) {
-      console.warn('[API] getMyGroups parse error:', parseError);
-      throw new Error('Server trả về dữ liệu không hợp lệ');
-    }
-    
-    if (!response.ok) {
-      throw new Error(result?.message || `HTTP error! status: ${response.status}`);
+      console.warn("[API] getMyGroups parse error:", parseError);
+      throw new Error("Server trả về dữ liệu không hợp lệ");
     }
 
-    console.log('[API] getMyGroups success:', result.groups?.length, 'groups');
+    if (!response.ok) {
+      throw new Error(
+        result?.message || `HTTP error! status: ${response.status}`
+      );
+    }
+
+    console.log("[API] getMyGroups success:", result.groups?.length, "groups");
     return result.groups || [];
   } catch (error) {
-    console.log('[API] getMyGroups error:', error);
+    console.log("[API] getMyGroups error:", error);
     throw error;
   }
 };

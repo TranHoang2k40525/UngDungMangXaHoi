@@ -19,15 +19,34 @@ namespace UngDungMangXaHoi.Infrastructure.Services
         public static string GenerateAccessToken(Account account, string secret, string issuer, string audience)
         {
             var header = new { alg = "HS256", typ = "JWT" };
-            var payload = new
+            
+            // Tạo payload với user_id nếu là User account
+            object payload;
+            if (account.account_type == AccountType.User && account.User != null)
             {
-                sub = account.account_id,
-                account_type = account.account_type.ToString(),
-                iss = issuer,
-                aud = audience,
-                exp = DateTimeOffset.UtcNow.AddMinutes(15).ToUnixTimeSeconds(),
-                iat = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-            };
+                payload = new
+                {
+                    sub = account.account_id,
+                    user_id = account.User.user_id,
+                    account_type = account.account_type.ToString(),
+                    iss = issuer,
+                    aud = audience,
+                    exp = DateTimeOffset.UtcNow.AddMinutes(15).ToUnixTimeSeconds(),
+                    iat = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                };
+            }
+            else
+            {
+                payload = new
+                {
+                    sub = account.account_id,
+                    account_type = account.account_type.ToString(),
+                    iss = issuer,
+                    aud = audience,
+                    exp = DateTimeOffset.UtcNow.AddMinutes(15).ToUnixTimeSeconds(),
+                    iat = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                };
+            }
 
             var headerJson = JsonSerializer.Serialize(header);
             var payloadJson = JsonSerializer.Serialize(payload);

@@ -50,6 +50,8 @@ import {
 } from "../API/Api";
 import { Ionicons } from "@expo/vector-icons";
 import { VideoView, useVideoPlayer } from "expo-video";
+import NotificationAPI from "../API/NotificationAPI";
+import notificationSignalRService from "../ServicesSingalR/notificationService";
 
 // Component wrapper cho video thumbnail trong feed
 const VideoThumbnail = React.memo(({ videoUrl, style, onPress }) => {
@@ -267,6 +269,7 @@ export default function Home() {
     top: 0,
     left: 0,
   });
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const longPressTimer = useRef(null);
   const navigation = useNavigation();
   const route = useRoute();
@@ -718,6 +721,8 @@ export default function Home() {
       console.log("[HOME] Screen focused");
       // ✅ Reload avatar mỗi khi focus (để cập nhật nếu đổi từ Profile)
       await loadUserAvatar();
+      // Load notification count
+      await loadUnreadNotificationCount();
       // Refresh feed if requested
       if (route?.params?.refresh) {
         await onRefreshFeed();
@@ -728,6 +733,41 @@ export default function Home() {
     });
     return unsubscribe;
   }, [navigation, route?.params?.refresh]);
+
+  // Load unread notification count và kết nối SignalR
+  useEffect(() => {
+    loadUnreadNotificationCount();
+
+    // Kết nối SignalR để nhận thông báo real-time
+    const connectSignalR = async () => {
+      try {
+        await notificationSignalRService.connect();
+
+        // Lắng nghe khi có thông báo mới
+        notificationSignalRService.onReceiveNotification((notification) => {
+          console.log("[HOME] New notification received:", notification);
+          setUnreadNotificationCount((prev) => prev + 1);
+        });
+      } catch (error) {
+        console.error("[HOME] SignalR connection error:", error);
+      }
+    };
+
+    connectSignalR();
+
+    return () => {
+      notificationSignalRService.disconnect();
+    };
+  }, []);
+
+  const loadUnreadNotificationCount = async () => {
+    try {
+      const count = await NotificationAPI.getUnreadCount();
+      setUnreadNotificationCount(count);
+    } catch (error) {
+      console.error("[HOME] Load unread notification count error:", error);
+    }
+  };
   // Reload story whenever currentUserId changes
   useEffect(() => {
     if (currentUserId != null && Number.isFinite(currentUserId)) {
@@ -1451,12 +1491,26 @@ export default function Home() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.navItem}
-            onPress={() => navigation.navigate("Thongbao")}
+            onPress={() => {
+              navigation.navigate("Thongbao");
+              setUnreadNotificationCount(0); // Reset count khi vào trang thông báo
+            }}
           >
-            <Image
-              source={require("../Assets/icons8-notification-48.png")}
-              style={[styles.homeIconImage, { width: 30, height: 30 }]}
-            />
+            <View>
+              <Image
+                source={require("../Assets/icons8-notification-48.png")}
+                style={[styles.homeIconImage, { width: 30, height: 30 }]}
+              />
+              {unreadNotificationCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>
+                    {unreadNotificationCount > 99
+                      ? "99+"
+                      : unreadNotificationCount}
+                  </Text>
+                </View>
+              )}
+            </View>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.navItem}
@@ -2534,6 +2588,24 @@ const styles = StyleSheet.create({
   },
   navItem: {
     padding: 4,
+    position: "relative",
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: "#FF3B30",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
   },
   storiesContainer: {
     paddingVertical: 12,
