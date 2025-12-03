@@ -17,4 +17,8 @@ namespace UngDungMangXaHoi.Application.DTOs
         Week,
         Month
     }
+    public class NumberUserActiveDto
+    {
+        public double Count { get; set; }
+    }
 }

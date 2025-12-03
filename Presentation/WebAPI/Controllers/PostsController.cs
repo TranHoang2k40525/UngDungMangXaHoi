@@ -403,6 +403,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 }
             }
             catch { }
+            bool isSponsored = p.User?.Account?.account_type == AccountType.Business;
 
             return new
             {
@@ -412,11 +413,15 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 privacy = p.privacy,
                 createdAt = p.created_at,
                 commentsCount = commentsCount,
+                isSponsored = isSponsored,
+
                 user = new
                 {
                     id = p.User?.user_id,
                     username = p.User?.username.Value,
-                    avatarUrl = p.User?.avatar_url?.Value != null ? BaseUrl(p.User.avatar_url.Value) : null
+                    avatarUrl = p.User?.avatar_url?.Value != null ? BaseUrl(p.User.avatar_url.Value) : null,
+                    accountType = p.User?.Account?.account_type.ToString(),
+
                 },
                 media = media,
                 mentions = mentions,

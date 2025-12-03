@@ -49,6 +49,9 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
         public DbSet<ModerationLog> ModerationLogs { get; set; } = null!;
         public DbSet<AdminAction> AdminActions { get; set; }
         public DbSet<ContentModeration> ContentModerations { get; set; }
+        //Business
+        public DbSet<BusinessPayment> BusinessPayments { get; set; }
+
 
         //Admin quan tri bao cao noi dung
 
@@ -98,6 +101,7 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new AdminActionConfiguration());
             modelBuilder.ApplyConfiguration(new ContentModerationConfiguration());
             modelBuilder.ApplyConfiguration(new AccountSanctionConfiguration());
+            modelBuilder.ApplyConfiguration(new BusinessPaymentConfiguration());
 
         }
     }

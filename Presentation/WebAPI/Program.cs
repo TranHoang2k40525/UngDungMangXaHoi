@@ -147,8 +147,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("UserOnly", policy => policy.RequireClaim("account_type", "User"));
+    options.AddPolicy("UserOnly", policy => policy.RequireAssertion(context => context.User.HasClaim(c=>c.Type == "account_type" && (c.Value == "User"  || c.Value == "Business"))));
+    options.AddPolicy("BusinessOnly", policy => policy.RequireClaim("account_type", "Business"));
     options.AddPolicy("AdminOnly", policy => policy.RequireClaim("account_type", "Admin"));
+
 });
 
 // Repositories
@@ -184,11 +186,12 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, EmailService>();
 builder.Services.AddScoped<UserProfileService>();
 builder.Services.AddScoped<JwtTokenService>();
-
+builder.Services.AddScoped<IBusinessUpgradeService, BusinessUpgradeService>();
 // Application layer services (refactor: register new application services)
 builder.Services.AddScoped<UngDungMangXaHoi.Application.Services.PostsService>();
 builder.Services.AddScoped<UngDungMangXaHoi.Application.Services.UserService>();
 builder.Services.AddScoped<UngDungMangXaHoi.Application.Services.AdminService>();
+builder.Services.AddHttpClient<IMoMoPaymentService, MoMoPaymentService>();
 
 // Dịch vụ chạy nền để dọn Story hết hạn
 builder.Services.AddHostedService<ExpiredStoriesCleanupService>();
@@ -226,7 +229,8 @@ builder.Services.AddScoped<CloudinaryService>(provider =>
 
     return new CloudinaryService(cloudName, apiKey, apiSecret);
 });
-
+// Dang ky dich vu cho MoMo Payment
+builder.Services.AddScoped<IMoMoPaymentService, MoMoPaymentService>();
 //Quan ly danh cho admin
 builder.Services.AddScoped<IDashBoardService, DashBoardService>();
 // ======================================
