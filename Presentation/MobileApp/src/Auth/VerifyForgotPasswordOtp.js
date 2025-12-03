@@ -67,7 +67,7 @@ export default function VerifyForgotPasswordOtp() {
       console.log("🔢 OTP:", otp);
 
       const response = await fetch(
-        "http://192.168.0.109:5297/api/auth/reset-password-with-otp",
+        "http://172.20.10.6:5297/api/auth/reset-password-with-otp",
         {
           method: "POST",
           headers: {
@@ -139,7 +139,7 @@ export default function VerifyForgotPasswordOtp() {
       console.log("🔄 Resending OTP...");
 
       const response = await fetch(
-        "http://192.168.0.109:5297/api/auth/forgot-password",
+        "http://172.20.10.6:5297/api/auth/forgot-password",
         {
           method: "POST",
           headers: {

@@ -43,7 +43,7 @@ export default function ForgotPassword() {
       console.log("📧 Sending OTP request...");
 
       const response = await fetch(
-        "http://192.168.0.109:5297/api/auth/forgot-password",
+        "http://172.20.10.6:5297/api/auth/forgot-password",
         {
           method: "POST",
           headers: {

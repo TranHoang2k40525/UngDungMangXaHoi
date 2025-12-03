@@ -27,6 +27,7 @@ import * as ImagePicker from "expo-image-picker";
 import CommentsModal from "./CommentsModal";
 import ReactionPicker from "./ReactionPicker";
 import ReactionsListModal from "./ReactionsListModal";
+import SharePostModal from "./SharePostModal";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -270,6 +271,8 @@ export default function Home() {
     left: 0,
   });
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [sharePost, setSharePost] = useState(null);
   const longPressTimer = useRef(null);
   const navigation = useNavigation();
   const route = useRoute();
@@ -1045,29 +1048,9 @@ export default function Home() {
   };
 
   const onShare = async (post) => {
-    try {
-      const firstMedia = (post.media || [])[0];
-      const url = firstMedia?.url || "";
-      await Share.share({
-        message: post.caption
-          ? `${post.caption}${url ? `\n${url}` : ""}`
-          : url || "Xem bài viết",
-        url,
-        title: "Chia sẻ bài đăng",
-      });
-      setPostStates((prev) => {
-        const cur = prev[post.id] || {
-          liked: false,
-          likes: 0,
-          shares: 0,
-          comments: 0,
-        };
-        return {
-          ...prev,
-          [post.id]: { ...cur, shares: cur.shares + 1 },
-        };
-      });
-    } catch (e) {}
+    // Mở modal chia sẻ với danh sách bạn bè
+    setSharePost(post);
+    setShowShareModal(true);
   };
 
   const onRepost = (postId) => {
@@ -2537,6 +2520,16 @@ export default function Home() {
         visible={showReactionsList}
         onClose={() => setShowReactionsList(false)}
         postId={showReactionsListPostId}
+      />
+
+      {/* Share Post Modal */}
+      <SharePostModal
+        visible={showShareModal}
+        onClose={() => {
+          setShowShareModal(false);
+          setSharePost(null);
+        }}
+        post={sharePost}
       />
     </SafeAreaView>
   );

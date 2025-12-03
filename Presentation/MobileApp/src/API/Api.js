@@ -7,7 +7,7 @@ import { Platform } from "react-native";
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
 // Nếu test trên máy tính: dùng localhost
 // Nếu test trên điện thoại thật: dùng IP của máy tính (xem bằng ipconfig)
-export const API_BASE_URL = "http://192.168.0.109:5297"; // Backend đang chạy trên IP máy tính
+export const API_BASE_URL = "http://172.20.10.6:5297"; // Backend đang chạy trên IP máy tính
 
 // Hàm helper để gọi API
 const apiCall = async (endpoint, options = {}) => {
@@ -1469,6 +1469,164 @@ export const getMyGroups = async () => {
     return result.groups || [];
   } catch (error) {
     console.log("[API] getMyGroups error:", error);
+    throw error;
+  }
+};
+
+// ========================================
+// 🔄 SHARE API
+// ========================================
+
+// Tạo share mới
+export const createShare = async ({ postId, caption, privacy = "public" }) => {
+  try {
+    const headers = await getAuthHeaders();
+
+    console.log("[API] createShare request:", { postId, caption, privacy });
+
+    const response = await fetch(`${API_BASE_URL}/api/shares`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        PostId: postId,
+        Caption: caption,
+        Privacy: privacy,
+      }),
+    });
+
+    const responseText = await response.text();
+    let result = null;
+
+    try {
+      result = responseText ? JSON.parse(responseText) : null;
+    } catch (parseError) {
+      console.warn("[API] createShare parse error:", parseError);
+      throw new Error("Server trả về dữ liệu không hợp lệ");
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        result?.error ||
+          result?.message ||
+          `HTTP error! status: ${response.status}`
+      );
+    }
+
+    console.log("[API] createShare success:", result);
+    return result.data;
+  } catch (error) {
+    console.log("[API] createShare error:", error);
+    throw error;
+  }
+};
+
+// Lấy số lượng shares của một bài đăng
+export const getShareCount = async (postId) => {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/shares/post/${postId}/count`,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      }
+    );
+
+    const responseText = await response.text();
+    let result = null;
+
+    try {
+      result = responseText ? JSON.parse(responseText) : null;
+    } catch (parseError) {
+      console.warn("[API] getShareCount parse error:", parseError);
+      return 0;
+    }
+
+    if (!response.ok) {
+      console.warn("[API] getShareCount failed:", response.status);
+      return 0;
+    }
+
+    return result?.count || 0;
+  } catch (error) {
+    console.log("[API] getShareCount error:", error);
+    return 0;
+  }
+};
+
+// Lấy danh sách shares của một bài đăng
+export const getSharesByPost = async (postId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/shares/post/${postId}`, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    const responseText = await response.text();
+    let result = null;
+
+    try {
+      result = responseText ? JSON.parse(responseText) : null;
+    } catch (parseError) {
+      console.warn("[API] getSharesByPost parse error:", parseError);
+      return [];
+    }
+
+    if (!response.ok) {
+      console.warn("[API] getSharesByPost failed:", response.status);
+      return [];
+    }
+
+    return result?.data || [];
+  } catch (error) {
+    console.log("[API] getSharesByPost error:", error);
+    return [];
+  }
+};
+
+// Xóa một share
+export const deleteShare = async (shareId) => {
+  try {
+    const headers = await getAuthHeaders();
+
+    console.log("[API] deleteShare request:", shareId);
+
+    const response = await fetch(`${API_BASE_URL}/api/shares/${shareId}`, {
+      method: "DELETE",
+      headers: {
+        ...headers,
+        Accept: "application/json",
+      },
+    });
+
+    const responseText = await response.text();
+    let result = null;
+
+    try {
+      result = responseText ? JSON.parse(responseText) : null;
+    } catch (parseError) {
+      console.warn("[API] deleteShare parse error:", parseError);
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        result?.error ||
+          result?.message ||
+          `HTTP error! status: ${response.status}`
+      );
+    }
+
+    console.log("[API] deleteShare success");
+    return result;
+  } catch (error) {
+    console.log("[API] deleteShare error:", error);
     throw error;
   }
 };
