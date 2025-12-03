@@ -250,6 +250,84 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                     b.ToTable("Blocks", (string)null);
                 });
 
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.BusinessPayment", b =>
+                {
+                    b.Property<int>("PaymentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("payment_id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PaymentId"));
+
+                    b.Property<int>("AccountId")
+                        .HasColumnType("int")
+                        .HasColumnName("account_id");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("expires_at");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("paid_at");
+
+                    b.Property<string>("PaymentMethod")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("payment_method");
+
+                    b.Property<string>("QrCodeUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("qr_code_url");
+
+                    b.Property<int>("RequestId")
+                        .HasColumnType("int")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TransactionId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("transaction_id");
+
+                    b.HasKey("PaymentId");
+
+                    b.HasIndex("AccountId")
+                        .HasDatabaseName("IX_BusinessPayments_AccountId");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("IX_BusinessPayments_ExpiresAt");
+
+                    b.HasIndex("RequestId");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_BusinessPayments_Status");
+
+                    b.HasIndex("TransactionId")
+                        .IsUnique();
+
+                    b.ToTable("BusinessPayments", (string)null);
+                });
+
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.BusinessVerificationRequest", b =>
                 {
                     b.Property<int>("request_id")
@@ -500,7 +578,6 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                     b.ToTable("CommentReactions", (string)null);
                 });
 
-
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.ContentModeration", b =>
                 {
                     b.Property<int>("ModerationID")
@@ -611,7 +688,6 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
 
                     b.ToTable("ContentReports", (string)null);
                 });
-
 
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Conversation", b =>
                 {
@@ -982,7 +1058,6 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                     b.ToTable("MessagesNew", (string)null);
                 });
 
-
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.ModerationLog", b =>
                 {
                     b.Property<int>("LogID")
@@ -1020,7 +1095,6 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                     b.ToTable("ModerationLogs", (string)null);
                 });
 
-
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Notification", b =>
                 {
                     b.Property<int>("notification_id")
@@ -1053,6 +1127,9 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false)
                         .HasColumnName("is_read");
+
+                    b.Property<int?>("message_id")
+                        .HasColumnType("int");
 
                     b.Property<int?>("post_id")
                         .HasColumnType("int")
@@ -1639,6 +1716,25 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                     b.Navigation("Blocker");
                 });
 
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.BusinessPayment", b =>
+                {
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.Account", "Account")
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.BusinessVerificationRequest", "Request")
+                        .WithMany()
+                        .HasForeignKey("RequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Account");
+
+                    b.Navigation("Request");
+                });
+
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.BusinessVerificationRequest", b =>
                 {
                     b.HasOne("UngDungMangXaHoi.Domain.Entities.Account", "Accounts")
@@ -1732,7 +1828,6 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                     b.Navigation("Comment");
                 });
 
-
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.ContentModeration", b =>
                 {
                     b.HasOne("UngDungMangXaHoi.Domain.Entities.Account", "Account")
@@ -1774,7 +1869,6 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
 
                     b.Navigation("ReporterAccount");
                 });
-
 
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Conversation", b =>
                 {
@@ -1888,7 +1982,6 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                     b.Navigation("Sender");
                 });
 
-
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.ModerationLog", b =>
                 {
                     b.HasOne("UngDungMangXaHoi.Domain.Entities.Admin", "Admin")
@@ -1906,7 +1999,6 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
 
                     b.Navigation("ContentModeration");
                 });
-
 
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Notification", b =>
                 {

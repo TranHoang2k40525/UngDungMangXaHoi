@@ -7,7 +7,7 @@ import { Platform } from "react-native";
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
 // Nếu test trên máy tính: dùng localhost
 // Nếu test trên điện thoại thật: dùng IP của máy tính (xem bằng ipconfig)
-export const API_BASE_URL = "http://192.168.1.102:5297"; // Backend đang chạy trên IP máy tính
+export const API_BASE_URL = "http://172.20.10.10:5297"; // Backend đang chạy trên IP máy tính
 
 
 // Hàm helper để gọi API
@@ -48,8 +48,8 @@ const apiCall = async (endpoint, options = {}) => {
     }
 
     if (!response.ok) {
-      // Nếu 401: thử refresh token 1 lần rồi gọi lại
-      if (response.status === 401 && !options._retry) {
+      // Nếu 401 hoặc 403: thử refresh token 1 lần rồi gọi lại
+      if ((response.status === 401 || response.status === 403) && !options._retry) {
         try {
           const storedRefresh = await AsyncStorage.getItem("refreshToken");
           if (storedRefresh) {
@@ -922,6 +922,15 @@ export const addReaction = async (postId, reactionType) => {
     `[API] 🎯 addReaction called - postId: ${postId}, reactionType: ${reactionType}`
   );
   const headers = await getAuthHeaders();
+  console.log(`[API] addReaction headers:`, headers);
+  
+  // Check if we have a valid token
+  const token = await AsyncStorage.getItem("accessToken");
+  console.log(`[API] addReaction token exists:`, !!token);
+  if (token) {
+    console.log(`[API] addReaction token preview:`, token.substring(0, 20) + "...");
+  }
+  
   const body = { postId, reactionType };
   console.log(`[API] addReaction request body:`, body);
 

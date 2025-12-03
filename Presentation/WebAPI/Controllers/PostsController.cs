@@ -47,78 +47,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
                 {
 
-                    return BadRequest(new { message = $"Ảnh không hợp lệ: {img.FileName}" });
-                }
-            }
-
-            if (video != null)
-            {
-                Console.WriteLine($"[CreatePost] Video received - FileName: '{video.FileName}', Length: {video.Length}, ContentType: '{video.ContentType}'");
-                
-                var allowedVideoExt = new[] { ".mp4", ".mov", ".m4v", ".avi", ".wmv", ".mkv" };
-                var vext = Path.GetExtension(video.FileName).ToLowerInvariant();
-                
-                Console.WriteLine($"[CreatePost] Video extension extracted: '{vext}'");
-                
-                if (!allowedVideoExt.Contains(vext))
-                {
-                    Console.WriteLine($"[CreatePost] Video extension '{vext}' not in allowed list: {string.Join(", ", allowedVideoExt)}");
-                    return BadRequest(new { message = "Định dạng video không hợp lệ." });
-                }
-            }
-
-            // Parse optional mentions/tags (JSON arrays) and store as CSV on Post
-            int[]? mentionIds = null;
-            int[]? tagIds = null;
-            try
-            {
-                if (!string.IsNullOrEmpty(form.Mentions))
-                {
-                    mentionIds = System.Text.Json.JsonSerializer.Deserialize<int[]>(form.Mentions);
-                }
-            }
-            catch { /* ignore parse errors */ }
-            try
-            {
-                if (!string.IsNullOrEmpty(form.Tags))
-                {
-                    tagIds = System.Text.Json.JsonSerializer.Deserialize<int[]>(form.Tags);
-                }
-            }
-            catch { /* ignore parse errors */ }
-
-            // Create post first
-            var post = new Post
-            {
-                user_id = user.user_id,
-                caption = form.Caption,
-                location = form.Location,
-                privacy = incomingPrivacy,
-                is_visible = true,
-                created_at = DateTimeOffset.UtcNow,
-                MentionedUserIds = (mentionIds != null && mentionIds.Length > 0) ? string.Join(",", mentionIds) : null,
-                TaggedUserIds = (tagIds != null && tagIds.Length > 0) ? string.Join(",", tagIds) : null
-            };
-
-            var createdPost = await _postRepository.AddAsync(post);
-
-            // Prepare directories
-            var root = Directory.GetCurrentDirectory();
-            var imagesDir = Path.Combine(root, "Assets", "Images");
-            var videosDir = Path.Combine(root, "Assets", "Videos");
-            if (!Directory.Exists(imagesDir)) Directory.CreateDirectory(imagesDir);
-            if (!Directory.Exists(videosDir)) Directory.CreateDirectory(videosDir);
-
-            // Save images
-            int order = 0;
-            foreach (var img in images)
-            {
-                var ext = Path.GetExtension(img.FileName).ToLowerInvariant();
-                var fileName = $"{user.username.Value}_{Guid.NewGuid().ToString("N").Substring(0, 8)}{ext}";
-                var filePath = Path.Combine(imagesDir, fileName);
-                using (var stream = new FileStream(filePath, FileMode.Create))
-                {
-                    await img.CopyToAsync(stream);
+                    return Unauthorized(new { message = "Token không hợp lệ!" });
 
                 }
 
