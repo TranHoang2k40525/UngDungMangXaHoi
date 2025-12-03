@@ -18,15 +18,21 @@ namespace UngDungMangXaHoi.Application.Services
     private readonly IGroupMessageRepository _messageRepo;
     private readonly IGroupConversationRepository _conversationRepo;
         private readonly IUserRepository _userRepo;
+        private readonly INotificationRepository _notificationRepository;
+        private readonly IRealTimeNotificationService _realTimeNotificationService;
 
         public GroupMessageService(
             IGroupMessageRepository messageRepo,
             IGroupConversationRepository conversationRepo,
-            IUserRepository userRepo)
+            IUserRepository userRepo,
+            INotificationRepository notificationRepository,
+            IRealTimeNotificationService realTimeNotificationService)
         {
             _messageRepo = messageRepo;
             _conversationRepo = conversationRepo;
             _userRepo = userRepo;
+            _notificationRepository = notificationRepository;
+            _realTimeNotificationService = realTimeNotificationService;
         }
 
         /// <summary>
@@ -75,6 +81,9 @@ namespace UngDungMangXaHoi.Application.Services
 
             // ✅ Lưu vào DB
             var savedMessage = await _messageRepo.AddMessageAsync(message);
+
+            // ✅ Gửi thông báo cho các thành viên khác
+            await SendGroupMessageNotificationAsync(dto.ConversationId, dto.UserId, dto.Content ?? "", conversation.name ?? "Nhóm chat", savedMessage.message_id);
 
                 // ✅ Convert sang DTO (for SendMessage: mark as read by sender)
                 return await MapToDto(savedMessage, dto.UserId);
@@ -540,6 +549,74 @@ namespace UngDungMangXaHoi.Application.Services
             }
 
             return dto;
+        }
+
+        // Gửi thông báo tin nhắn nhóm mới
+        private async Task SendGroupMessageNotificationAsync(int conversationId, int senderId, string content, string groupName, int messageId)
+        {
+            try
+            {
+                var sender = await _userRepo.GetByIdAsync(senderId);
+                if (sender == null) return;
+
+                // Lấy danh sách thành viên (trừ người gửi)
+                var members = await _conversationRepo.GetAllMembersAsync(conversationId);
+                var otherMembers = members.Where(m => m.user_id != senderId).ToList();
+
+                // Tạo preview content
+                var previewContent = content?.Length > 50 
+                    ? content.Substring(0, 50) + "..." 
+                    : content ?? "[Media]";
+
+                // Gửi thông báo cho từng thành viên
+                foreach (var member in otherMembers)
+                {
+                    try
+                    {
+                        var notification = new Notification
+                        {
+                            user_id = member.user_id,
+                            sender_id = senderId,
+                            type = NotificationType.GroupMessage,
+                            post_id = null,
+                            conversation_id = conversationId,
+                            message_id = messageId,
+                            content = $"{sender.username.Value} trong nhóm \"{groupName}\": {previewContent}",
+                            is_read = false,
+                            created_at = DateTimeOffset.UtcNow
+                        };
+
+                        await _notificationRepository.AddAsync(notification);
+
+                        // Gửi real-time notification
+                        var notificationDto = new NotificationDto
+                        {
+                            NotificationId = notification.notification_id,
+                            UserId = notification.user_id,
+                            SenderId = notification.sender_id,
+                            SenderUsername = sender.username.Value,
+                            SenderAvatar = sender.avatar_url?.Value,
+                            Type = notification.type,
+                            PostId = null,
+                            ConversationId = conversationId,
+                            MessageId = messageId,
+                            Content = notification.content,
+                            IsRead = notification.is_read,
+                            CreatedAt = notification.created_at
+                        };
+
+                        await _realTimeNotificationService.SendNotificationToUserAsync(member.user_id, notificationDto);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[GroupMessageService] Error sending notification to user {member.user_id}: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GroupMessageService] Error sending group message notifications: {ex.Message}");
+            }
         }
     }
 }

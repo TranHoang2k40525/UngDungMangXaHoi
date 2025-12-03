@@ -10,5 +10,7 @@ namespace UngDungMangXaHoi.Domain.Interfaces
         Task SendNotificationToUserAsync(int userId, object notification);
         Task SendReactionUpdateAsync(int postOwnerId, object reactionData);
         Task SendShareUpdateAsync(int postOwnerId, object shareData);
+        Task SendCommentUpdateAsync(int postOwnerId, object commentData);
+        Task SendMessageNotificationAsync(int userId, object messageData);
     }
 }

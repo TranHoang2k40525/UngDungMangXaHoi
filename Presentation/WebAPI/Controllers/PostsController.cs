@@ -49,10 +49,54 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                     return Unauthorized(new { message = "Token không hợp lệ!" });
                 }
 
-                try
+            var user = await _userRepository.GetByAccountIdAsync(accountId);
+            if (user == null)
+            {
+                return BadRequest(new { message = "Không tìm thấy user tương ứng với tài khoản." });
+            }
+
+            // Validate media
+            var images = form.Images ?? new List<IFormFile>();
+            var video = form.Video;
+            if (images.Count == 0 && video == null)
+            {
+                return BadRequest(new { message = "Bài đăng phải có ít nhất 1 ảnh hoặc 1 video." });
+            }
+
+            if (video != null && video.Length > 100L * 1024 * 1024)
+            {
+                return BadRequest(new { message = "Video vượt quá dung lượng tối đa 100MB." });
+            }
+
+            // Validate file extensions
+            var allowedImageExt = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+            foreach (var img in images)
+            {
+                var ext = Path.GetExtension(img.FileName).ToLowerInvariant();
+                if (!allowedImageExt.Contains(ext))
                 {
-                    var postId = await _postsService.CreatePostAsync(accountId, form);
-                    return Ok(new { message = "Đăng bài thành công", PostId = postId });
+                    return BadRequest(new { message = $"Ảnh không hợp lệ: {img.FileName}" });
+                }
+            }
+
+            if (video != null)
+            {
+                var allowedVideoExt = new[] { ".mp4", ".mov", ".m4v", ".avi", ".wmv", ".mkv" };
+                var vext = Path.GetExtension(video.FileName).ToLowerInvariant();
+                if (!allowedVideoExt.Contains(vext))
+                {
+                    return BadRequest(new { message = "Định dạng video không hợp lệ." });
+                }
+            }
+
+            // Parse optional mentions/tags (JSON arrays) and store as CSV on Post
+            int[]? mentionIds = null;
+            int[]? tagIds = null;
+            try
+            {
+                if (!string.IsNullOrEmpty(form.Mentions))
+                {
+                    mentionIds = System.Text.Json.JsonSerializer.Deserialize<int[]>(form.Mentions);
                 }
                 catch (ArgumentException aex)
                 {
@@ -236,6 +280,49 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 dtoList5.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
             }
             return Ok(dtoList5);
+        }
+
+    // GET: api/posts/{id} - Lấy thông tin 1 post theo ID
+    [HttpGet("{id:int}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetPostById([FromRoute] int id)
+        {
+            try
+            {
+                int? currentUserId = null;
+                try
+                {
+                    var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                    if (!string.IsNullOrEmpty(accountIdStr) && int.TryParse(accountIdStr, out var accountId))
+                    {
+                        var u = await _userRepository.GetByAccountIdAsync(accountId);
+                        if (u != null) currentUserId = u.user_id;
+                    }
+                }
+                catch { }
+
+                var post = await _postRepository.GetByIdWithMediaAsync(id);
+                if (post == null)
+                {
+                    return NotFound(new { message = "Post not found" });
+                }
+
+                // Kiểm tra quyền xem post
+                if (post.privacy == "private" && currentUserId != post.user_id)
+                {
+                    return Forbid();
+                }
+
+                // Load comment count
+                var commentsCount = await _commentRepository.GetCommentCountByPostIdAsync(id);
+
+                var postDto = await MapPostToDtoAsync(post, commentsCount);
+                return Ok(postDto);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error retrieving post", error = ex.Message });
+            }
         }
 
     [HttpGet("user/{userId:int}")]

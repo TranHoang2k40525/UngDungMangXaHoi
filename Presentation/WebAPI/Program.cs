@@ -135,9 +135,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 var path = context.HttpContext.Request.Path;
 
                 // Nếu request đến SignalR hub và có token trong query
-                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                if (!string.IsNullOrEmpty(accessToken) && 
+                    (path.StartsWithSegments("/hubs") || path.StartsWithSegments("/hub")))
                 {
                     context.Token = accessToken;
+                }
+                // Nếu không có trong query, thử lấy từ header
+                else if (string.IsNullOrEmpty(accessToken))
+                {
+                    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
+                    if (authHeader != null && authHeader.StartsWith("Bearer "))
+                    {
+                        context.Token = authHeader.Substring("Bearer ".Length).Trim();
+                    }
                 }
 
                 return Task.CompletedTask;
@@ -202,6 +212,7 @@ builder.Services.AddScoped<NotificationManagementService>();
 builder.Services.AddScoped<CommentService>();
 builder.Services.AddScoped<SearchService>();
 builder.Services.AddScoped<MessageService>();
+builder.Services.AddScoped<UserFollowService>();
 builder.Services.AddScoped<IRealTimeNotificationService, UngDungMangXaHoi.Presentation.WebAPI.Hubs.SignalRNotificationService>();
 // Group Chat Services
 builder.Services.AddScoped<GroupChatService>();

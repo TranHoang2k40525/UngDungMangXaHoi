@@ -79,7 +79,8 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                         _context.Follows.Any(f => f.follower_id == currentUserId && f.following_id == p.user_id))
                 ))
                 // Exclude posts from users blocked by current user
-                .Where(p => currentUserId == null || !_context.Blocks.Any(b => b.blocker_id == currentUserId && b.blocked_id == p.user_id))
+                // TODO: Uncomment sau khi chạy migration để tạo bảng Blocks
+                // .Where(p => currentUserId == null || !_context.Blocks.Any(b => b.blocker_id == currentUserId && b.blocked_id == p.user_id))
                 .OrderByDescending(p => p.created_at)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize).ToListAsync();

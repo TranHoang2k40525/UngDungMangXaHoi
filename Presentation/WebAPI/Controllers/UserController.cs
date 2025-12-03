@@ -21,14 +21,43 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
     private readonly IUserRepository _userRepository;
     private readonly IPostRepository _postRepository;
     private readonly IBlockRepository _blockRepository;
-    private readonly UserService _userService;
 
-        public UserController(IUserRepository userRepository, IPostRepository postRepository, IBlockRepository blockRepository)
+    private readonly UserService _userService;
+   private readonly UserFollowService _userFollowService;
+
+
+
+        public UserController(
+            IUserRepository userRepository, 
+            IPostRepository postRepository, 
+            IBlockRepository blockRepository,
+            UserFollowService userFollowService)
         {
             _userRepository = userRepository;
             _postRepository = postRepository;
             _blockRepository = blockRepository;
+
             _userService = new UserService(userRepository, postRepository, blockRepository);
+            _userFollowService = userFollowService;
+        }
+
+        // DTO for public profile response
+        public class PublicProfileDto
+        {
+            public int UserId { get; set; }
+            public string Username { get; set; } = string.Empty;
+            public string FullName { get; set; } = string.Empty;
+            public string? AvatarUrl { get; set; }
+            public string? Bio { get; set; }
+            public string? Website { get; set; }
+            public string? Address { get; set; }
+            public string? Hometown { get; set; }
+            public string Gender { get; set; } = string.Empty;
+            public int PostsCount { get; set; }
+            public int FollowersCount { get; set; }
+            public int FollowingCount { get; set; }
+            public bool IsFollowing { get; set; }
+
         }
 
         /// <summary>
@@ -161,7 +190,11 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 return NotFound(new { message = "Không tìm thấy user cần theo dõi." });
             }
 
+
             await _userService.FollowUserAsync(currentUser.user_id, userId);
+
+            await _userFollowService.FollowUserAsync(currentUser.user_id, userId);
+
 
             return Ok(new { message = "Đã theo dõi user thành công" });
         }
@@ -185,7 +218,11 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 return BadRequest(new { message = "Không tìm thấy user hiện tại." });
             }
 
+
             await _userService.UnfollowUserAsync(currentUser.user_id, userId);
+
+            await _userFollowService.UnfollowUserAsync(currentUser.user_id, userId);
+
 
             return Ok(new { message = "Đã hủy theo dõi user" });
         }

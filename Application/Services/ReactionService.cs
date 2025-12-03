@@ -140,6 +140,7 @@ namespace UngDungMangXaHoi.Application.Services
                 sender_id = reactorUserId,
                 type = NotificationType.Reaction,
                 post_id = post.post_id,
+                reaction_type = (int)reactionType,
                 content = $"{reactor.username.Value} đã {reactionText} bài viết của bạn",
                 is_read = false,
                 created_at = DateTimeOffset.UtcNow
@@ -157,6 +158,7 @@ namespace UngDungMangXaHoi.Application.Services
                 SenderAvatar = reactor.avatar_url?.Value,
                 Type = notification.type,
                 PostId = notification.post_id,
+                ReactionType = notification.reaction_type,
                 Content = notification.content,
                 IsRead = notification.is_read,
                 CreatedAt = notification.created_at

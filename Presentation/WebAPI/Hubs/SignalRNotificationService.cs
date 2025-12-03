@@ -27,5 +27,17 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
         {
             await NotificationHub.SendShareUpdate(_hubContext, postOwnerId, shareData);
         }
+
+        public async Task SendCommentUpdateAsync(int postOwnerId, object commentData)
+        {
+            await _hubContext.Clients.Group($"user_{postOwnerId}").SendAsync("ReceiveCommentUpdate", commentData);
+            Console.WriteLine($"[SignalRNotificationService] Comment update sent to user {postOwnerId}");
+        }
+
+        public async Task SendMessageNotificationAsync(int userId, object messageData)
+        {
+            await _hubContext.Clients.Group($"user_{userId}").SendAsync("ReceiveMessageNotification", messageData);
+            Console.WriteLine($"[SignalRNotificationService] Message notification sent to user {userId}");
+        }
     }
 }
