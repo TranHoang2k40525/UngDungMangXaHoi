@@ -46,45 +46,23 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
                 {
-                    return Unauthorized(new { message = "Token không hợp lệ!" });
-                }
 
-            var user = await _userRepository.GetByAccountIdAsync(accountId);
-            if (user == null)
-            {
-                return BadRequest(new { message = "Không tìm thấy user tương ứng với tài khoản." });
-            }
-
-            // Validate media
-            var images = form.Images ?? new List<IFormFile>();
-            var video = form.Video;
-            if (images.Count == 0 && video == null)
-            {
-                return BadRequest(new { message = "Bài đăng phải có ít nhất 1 ảnh hoặc 1 video." });
-            }
-
-            if (video != null && video.Length > 100L * 1024 * 1024)
-            {
-                return BadRequest(new { message = "Video vượt quá dung lượng tối đa 100MB." });
-            }
-
-            // Validate file extensions
-            var allowedImageExt = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
-            foreach (var img in images)
-            {
-                var ext = Path.GetExtension(img.FileName).ToLowerInvariant();
-                if (!allowedImageExt.Contains(ext))
-                {
                     return BadRequest(new { message = $"Ảnh không hợp lệ: {img.FileName}" });
                 }
             }
 
             if (video != null)
             {
+                Console.WriteLine($"[CreatePost] Video received - FileName: '{video.FileName}', Length: {video.Length}, ContentType: '{video.ContentType}'");
+                
                 var allowedVideoExt = new[] { ".mp4", ".mov", ".m4v", ".avi", ".wmv", ".mkv" };
                 var vext = Path.GetExtension(video.FileName).ToLowerInvariant();
+                
+                Console.WriteLine($"[CreatePost] Video extension extracted: '{vext}'");
+                
                 if (!allowedVideoExt.Contains(vext))
                 {
+                    Console.WriteLine($"[CreatePost] Video extension '{vext}' not in allowed list: {string.Join(", ", allowedVideoExt)}");
                     return BadRequest(new { message = "Định dạng video không hợp lệ." });
                 }
             }
@@ -97,6 +75,57 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 if (!string.IsNullOrEmpty(form.Mentions))
                 {
                     mentionIds = System.Text.Json.JsonSerializer.Deserialize<int[]>(form.Mentions);
+                }
+            }
+            catch { /* ignore parse errors */ }
+            try
+            {
+                if (!string.IsNullOrEmpty(form.Tags))
+                {
+                    tagIds = System.Text.Json.JsonSerializer.Deserialize<int[]>(form.Tags);
+                }
+            }
+            catch { /* ignore parse errors */ }
+
+            // Create post first
+            var post = new Post
+            {
+                user_id = user.user_id,
+                caption = form.Caption,
+                location = form.Location,
+                privacy = incomingPrivacy,
+                is_visible = true,
+                created_at = DateTimeOffset.UtcNow,
+                MentionedUserIds = (mentionIds != null && mentionIds.Length > 0) ? string.Join(",", mentionIds) : null,
+                TaggedUserIds = (tagIds != null && tagIds.Length > 0) ? string.Join(",", tagIds) : null
+            };
+
+            var createdPost = await _postRepository.AddAsync(post);
+
+            // Prepare directories
+            var root = Directory.GetCurrentDirectory();
+            var imagesDir = Path.Combine(root, "Assets", "Images");
+            var videosDir = Path.Combine(root, "Assets", "Videos");
+            if (!Directory.Exists(imagesDir)) Directory.CreateDirectory(imagesDir);
+            if (!Directory.Exists(videosDir)) Directory.CreateDirectory(videosDir);
+
+            // Save images
+            int order = 0;
+            foreach (var img in images)
+            {
+                var ext = Path.GetExtension(img.FileName).ToLowerInvariant();
+                var fileName = $"{user.username.Value}_{Guid.NewGuid().ToString("N").Substring(0, 8)}{ext}";
+                var filePath = Path.Combine(imagesDir, fileName);
+                using (var stream = new FileStream(filePath, FileMode.Create))
+                {
+                    await img.CopyToAsync(stream);
+
+                }
+
+                try
+                {
+                    var postId = await _postsService.CreatePostAsync(accountId, form);
+                    return Ok(new { message = "Đăng bài thành công", PostId = postId });
                 }
                 catch (ArgumentException aex)
                 {
