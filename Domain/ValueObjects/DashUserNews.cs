@@ -17,5 +17,10 @@ namespace UngDungMangXaHoi.Domain.ValueObjects
         Week,
         Month
     }
-   
+    public class NumberUserActive
+    {
+        public double Count { get; set; }
+
+    }
+
 }

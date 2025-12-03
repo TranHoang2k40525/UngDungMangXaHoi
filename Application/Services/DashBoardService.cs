@@ -36,5 +36,14 @@ namespace UngDungMangXaHoi.Application.Services
             return resultDto;
 
         }
+        public async Task<NumberUserActiveDto> GetUserActive()
+        {
+            var context = await _dashboardRepository.GetUserActiveAsync();
+            var resultDto = new NumberUserActiveDto
+            {
+                Count = context.Count
+            };
+            return resultDto;
+        }
     }
 }

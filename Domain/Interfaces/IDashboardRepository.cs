@@ -11,5 +11,6 @@ namespace UngDungMangXaHoi.Domain.Interfaces
    public interface IDashboardRepository
     {
         Task<List<UserNewByDateResult>> GetUserNewAsync(DateTime fromDate, DateTime toDate, SortUserNewByDateOption options);
+        Task<NumberUserActive> GetUserActiveAsync();
     }
 }

@@ -77,5 +77,17 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .OrderBy(x => x.TimeLabel)
                 .ToList();
         }
+        public async Task<NumberUserActive> GetUserActiveAsync()
+
+        {
+            var numberData = await _context.Accounts.CountAsync(a => a.account_type == AccountType.User &&
+                            a.status == "active");
+
+
+            return  new NumberUserActive
+            {
+                Count = numberData
+            }; 
+        }
     }
 }

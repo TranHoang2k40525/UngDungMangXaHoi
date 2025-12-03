@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import {
     View,
     Text,
-    Image,
     TouchableOpacity,
     StyleSheet,
     TextInput,
@@ -15,6 +14,8 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { Image } from 'expo-image'; // Thay vì React Native Image
+
 import { createPost, getFollowing, getFollowers } from "../API/Api";
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +23,35 @@ import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Video } from 'expo-av';
 
+// Helper: Convert iOS ph:// URI to file:// URI using ImageManipulator
+const normalizeUri = async (uri) => {
+    if (!uri) return uri;
+
+    // iOS ph:// URIs need to be processed to get a file:// URI
+    if (Platform.OS === "ios" && uri.startsWith("ph://")) {
+        try {
+            console.log(`[SharePost] Normalizing iOS ph:// URI: ${uri}`);
+            
+            // Use ImageManipulator to handle ph:// URIs (it converts to file:// automatically)
+            // Note: This works for images. For videos, we just return the URI as-is
+            // because expo-video can handle ph:// URIs directly when using VideoView
+            const result = await manipulateAsync(
+                uri,
+                [], // No transformations, just convert URI
+                { compress: 1, format: SaveFormat.JPEG }
+            );
+            console.log(`[SharePost] Converted iOS ph:// URI to: ${result.uri}`);
+            return result.uri;
+        } catch (e) {
+            console.warn("[SharePost] Failed to convert iOS ph:// URI:", e);
+            // For videos, return original URI - expo-video can handle ph:// directly
+            console.log("[SharePost] Returning original ph:// URI for video playback");
+            return uri;
+        }
+    }
+
+    return uri;
+};
 export default function SharePost() {
     const navigation = useNavigation();
     const route = useRoute();
@@ -47,17 +77,36 @@ export default function SharePost() {
     // Privacy modal
     const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
-    // Video editing states
-    const [showVideoEditModal, setShowVideoEditModal] = useState(false);
-    const [editedVideoUri, setEditedVideoUri] = useState(null);
-    const [selectedFilter, setSelectedFilter] = useState('none');
-    const [trimStart, setTrimStart] = useState(0);
-    const [trimEnd, setTrimEnd] = useState(null);
-    const [isProcessingVideo, setIsProcessingVideo] = useState(false);
+    // Normalized URI for iOS ph:// support
+    const [normalizedPreviewUri, setNormalizedPreviewUri] = useState(null);
 
     // Tạo video player cho preview nếu là video
     const isVideo = (selectedImage?.mediaType === 'video' || selectedImage?.type === 'video');
-    const uri = editedVideoUri || selectedImage?.uri || selectedImage;
+
+    // Normalize iOS ph:// URIs for preview
+    useEffect(() => {
+        const normalize = async () => {
+            if (isVideo) {
+                // For videos, use original URI - expo-video VideoView can handle ph:// directly
+                const uri = selectedImage?.uri || selectedImage;
+                setNormalizedPreviewUri(uri);
+            } else if (selectedImage?.uri) {
+                // For images, normalize ph:// to file://
+                const normalized = await normalizeUri(selectedImage.uri);
+                setNormalizedPreviewUri(normalized);
+            } else if (selectedImage && typeof selectedImage === 'string') {
+                const normalized = await normalizeUri(selectedImage);
+                setNormalizedPreviewUri(normalized);
+            }
+        };
+        normalize();
+    }, [selectedImage, isVideo]);
+
+    const uri = normalizedPreviewUri || selectedImage?.uri || selectedImage;
+    
+    // Extract string URI for Image component (in case uri is an object)
+    const imageUri = typeof uri === 'string' ? uri : (uri?.uri || null);
+    
     const videoPlayer = useVideoPlayer(isVideo ? uri : null, (player) => {
         if (player && isVideo) {
             player.loop = true;
@@ -65,6 +114,16 @@ export default function SharePost() {
             player.play();
         }
     });
+
+    // Update video source when normalized URI changes
+    useEffect(() => {
+        if (isVideo && uri && videoPlayer) {
+            // Use replaceAsync for ph:// URIs (required for iOS PHAsset URLs)
+            videoPlayer.replaceAsync(uri).catch(err => {
+                console.warn('[SharePost] Failed to load video:', err);
+            });
+        }
+    }, [uri, isVideo]);
 
     // Load users for mentions (following + followers)
     useEffect(() => {
@@ -186,41 +245,9 @@ export default function SharePost() {
         }
     };
 
-    const applyVideoFilter = async () => {
-        if (!isVideo || selectedFilter === 'none') return uri;
-
-        setIsProcessingVideo(true);
-        try {
-            // TODO: Implement real-time video filter using expo-av or ffmpeg
-            // For now, we'll process on upload
-            // In production: use ffmpeg with filter like brightness, contrast, saturation, etc.
-
-            // Simulated processing delay
-            await new Promise(resolve => setTimeout(resolve, 1500));
-
-            // For trimming: would use expo-av or ffmpeg to cut video
-            // For filters: apply color adjustments using video processing libraries
-
-            Alert.alert('Hoàn tất', 'Bộ lọc sẽ được áp dụng khi đăng bài');
-            return uri;
-        } catch (error) {
-            console.warn('Apply filter error:', error);
-            Alert.alert('Lỗi', 'Không thể áp dụng bộ lọc');
-            return uri;
-        } finally {
-            setIsProcessingVideo(false);
-        }
-    };
-
     const handleShare = async () => {
         try {
             setLoading(true);
-
-            // Apply video edits if any
-            let finalUri = uri;
-            if (isVideo && (selectedFilter !== 'none' || trimStart > 0 || trimEnd !== null)) {
-                finalUri = await applyVideoFilter();
-            }
 
             const items = (selectedImages.length ? selectedImages : (selectedImage ? [selectedImage] : [])).filter(Boolean);
             const imageItems = items.filter(it => (it.mediaType === 'photo' || it.mediaType === 'image' || it.type === 'image'));
@@ -228,15 +255,27 @@ export default function SharePost() {
 
             const images = imageItems.map((it, idx) => {
                 const uri = it?.uri || it;
-                const nameGuess = uri?.split('/').pop() || `image_${idx}.jpg`;
+                let nameGuess = uri?.split('/').pop() || `image_${idx}.jpg`;
+                
+                // Ensure filename has proper extension (fix for iOS ph:// URIs like "001")
+                if (!nameGuess.match(/\.(jpg|jpeg|png|gif|webp|heic|heif)$/i)) {
+                    nameGuess = `image_${idx}_${nameGuess}.jpg`;
+                }
+                
                 const typeGuess = nameGuess.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
                 return { uri, name: nameGuess, type: typeGuess };
             });
 
             let video = null;
             if (videoItem) {
-                const vuri = finalUri || editedVideoUri || videoItem?.uri || videoItem;
-                const vname = vuri?.split('/').pop() || 'video.mp4';
+                const vuri = videoItem?.uri || videoItem;
+                let vname = vuri?.split('/').pop() || 'video.mp4';
+                
+                // Ensure video filename has proper extension
+                if (!vname.match(/\.(mp4|mov|avi|mkv|m4v)$/i)) {
+                    vname = `video_${Date.now()}.mp4`;
+                }
+                
                 const vtype = vname.toLowerCase().endsWith('.mov') ? 'video/quicktime' : 'video/mp4';
                 video = { uri: vuri, name: vname, type: vtype };
             }
@@ -262,9 +301,7 @@ export default function SharePost() {
                 caption,
                 privacy,
                 mentions: allMentionIds,
-                tags: taggedUsers.map(u => u.id),
-                videoFilter: selectedFilter !== 'none' ? selectedFilter : undefined,
-                videoTrim: trimStart > 0 || trimEnd ? { start: trimStart, end: trimEnd } : undefined
+                tags: taggedUsers.map(u => u.id)
             });
 
             navigation.navigate('MainTabs', { screen: 'Home', params: { refresh: true } });
@@ -359,20 +396,9 @@ export default function SharePost() {
 
                     <View style={styles.divider} />
 
-                    {/* Video/Image Preview with Edit Options */}
+                    {/* Video/Image Preview */}
                     <View style={styles.mediaSection}>
-                        <View style={styles.mediaSectionHeader}>
-                            <Text style={styles.sectionTitle}>Xem trước</Text>
-                            {isVideo && (
-                                <TouchableOpacity
-                                    style={styles.editButton}
-                                    onPress={() => setShowVideoEditModal(true)}
-                                >
-                                    <Ionicons name="create-outline" size={20} color="#0095F6" />
-                                    <Text style={styles.editButtonText}>Chỉnh sửa video</Text>
-                                </TouchableOpacity>
-                            )}
-                        </View>
+                        <Text style={styles.sectionTitle}>Xem trước</Text>
 
                         <View style={styles.mediaPreview}>
                             {isVideo && videoPlayer ? (
@@ -386,14 +412,9 @@ export default function SharePost() {
                                     <View style={styles.videoPlayOverlay} pointerEvents="none">
                                         <Ionicons name="play-circle" size={48} color="rgba(255,255,255,0.9)" />
                                     </View>
-                                    {selectedFilter !== 'none' && (
-                                        <View style={styles.filterBadge}>
-                                            <Text style={styles.filterBadgeText}>Bộ lọc: {selectedFilter}</Text>
-                                        </View>
-                                    )}
                                 </View>
                             ) : (
-                                <Image source={{ uri }} style={styles.previewMedia} />
+                                <Image source={{ uri: imageUri }} style={styles.previewMedia} />
                             )}
                         </View>
                     </View>
@@ -555,121 +576,6 @@ export default function SharePost() {
                 </View>
             </Modal>
 
-            {/* Video Edit Modal */}
-            <Modal
-                visible={showVideoEditModal}
-                transparent
-                animationType="slide"
-                onRequestClose={() => setShowVideoEditModal(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <TouchableOpacity onPress={() => setShowVideoEditModal(false)}>
-                                <Text style={styles.cancelButton}>Hủy</Text>
-                            </TouchableOpacity>
-                            <Text style={styles.modalTitle}>Chỉnh sửa video</Text>
-                            <TouchableOpacity
-                                onPress={async () => {
-                                    await applyVideoFilter();
-                                    setShowVideoEditModal(false);
-                                }}
-                                disabled={isProcessingVideo}
-                            >
-                                <Text style={[styles.doneButton, isProcessingVideo && styles.doneButtonDisabled]}>
-                                    {isProcessingVideo ? 'Đang xử lý...' : 'Áp dụng'}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        <ScrollView>
-                            {/* Video Preview */}
-                            {isVideo && videoPlayer && (
-                                <View style={styles.videoEditPreview}>
-                                    <VideoView
-                                        style={styles.videoEditPreviewPlayer}
-                                        player={videoPlayer}
-                                        contentFit="cover"
-                                        nativeControls={false}
-                                    />
-                                    {selectedFilter !== 'none' && (
-                                        <View style={styles.filterOverlay}>
-                                            <Text style={styles.filterOverlayText}>Xem trước: {selectedFilter}</Text>
-                                        </View>
-                                    )}
-                                </View>
-                            )}
-
-                            {/* Filter Section */}
-                            <View style={styles.editSection}>
-                                <Text style={styles.editSectionTitle}>Bộ lọc màu</Text>
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterList}>
-                                    {['none', 'grayscale', 'sepia', 'vivid', 'warm', 'cool', 'vintage', 'dramatic'].map(filter => (
-                                        <TouchableOpacity
-                                            key={filter}
-                                            style={[styles.filterItem, selectedFilter === filter && styles.filterItemActive]}
-                                            onPress={() => setSelectedFilter(filter)}
-                                        >
-                                            <View style={[styles.filterPreview, {
-                                                backgroundColor:
-                                                    filter === 'none' ? '#fff' :
-                                                        filter === 'grayscale' ? '#888' :
-                                                            filter === 'sepia' ? '#D2691E' :
-                                                                filter === 'vivid' ? '#FF6B6B' :
-                                                                    filter === 'warm' ? '#FF8C42' :
-                                                                        filter === 'cool' ? '#4ECDC4' :
-                                                                            filter === 'vintage' ? '#C09F80' :
-                                                                                '#2C3E50'
-                                            }]} />
-                                            <Text style={[styles.filterName, selectedFilter === filter && styles.filterNameActive]}>
-                                                {filter === 'none' ? 'Gốc' :
-                                                    filter === 'grayscale' ? 'Đen trắng' :
-                                                        filter === 'sepia' ? 'Cổ điển' :
-                                                            filter === 'vivid' ? 'Sống động' :
-                                                                filter === 'warm' ? 'Ấm' :
-                                                                    filter === 'cool' ? 'Lạnh' :
-                                                                        filter === 'vintage' ? 'Cổ xưa' :
-                                                                            'Đậm'}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </ScrollView>
-                            </View>
-
-                            {/* Trim Section */}
-                            <View style={styles.editSection}>
-                                <Text style={styles.editSectionTitle}>Cắt video</Text>
-                                <View style={styles.trimControls}>
-                                    <View style={styles.trimInput}>
-                                        <Text style={styles.trimLabel}>Bắt đầu (giây):</Text>
-                                        <TextInput
-                                            style={styles.trimTextInput}
-                                            keyboardType="numeric"
-                                            value={String(trimStart)}
-                                            onChangeText={(text) => setTrimStart(Number(text) || 0)}
-                                            placeholder="0"
-                                        />
-                                    </View>
-                                    <View style={styles.trimInput}>
-                                        <Text style={styles.trimLabel}>Kết thúc (giây):</Text>
-                                        <TextInput
-                                            style={styles.trimTextInput}
-                                            keyboardType="numeric"
-                                            value={trimEnd !== null ? String(trimEnd) : ''}
-                                            onChangeText={(text) => setTrimEnd(text ? Number(text) : null)}
-                                            placeholder="Tối đa"
-                                        />
-                                    </View>
-                                </View>
-                                <Text style={styles.editNote}>
-                                    💡 Bộ lọc và cắt video sẽ được áp dụng khi đăng bài
-                                </Text>
-                            </View>
-                        </ScrollView>
-                    </View>
-                </View>
-            </Modal>
-
             {loading && (
                 <View style={styles.loadingOverlay}>
                     <View style={styles.loadingSpinner} />
@@ -755,26 +661,11 @@ const styles = StyleSheet.create({
     mediaSection: {
         padding: 16,
     },
-    mediaSectionHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
     sectionTitle: {
         fontSize: 16,
         fontWeight: '600',
         color: '#000',
-    },
-    editButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    editButtonText: {
-        fontSize: 14,
-        color: '#0095F6',
-        fontWeight: '500',
+        marginBottom: 12,
     },
     mediaPreview: {
         width: '100%',
@@ -799,20 +690,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: 'rgba(0,0,0,0.2)'
-    },
-    filterBadge: {
-        position: 'absolute',
-        top: 12,
-        right: 12,
-        backgroundColor: 'rgba(0,0,0,0.7)',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 12,
-    },
-    filterBadgeText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: '600',
     },
     mentionSection: {
         marginBottom: 16,
@@ -957,75 +834,6 @@ const styles = StyleSheet.create({
         color: '#999',
         marginTop: 2,
     },
-    emptyText: {
-        textAlign: 'center',
-        padding: 32,
-        color: '#999',
-        fontSize: 14,
-    },
-    editSection: {
-        padding: 16,
-    },
-    editSectionTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#000',
-        marginBottom: 12,
-    },
-    editNote: {
-        fontSize: 13,
-        color: '#999',
-        fontStyle: 'italic',
-    },
-    filterList: {
-        marginTop: 8,
-    },
-    filterItem: {
-        alignItems: 'center',
-        marginRight: 16,
-        padding: 8,
-        borderRadius: 8,
-        borderWidth: 2,
-        borderColor: 'transparent',
-    },
-    filterItemActive: {
-        borderColor: '#0095F6',
-    },
-    filterPreview: {
-        width: 60,
-        height: 60,
-        borderRadius: 8,
-        marginBottom: 4,
-    },
-    filterName: {
-        fontSize: 12,
-        color: '#000',
-    },
-    loadingOverlay: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    loadingSpinner: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        backgroundColor: 'rgba(255,255,255,0.9)',
-        borderWidth: 4,
-        borderColor: '#111827',
-        borderTopColor: 'transparent',
-    },
-    loadingText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
-        marginTop: 16,
-    },
     // Mention dropdown styles
     mentionDropdown: {
         position: 'absolute',
@@ -1067,64 +875,5 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: '#666',
         marginTop: 2,
-    },
-    // Video edit modal styles
-    cancelButton: {
-        fontSize: 16,
-        color: '#999',
-    },
-    doneButtonDisabled: {
-        opacity: 0.5,
-    },
-    videoEditPreview: {
-        width: '100%',
-        height: 250,
-        backgroundColor: '#000',
-        borderRadius: 12,
-        overflow: 'hidden',
-        marginBottom: 20,
-    },
-    videoEditPreviewPlayer: {
-        width: '100%',
-        height: '100%',
-    },
-    filterOverlay: {
-        position: 'absolute',
-        bottom: 10,
-        left: 10,
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 8,
-    },
-    filterOverlayText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: '600',
-    },
-    filterNameActive: {
-        color: '#0095F6',
-        fontWeight: '600',
-    },
-    trimControls: {
-        flexDirection: 'row',
-        gap: 12,
-        marginBottom: 12,
-    },
-    trimInput: {
-        flex: 1,
-    },
-    trimLabel: {
-        fontSize: 13,
-        color: '#666',
-        marginBottom: 6,
-    },
-    trimTextInput: {
-        borderWidth: 1,
-        borderColor: '#DBDBDB',
-        borderRadius: 8,
-        padding: 10,
-        fontSize: 15,
-        color: '#000',
     },
 });

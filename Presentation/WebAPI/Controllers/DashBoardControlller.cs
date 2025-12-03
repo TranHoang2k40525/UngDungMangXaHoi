@@ -41,6 +41,12 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 return StatusCode(500, $"Loi server: {ex.Message}");
             }
         }
+        [HttpGet("activeUser")]
+        public async Task<IActionResult> GetActiveUser()
+        {
+            var result = await _dashBoardService.GetUserActive();
+            return Ok(result);
+        }
 
 
     }

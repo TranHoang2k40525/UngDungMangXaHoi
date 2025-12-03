@@ -8,6 +8,8 @@ namespace UngDungMangXaHoi.Application.Interfaces
 {
     public interface IDashBoardService
     {
-        Task<List<UserNewByDateDto>> GetUserNewDate(DateTime fromDate, DateTime toDate, SortUserNewByDateOptionDto option);  
-            }
+        Task<List<UserNewByDateDto>> GetUserNewDate(DateTime fromDate, DateTime toDate, SortUserNewByDateOptionDto option);
+        Task<NumberUserActiveDto> GetUserActive();
+
+    }
 }
