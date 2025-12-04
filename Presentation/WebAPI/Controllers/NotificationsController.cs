@@ -155,12 +155,28 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
 
         private int GetCurrentUserId()
         {
+            // Log all claims for debugging
+            var allClaims = string.Join(", ", User.Claims.Select(c => $"{c.Type}={c.Value}"));
+            Console.WriteLine($"[NotificationsController] All claims: {allClaims}");
+            
+            // Try user_id claim first (for User accounts)
             var userIdClaim = User.FindFirst("user_id")?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out int userId))
             {
-                throw new UnauthorizedAccessException("Không tìm thấy thông tin người dùng");
+                Console.WriteLine($"[NotificationsController] Using user_id: {userId}");
+                return userId;
             }
-            return userId;
+            
+            // Fallback to account_id from NameIdentifier (for all accounts)
+            var accountIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(accountIdClaim) && int.TryParse(accountIdClaim, out int accountId))
+            {
+                Console.WriteLine($"[NotificationsController] Using account_id: {accountId}");
+                return accountId;
+            }
+            
+            Console.WriteLine($"[NotificationsController] No valid user_id or account_id found");
+            throw new UnauthorizedAccessException("Không tìm thấy thông tin người dùng");
         }
     }
 }

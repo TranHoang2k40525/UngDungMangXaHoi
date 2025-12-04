@@ -20,5 +20,11 @@ namespace UngDungMangXaHoi.Domain.Entities
         public string admin_level { get; set; } = null!;
 
         public Account Account { get; set; } = null!;
+        public ICollection<AdminAction> AdminActions { get; set; } = new List<AdminAction>();
+        public ICollection<AccountSanction> AccountSanctions { get; set; } = new List<AccountSanction>();
+        public ICollection<BusinessVerificationRequest> BusinessVerificationRequestsReviewed { get; set; } = new List<BusinessVerificationRequest>();
+        public ICollection<ContentReport> ContentReports = new List<ContentReport>();
+        public ICollection<ModerationLog> ModerationLogs { get; set; } = new List<ModerationLog>();
+
     }
 }

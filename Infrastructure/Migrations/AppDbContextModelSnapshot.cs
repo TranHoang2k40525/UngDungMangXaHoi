@@ -35,6 +35,12 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<DateTime?>("business_expires_at")
+                        .HasColumnType("datetime");
+
+                    b.Property<DateTime?>("business_verified_at")
+                        .HasColumnType("datetime");
+
                     b.Property<DateTime>("created_at")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
@@ -57,6 +63,60 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                     b.HasIndex("account_type");
 
                     b.ToTable("Accounts", (string)null);
+                });
+
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.AccountSanction", b =>
+                {
+                    b.Property<int>("sanction_id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("sanction_id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("sanction_id"));
+
+                    b.Property<int>("account_id")
+                        .HasColumnType("int")
+                        .HasColumnName("account_id");
+
+                    b.Property<string>("action_type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("action_type");
+
+                    b.Property<int?>("admin_id")
+                        .HasColumnType("int")
+                        .HasColumnName("admin_id");
+
+                    b.Property<DateTime?>("end_at")
+                        .HasColumnType("datetime")
+                        .HasColumnName("end_at");
+
+                    b.Property<bool>("is_active")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTime>("start_at")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime")
+                        .HasColumnName("start_at")
+                        .HasDefaultValueSql("GETDATE()");
+
+                    b.HasKey("sanction_id");
+
+                    b.HasIndex("account_id");
+
+                    b.HasIndex("admin_id");
+
+                    b.ToTable("AccountSanctions", (string)null);
                 });
 
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Admin", b =>
@@ -123,6 +183,46 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                     b.ToTable("Admins", (string)null);
                 });
 
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.AdminAction", b =>
+                {
+                    b.Property<int>("action_id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("action_id"));
+
+                    b.Property<string>("action")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("admin_id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("created_at")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime")
+                        .HasDefaultValueSql("getdate()");
+
+                    b.Property<string>("reason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int?>("target_id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("target_type")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("action_id");
+
+                    b.HasIndex("admin_id");
+
+                    b.ToTable("AdminActions", (string)null);
+                });
+
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Block", b =>
                 {
                     b.Property<int>("block_id")
@@ -148,6 +248,142 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Blocks", (string)null);
+                });
+
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.BusinessPayment", b =>
+                {
+                    b.Property<int>("PaymentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("payment_id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PaymentId"));
+
+                    b.Property<int>("AccountId")
+                        .HasColumnType("int")
+                        .HasColumnName("account_id");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("expires_at");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("paid_at");
+
+                    b.Property<string>("PaymentMethod")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("payment_method");
+
+                    b.Property<string>("QrCodeUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("qr_code_url");
+
+                    b.Property<int>("RequestId")
+                        .HasColumnType("int")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TransactionId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("transaction_id");
+
+                    b.HasKey("PaymentId");
+
+                    b.HasIndex("AccountId")
+                        .HasDatabaseName("IX_BusinessPayments_AccountId");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("IX_BusinessPayments_ExpiresAt");
+
+                    b.HasIndex("RequestId");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_BusinessPayments_Status");
+
+                    b.HasIndex("TransactionId")
+                        .IsUnique();
+
+                    b.ToTable("BusinessPayments", (string)null);
+                });
+
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.BusinessVerificationRequest", b =>
+                {
+                    b.Property<int>("request_id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("request_id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("request_id"));
+
+                    b.Property<int>("account_id")
+                        .HasColumnType("int")
+                        .HasColumnName("account_id");
+
+                    b.Property<int?>("assigned_admin_id")
+                        .HasColumnType("int")
+                        .HasColumnName("assigned_admin_id");
+
+                    b.Property<string>("documents_url")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("documents_url");
+
+                    b.Property<DateTime?>("expires_at")
+                        .HasColumnType("datetime")
+                        .HasColumnName("expires_at");
+
+                    b.Property<DateTime?>("reviewed_at")
+                        .HasColumnType("datetime")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<string>("reviewed_notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("reviewed_notes");
+
+                    b.Property<string>("status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime>("submitted_at")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime")
+                        .HasColumnName("submitted_at")
+                        .HasDefaultValueSql("GETDATE()");
+
+                    b.HasKey("request_id");
+
+                    b.HasIndex("account_id");
+
+                    b.HasIndex("assigned_admin_id");
+
+                    b.HasIndex("status");
+
+                    b.ToTable("BusinessVerificationRequests", (string)null);
                 });
 
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Comment", b =>
@@ -342,6 +578,149 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                     b.ToTable("CommentReactions", (string)null);
                 });
 
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.ContentModeration", b =>
+                {
+                    b.Property<int>("ModerationID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("ModerationID");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ModerationID"));
+
+                    b.Property<double>("AIConfidence")
+                        .HasColumnType("float");
+
+                    b.Property<int>("ContentID")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime")
+                        .HasDefaultValueSql("getdate()");
+
+                    b.Property<string>("Status")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("ToxicLabel")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("accountId")
+                        .HasColumnType("int")
+                        .HasColumnName("account_id");
+
+                    b.Property<int?>("commentId")
+                        .HasColumnType("int")
+                        .HasColumnName("comment_id");
+
+                    b.Property<int?>("postId")
+                        .HasColumnType("int")
+                        .HasColumnName("post_id");
+
+                    b.HasKey("ModerationID");
+
+                    b.HasIndex("accountId");
+
+                    b.HasIndex("commentId");
+
+                    b.HasIndex("postId");
+
+                    b.ToTable("ContentModeration", (string)null);
+                });
+
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.ContentReport", b =>
+                {
+                    b.Property<int>("report_id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("report_id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("report_id"));
+
+                    b.Property<int?>("assigned_admin_id")
+                        .HasColumnType("int");
+
+                    b.Property<int>("content_id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("content_type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("created_at")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime")
+                        .HasDefaultValueSql("getdate()");
+
+                    b.Property<DateTime?>("handled_at")
+                        .HasColumnType("datetime");
+
+                    b.Property<string>("handled_notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("reporter_account_id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("report_id");
+
+                    b.HasIndex("assigned_admin_id");
+
+                    b.HasIndex("reporter_account_id");
+
+                    b.HasIndex("status");
+
+                    b.ToTable("ContentReports", (string)null);
+                });
+
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Conversation", b =>
+                {
+                    b.Property<int>("conversation_id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("conversation_id"));
+
+                    b.Property<DateTime>("created_at")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETDATE()");
+
+                    b.Property<DateTime?>("updated_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("user1_id")
+                        .HasColumnType("int");
+
+                    b.Property<int>("user2_id")
+                        .HasColumnType("int");
+
+                    b.HasKey("conversation_id");
+
+                    b.HasIndex("user2_id");
+
+                    b.HasIndex("user1_id", "user2_id")
+                        .IsUnique();
+
+                    b.ToTable("ConversationsNew", (string)null);
+                });
+
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Follow", b =>
                 {
                     b.Property<int>("follow_id")
@@ -358,6 +737,10 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
 
                     b.Property<int>("following_id")
                         .HasColumnType("int");
+
+                    b.Property<string>("status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("follow_id");
 
@@ -418,6 +801,12 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                     b.Property<DateTime>("joined_at")
                         .HasColumnType("datetime");
 
+                    b.Property<DateTime?>("last_read_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("last_read_message_id")
+                        .HasColumnType("int");
+
                     b.Property<string>("role")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -427,12 +816,6 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
 
                     b.Property<int>("user_id")
                         .HasColumnType("int");
-
-                    b.Property<int?>("last_read_message_id")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("last_read_at")
-                        .HasColumnType("datetime2");
 
                     b.HasKey("id");
 
@@ -511,6 +894,43 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                     b.ToTable("Messages");
                 });
 
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.GroupMessageReaction", b =>
+                {
+                    b.Property<int>("message_id")
+                        .HasColumnType("int");
+
+                    b.Property<int>("user_id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("created_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("reaction_type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("message_id", "user_id");
+
+                    b.ToTable("GroupMessageReactions");
+                });
+
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.GroupMessageRead", b =>
+                {
+                    b.Property<int>("message_id")
+                        .HasColumnType("int");
+
+                    b.Property<int>("user_id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("read_at")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("message_id", "user_id");
+
+                    b.ToTable("GroupMessageReads");
+                });
+
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.GroupMessageRestriction", b =>
                 {
                     b.Property<int>("restriction_id")
@@ -571,6 +991,110 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                     b.ToTable("LoginHistory", (string)null);
                 });
 
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Message", b =>
+                {
+                    b.Property<int>("message_id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("message_id"));
+
+                    b.Property<string>("content")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("conversation_id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("created_at")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETDATE()");
+
+                    b.Property<bool>("is_deleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("is_recalled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("media_url")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("message_type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("read_at")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("sender_id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("thumbnail_url")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("updated_at")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("message_id");
+
+                    b.HasIndex("conversation_id");
+
+                    b.HasIndex("created_at");
+
+                    b.HasIndex("sender_id");
+
+                    b.ToTable("MessagesNew", (string)null);
+                });
+
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.ModerationLog", b =>
+                {
+                    b.Property<int>("LogID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("LogID"));
+
+                    b.Property<DateTime>("ActionAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime")
+                        .HasDefaultValueSql("getdate()");
+
+                    b.Property<string>("ActionTaken")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("AdminID")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ModerationID")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.HasKey("LogID");
+
+                    b.HasIndex("AdminID");
+
+                    b.HasIndex("ModerationID");
+
+                    b.ToTable("ModerationLogs", (string)null);
+                });
+
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Notification", b =>
                 {
                     b.Property<int>("notification_id")
@@ -580,11 +1104,17 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("notification_id"));
 
+                    b.Property<int?>("comment_id")
+                        .HasColumnType("int");
+
                     b.Property<string>("content")
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)")
                         .HasColumnName("content");
+
+                    b.Property<int?>("conversation_id")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("created_at")
                         .ValueGeneratedOnAdd()
@@ -598,9 +1128,15 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("is_read");
 
+                    b.Property<int?>("message_id")
+                        .HasColumnType("int");
+
                     b.Property<int?>("post_id")
                         .HasColumnType("int")
                         .HasColumnName("post_id");
+
+                    b.Property<int?>("reaction_type")
+                        .HasColumnType("int");
 
                     b.Property<int?>("sender_id")
                         .HasColumnType("int")
@@ -675,6 +1211,16 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                         .HasColumnName("post_id");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("post_id"));
+
+                    b.Property<string>("MentionedUserIds")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("mentioned_user_ids");
+
+                    b.Property<string>("TaggedUserIds")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("tagged_user_ids");
 
                     b.Property<string>("caption")
                         .HasMaxLength(2200)
@@ -1002,6 +1548,9 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
 
+                    b.Property<DateTime?>("last_seen")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("website")
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
@@ -1033,7 +1582,7 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                                 .IsUnique()
                                 .HasFilter("[email] IS NOT NULL");
 
-                            b1.ToTable("Accounts", (string)null);
+                            b1.ToTable("Accounts");
 
                             b1.WithOwner()
                                 .HasForeignKey("account_id");
@@ -1052,7 +1601,7 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
 
                             b1.HasKey("account_id");
 
-                            b1.ToTable("Accounts", (string)null);
+                            b1.ToTable("Accounts");
 
                             b1.WithOwner()
                                 .HasForeignKey("account_id");
@@ -1075,7 +1624,7 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                                 .IsUnique()
                                 .HasFilter("[phone] IS NOT NULL");
 
-                            b1.ToTable("Accounts", (string)null);
+                            b1.ToTable("Accounts");
 
                             b1.WithOwner()
                                 .HasForeignKey("account_id");
@@ -1087,6 +1636,24 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("phone");
+                });
+
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.AccountSanction", b =>
+                {
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.Account", "Account")
+                        .WithMany("AccountSanctions")
+                        .HasForeignKey("account_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.Admin", "Admin")
+                        .WithMany("AccountSanctions")
+                        .HasForeignKey("admin_id")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Account");
+
+                    b.Navigation("Admin");
                 });
 
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Admin", b =>
@@ -1109,7 +1676,7 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
 
                             b1.HasKey("admin_id");
 
-                            b1.ToTable("Admins", (string)null);
+                            b1.ToTable("Admins");
 
                             b1.WithOwner()
                                 .HasForeignKey("admin_id");
@@ -1118,6 +1685,16 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                     b.Navigation("Account");
 
                     b.Navigation("avatar_url");
+                });
+
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.AdminAction", b =>
+                {
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.Admin", "Admin")
+                        .WithMany("AdminActions")
+                        .HasForeignKey("admin_id")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Admin");
                 });
 
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Block", b =>
@@ -1137,6 +1714,43 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                     b.Navigation("Blocked");
 
                     b.Navigation("Blocker");
+                });
+
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.BusinessPayment", b =>
+                {
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.Account", "Account")
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.BusinessVerificationRequest", "Request")
+                        .WithMany()
+                        .HasForeignKey("RequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Account");
+
+                    b.Navigation("Request");
+                });
+
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.BusinessVerificationRequest", b =>
+                {
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.Account", "Accounts")
+                        .WithMany("BusinessVerificationRequests")
+                        .HasForeignKey("account_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.Admin", "AssignedAdmin")
+                        .WithMany("BusinessVerificationRequestsReviewed")
+                        .HasForeignKey("assigned_admin_id")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Accounts");
+
+                    b.Navigation("AssignedAdmin");
                 });
 
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Comment", b =>
@@ -1214,6 +1828,67 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                     b.Navigation("Comment");
                 });
 
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.ContentModeration", b =>
+                {
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.Account", "Account")
+                        .WithMany("ContentModerations")
+                        .HasForeignKey("accountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.Comment", "Comment")
+                        .WithMany("ContentModerations")
+                        .HasForeignKey("commentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.Post", "Post")
+                        .WithMany("ContentModerations")
+                        .HasForeignKey("postId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Account");
+
+                    b.Navigation("Comment");
+
+                    b.Navigation("Post");
+                });
+
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.ContentReport", b =>
+                {
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.Admin", "AssignedAdmin")
+                        .WithMany("ContentReports")
+                        .HasForeignKey("assigned_admin_id")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.Account", "ReporterAccount")
+                        .WithMany("ContentReports")
+                        .HasForeignKey("reporter_account_id")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("AssignedAdmin");
+
+                    b.Navigation("ReporterAccount");
+                });
+
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Conversation", b =>
+                {
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.User", "User1")
+                        .WithMany()
+                        .HasForeignKey("user1_id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.User", "User2")
+                        .WithMany()
+                        .HasForeignKey("user2_id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User1");
+
+                    b.Navigation("User2");
+                });
+
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.GroupConversationMember", b =>
                 {
                     b.HasOne("UngDungMangXaHoi.Domain.Entities.GroupConversation", "Conversation")
@@ -1286,6 +1961,43 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Account");
+                });
+
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Message", b =>
+                {
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.Conversation", "Conversation")
+                        .WithMany()
+                        .HasForeignKey("conversation_id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.User", "Sender")
+                        .WithMany()
+                        .HasForeignKey("sender_id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Conversation");
+
+                    b.Navigation("Sender");
+                });
+
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.ModerationLog", b =>
+                {
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.Admin", "Admin")
+                        .WithMany("ModerationLogs")
+                        .HasForeignKey("AdminID")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.ContentModeration", "ContentModeration")
+                        .WithMany("ModerationLogs")
+                        .HasForeignKey("ModerationID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Admin");
+
+                    b.Navigation("ContentModeration");
                 });
 
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Notification", b =>
@@ -1446,7 +2158,7 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
 
                             b1.HasKey("user_id");
 
-                            b1.ToTable("Users", (string)null);
+                            b1.ToTable("Users");
 
                             b1.WithOwner()
                                 .HasForeignKey("user_id");
@@ -1468,7 +2180,7 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                             b1.HasIndex("Value")
                                 .IsUnique();
 
-                            b1.ToTable("Users", (string)null);
+                            b1.ToTable("Users");
 
                             b1.WithOwner()
                                 .HasForeignKey("user_id");
@@ -1484,13 +2196,36 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
 
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Account", b =>
                 {
+                    b.Navigation("AccountSanctions");
+
                     b.Navigation("Admin");
+
+                    b.Navigation("BusinessVerificationRequests");
+
+                    b.Navigation("ContentModerations");
+
+                    b.Navigation("ContentReports");
 
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Admin", b =>
+                {
+                    b.Navigation("AccountSanctions");
+
+                    b.Navigation("AdminActions");
+
+                    b.Navigation("BusinessVerificationRequestsReviewed");
+
+                    b.Navigation("ContentReports");
+
+                    b.Navigation("ModerationLogs");
+                });
+
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Comment", b =>
                 {
+                    b.Navigation("ContentModerations");
+
                     b.Navigation("EditHistory");
 
                     b.Navigation("Mentions");
@@ -1498,6 +2233,11 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                     b.Navigation("Reactions");
 
                     b.Navigation("Replies");
+                });
+
+            modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.ContentModeration", b =>
+                {
+                    b.Navigation("ModerationLogs");
                 });
 
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.GroupConversation", b =>
@@ -1513,6 +2253,8 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Post", b =>
                 {
                     b.Navigation("Comments");
+
+                    b.Navigation("ContentModerations");
 
                     b.Navigation("Media");
                 });

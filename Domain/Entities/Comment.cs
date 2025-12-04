@@ -33,7 +33,8 @@ public class Comment
     
     // Edit history
     public ICollection<CommentEditHistory> EditHistory { get; set; } = new List<CommentEditHistory>();
-    
+    public ICollection<ContentModeration> ContentModerations { get; set; } = new List<ContentModeration>();
+
     // Counters (computed from collections or stored)
     public int LikesCount { get; set; } = 0;
     public int RepliesCount { get; set; } = 0;

@@ -25,7 +25,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
         [HttpPost]
         [Authorize]
-        public async Task<IActionResult> CreateStory([FromForm] IFormFile Media, [FromForm] string MediaType, [FromForm] string Privacy, [FromForm] int? UserId)
+        public async Task<IActionResult> CreateStory(IFormFile Media, string MediaType,  string Privacy,  int? UserId)
         {
             try
             {

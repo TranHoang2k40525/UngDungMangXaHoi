@@ -1,6 +1,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.5.2.0
+# Visual Studio Version 18
+VisualStudioVersion = 18.0.11217.181 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UngDungMangXaHoi.Application", "Application\UngDungMangXaHoi.Application.csproj", "{E13950F7-0808-C1D0-B120-F2F0D7A48458}"
 EndProject
@@ -11,6 +11,8 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Presentation", "Presentation", "{06CFFD70-14AA-A959-A3BA-1B15D094E3B1}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UngDungMangXaHoi.WebAPI", "Presentation\WebAPI\UngDungMangXaHoi.WebAPI.csproj", "{3EE229E3-3E54-DA86-602E-3D3AA0B9DE4E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UngDungMangXaHoi.Data", "UngDungMangXaHoi.Data\UngDungMangXaHoi.Data.csproj", "{95B1A0C7-1BA5-4E9B-9FDC-65632C359DE2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -34,6 +36,10 @@ Global
 		{3EE229E3-3E54-DA86-602E-3D3AA0B9DE4E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3EE229E3-3E54-DA86-602E-3D3AA0B9DE4E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3EE229E3-3E54-DA86-602E-3D3AA0B9DE4E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{95B1A0C7-1BA5-4E9B-9FDC-65632C359DE2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{95B1A0C7-1BA5-4E9B-9FDC-65632C359DE2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{95B1A0C7-1BA5-4E9B-9FDC-65632C359DE2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{95B1A0C7-1BA5-4E9B-9FDC-65632C359DE2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

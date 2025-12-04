@@ -12,5 +12,7 @@ namespace UngDungMangXaHoi.Domain.Interfaces
         Task<Admin> AddAsync(Admin admin);
         Task UpdateAsync(Admin admin);
         Task<bool> ExistsByEmailAsync(Email email);
+
+        
     }
 }

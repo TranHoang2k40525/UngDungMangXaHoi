@@ -54,7 +54,7 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .AnyAsync(b => (b.blocker_id == userId1 && b.blocked_id == userId2) ||
                               (b.blocker_id == userId2 && b.blocked_id == userId1));
         }
-
+        
         public async Task<Block?> GetBlockAsync(int blockerId, int blockedId)
         {
             return await _context.Blocks

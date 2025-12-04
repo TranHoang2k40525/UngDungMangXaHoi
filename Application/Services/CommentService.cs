@@ -9,13 +9,22 @@ public class CommentService
 {
     private readonly ICommentRepository _commentRepository;
     private readonly IUserRepository _userRepository;
+    private readonly INotificationRepository _notificationRepository;
+    private readonly IRealTimeNotificationService _realTimeNotificationService;
+    private readonly IPostRepository _postRepository;
 
     public CommentService(
         ICommentRepository commentRepository,
-        IUserRepository userRepository)
+        IUserRepository userRepository,
+        INotificationRepository notificationRepository,
+        IRealTimeNotificationService realTimeNotificationService,
+        IPostRepository postRepository)
     {
         _commentRepository = commentRepository;
         _userRepository = userRepository;
+        _notificationRepository = notificationRepository;
+        _realTimeNotificationService = realTimeNotificationService;
+        _postRepository = postRepository;
     }
 
     // Create Comment
@@ -45,8 +54,10 @@ public class CommentService
 
         var createdComment = await _commentRepository.CreateAsync(comment);
         
-        // Parse @mentions and save to database
-        await ProcessMentionsAsync(createdComment.CommentId, dto.Content);
+        // Gửi thông báo
+        await SendCommentNotificationAsync(createdComment, user);
+
+        // Fetch complete comment with all includes
 
         // Fetch complete comment with all includes
         var fullComment = await _commentRepository.GetByIdAsync(createdComment.CommentId);
@@ -153,14 +164,154 @@ public class CommentService
         return await _commentRepository.GetReactionCountsAsync(commentId);
     }
 
+    // Gửi thông báo khi có comment mới
+    private async Task SendCommentNotificationAsync(Comment comment, User commenter)
+    {
+        try
+        {
+            // Lấy thông tin bài viết
+            var post = await _postRepository.GetByIdAsync(comment.PostId);
+            if (post == null) return;
+
+            // Nếu comment vào bài viết của người khác
+            if (post.user_id != commenter.user_id)
+            {
+                var notification = new Notification
+                {
+                    user_id = post.user_id,
+                    sender_id = commenter.user_id,
+                    type = NotificationType.Comment,
+                    post_id = post.post_id,
+                    comment_id = comment.CommentId,
+                    content = $"{commenter.username.Value} đã bình luận vào bài viết của bạn",
+                    is_read = false,
+                    created_at = DateTimeOffset.UtcNow
+                };
+
+                await _notificationRepository.AddAsync(notification);
+
+                // Gửi real-time notification
+                var notificationDto = new NotificationDto
+                {
+                    NotificationId = notification.notification_id,
+                    UserId = notification.user_id,
+                    SenderId = notification.sender_id,
+                    SenderUsername = commenter.username.Value,
+                    SenderAvatar = commenter.avatar_url?.Value,
+                    Type = notification.type,
+                    PostId = notification.post_id,
+                    CommentId = comment.CommentId,
+                    Content = notification.content,
+                    IsRead = notification.is_read,
+                    CreatedAt = notification.created_at
+                };
+
+                await _realTimeNotificationService.SendNotificationToUserAsync(post.user_id, notificationDto);
+            }
+
+            // Nếu là reply comment (có ParentCommentId)
+            if (comment.ParentCommentId.HasValue)
+            {
+                var parentComment = await _commentRepository.GetByIdAsync(comment.ParentCommentId.Value);
+                if (parentComment != null && parentComment.UserId != commenter.user_id)
+                {
+                    var notification = new Notification
+                    {
+                        user_id = parentComment.User.user_id,
+                        sender_id = commenter.user_id,
+                        type = NotificationType.CommentReply,
+                        post_id = post.post_id,
+                        comment_id = comment.CommentId,
+                        content = $"{commenter.username.Value} đã trả lời bình luận của bạn",
+                        is_read = false,
+                        created_at = DateTimeOffset.UtcNow
+                    };
+
+                    await _notificationRepository.AddAsync(notification);
+
+                    // Gửi real-time notification
+                    var notificationDto = new NotificationDto
+                    {
+                        NotificationId = notification.notification_id,
+                        UserId = notification.user_id,
+                        SenderId = notification.sender_id,
+                        SenderUsername = commenter.username.Value,
+                        SenderAvatar = commenter.avatar_url?.Value,
+                        Type = notification.type,
+                        PostId = notification.post_id,
+                        CommentId = comment.CommentId,
+                        Content = notification.content,
+                        IsRead = notification.is_read,
+                        CreatedAt = notification.created_at
+                    };
+
+                    await _realTimeNotificationService.SendNotificationToUserAsync(parentComment.User.user_id, notificationDto);
+                }
+            }
+
+            // Xử lý @mentions
+            await ProcessMentionsAsync(comment.CommentId, comment.Content, commenter);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[CommentService] Error sending notification: {ex.Message}");
+            // Không throw exception để không ảnh hưởng đến việc tạo comment
+        }
+    }
+
     // Process @mentions in comment
-    private async Task ProcessMentionsAsync(int commentId, string content)
+    private async Task ProcessMentionsAsync(int commentId, string content, User commenter)
     {
         var mentionedUsernames = ExtractMentions(content);
         if (!mentionedUsernames.Any()) return;
 
-        // For now, just store in MentionedUserIds field as CSV
-        // TODO: Implement proper CommentMentions table later
+        foreach (var username in mentionedUsernames)
+        {
+            try
+            {
+                var mentionedUser = await _userRepository.GetByUsernameAsync(username);
+                if (mentionedUser != null && mentionedUser.user_id != commenter.user_id)
+                {
+                    var comment = await _commentRepository.GetByIdAsync(commentId);
+                    
+                    var notification = new Notification
+                    {
+                        user_id = mentionedUser.user_id,
+                        sender_id = commenter.user_id,
+                        type = NotificationType.Mention,
+                        post_id = comment?.PostId,
+                        comment_id = commentId,
+                        content = $"{commenter.username.Value} đã nhắc đến bạn trong một bình luận",
+                        is_read = false,
+                        created_at = DateTimeOffset.UtcNow
+                    };
+
+                    await _notificationRepository.AddAsync(notification);
+
+                    // Gửi real-time notification
+                    var notificationDto = new NotificationDto
+                    {
+                        NotificationId = notification.notification_id,
+                        UserId = notification.user_id,
+                        SenderId = notification.sender_id,
+                        SenderUsername = commenter.username.Value,
+                        SenderAvatar = commenter.avatar_url?.Value,
+                        Type = notification.type,
+                        PostId = notification.post_id,
+                        CommentId = commentId,
+                        Content = notification.content,
+                        IsRead = notification.is_read,
+                        CreatedAt = notification.created_at
+                    };
+
+                    await _realTimeNotificationService.SendNotificationToUserAsync(mentionedUser.user_id, notificationDto);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CommentService] Error processing mention for @{username}: {ex.Message}");
+            }
+        }
     }
 
     // Extract @mentions from text

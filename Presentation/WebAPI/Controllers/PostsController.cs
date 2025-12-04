@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using UngDungMangXaHoi.Domain.Entities;
 using UngDungMangXaHoi.Domain.Interfaces;
+using UngDungMangXaHoi.Application.DTOs;
+using UngDungMangXaHoi.Application.Services;
 
 namespace UngDungMangXaHoi.WebAPI.Controllers
 {
@@ -20,213 +22,61 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
     private readonly IPostRepository _postRepository;
     private readonly IUserRepository _userRepository;
     private readonly ICommentRepository _commentRepository;
-    private readonly UngDungMangXaHoi.Infrastructure.Services.VideoTranscodeService _videoTranscoder;
+    private readonly PostsService _postsService;
+    private readonly BusinessPostInjectionService _businessPostInjectionService;
+    private readonly UserPostPrioritizationService _userPostPrioritizationService;
 
         public PostsController(
-            IPostRepository postRepository, 
-            IUserRepository userRepository, 
+            IPostRepository postRepository,
+            IUserRepository userRepository,
             ICommentRepository commentRepository,
-            UngDungMangXaHoi.Infrastructure.Services.VideoTranscodeService videoTranscoder)
+            Application.Services.PostsService postsService,
+            BusinessPostInjectionService businessPostInjectionService,
+            UserPostPrioritizationService userPostPrioritizationService)
         {
             _postRepository = postRepository;
             _userRepository = userRepository;
             _commentRepository = commentRepository;
-            _videoTranscoder = videoTranscoder;
+            _postsService = postsService;
+            _businessPostInjectionService = businessPostInjectionService;
+            _userPostPrioritizationService = userPostPrioritizationService;
         }
 
-        // DTO for create request via multipart/form-data
-        public class CreatePostForm
-        {
-            public string? Caption { get; set; }
-            public string? Location { get; set; }
-            public string Privacy { get; set; } = "public"; // public | private | followers
-            public List<IFormFile>? Images { get; set; }
-            public IFormFile? Video { get; set; }
-            // Optional JSON arrays encoded as strings, e.g. "[1,2,3]"
-            public string? Mentions { get; set; }
-            public string? Tags { get; set; }
-        }
-
-        // DTOs for update operations
-        public class UpdatePrivacyDto
-        {
-            public string Privacy { get; set; } = "public"; // public | private | followers
-        }
-
-        public class UpdateCaptionDto
-        {
-            public string Caption { get; set; } = string.Empty;
-        }
-
-        public class UpdateTagsDto
-        {
-            // array of user ids
-            public int[]? Tags { get; set; }
-        }
+        // Using DTOs from Application.DTOs: CreatePostForm, UpdatePrivacyDto, UpdateCaptionDto, UpdateTagsDto
 
     [HttpPost]
     [Consumes("multipart/form-data")]
         [RequestFormLimits(MultipartBodyLengthLimit = 150_000_000)] // 150MB total
         [RequestSizeLimit(150_000_000)]
-    public async Task<IActionResult> CreatePost([FromForm] CreatePostForm form)
-        {
-            // Validate privacy
-            var allowedPrivacy = new[] { "public", "private", "followers" };
-            var incomingPrivacy = (form.Privacy ?? "public").Trim().ToLowerInvariant();
-            if (!allowedPrivacy.Contains(incomingPrivacy))
+        public async Task<IActionResult> CreatePost(CreatePostForm form)
             {
-                return BadRequest(new { message = "privacy phải là public/private/followers" });
-            }
-
-            // Get accountId then user
-            var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
-            {
-                return Unauthorized(new { message = "Token không hợp lệ!" });
-            }
-
-            var user = await _userRepository.GetByAccountIdAsync(accountId);
-            if (user == null)
-            {
-                return BadRequest(new { message = "Không tìm thấy user tương ứng với tài khoản." });
-            }
-
-            // Validate media
-            var images = form.Images ?? new List<IFormFile>();
-            var video = form.Video;
-            if (images.Count == 0 && video == null)
-            {
-                return BadRequest(new { message = "Bài đăng phải có ít nhất 1 ảnh hoặc 1 video." });
-            }
-
-            if (video != null && video.Length > 100L * 1024 * 1024)
-            {
-                return BadRequest(new { message = "Video vượt quá dung lượng tối đa 100MB." });
-            }
-
-            // Validate file extensions
-            var allowedImageExt = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
-            foreach (var img in images)
-            {
-                var ext = Path.GetExtension(img.FileName).ToLowerInvariant();
-                if (!allowedImageExt.Contains(ext))
+                var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
                 {
-                    return BadRequest(new { message = $"Ảnh không hợp lệ: {img.FileName}" });
-                }
-            }
 
-            if (video != null)
-            {
-                var allowedVideoExt = new[] { ".mp4", ".mov", ".m4v", ".avi", ".wmv", ".mkv" };
-                var vext = Path.GetExtension(video.FileName).ToLowerInvariant();
-                if (!allowedVideoExt.Contains(vext))
-                {
-                    return BadRequest(new { message = "Định dạng video không hợp lệ." });
-                }
-            }
+                    return Unauthorized(new { message = "Token không hợp lệ!" });
 
-            // Parse optional mentions/tags (JSON arrays) and store as CSV on Post
-            int[]? mentionIds = null;
-            int[]? tagIds = null;
-            try
-            {
-                if (!string.IsNullOrEmpty(form.Mentions))
-                {
-                    mentionIds = System.Text.Json.JsonSerializer.Deserialize<int[]>(form.Mentions);
-                }
-            }
-            catch { /* ignore parse errors */ }
-            try
-            {
-                if (!string.IsNullOrEmpty(form.Tags))
-                {
-                    tagIds = System.Text.Json.JsonSerializer.Deserialize<int[]>(form.Tags);
-                }
-            }
-            catch { /* ignore parse errors */ }
-
-            // Create post first
-            var post = new Post
-            {
-                user_id = user.user_id,
-                caption = form.Caption,
-                location = form.Location,
-                privacy = incomingPrivacy,
-                is_visible = true,
-                created_at = DateTimeOffset.UtcNow,
-                MentionedUserIds = (mentionIds != null && mentionIds.Length > 0) ? string.Join(",", mentionIds) : null,
-                TaggedUserIds = (tagIds != null && tagIds.Length > 0) ? string.Join(",", tagIds) : null
-            };
-
-            var createdPost = await _postRepository.AddAsync(post);
-
-            // Prepare directories
-            var root = Directory.GetCurrentDirectory();
-            var imagesDir = Path.Combine(root, "Assets", "Images");
-            var videosDir = Path.Combine(root, "Assets", "Videos");
-            if (!Directory.Exists(imagesDir)) Directory.CreateDirectory(imagesDir);
-            if (!Directory.Exists(videosDir)) Directory.CreateDirectory(videosDir);
-
-            // Save images
-            int order = 0;
-            foreach (var img in images)
-            {
-                var ext = Path.GetExtension(img.FileName).ToLowerInvariant();
-                var fileName = $"{user.username.Value}_{Guid.NewGuid().ToString("N").Substring(0, 8)}{ext}";
-                var filePath = Path.Combine(imagesDir, fileName);
-                using (var stream = new FileStream(filePath, FileMode.Create))
-                {
-                    await img.CopyToAsync(stream);
                 }
 
-                // Lưu vào DB: chỉ tên file theo yêu cầu
-                var media = new PostMedia
-                {
-                    post_id = createdPost.post_id,
-                    media_url = fileName,
-                    media_type = "Image",
-                    media_order = order++,
-                    created_at = DateTimeOffset.UtcNow
-                };
-                await _postRepository.AddMediaAsync(media);
-            }
-
-            // Save single video if provided
-            if (video != null)
-            {
-                var vext = Path.GetExtension(video.FileName).ToLowerInvariant();
-                var vname = $"{user.username.Value}_{Guid.NewGuid().ToString("N").Substring(0, 8)}{vext}";
-                var vpath = Path.Combine(videosDir, vname);
-                using (var vstream = new FileStream(vpath, FileMode.Create))
-                {
-                    await video.CopyToAsync(vstream);
-                }
-
-                // Attempt to normalize for broad compatibility; keep original if transcoding fails
                 try
                 {
-                    var compatPath = await _videoTranscoder.TryNormalizeAsync(vpath, videosDir);
-                    if (!string.IsNullOrEmpty(compatPath) && System.IO.File.Exists(compatPath))
-                    {
-                        // Switch to compat file for serving
-                        vname = Path.GetFileName(compatPath);
-                    }
+                    var postId = await _postsService.CreatePostAsync(accountId, form);
+                    return Ok(new { message = "Đăng bài thành công", PostId = postId });
                 }
-                catch { /* ignore and fall back to original */ }
-
-                var vmedia = new PostMedia
+                catch (ArgumentException aex)
                 {
-                    post_id = createdPost.post_id,
-                    media_url = vname, // chỉ lưu tên file
-                    media_type = "Video",
-                    media_order = order,
-                    created_at = DateTimeOffset.UtcNow
-                };
-                await _postRepository.AddMediaAsync(vmedia);
+                    return BadRequest(new { message = aex.Message });
+                }
+                catch (InvalidOperationException iex)
+                {
+                    return BadRequest(new { message = iex.Message });
+                }
+                catch (Exception ex)
+                {
+                    return StatusCode(500, new { message = ex.Message });
+                }
             }
-
-            return Ok(new { message = "Đăng bài thành công", PostId = createdPost.post_id });
-        }
+        
 
         [HttpGet("feed")]
         [AllowAnonymous]
@@ -246,8 +96,18 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             var posts = await _postRepository.GetFeedAsync(currentUserId, Math.Max(1, page), Math.Clamp(pageSize, 1, 50));
             
+            // Bước 1: Sắp xếp ưu tiên User posts dựa vào lịch sử tìm kiếm
+            var prioritizedUserPosts = await _userPostPrioritizationService.PrioritizeAndMixUserPostsAsync(
+                posts.ToList(), 
+                currentUserId);
+            
+            // Bước 2: Chèn bài Business vào feed đã được prioritize
+            var mergedFeed = await _businessPostInjectionService.InjectBusinessPostsIntoFeedAsync(
+                prioritizedUserPosts, 
+                currentUserId);
+            
             // Load comment counts for all posts
-            var postIds = posts.Select(p => p.post_id).ToList();
+            var postIds = mergedFeed.Select(p => p.post_id).ToList();
             var commentCounts = new Dictionary<int, int>();
             foreach (var postId in postIds)
             {
@@ -256,7 +116,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             }
             
             var dtoList = new List<object>();
-            foreach (var pp in posts)
+            foreach (var pp in mergedFeed)
             {
                 dtoList.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
             }
@@ -281,8 +141,18 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             var posts = await _postRepository.GetVideoPostsAsync(currentUserId, Math.Max(1, page), Math.Clamp(pageSize, 1, 50));
             
+            // Bước 1: Sắp xếp ưu tiên User video posts dựa vào lịch sử tìm kiếm
+            var prioritizedUserPosts = await _userPostPrioritizationService.PrioritizeAndMixUserPostsAsync(
+                posts.ToList(), 
+                currentUserId);
+            
+            // Bước 2: Chèn bài Business video vào reels đã được prioritize
+            var mergedReels = await _businessPostInjectionService.InjectBusinessPostsIntoFeedAsync(
+                prioritizedUserPosts, 
+                currentUserId);
+            
             // Load comment counts
-            var postIds = posts.Select(p => p.post_id).ToList();
+            var postIds = mergedReels.Select(p => p.post_id).ToList();
             var commentCounts = new Dictionary<int, int>();
             foreach (var postId in postIds)
             {
@@ -291,7 +161,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             }
             
             var dtoList2 = new List<object>();
-            foreach (var pp in posts)
+            foreach (var pp in mergedReels)
             {
                 dtoList2.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
             }
@@ -316,8 +186,18 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             var posts = await _postRepository.GetAllVideoPostsAsync(currentUserId);
             
+            // Bước 1: Sắp xếp ưu tiên User video posts dựa vào lịch sử tìm kiếm
+            var prioritizedUserPosts = await _userPostPrioritizationService.PrioritizeAndMixUserPostsAsync(
+                posts.ToList(), 
+                currentUserId);
+            
+            // Bước 2: Chèn bài Business video vào all reels đã được prioritize
+            var mergedReels = await _businessPostInjectionService.InjectBusinessPostsIntoFeedAsync(
+                prioritizedUserPosts, 
+                currentUserId);
+            
             // Load comment counts
-            var postIds = posts.Select(p => p.post_id).ToList();
+            var postIds = mergedReels.Select(p => p.post_id).ToList();
             var commentCounts = new Dictionary<int, int>();
             foreach (var postId in postIds)
             {
@@ -326,7 +206,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             }
             
             var dtoList3 = new List<object>();
-            foreach (var pp in posts)
+            foreach (var pp in mergedReels)
             {
                 dtoList3.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
             }
@@ -395,6 +275,49 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 dtoList5.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
             }
             return Ok(dtoList5);
+        }
+
+    // GET: api/posts/{id} - Lấy thông tin 1 post theo ID
+    [HttpGet("{id:int}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetPostById([FromRoute] int id)
+        {
+            try
+            {
+                int? currentUserId = null;
+                try
+                {
+                    var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                    if (!string.IsNullOrEmpty(accountIdStr) && int.TryParse(accountIdStr, out var accountId))
+                    {
+                        var u = await _userRepository.GetByAccountIdAsync(accountId);
+                        if (u != null) currentUserId = u.user_id;
+                    }
+                }
+                catch { }
+
+                var post = await _postRepository.GetByIdWithMediaAsync(id);
+                if (post == null)
+                {
+                    return NotFound(new { message = "Post not found" });
+                }
+
+                // Kiểm tra quyền xem post
+                if (post.privacy == "private" && currentUserId != post.user_id)
+                {
+                    return Forbid();
+                }
+
+                // Load comment count
+                var commentsCount = await _commentRepository.GetCommentCountByPostIdAsync(id);
+
+                var postDto = await MapPostToDtoAsync(post, commentsCount);
+                return Ok(postDto);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error retrieving post", error = ex.Message });
+            }
         }
 
     [HttpGet("user/{userId:int}")]
@@ -562,6 +485,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 }
             }
             catch { }
+            bool isSponsored = p.User?.Account?.account_type == AccountType.Business;
 
             return new
             {
@@ -571,11 +495,15 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 privacy = p.privacy,
                 createdAt = p.created_at,
                 commentsCount = commentsCount,
+                isSponsored = isSponsored,
+
                 user = new
                 {
                     id = p.User?.user_id,
                     username = p.User?.username.Value,
-                    avatarUrl = p.User?.avatar_url?.Value != null ? BaseUrl(p.User.avatar_url.Value) : null
+                    avatarUrl = p.User?.avatar_url?.Value != null ? BaseUrl(p.User.avatar_url.Value) : null,
+                    accountType = p.User?.Account?.account_type.ToString(),
+
                 },
                 media = media,
                 mentions = mentions,

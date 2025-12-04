@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -10,13 +10,13 @@ import {
   KeyboardAvoidingView,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+} from "react-native";
+import { useNavigation } from "@react-navigation/native";
 
 export default function ForgotPassword() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const navigation = useNavigation();
 
   // Validate email
@@ -28,65 +28,72 @@ export default function ForgotPassword() {
   // Gửi OTP qua email
   const handleSendOtp = async () => {
     if (!email.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng nhập địa chỉ email.');
+      Alert.alert("Lỗi", "Vui lòng nhập địa chỉ email.");
       return;
     }
 
     if (!validateEmail(email)) {
-      Alert.alert('Lỗi', 'Địa chỉ email không hợp lệ.');
+      Alert.alert("Lỗi", "Địa chỉ email không hợp lệ.");
       return;
     }
 
     setIsLoading(true);
 
     try {
-      console.log('📧 Sending OTP request...');
-      
-      const response = await fetch('http://192.168.100.184:5297/api/auth/forgot-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          Email: email
-        }),
-      });
+      console.log("📧 Sending OTP request...");
 
-      console.log('📥 Status:', response.status);
-      console.log('📥 OK:', response.ok);
-      console.log('📥 Content-Type:', response.headers.get('content-type'));
+      const response = await fetch(
+        "http://172.20.10.6:5297/api/auth/forgot-password",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            Email: email,
+          }),
+        }
+      );
+
+      console.log("📥 Status:", response.status);
+      console.log("📥 OK:", response.ok);
+      console.log("📥 Content-Type:", response.headers.get("content-type"));
 
       if (response.ok) {
         // Thành công - chuyển sang màn hình OTP luôn
         Alert.alert(
-          'Thành công', 
-          'Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư.',
+          "Thành công",
+          "Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư.",
           [
             {
-              text: 'OK',
+              text: "OK",
               onPress: () => {
-                navigation.navigate('VerifyForgotPasswordOtp', { email });
-              }
-            }
+                navigation.navigate("VerifyForgotPasswordOtp", { email });
+              },
+            },
           ]
         );
       } else {
         // Lỗi - thử đọc message
-        let errorMessage = 'Không thể gửi mã OTP. Vui lòng thử lại.';
-        
+        let errorMessage = "Không thể gửi mã OTP. Vui lòng thử lại.";
+
         try {
           const errorData = await response.json();
-          errorMessage = errorData?.message || errorData?.Message || errorMessage;
+          errorMessage =
+            errorData?.message || errorData?.Message || errorMessage;
         } catch (e) {
-          console.log('⚠️ Could not parse error response');
+          console.log("⚠️ Could not parse error response");
         }
-        
-        Alert.alert('Lỗi', errorMessage);
+
+        Alert.alert("Lỗi", errorMessage);
       }
     } catch (error) {
-      console.error('❌ Network Error:', error);
-      Alert.alert('Lỗi', 'Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.');
+      console.error("❌ Network Error:", error);
+      Alert.alert(
+        "Lỗi",
+        "Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -101,11 +108,11 @@ export default function ForgotPassword() {
       />
       <KeyboardAvoidingView
         style={styles.content}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         {/* Back Button */}
-        <TouchableOpacity 
-          style={styles.backButton} 
+        <TouchableOpacity
+          style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
           <Text style={styles.backIcon}>←</Text>
@@ -115,7 +122,8 @@ export default function ForgotPassword() {
         <View style={styles.card}>
           <Text style={styles.title}>Quên mật khẩu</Text>
           <Text style={styles.instruction}>
-            Nhập địa chỉ email của bạn và chúng tôi sẽ gửi mã xác thực để đặt lại mật khẩu.
+            Nhập địa chỉ email của bạn và chúng tôi sẽ gửi mã xác thực để đặt
+            lại mật khẩu.
           </Text>
 
           <Text style={styles.label}>Địa chỉ Email</Text>
@@ -131,8 +139,11 @@ export default function ForgotPassword() {
             autoFocus
           />
 
-          <TouchableOpacity 
-            style={[styles.primaryButton, isLoading && styles.primaryButtonDisabled]} 
+          <TouchableOpacity
+            style={[
+              styles.primaryButton,
+              isLoading && styles.primaryButtonDisabled,
+            ]}
             onPress={handleSendOtp}
             disabled={isLoading}
           >
@@ -148,13 +159,11 @@ export default function ForgotPassword() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.secondaryButton}
-            onPress={() => navigation.navigate('Login')}
+            onPress={() => navigation.navigate("Login")}
           >
-            <Text style={styles.secondaryButtonText}>
-              Quay lại đăng nhập
-            </Text>
+            <Text style={styles.secondaryButtonText}>Quay lại đăng nhập</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -165,22 +174,22 @@ export default function ForgotPassword() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingHorizontal: 20,
   },
   backButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 50,
     left: 20,
     zIndex: 10,
     padding: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -191,13 +200,13 @@ const styles = StyleSheet.create({
   },
   backIcon: {
     fontSize: 24,
-    color: '#374151',
+    color: "#374151",
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 24,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 4,
@@ -208,42 +217,42 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#111827',
-    textAlign: 'center',
+    fontWeight: "bold",
+    color: "#111827",
+    textAlign: "center",
     marginBottom: 12,
   },
   instruction: {
     fontSize: 15,
-    color: '#6B7280',
-    textAlign: 'center',
+    color: "#6B7280",
+    textAlign: "center",
     lineHeight: 22,
     marginBottom: 28,
   },
   label: {
     fontSize: 15,
-    color: '#374151',
-    fontWeight: '600',
+    color: "#374151",
+    fontWeight: "600",
     marginBottom: 8,
   },
   input: {
     borderWidth: 1.5,
-    borderColor: '#D1D5DB',
+    borderColor: "#D1D5DB",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#111827',
+    color: "#111827",
     marginBottom: 20,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
   },
   primaryButton: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: "#3B82F6",
     borderRadius: 10,
     paddingVertical: 16,
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 12,
-    shadowColor: '#3B82F6',
+    shadowColor: "#3B82F6",
     shadowOffset: {
       width: 0,
       height: 4,
@@ -253,26 +262,26 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   primaryButtonDisabled: {
-    backgroundColor: '#9CA3AF',
+    backgroundColor: "#9CA3AF",
     shadowOpacity: 0,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   secondaryButton: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 12,
   },
   secondaryButtonText: {
-    color: '#3B82F6',
+    color: "#3B82F6",
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

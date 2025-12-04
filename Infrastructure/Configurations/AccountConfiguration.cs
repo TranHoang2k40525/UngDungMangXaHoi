@@ -61,6 +61,9 @@ namespace UngDungMangXaHoi.Infrastructure.Configurations
                    .HasConversion(
                        v => v.DateTime,
                        v => new DateTimeOffset(v, TimeSpan.Zero));
+            builder.Property(a => a.business_verified_at).HasColumnType("datetime");
+                   
+            builder.Property(a =>a.business_expires_at).HasColumnType("datetime");
 
             builder.HasOne(a => a.Admin)
                    .WithOne(a => a.Account)

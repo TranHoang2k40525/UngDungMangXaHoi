@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using UngDungMangXaHoi.Application.Validators;
+using UngDungMangXaHoi.Application.DTOs;
 using UngDungMangXaHoi.Application.Services;
 using UngDungMangXaHoi.Domain.Entities;
 using UngDungMangXaHoi.Domain.Interfaces;
@@ -532,51 +533,5 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         }
     }
 
-    public class VerifyOtpRequest
-    {
-        public string Email { get; set; } = null!;
-        public string Otp { get; set; } = null!;
-    }
-
-    public class LoginRequest
-    {
-        public string Email { get; set; } = null!;
-        public string Phone { get; set; } = null!;
-        public string Password { get; set; } = null!;
-    }
-
-    public class RefreshTokenRequest
-    {
-        public string RefreshToken { get; set; } = null!;
-    }
-
-    public class ForgotPasswordRequest
-    {
-        public string Email { get; set; } = null!;
-    }
-
-    public class ResetPasswordRequest
-    {
-        public string Email { get; set; } = null!;
-        public string NewPassword { get; set; } = null!;
-    }
-
-    public class ResetPasswordWithOtpRequest
-    {
-        public string Email { get; set; } = null!;
-        public string Otp { get; set; } = null!;
-        public string NewPassword { get; set; } = null!;
-    }
-
-    public class ChangePasswordRequest
-    {
-        public string OldPassword { get; set; } = null!;
-        public string NewPassword { get; set; } = null!;
-    }
-
-    public class VerifyChangePasswordOtpRequest
-    {
-        public string Otp { get; set; } = null!;
-        public string NewPassword { get; set; } = null!;
-    }
+    // DTOs moved to Application.DTOs.AuthDto
 }

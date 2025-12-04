@@ -67,23 +67,23 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         public async Task<IEnumerable<Post>> GetFeedAsync(int? currentUserId, int pageNumber, int pageSize)
         {
             // Hiển thị: Public cho tất cả; Private chỉ chủ sở hữu; Followers cho chủ sở hữu và follower
-            var query = _context.Posts
+            // Chỉ lấy bài của User thường, không lấy Business (Business sẽ được chèn sau)
+            return await _context.Posts
                 .AsNoTracking()
                 .Include(p => p.User)
+                    .ThenInclude(u => u.Account)
                 .Include(p => p.Media)
-                .Where(p => p.is_visible && (
-                    p.privacy.ToLower() == "public"
-                    || (currentUserId != null && p.user_id == currentUserId)
-                    || (p.privacy.ToLower() == "followers" && currentUserId != null &&
-                        _context.Follows.Any(f => f.follower_id == currentUserId && f.following_id == p.user_id))
-                ))
-                // Exclude posts from users blocked by current user
+                .Where(p => p.is_visible &&
+                    p.User.Account.account_type == AccountType.User &&
+                    (p.privacy.ToLower() == "public"
+                        || (currentUserId != null && p.user_id == currentUserId)
+                        || (p.privacy.ToLower() == "followers" && currentUserId != null &&
+                            _context.Follows.Any(f => f.follower_id == currentUserId && f.following_id == p.user_id))))
                 .Where(p => currentUserId == null || !_context.Blocks.Any(b => b.blocker_id == currentUserId && b.blocked_id == p.user_id))
                 .OrderByDescending(p => p.created_at)
                 .Skip((pageNumber - 1) * pageSize)
-                .Take(pageSize);
-
-            return await query.ToListAsync();
+                .Take(pageSize)
+                .ToListAsync();
         }
 
         public async Task<IEnumerable<Post>> GetUserPostsAsync(int userId, int pageNumber, int pageSize)
@@ -136,21 +136,21 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         {
             // Bài có ít nhất một media là Video
             // Hiển thị: Public cho tất cả; Private chỉ chủ sở hữu; Followers cho chủ sở hữu và follower
+            // Chỉ lấy bài của User thường, không lấy Business (Business sẽ được chèn sau)
             return await _context.Posts
                 .AsNoTracking()
                 .Include(p => p.User)
+                    .ThenInclude(u => u.Account)
                 .Include(p => p.Media)
                 .Where(p => p.is_visible
+                    && p.User.Account.account_type == AccountType.User
                     && p.Media.Any(m => m.media_type.ToLower() == "video")
-                    && (
-                        p.privacy.ToLower() == "public"
+                    && (p.privacy.ToLower() == "public"
                         || (currentUserId != null && p.user_id == currentUserId)
                         || (p.privacy.ToLower() == "followers" && currentUserId != null &&
-                            _context.Follows.Any(f => f.follower_id == currentUserId && f.following_id == p.user_id))
-                    ))
-                    // Exclude posts from users blocked by current user
-                    .Where(p => currentUserId == null || !_context.Blocks.Any(b => b.blocker_id == currentUserId && b.blocked_id == p.user_id))
-                    .OrderByDescending(p => p.created_at)
+                            _context.Follows.Any(f => f.follower_id == currentUserId && f.following_id == p.user_id))))
+                .Where(p => currentUserId == null || !_context.Blocks.Any(b => b.blocker_id == currentUserId && b.blocked_id == p.user_id))
+                .OrderByDescending(p => p.created_at)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
@@ -160,20 +160,21 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         {
             // Bài có ít nhất một media là Video
             // Hiển thị: Public cho tất cả; Private chỉ chủ sở hữu; Followers cho chủ sở hữu và follower
+            // Chỉ lấy bài của User thường, không lấy Business (Business sẽ được chèn sau)
             return await _context.Posts
                 .AsNoTracking()
                 .Include(p => p.User)
+                    .ThenInclude(u => u.Account)
                 .Include(p => p.Media)
                 .Where(p => p.is_visible
+                    && p.User.Account.account_type == AccountType.User
                     && p.Media.Any(m => m.media_type.ToLower() == "video")
-                    && (
-                        p.privacy.ToLower() == "public"
+                    && (p.privacy.ToLower() == "public"
                         || (currentUserId != null && p.user_id == currentUserId)
                         || (p.privacy.ToLower() == "followers" && currentUserId != null &&
-                            _context.Follows.Any(f => f.follower_id == currentUserId && f.following_id == p.user_id))
-                    ))
-                .OrderByDescending(p => p.created_at)
+                            _context.Follows.Any(f => f.follower_id == currentUserId && f.following_id == p.user_id))))
                 .Where(p => currentUserId == null || !_context.Blocks.Any(b => b.blocker_id == currentUserId && b.blocked_id == p.user_id))
+                .OrderByDescending(p => p.created_at)
                 .ToListAsync();
         }
 
@@ -238,5 +239,76 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .Take(pageSize)
                 .ToListAsync();
         }
+
+        public async Task<IEnumerable<Post>> GetPublicBusinessPostsAsync(int? currentUserId)
+        {
+            return await _context.Posts
+                .AsNoTracking()
+                .Include(p => p.User)
+                    .ThenInclude(u => u.Account)
+                .Include(p => p.Media)
+                .Where(p => p.is_visible 
+                    && p.privacy.ToLower() == "public"
+                    && p.User.Account.account_type == AccountType.Business)
+                .Where(p => currentUserId == null || !_context.Blocks.Any(b => b.blocker_id == currentUserId && b.blocked_id == p.user_id))
+                .OrderByDescending(p => p.User.Account.business_verified_at)
+                .ThenByDescending(p => p.created_at)
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<Post>> GetFollowedBusinessPostsAsync(int currentUserId)
+        {
+            var followingUserIds = await _context.Follows
+                .Where(f => f.follower_id == currentUserId)
+                .Select(f => f.following_id)
+                .ToListAsync();
+
+            if (!followingUserIds.Any())
+                return new List<Post>();
+
+            return await _context.Posts
+                .AsNoTracking()
+                .Include(p => p.User)
+                    .ThenInclude(u => u.Account)
+                .Include(p => p.Media)
+                .Where(p => p.is_visible 
+                    && p.privacy.ToLower() == "public"
+                    && followingUserIds.Contains(p.user_id)
+                    && p.User.Account.account_type == AccountType.Business)
+                .OrderByDescending(p => p.created_at)
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<Post>> GetRelevantBusinessPostsByKeywordsAsync(List<string> keywords, int? currentUserId, int limit = 50)
+        {
+            if (keywords == null || !keywords.Any())
+                return new List<Post>();
+
+            var query = _context.Posts
+                .AsNoTracking()
+                .Include(p => p.User)
+                    .ThenInclude(u => u.Account)
+                .Include(p => p.Media)
+                .Where(p => p.is_visible 
+                    && p.privacy.ToLower() == "public"
+                    && p.User.Account.account_type == AccountType.Business);
+
+            // Filter by keywords in caption
+            var lowerKeywords = keywords.Select(k => k.ToLower()).ToList();
+            query = query.Where(p => p.caption != null && 
+                lowerKeywords.Any(k => p.caption.ToLower().Contains(k)));
+
+            if (currentUserId != null)
+            {
+                query = query.Where(p => !_context.Blocks.Any(b => b.blocker_id == currentUserId && b.blocked_id == p.user_id));
+            }
+
+            return await query
+                .OrderByDescending(p => p.created_at)
+                .Take(limit)
+                .ToListAsync();
+        }
     }
 }
+
+

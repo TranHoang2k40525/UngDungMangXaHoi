@@ -14,6 +14,8 @@ using UngDungMangXaHoi.Domain.Interfaces;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.FileProviders;
 using UngDungMangXaHoi.Presentation.WebAPI.Hubs;
+using Microsoft.OpenApi.Models;
+using UngDungMangXaHoi.Application.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,14 +35,45 @@ catch (Exception)
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()); // Thêm dòng này
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 
 builder.Services.AddEndpointsApiExplorer();
+
+// 2. Add Swagger Gen (Đã gộp code của bạn và code bảo mật)
 builder.Services.AddSwaggerGen(options =>
 {
-    // Use full type name (replace '+' from nested types) to generate unique schema ids
+    // --- Phần của bạn (Giữ nguyên) ---
+    // Dùng full name để tránh trùng tên Schema khi có class lồng nhau
     options.CustomSchemaIds(type => (type.FullName ?? type.Name).Replace("+", "."));
+
+    // --- Phần thêm mới: Cấu hình nút Authorize (Ổ khóa) ---
+    options.SwaggerDoc("v1", new OpenApiInfo { Title = "UngDungMangXaHoi API", Version = "v1" });
+
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        In = ParameterLocation.Header,
+        Description = "Vui lòng nhập token (chỉ cần paste chuỗi token, không cần chữ Bearer)",
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        BearerFormat = "JWT",
+        Scheme = "Bearer"
+    });
+
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] { }
+        }
+    });
 });
 
 // ======================================
@@ -102,9 +135,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 var path = context.HttpContext.Request.Path;
 
                 // Nếu request đến SignalR hub và có token trong query
-                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                if (!string.IsNullOrEmpty(accessToken) && 
+                    (path.StartsWithSegments("/hubs") || path.StartsWithSegments("/hub")))
                 {
                     context.Token = accessToken;
+                }
+                // Nếu không có trong query, thử lấy từ header
+                else if (string.IsNullOrEmpty(accessToken))
+                {
+                    var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
+                    if (authHeader != null && authHeader.StartsWith("Bearer "))
+                    {
+                        context.Token = authHeader.Substring("Bearer ".Length).Trim();
+                    }
                 }
 
                 return Task.CompletedTask;
@@ -114,8 +157,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("UserOnly", policy => policy.RequireClaim("account_type", "User"));
+    options.AddPolicy("UserOnly", policy => policy.RequireAssertion(context => context.User.HasClaim(c=>c.Type == "account_type" && (c.Value == "User"  || c.Value == "Business"))));
+    options.AddPolicy("BusinessOnly", policy => policy.RequireClaim("account_type", "Business"));
     options.AddPolicy("AdminOnly", policy => policy.RequireClaim("account_type", "Admin"));
+
 });
 
 // Repositories
@@ -134,6 +179,7 @@ builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddScoped<IBlockRepository, BlockRepository>();
 builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
 builder.Services.AddScoped<IMessageRepository, MessageRepository>();
+builder.Services.AddScoped<ISearchHistoryRepository, SearchHistoryRepository>();
 
 // Group Chat Repositories
 builder.Services.AddScoped<IGroupConversationRepository, GroupConversationRepository>();
@@ -151,6 +197,12 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, EmailService>();
 builder.Services.AddScoped<UserProfileService>();
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddScoped<IBusinessUpgradeService, BusinessUpgradeService>();
+// Application layer services (refactor: register new application services)
+builder.Services.AddScoped<UngDungMangXaHoi.Application.Services.PostsService>();
+builder.Services.AddScoped<UngDungMangXaHoi.Application.Services.UserService>();
+builder.Services.AddScoped<UngDungMangXaHoi.Application.Services.AdminService>();
+builder.Services.AddHttpClient<IMoMoPaymentService, MoMoPaymentService>();
 
 // Dịch vụ chạy nền để dọn Story hết hạn
 builder.Services.AddHostedService<ExpiredStoriesCleanupService>();
@@ -161,13 +213,17 @@ builder.Services.AddScoped<NotificationManagementService>();
 builder.Services.AddScoped<CommentService>();
 builder.Services.AddScoped<SearchService>();
 builder.Services.AddScoped<MessageService>();
+builder.Services.AddScoped<UserFollowService>();
+builder.Services.AddScoped<BusinessPostInjectionService>();
+builder.Services.AddScoped<UserPostPrioritizationService>();
 builder.Services.AddScoped<IRealTimeNotificationService, UngDungMangXaHoi.Presentation.WebAPI.Hubs.SignalRNotificationService>();
 // Group Chat Services
 builder.Services.AddScoped<GroupChatService>();
 builder.Services.AddScoped<GroupMessageService>(); //  Message service cho GROUP CHAT
 // SignalR Service for broadcasting
 builder.Services.AddScoped<UngDungMangXaHoi.WebAPI.Services.ISignalRService, UngDungMangXaHoi.WebAPI.Services.SignalRService>();
-
+// Dich vu cho bash user new
+builder.Services.AddScoped<IDashboardRepository, DashBoardRepository>();
 // External Services
 builder.Services.AddScoped<CloudinaryService>(provider =>
 {
@@ -187,7 +243,10 @@ builder.Services.AddScoped<CloudinaryService>(provider =>
 
     return new CloudinaryService(cloudName, apiKey, apiSecret);
 });
-
+// Dang ky dich vu cho MoMo Payment
+builder.Services.AddScoped<IMoMoPaymentService, MoMoPaymentService>();
+//Quan ly danh cho admin
+builder.Services.AddScoped<IDashBoardService, DashBoardService>();
 // ======================================
 //  Use Case Layer
 // ======================================
@@ -207,11 +266,10 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowAll", policy =>
     {
 
-        policy
-            .AllowAnyOrigin() // Cho phép mọi domain
-            .AllowAnyMethod()
-            .AllowAnyHeader();
-              // .AllowCredentials(); // Nếu dùng AllowAnyOrigin thì không dùng AllowCredential
+        policy.SetIsOriginAllowed(_ => true)
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials(); // Nếu dùng AllowAnyOrigin thì không dùng AllowCredential
 
     });
 });
