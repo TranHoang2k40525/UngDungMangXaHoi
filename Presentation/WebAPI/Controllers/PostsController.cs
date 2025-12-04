@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using UngDungMangXaHoi.Domain.Entities;
 using UngDungMangXaHoi.Domain.Interfaces;
 using UngDungMangXaHoi.Application.DTOs;
+using UngDungMangXaHoi.Application.Services;
 
 namespace UngDungMangXaHoi.WebAPI.Controllers
 {
@@ -21,18 +22,24 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
     private readonly IPostRepository _postRepository;
     private readonly IUserRepository _userRepository;
     private readonly ICommentRepository _commentRepository;
-    private readonly Application.Services.PostsService _postsService;
+    private readonly PostsService _postsService;
+    private readonly BusinessPostInjectionService _businessPostInjectionService;
+    private readonly UserPostPrioritizationService _userPostPrioritizationService;
 
         public PostsController(
             IPostRepository postRepository,
             IUserRepository userRepository,
             ICommentRepository commentRepository,
-            Application.Services.PostsService postsService)
+            Application.Services.PostsService postsService,
+            BusinessPostInjectionService businessPostInjectionService,
+            UserPostPrioritizationService userPostPrioritizationService)
         {
             _postRepository = postRepository;
             _userRepository = userRepository;
             _commentRepository = commentRepository;
             _postsService = postsService;
+            _businessPostInjectionService = businessPostInjectionService;
+            _userPostPrioritizationService = userPostPrioritizationService;
         }
 
         // Using DTOs from Application.DTOs: CreatePostForm, UpdatePrivacyDto, UpdateCaptionDto, UpdateTagsDto
@@ -89,8 +96,18 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             var posts = await _postRepository.GetFeedAsync(currentUserId, Math.Max(1, page), Math.Clamp(pageSize, 1, 50));
             
+            // Bước 1: Sắp xếp ưu tiên User posts dựa vào lịch sử tìm kiếm
+            var prioritizedUserPosts = await _userPostPrioritizationService.PrioritizeAndMixUserPostsAsync(
+                posts.ToList(), 
+                currentUserId);
+            
+            // Bước 2: Chèn bài Business vào feed đã được prioritize
+            var mergedFeed = await _businessPostInjectionService.InjectBusinessPostsIntoFeedAsync(
+                prioritizedUserPosts, 
+                currentUserId);
+            
             // Load comment counts for all posts
-            var postIds = posts.Select(p => p.post_id).ToList();
+            var postIds = mergedFeed.Select(p => p.post_id).ToList();
             var commentCounts = new Dictionary<int, int>();
             foreach (var postId in postIds)
             {
@@ -99,7 +116,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             }
             
             var dtoList = new List<object>();
-            foreach (var pp in posts)
+            foreach (var pp in mergedFeed)
             {
                 dtoList.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
             }
@@ -124,8 +141,18 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             var posts = await _postRepository.GetVideoPostsAsync(currentUserId, Math.Max(1, page), Math.Clamp(pageSize, 1, 50));
             
+            // Bước 1: Sắp xếp ưu tiên User video posts dựa vào lịch sử tìm kiếm
+            var prioritizedUserPosts = await _userPostPrioritizationService.PrioritizeAndMixUserPostsAsync(
+                posts.ToList(), 
+                currentUserId);
+            
+            // Bước 2: Chèn bài Business video vào reels đã được prioritize
+            var mergedReels = await _businessPostInjectionService.InjectBusinessPostsIntoFeedAsync(
+                prioritizedUserPosts, 
+                currentUserId);
+            
             // Load comment counts
-            var postIds = posts.Select(p => p.post_id).ToList();
+            var postIds = mergedReels.Select(p => p.post_id).ToList();
             var commentCounts = new Dictionary<int, int>();
             foreach (var postId in postIds)
             {
@@ -134,7 +161,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             }
             
             var dtoList2 = new List<object>();
-            foreach (var pp in posts)
+            foreach (var pp in mergedReels)
             {
                 dtoList2.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
             }
@@ -159,8 +186,18 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             var posts = await _postRepository.GetAllVideoPostsAsync(currentUserId);
             
+            // Bước 1: Sắp xếp ưu tiên User video posts dựa vào lịch sử tìm kiếm
+            var prioritizedUserPosts = await _userPostPrioritizationService.PrioritizeAndMixUserPostsAsync(
+                posts.ToList(), 
+                currentUserId);
+            
+            // Bước 2: Chèn bài Business video vào all reels đã được prioritize
+            var mergedReels = await _businessPostInjectionService.InjectBusinessPostsIntoFeedAsync(
+                prioritizedUserPosts, 
+                currentUserId);
+            
             // Load comment counts
-            var postIds = posts.Select(p => p.post_id).ToList();
+            var postIds = mergedReels.Select(p => p.post_id).ToList();
             var commentCounts = new Dictionary<int, int>();
             foreach (var postId in postIds)
             {
@@ -169,7 +206,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             }
             
             var dtoList3 = new List<object>();
-            foreach (var pp in posts)
+            foreach (var pp in mergedReels)
             {
                 dtoList3.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
             }
