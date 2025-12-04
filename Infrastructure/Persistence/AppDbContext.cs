@@ -51,6 +51,8 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
         public DbSet<ContentModeration> ContentModerations { get; set; }
         //Business
         public DbSet<BusinessPayment> BusinessPayments { get; set; }
+        // Search
+        public DbSet<SearchHistory> SearchHistories { get; set; } = null!;
 
 
         //Admin quan tri bao cao noi dung
@@ -102,6 +104,7 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new ContentModerationConfiguration());
             modelBuilder.ApplyConfiguration(new AccountSanctionConfiguration());
             modelBuilder.ApplyConfiguration(new BusinessPaymentConfiguration());
+            modelBuilder.ApplyConfiguration(new SearchHistoryConfiguration());
 
         }
     }

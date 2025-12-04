@@ -25,5 +25,10 @@ namespace UngDungMangXaHoi.Domain.Interfaces
         Task<int> CountPostsByUserIdAsync(int userId);
         // Search posts by caption
         Task<IEnumerable<Post>> SearchPostsByCaptionAsync(string searchTerm, int pageNumber, int pageSize);
+        
+        // Business post methods for sponsored content injection
+        Task<IEnumerable<Post>> GetPublicBusinessPostsAsync(int? currentUserId);
+        Task<IEnumerable<Post>> GetFollowedBusinessPostsAsync(int currentUserId);
+        Task<IEnumerable<Post>> GetRelevantBusinessPostsByKeywordsAsync(List<string> keywords, int? currentUserId, int limit = 50);
     }
 }

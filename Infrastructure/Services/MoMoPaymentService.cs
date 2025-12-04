@@ -10,9 +10,7 @@ using Microsoft.Extensions.Logging;
 
 namespace UngDungMangXaHoi.Infrastructure.ExternalServices
 {
-    // =============================================
-    // INTERFACE
-    // =============================================
+   
 
     public interface IMoMoPaymentService
     {
@@ -22,9 +20,7 @@ namespace UngDungMangXaHoi.Infrastructure.ExternalServices
             decimal amount);
     }
 
-    // =============================================
-    // IMPLEMENTATION
-    // =============================================
+  
 
     public class MoMoPaymentService : IMoMoPaymentService
     {
@@ -104,7 +100,8 @@ namespace UngDungMangXaHoi.Infrastructure.ExternalServices
                     ExtraData = extraData,
                     RequestType = requestType,
                     Signature = signature,
-                    Lang = "vi"
+                    Lang = "vi",
+                    OrderExpireTime = 5
                 };
 
                 var jsonContent = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions
@@ -187,6 +184,8 @@ namespace UngDungMangXaHoi.Infrastructure.ExternalServices
 
         [JsonPropertyName("lang")]
         public string Lang { get; set; } = "vi";
+        [JsonPropertyName("orderExpireTime")]
+        public int OrderExpireTime { get; set; } 
     }
 
     public class MoMoCreatePaymentResponse

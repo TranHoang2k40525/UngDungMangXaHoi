@@ -4,6 +4,7 @@ using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using UngDungMangXaHoi.Application.Services;
+using UngDungMangXaHoi.Domain.Interfaces;
 
 namespace UngDungMangXaHoi.WebAPI.Controllers
 {
@@ -16,10 +17,14 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
     public class SearchController : ControllerBase
     {
         private readonly SearchService _searchService;
+        private readonly ISearchHistoryRepository _searchHistoryRepository;
 
-        public SearchController(SearchService searchService)
+        public SearchController(
+            SearchService searchService,
+            ISearchHistoryRepository searchHistoryRepository)
         {
             _searchService = searchService;
+            _searchHistoryRepository = searchHistoryRepository;
         }
 
         /// <summary>
@@ -97,6 +102,13 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 }
 
                 var currentUserId = GetCurrentUserId();
+                
+                // Lưu lịch sử tìm kiếm
+                if (currentUserId.HasValue)
+                {
+                    await _searchHistoryRepository.AddSearchHistoryAsync(currentUserId.Value, q);
+                }
+                
                 var result = await _searchService.SearchPostsAsync(q, currentUserId, page, pageSize);
 
                 return Ok(new
@@ -134,6 +146,13 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 }
 
                 var currentUserId = GetCurrentUserId();
+                
+                // Lưu lịch sử tìm kiếm
+                if (currentUserId.HasValue)
+                {
+                    await _searchHistoryRepository.AddSearchHistoryAsync(currentUserId.Value, q);
+                }
+                
                 var result = await _searchService.SearchAllAsync(q, currentUserId);
 
                 return Ok(new

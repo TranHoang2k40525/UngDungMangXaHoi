@@ -179,6 +179,7 @@ builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddScoped<IBlockRepository, BlockRepository>();
 builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
 builder.Services.AddScoped<IMessageRepository, MessageRepository>();
+builder.Services.AddScoped<ISearchHistoryRepository, SearchHistoryRepository>();
 
 // Group Chat Repositories
 builder.Services.AddScoped<IGroupConversationRepository, GroupConversationRepository>();
@@ -213,6 +214,8 @@ builder.Services.AddScoped<CommentService>();
 builder.Services.AddScoped<SearchService>();
 builder.Services.AddScoped<MessageService>();
 builder.Services.AddScoped<UserFollowService>();
+builder.Services.AddScoped<BusinessPostInjectionService>();
+builder.Services.AddScoped<UserPostPrioritizationService>();
 builder.Services.AddScoped<IRealTimeNotificationService, UngDungMangXaHoi.Presentation.WebAPI.Hubs.SignalRNotificationService>();
 // Group Chat Services
 builder.Services.AddScoped<GroupChatService>();

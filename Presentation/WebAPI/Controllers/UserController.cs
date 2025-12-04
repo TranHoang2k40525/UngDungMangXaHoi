@@ -222,8 +222,6 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             await _userService.UnfollowUserAsync(currentUser.user_id, userId);
 
             await _userFollowService.UnfollowUserAsync(currentUser.user_id, userId);
-
-
             return Ok(new { message = "Đã hủy theo dõi user" });
         }
 
