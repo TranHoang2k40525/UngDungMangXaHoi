@@ -73,7 +73,8 @@ namespace UngDungMangXaHoi.Application.Services
                 CreatedAt = account.created_at,
                 PostCount = postCount,
                 FollowerCount = followerCount,
-                FollowingCount = followingCount
+                FollowingCount = followingCount,
+                AccountType = account.account_type.ToString()  // Thêm AccountType
             };
         }
 

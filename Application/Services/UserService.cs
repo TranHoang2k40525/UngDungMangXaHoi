@@ -48,7 +48,8 @@ namespace UngDungMangXaHoi.Application.Services
                 PostsCount = postsCount,
                 FollowersCount = followersCount,
                 FollowingCount = followingCount,
-                IsFollowing = isFollowing
+                IsFollowing = isFollowing,
+                AccountType = targetUser.Account.account_type.ToString()
             };
         }
 
@@ -82,7 +83,8 @@ namespace UngDungMangXaHoi.Application.Services
                 PostsCount = postsCount,
                 FollowersCount = followersCount,
                 FollowingCount = followingCount,
-                IsFollowing = isFollowing
+                IsFollowing = isFollowing,
+                AccountType = targetUser.Account.account_type.ToString()
             };
         }
 

@@ -21,7 +21,7 @@ namespace UngDungMangXaHoi.Application.Services
         private readonly ILogger<BusinessUpgradeService> _logger; // Logger
         private const decimal BUSINESS_PACKAGE_PRICE = 1000m; // 1000 VND (để test)
         private const int QR_CODE_EXPIRY_MINUTES = 5; // QR code hết hạn sau 5 phút
-        private const int BUSINESS_PACKAGE_DAYS = 365;
+        private const int BUSINESS_PACKAGE_DAYS = 30;
         public BusinessUpgradeService(AppDbContext context, IMoMoPaymentService momoService, ILogger<BusinessUpgradeService> logger)
         {
             _context = context;
