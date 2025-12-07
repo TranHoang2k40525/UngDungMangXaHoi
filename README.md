@@ -960,7 +960,123 @@ sequenceDiagram
 13. Broadcast `MessagesRead` cho sender (update UI tích xanh)
 14. Nếu WebSocket disconnect: fallback sang HTTP POST `/api/messages/send`
 
-### 4. Algorithm Ưu Tiên Bài Business
+### 4. Quy Trình Tạo Bài Đăng
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as API
+    participant C as Cloudinary
+    participant DB as Database
+    
+    U->>A: POST /api/posts (multipart/form-data)
+    A->>A: Validate input (Caption, Privacy)
+    A->>A: Validate files (images/video)
+    
+    alt Upload Images
+        loop For each image
+            A->>C: Upload image to Cloudinary
+            C->>A: Return image URL
+        end
+    end
+    
+    alt Upload Video
+        A->>C: Upload video to Cloudinary
+        C->>A: Return video URL
+    end
+    
+    A->>DB: Create Post entity
+    A->>DB: Create PostMedia records
+    A->>U: Return PostDto
+    
+    Note over U,DB: Hiển thị bài đăng
+    U->>A: GET /api/posts/feed
+    A->>DB: Query posts (following + public)
+    A->>DB: Apply Business priority
+    A->>DB: Inject Business posts
+    A->>U: Return feed with media URLs
+```
+
+**Chi tiết:**
+
+#### Tạo Bài Đăng:
+1. User chọn ảnh/video từ thiết bị
+2. Điền caption, location, chọn privacy (public/private/followers)
+3. Client gửi POST `/api/posts` với `multipart/form-data`:
+   - `Caption` (string, optional)
+   - `Location` (string, optional)
+   - `Privacy` (enum: Public/Private/Followers)
+   - `Images[]` (file array - .jpg/.png/.gif/.webp, max 10 ảnh)
+   - `Video` (file - .mp4/.mov/.avi, max 100MB)
+4. Backend validate:
+   - File types (MIME type checking)
+   - File sizes (ảnh max 10MB, video max 100MB)
+   - Image count (max 10 ảnh)
+   - Không được up cả ảnh lẫn video cùng lúc
+5. Upload lên Cloudinary:
+   - Images: folder `social-media/images/`
+   - Videos: folder `social-media/videos/`
+   - Cloudinary auto-optimize (compression, format conversion)
+6. Lưu vào database:
+   - Bảng `Posts`: post_id, user_id, caption, location, privacy, created_at
+   - Bảng `PostMedia` (nếu có): post_id, media_url, media_type (Image/Video), display_order
+7. Trả về PostDto với URLs đầy đủ
+
+#### Hiển Thị Feed:
+1. Client gọi GET `/api/posts/feed`
+2. Backend query:
+   - Bài public của tất cả users
+   - Bài của những người mình follow (public + followers privacy)
+   - Bài của chính mình (all privacy)
+3. Apply **Business Priority Algorithm**:
+   - Lọc ra Business posts
+   - Lọc ra User posts
+   - Concat: Business posts → User posts
+4. Apply **Injection Algorithm**:
+   - Chèn 1 Business post sau mỗi 5 bài thường
+5. Pagination: Skip + Take
+6. Trả về danh sách PostDto với:
+   - Post info (caption, location, privacy, created_at)
+   - Author info (username, full_name, avatar_url, account_type)
+   - Media URLs (ảnh/video từ Cloudinary)
+   - Engagement stats (reaction_count, comment_count, share_count)
+
+#### Upload Media Technical Details:
+**Cloudinary Configuration:**
+```csharp
+// Images
+- Max size: 10MB
+- Formats: jpg, png, gif, webp
+- Transformations: auto quality, auto format
+- Folder: social-media/images/{userId}/
+
+// Videos
+- Max size: 100MB
+- Formats: mp4, mov, avi, mkv
+- Transformations: auto quality
+- Folder: social-media/videos/{userId}/
+```
+
+**Database Schema:**
+```sql
+-- Posts table
+post_id (PK)
+user_id (FK)
+caption
+location
+privacy (0=Public, 1=Private, 2=Followers)
+created_at
+updated_at
+
+-- PostMedia table (optional - if using media)
+media_id (PK)
+post_id (FK)
+media_url (Cloudinary URL)
+media_type (0=Image, 1=Video)
+display_order
+```
+
+### 5. Algorithm Ưu Tiên Bài Business
 
 **UserPostPrioritizationService:**
 ```csharp
@@ -982,7 +1098,7 @@ for (int i = 0; i < feed.Count; i += 6) {
 }
 ```
 
-### 5. Dashboard Statistics Queries
+### 6. Dashboard Statistics Queries
 
 **Business Growth Chart:**
 ```sql
