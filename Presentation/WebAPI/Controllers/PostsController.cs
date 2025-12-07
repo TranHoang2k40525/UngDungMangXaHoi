@@ -21,17 +21,23 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
     private readonly IUserRepository _userRepository;
     private readonly ICommentRepository _commentRepository;
     private readonly UngDungMangXaHoi.Infrastructure.Services.VideoTranscodeService _videoTranscoder;
+    private readonly IContentModerationService _moderationService;
+    private readonly IContentModerationRepository _moderationRepository;
 
         public PostsController(
             IPostRepository postRepository, 
             IUserRepository userRepository, 
             ICommentRepository commentRepository,
-            UngDungMangXaHoi.Infrastructure.Services.VideoTranscodeService videoTranscoder)
+            UngDungMangXaHoi.Infrastructure.Services.VideoTranscodeService videoTranscoder,
+            IContentModerationService moderationService,
+            IContentModerationRepository moderationRepository)
         {
             _postRepository = postRepository;
             _userRepository = userRepository;
             _commentRepository = commentRepository;
             _videoTranscoder = videoTranscoder;
+            _moderationService = moderationService;
+            _moderationRepository = moderationRepository;
         }
 
         // DTO for create request via multipart/form-data
@@ -151,6 +157,26 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             }
             catch { /* ignore parse errors */ }
 
+            // ✅ KIỂM TRA TOXIC CHO CAPTION TRƯỚC KHI TẠO POST
+            if (!string.IsNullOrWhiteSpace(form.Caption))
+            {
+                try
+                {
+                    var moderationResult = await _moderationService.AnalyzeTextAsync(form.Caption);
+                    
+                    // Nếu caption có nội dung nguy hiểm cao, chặn post
+                    if (moderationResult.RiskLevel == "high_risk")
+                    {
+                        return BadRequest(new { message = $"Bài đăng bị chặn do vi phạm: {moderationResult.Label}" });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // ML Service không khả dụng - log nhưng vẫn cho phép post
+                    Console.WriteLine($"[Moderation Warning] ML Service unavailable: {ex.Message}");
+                }
+            }
+
             // Create post first
             var post = new Post
             {
@@ -165,6 +191,38 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             };
 
             var createdPost = await _postRepository.AddAsync(post);
+
+            // ✅ LƯU KẾT QUẢ MODERATION VÀO DATABASE (nếu có caption)
+            if (!string.IsNullOrWhiteSpace(form.Caption))
+            {
+                try
+                {
+                    var moderationResult = await _moderationService.AnalyzeTextAsync(form.Caption);
+                    var moderation = new ContentModeration
+                    {
+                        ContentType = "Post",
+                        ContentID = createdPost.post_id,
+                        AccountId = accountId,
+                        PostId = createdPost.post_id,
+                        CommentId = null,
+                        AIConfidence = moderationResult.Confidence,
+                        ToxicLabel = moderationResult.Label,
+                        Status = moderationResult.RiskLevel switch
+                        {
+                            "high_risk" => "blocked",
+                            "medium_risk" => "pending",
+                            "low_risk" => "approved",
+                            _ => "approved"
+                        },
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await _moderationRepository.CreateAsync(moderation);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Moderation Warning] Failed to save moderation result: {ex.Message}");
+                }
+            }
 
             // Prepare directories
             var root = Directory.GetCurrentDirectory();
@@ -677,6 +735,45 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             var caption = dto?.Caption?.Trim() ?? string.Empty;
             if (caption.Length > 2200)
                 return BadRequest(new { message = "Caption tối đa 2200 ký tự" });
+
+            // ✅ KIỂM TRA TOXIC KHI SỬA CAPTION
+            if (!string.IsNullOrWhiteSpace(caption))
+            {
+                try
+                {
+                    var moderationResult = await _moderationService.AnalyzeTextAsync(caption);
+                    
+                    if (moderationResult.RiskLevel == "high_risk")
+                    {
+                        return BadRequest(new { message = $"Caption bị chặn do vi phạm: {moderationResult.Label}" });
+                    }
+
+                    // Lưu kết quả moderation
+                    var moderation = new ContentModeration
+                    {
+                        ContentType = "Post",
+                        ContentID = id,
+                        AccountId = accountId,
+                        PostId = id,
+                        CommentId = null,
+                        AIConfidence = moderationResult.Confidence,
+                        ToxicLabel = moderationResult.Label,
+                        Status = moderationResult.RiskLevel switch
+                        {
+                            "high_risk" => "blocked",
+                            "medium_risk" => "pending",
+                            "low_risk" => "approved",
+                            _ => "approved"
+                        },
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await _moderationRepository.CreateAsync(moderation);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Moderation Warning] ML Service unavailable: {ex.Message}");
+                }
+            }
 
             post.caption = caption;
             await _postRepository.UpdateAsync(post);

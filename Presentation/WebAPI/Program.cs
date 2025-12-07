@@ -146,6 +146,13 @@ builder.Services.AddScoped<IGroupConversationRepository, GroupConversationReposi
 builder.Services.AddScoped<IGroupMessageRepository, GroupMessageRepository>(); // ✅ Thêm GroupMessageRepository
 builder.Services.AddScoped<IGroupMessageRestrictionRepository, GroupMessageRestrictionRepository>();
 
+// ✅ Content Moderation Repository
+builder.Services.AddScoped<IContentModerationRepository>(provider =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    return new ContentModerationRepository(connectionString!);
+});
+
 // ======================================
 // 6️⃣ Đăng ký Service
 // ======================================
@@ -194,6 +201,14 @@ builder.Services.AddScoped<CloudinaryService>(provider =>
 
     return new CloudinaryService(cloudName, apiKey, apiSecret);
 });
+
+// ✅ PhoBERT Moderation Service
+var mlApiUrl = builder.Configuration["MLService:ApiUrl"] ?? "http://127.0.0.1:8000";
+Console.WriteLine($"[ML SERVICE] Using API: {mlApiUrl}");
+
+builder.Services.AddHttpClient<IContentModerationService, PhoBertModerationService>()
+    .ConfigureHttpClient(client => client.Timeout = TimeSpan.FromSeconds(30))
+    .AddTypedClient<IContentModerationService>(client => new PhoBertModerationService(client, mlApiUrl));
 
 // ======================================
 //  Use Case Layer

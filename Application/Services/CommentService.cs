@@ -12,19 +12,25 @@ public class CommentService
     private readonly INotificationRepository _notificationRepository;
     private readonly IRealTimeNotificationService _realTimeNotificationService;
     private readonly IPostRepository _postRepository;
+    private readonly IContentModerationService _moderationService;
+    private readonly IContentModerationRepository _moderationRepository;
 
     public CommentService(
         ICommentRepository commentRepository,
         IUserRepository userRepository,
         INotificationRepository notificationRepository,
         IRealTimeNotificationService realTimeNotificationService,
-        IPostRepository postRepository)
+        IPostRepository postRepository,
+        IContentModerationService moderationService,
+        IContentModerationRepository moderationRepository)
     {
         _commentRepository = commentRepository;
         _userRepository = userRepository;
         _notificationRepository = notificationRepository;
         _realTimeNotificationService = realTimeNotificationService;
         _postRepository = postRepository;
+        _moderationService = moderationService;
+        _moderationRepository = moderationRepository;
     }
 
     // Create Comment
@@ -34,6 +40,15 @@ public class CommentService
         var user = await _userRepository.GetByAccountIdAsync(currentAccountId);
         if (user == null)
             throw new Exception("User not found");
+
+        // ✅ KIỂM TRA TOXIC TRƯỚC KHI LƯU
+        var moderationResult = await _moderationService.AnalyzeTextAsync(dto.Content);
+        
+        // Nếu nội dung nguy hiểm (high_risk), chặn comment
+        if (moderationResult.RiskLevel == "high_risk")
+        {
+            throw new Exception($"Comment bị chặn do vi phạm: {moderationResult.Label}");
+        }
 
         // Extract hashtags from content
         var hashtags = ExtractHashtags(dto.Content);
@@ -53,6 +68,9 @@ public class CommentService
         };
 
         var createdComment = await _commentRepository.CreateAsync(comment);
+        
+        // ✅ LƯU KẾT QUẢ MODERATION VÀO DATABASE
+        await SaveModerationResultAsync(moderationResult, "Comment", createdComment.CommentId, currentAccountId, dto.PostId, createdComment.CommentId);
         
         // Gửi thông báo
         await SendCommentNotificationAsync(createdComment, user);
@@ -76,6 +94,14 @@ public class CommentService
         if (user == null || comment.UserId != user.user_id)
             throw new UnauthorizedAccessException("You can only edit your own comments");
 
+        // ✅ KIỂM TRA TOXIC KHI SỬA COMMENT
+        var moderationResult = await _moderationService.AnalyzeTextAsync(newContent);
+        
+        if (moderationResult.RiskLevel == "high_risk")
+        {
+            throw new Exception($"Comment bị chặn do vi phạm: {moderationResult.Label}");
+        }
+
         // Update comment
         var hashtags = ExtractHashtags(newContent);
         comment.Content = newContent;
@@ -84,6 +110,9 @@ public class CommentService
         comment.UpdatedAt = DateTime.UtcNow;
         
         var updatedComment = await _commentRepository.UpdateAsync(comment);
+
+        // ✅ LƯU KẾT QUẢ MODERATION
+        await SaveModerationResultAsync(moderationResult, "Comment", commentId, currentAccountId, comment.PostId, commentId);
 
         return MapToDto(updatedComment);
     }
@@ -328,6 +357,31 @@ public class CommentService
         var regex = new Regex(@"#(\w+)");
         var matches = regex.Matches(content);
         return matches.Select(m => m.Groups[1].Value).Distinct().ToList();
+    }
+
+    // ✅ LƯU KẾT QUẢ MODERATION VÀO DATABASE
+    private async Task SaveModerationResultAsync(ModerationResult result, string contentType, int contentId, int accountId, int? postId, int? commentId)
+    {
+        var moderation = new ContentModeration
+        {
+            ContentType = contentType,
+            ContentID = contentId,
+            AccountId = accountId,
+            PostId = postId,
+            CommentId = commentId,
+            AIConfidence = result.Confidence,
+            ToxicLabel = result.Label,
+            Status = result.RiskLevel switch
+            {
+                "high_risk" => "blocked",
+                "medium_risk" => "pending",
+                "low_risk" => "approved",
+                _ => "approved"
+            },
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _moderationRepository.CreateAsync(moderation);
     }
 
     // Map Comment to DTO
