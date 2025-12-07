@@ -102,7 +102,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 var user = await _userRepository.GetByAccountIdAsync(accountId);
                 if (user == null) return Unauthorized(new { message = "Không tìm thấy thông tin người dùng" });
 
-                string newName = body?.name;
+                string? newName = body?.name;
                 if (string.IsNullOrEmpty(newName)) return BadRequest(new { success = false, message = "Tên nhóm không được để trống" });
 
                 var (success, error) = await _groupChatService.UpdateGroupNameAsync(conversationId, newName, user.user_id);

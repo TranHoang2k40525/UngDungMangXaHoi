@@ -556,7 +556,8 @@ export default function Reels() {
 
   const reorderVideos = useCallback(
     async (selectedId, list) => {
-      const watched = await getWatchedSet();
+      // KHÔNG SẮP XẾP LẠI - Giữ nguyên thứ tự từ backend để cho phép lặp lại video
+      // Backend đã prioritize: followed > search history > newest
       const arr = Array.isArray(list) ? list.slice() : [];
       // unique by id
       const map = new Map();
@@ -567,18 +568,13 @@ export default function Reels() {
       const selected =
         selectedId != null ? uniq.find((p) => p.id === selectedId) : null;
       const rest = uniq.filter((p) => !selected || p.id !== selected.id);
-      // sort: unseen first, then newest
-      rest.sort((a, b) => {
-        const aw = watched.has(a.id) ? 1 : 0;
-        const bw = watched.has(b.id) ? 1 : 0;
-        if (aw !== bw) return aw - bw; // unseen (0) comes before seen (1)
-        const ad = new Date(a.createdAt || 0).getTime();
-        const bd = new Date(b.createdAt || 0).getTime();
-        return bd - ad; // newest first
-      });
+      
+      // KHÔNG SORT NỮA - giữ nguyên thứ tự backend trả về
+      // Backend đã xử lý: follower > search > newest, cho phép lặp lại
+      
       return selected ? [selected, ...rest] : rest;
     },
-    [getWatchedSet]
+    [] // Xóa dependency getWatchedSet
   );
 
   // Tính sẵn chiều cao mỗi item để đồng bộ initialScrollIndex và âm thanh/hiển thị

@@ -30,5 +30,10 @@ namespace UngDungMangXaHoi.Domain.Interfaces
         Task<IEnumerable<Post>> GetPublicBusinessPostsAsync(int? currentUserId);
         Task<IEnumerable<Post>> GetFollowedBusinessPostsAsync(int currentUserId);
         Task<IEnumerable<Post>> GetRelevantBusinessPostsByKeywordsAsync(List<string> keywords, int? currentUserId, int limit = 50);
+        
+        // Business VIDEO post methods (CHỈ lấy posts có video)
+        Task<IEnumerable<Post>> GetPublicBusinessVideoPostsAsync(int? currentUserId);
+        Task<IEnumerable<Post>> GetFollowedBusinessVideoPostsAsync(int currentUserId);
+        Task<IEnumerable<Post>> GetRelevantBusinessVideoPostsByKeywordsAsync(List<string> keywords, int? currentUserId, int limit = 50);
     }
 }

@@ -112,8 +112,18 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         [HttpGet("payment-status/{paymentId}")]
         [Authorize]
         [ProducesResponseType(typeof(PaymentStatusResponse), 200)]
-        public async Task<IActionResult> CheckPaymentStatus([FromQuery] int paymentId,[FromQuery] int accountId)
+        public async Task<IActionResult> CheckPaymentStatus([FromRoute] int paymentId)
         {
+            _logger.LogInformation("Nhận request check payment status với paymentId={PaymentId}", paymentId);
+            
+            var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
+            {
+                return Unauthorized(new { message = "Token không hợp lệ!" });
+            }
+            
+            _logger.LogInformation("AccountId từ token: {AccountId}", accountId);
+            
             var (Success,  Status,  RemainingSeconds,  Message) = await _businessUpgradeService.CheckPaymentStatusAsync(paymentId, accountId);
             if(!Success)
             {

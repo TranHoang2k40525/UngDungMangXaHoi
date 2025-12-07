@@ -10,7 +10,9 @@ using UngDungMangXaHoi.Application.DTOs;
 namespace UngDungMangXaHoi.WebAPI.Controllers
 {
     [ApiController]
+    
     [Route("api/admin")]
+    [Authorize(Policy = "AdminOnly")]
     public class AdminController : ControllerBase
     {
         private readonly IAccountRepository _accountRepository;
@@ -42,7 +44,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             _adminService = adminService;
         }
 
-        [Authorize]
+      
         [HttpGet("profile")]
         public async Task<IActionResult> GetProfile()
         {
@@ -57,7 +59,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
         // Admin profile DTOs moved to Application.DTOs.AdminDto -> AdminUpdateProfileRequest
 
-        [Authorize]
+    
         [HttpPut("update-profile")]
         public async Task<IActionResult> UpdateProfile([FromBody] AdminUpdateProfileRequest request)
         {
@@ -71,7 +73,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
         // Change password DTOs moved to Application.DTOs.AdminDto -> AdminChangePasswordRequest
 
-        [Authorize]
+    
         [HttpPost("change-password")]
         public async Task<IActionResult> ChangePassword([FromBody] AdminChangePasswordRequest request)
         {
@@ -100,7 +102,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
         // Verify change password DTO moved to Application.DTOs.AdminDto -> AdminVerifyChangePasswordOtpRequest
 
-        [Authorize]
+        
         [HttpPost("verify-change-password-otp")]
         public async Task<IActionResult> VerifyChangePasswordOtp([FromBody] AdminVerifyChangePasswordOtpRequest request)
         {

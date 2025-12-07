@@ -266,8 +266,13 @@ export default function UserProfilePublic() {
           <Ionicons name="chevron-back" size={28} color="#111827" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerUsername}>{profile?.username || 'user'}</Text>
-          {/* Có thể thêm verified badge nếu cần */}
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={styles.headerUsername}>{profile?.username || 'user'}</Text>
+            {/* Verified badge cho Business accounts */}
+            {profile?.accountType === "Business" && (
+              <Ionicons name="checkmark-circle" size={16} color="#0095f6" style={{ marginLeft: 4 }} />
+            )}
+          </View>
         </View>
         <TouchableOpacity style={styles.moreButton} onPress={handleMenuPress}>
           <Ionicons name="ellipsis-vertical" size={24} color="#111827" />
@@ -345,7 +350,13 @@ export default function UserProfilePublic() {
 
           {/* Display Name and Bio */}
           <View style={styles.bioSection}>
-            <Text style={styles.displayName}>{profile?.fullName || profile?.username || ''}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={styles.displayName}>{profile?.fullName || profile?.username || ''}</Text>
+              {/* Verified badge for Business accounts */}
+              {profile?.accountType === "Business" && (
+                <Ionicons name="checkmark-circle" size={18} color="#0095f6" style={{ marginLeft: 6 }} />
+              )}
+            </View>
             {profile?.bio && (
               <Text style={styles.bioText}>{profile.bio}</Text>
             )}

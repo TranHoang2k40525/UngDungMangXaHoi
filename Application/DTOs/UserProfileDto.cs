@@ -28,6 +28,7 @@ namespace UngDungMangXaHoi.Application.DTOs
         public int PostCount { get; set; }
         public int FollowerCount { get; set; }
         public int FollowingCount { get; set; }
+        public string? AccountType { get; set; }  // "User" hoặc "Business"
     }
 
     /// <summary>

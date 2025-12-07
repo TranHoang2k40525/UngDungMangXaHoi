@@ -300,6 +300,9 @@ const Profile = () => {
             <Ionicons name="lock-closed" size={16} color="#000" />
           ) : null}
           <Text style={styles.username}>{profile?.username || 'username'}</Text>
+          {profile?.accountType === "Business" && (
+            <Ionicons name="checkmark-circle" size={16} color="#0095f6" style={{ marginLeft: 4 }} />
+          )}
           <Ionicons name="chevron-down" size={16} color="#000" style={styles.chevron} />
         </View>
         <View style={styles.headerRight}>
@@ -321,6 +324,12 @@ const Profile = () => {
             <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); navigation.navigate('ChangePassword'); }}>
               <Text style={styles.menuText}>Đổi mật khẩu</Text>
             </TouchableOpacity>
+            {/* CHỈ hiển thị nút đăng ký Business nếu tài khoản hiện tại là User */}
+            {profile?.accountType !== "Business" && (
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); navigation.navigate('BusinessUpgradeTerms'); }}>
+                <Text style={styles.menuText}>Đăng ký tài khoản doanh nghiệp</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); setBlockedListVisible(true); }}>
               <Text style={styles.menuText}>Danh sách chặn</Text>
             </TouchableOpacity>
@@ -473,7 +482,13 @@ const Profile = () => {
           </View>
 
           <View style={styles.bioSection}>
-            <Text style={styles.bioName}>{profile?.fullName || ''}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={styles.bioName}>{profile?.fullName || ''}</Text>
+              {/* Verified badge for Business accounts */}
+              {profile?.accountType === "Business" && (
+                <Ionicons name="checkmark-circle" size={18} color="#0095f6" style={{ marginLeft: 6 }} />
+              )}
+            </View>
             {!!profile?.bio && <Text style={styles.bioText}>{profile.bio}</Text>}
             {!!profile?.website && <Text style={styles.bioText}>{profile.website}</Text>}
           </View>

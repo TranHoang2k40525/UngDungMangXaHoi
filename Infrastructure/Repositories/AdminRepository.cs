@@ -6,6 +6,7 @@ using UngDungMangXaHoi.Domain.ValueObjects;
 using UngDungMangXaHoi.Infrastructure.Persistence;
 
 #pragma warning disable CS8604 // Possible null reference argument for parameter
+#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type
 
 namespace UngDungMangXaHoi.Infrastructure.Repositories
 {
@@ -55,7 +56,7 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
     public async Task<bool> ExistsByEmailAsync(Email email)
         {
             return await _context.Admins
-                .AnyAsync(a => a.Account.email !=null && a.Account.email.Value.ToLower() == email.Value.ToLower());
+                .AnyAsync(a => a.Account.email != null && a.Account.email.Value.ToLower() == email.Value.ToLower());
         }
     }
 }

@@ -41,6 +41,9 @@ import FollowList from "./src/User/FollowList";
 import PostDetail from "./src/Home/PostDetail";
 import Editprofile from "./src/User/Editprofile";
 import PhotoPreview from "./src/User/PhotoPreview";
+import BusinessUpgradeTerms from "./src/Business/BusinessUpgradeTerms";
+import BusinessPaymentPackage from "./src/Business/BusinessPaymentPackage";
+import MoMoQRPayment from "./src/Business/MoMoQRPayment";
 import { View, ActivityIndicator, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { API_BASE_URL } from "./src/API/Api";
@@ -305,6 +308,9 @@ function AppNavigator() {
             <Stack.Screen name="StoryViewer" component={StoryViewer} />
             <Stack.Screen name="Editprofile" component={Editprofile} />
             <Stack.Screen name="PhotoPreview" component={PhotoPreview} />
+            <Stack.Screen name="BusinessUpgradeTerms" component={BusinessUpgradeTerms} />
+            <Stack.Screen name="BusinessPaymentPackage" component={BusinessPaymentPackage} />
+            <Stack.Screen name="MoMoQRPayment" component={MoMoQRPayment} />
           </>
         ) : (
           // Unauthenticated screens

@@ -589,10 +589,7 @@ export default function Home() {
         if (mounted) {
           let arr = Array.isArray(data) ? data : [];
           console.log(`[HOME] 📥 Initial feed loaded - ${arr.length} posts`);
-          // Sort newest-first just in case
-          arr = arr
-            .slice()
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+          // KHÔNG sort lại - backend đã trả về thứ tự đúng (prioritized + Business injected)
           setPosts(arr);
           setCurrentPage(1);
           setHasMorePosts(arr.length >= 10);
@@ -1294,9 +1291,7 @@ export default function Home() {
       console.log("[HOME] 🔄 Starting refresh feed...");
       const data = await getFeed(1, 10);
       let arr = Array.isArray(data) ? data : data?.data ?? [];
-      arr = arr
-        .slice()
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      // KHÔNG sort lại - giữ nguyên thứ tự từ backend
       setPosts(arr);
       setCurrentPage(1);
       setHasMorePosts(arr.length >= 10);
@@ -1392,9 +1387,7 @@ export default function Home() {
         setHasMorePosts(false);
         return;
       }
-      arr = arr
-        .slice()
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      // KHÔNG sort lại - giữ nguyên thứ tự từ backend
       setPosts((prev) => [...prev, ...arr]);
       setCurrentPage(nextPage);
       setHasMorePosts(arr.length >= 10);
@@ -1511,7 +1504,7 @@ export default function Home() {
         ref={flatListRef}
         showsVerticalScrollIndicator={false}
         data={posts}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item, index) => `post-${item.id}-${index}`}
         contentContainerStyle={{ paddingBottom: 0 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefreshFeed} />
@@ -1649,6 +1642,16 @@ export default function Home() {
                         {p.user?.username || "user"}
                       </Text>
                     </TouchableOpacity>
+
+                    {/* Verified badge for Business accounts (Sponsored) */}
+                    {(p.isSponsored || p.user?.accountType === "Business") && (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color="#0095f6"
+                        style={{ marginLeft: 4 }}
+                      />
+                    )}
 
                     {/* Inline compact tag: show first tagged user's name inline (no avatar) + +N indicator when more */}
                     {p.tags && p.tags.length > 0 && (
