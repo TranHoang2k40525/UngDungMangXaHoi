@@ -7,7 +7,7 @@ import { Platform } from "react-native";
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
 // Nếu test trên máy tính: dùng localhost
 // Nếu test trên điện thoại thật: dùng IP của máy tính (xem bằng ipconfig)
-export const API_BASE_URL = "http://172.20.10.10:5297"; // Backend đang chạy trên IP máy tính
+export const API_BASE_URL = "http://192.168.1.102:5297"; // Backend đang chạy trên IP máy tính
 
 
 // Hàm helper để gọi API
@@ -516,6 +516,25 @@ export const setupTokenRefresh = () => {
       await logout();
     }
   }, 5 * 60 * 1000); // 5 phút
+};
+
+// =================== BUSINESS UPGRADE APIs ===================
+// Request Business Upgrade (returns QR code, payment ID, and expiry)
+export const requestBusinessUpgrade = async () => {
+  const headers = await getAuthHeaders();
+  return apiCall("/api/Business/upgrade", {
+    method: "POST",
+    headers,
+  });
+};
+
+// Check payment status
+export const checkPaymentStatus = async (paymentId) => {
+  const headers = await getAuthHeaders();
+  return apiCall(`/api/Business/payment-status/${paymentId}`, {
+    method: "GET",
+    headers,
+  });
 };
 
 // Khởi tạo/khôi phục session khi mở app: cố lấy profile, nếu 401 thì refresh rồi thử lại
