@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using UngDungMangXaHoi.Domain.Interfaces;
 
 namespace UngDungMangXaHoi.Infrastructure.ExternalServices;
@@ -70,11 +71,22 @@ public class PhoBertModerationService : IContentModerationService
     // Helper class for API response
     private class ModerationApiResponse
     {
+        [JsonPropertyName("is_safe")]
         public bool IsSafe { get; set; }
+        
+        [JsonPropertyName("label")]
         public string Label { get; set; } = string.Empty;
+        
+        [JsonPropertyName("confidence")]
         public double Confidence { get; set; }
+        
+        [JsonPropertyName("risk_level")]
         public string RiskLevel { get; set; } = string.Empty;
+        
+        [JsonPropertyName("cumulative_negative")]
         public double CumulativeNegative { get; set; }
+        
+        [JsonPropertyName("all_scores")]
         public Dictionary<string, double> AllScores { get; set; } = new();
     }
 }

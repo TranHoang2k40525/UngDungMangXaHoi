@@ -106,7 +106,7 @@ def assess_risk(label: str, confidence: float, cumulative: float) -> str:
     """Đánh giá mức độ rủi ro"""
     if label == 'safe':
         return 'no_risk'
-    elif label in ['suicide', 'violence'] or cumulative > 0.75:
+    elif label in ['suicide', 'violence', 'nsfw', 'hate', 'toxic'] or cumulative > 0.75:
         return 'high_risk'
     elif confidence > 0.80 or cumulative > 0.65:
         return 'medium_risk'
