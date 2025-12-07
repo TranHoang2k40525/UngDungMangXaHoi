@@ -124,7 +124,17 @@ namespace UngDungMangXaHoi.Infrastructure.ExternalServices
 
                 if (momoResponse?.ResultCode == 0)
                 {
-                    return (true, momoResponse.QrCodeUrl ?? momoResponse.PayUrl ?? string.Empty, orderId, "Success");
+                    // MoMo trả về PayUrl (link redirect), cần convert thành QR code image
+                    var payUrl = momoResponse.PayUrl ?? string.Empty;
+                    if (string.IsNullOrEmpty(payUrl))
+                    {
+                        return (false, string.Empty, string.Empty, "MoMo không trả về PayUrl");
+                    }
+                    
+                    // Tạo QR code URL từ PayUrl (dùng API public)
+                    var qrCodeUrl = $"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={Uri.EscapeDataString(payUrl)}";
+                    
+                    return (true, qrCodeUrl, orderId, "Success");
                 }
 
                 return (false, string.Empty, string.Empty, momoResponse?.Message ?? "Unknown error");

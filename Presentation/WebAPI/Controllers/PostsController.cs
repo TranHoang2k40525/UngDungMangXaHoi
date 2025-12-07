@@ -146,8 +146,9 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 posts.ToList(), 
                 currentUserId);
             
-            // Bước 2: Chèn bài Business video vào reels đã được prioritize
-            var mergedReels = await _businessPostInjectionService.InjectBusinessPostsIntoFeedAsync(
+            // Bước 2: Chèn Business VIDEO vào reels (CHỈ VIDEO, không chèn ảnh)
+            // Sử dụng InjectBusinessVideoPostsAsync thay vì InjectBusinessPostsIntoFeedAsync
+            var mergedReels = await _businessPostInjectionService.InjectBusinessVideoPostsIntoReelsAsync(
                 prioritizedUserPosts, 
                 currentUserId);
             
@@ -191,8 +192,8 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 posts.ToList(), 
                 currentUserId);
             
-            // Bước 2: Chèn bài Business video vào all reels đã được prioritize
-            var mergedReels = await _businessPostInjectionService.InjectBusinessPostsIntoFeedAsync(
+            // Bước 2: Chèn Business VIDEO vào all reels (CHỈ VIDEO)
+            var mergedReels = await _businessPostInjectionService.InjectBusinessVideoPostsIntoReelsAsync(
                 prioritizedUserPosts, 
                 currentUserId);
             
@@ -355,60 +356,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             return Ok(dtoList6);
         }
 
-    private object MapPostToDto(Post p, int commentsCount = 0)
-        {
-            string BaseUrl(string path) => $"{Request.Scheme}://{Request.Host}{path}";
-
-            var media = p.Media
-                .OrderBy(m => m.media_order)
-                .Select(m =>
-                {
-                    string type = m.media_type;
-                    string url;
-                    string? altUrl = null;
-
-                    if (type.Equals("video", StringComparison.OrdinalIgnoreCase))
-                    {
-                        url = BaseUrl($"/Assets/Videos/{m.media_url}");
-                        try
-                        {
-                            var root = Directory.GetCurrentDirectory();
-                            var videosDir = Path.Combine(root, "Assets", "Videos");
-                            var nameNoExt = Path.GetFileNameWithoutExtension(m.media_url);
-                            var compatName = nameNoExt + "_compat.mp4";
-                            var compatPath = Path.Combine(videosDir, compatName);
-                            if (System.IO.File.Exists(compatPath))
-                            {
-                                altUrl = BaseUrl($"/Assets/Videos/{compatName}");
-                            }
-                        }
-                        catch { }
-                    }
-                    else
-                    {
-                        url = BaseUrl($"/Assets/Images/{m.media_url}");
-                    }
-
-                    return new { type, url, altUrl };
-                });
-
-            return new
-            {
-                id = p.post_id,
-                caption = p.caption,
-                location = p.location,
-                privacy = p.privacy,
-                createdAt = p.created_at,
-                commentsCount = commentsCount,
-                user = new
-                {
-                    id = p.User?.user_id,
-                    username = p.User?.username.Value,
-                    avatarUrl = p.User?.avatar_url?.Value != null ? BaseUrl(p.User.avatar_url.Value) : null
-                },
-                media = media
-            };
-        }
+   
 
         private async Task<object> MapPostToDtoAsync(Post p, int commentsCount = 0)
         {

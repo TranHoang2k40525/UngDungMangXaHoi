@@ -30,7 +30,7 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
             return await _context.Stories
                 .Include(s => s.User)
                 .Include(s => s.Views)
-                .FirstOrDefaultAsync(s => s.story_id == id);
+                .FirstOrDefaultAsync(s => s.story_id == id) ?? null!;
         }
 
         public async Task<IEnumerable<Story>> GetUserStoriesAsync(int userId)
