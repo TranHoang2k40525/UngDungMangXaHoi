@@ -1,0 +1,45 @@
+# .gitignore additions for Docker and secrets
+
+# ============================================
+# Environment files (NEVER commit!)
+# ============================================
+.env
+.env.production
+.env.local
+.env.*.local
+
+# ============================================
+# Secrets (NEVER commit!)
+# ============================================
+secrets/*.txt
+!secrets/*.txt.example
+!secrets/README.md
+
+# ============================================
+# Docker volumes and temp files
+# ============================================
+docker-compose.override.yml.backup
+*.pid
+*.seed
+*.log
+
+# ============================================
+# Build artifacts
+# ============================================
+**/bin/
+**/obj/
+**/dist/
+**/build/
+**/node_modules/
+
+# ============================================
+# IDE and OS files
+# ============================================
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
