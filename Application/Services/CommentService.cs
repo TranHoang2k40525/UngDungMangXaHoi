@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.DependencyInjection;
 using UngDungMangXaHoi.Application.DTOs;
 using UngDungMangXaHoi.Domain.Entities;
 using UngDungMangXaHoi.Domain.Interfaces;
@@ -12,19 +13,28 @@ public class CommentService
     private readonly INotificationRepository _notificationRepository;
     private readonly IRealTimeNotificationService _realTimeNotificationService;
     private readonly IPostRepository _postRepository;
+    private readonly IContentModerationService _moderationService;
+    private readonly IContentModerationRepository _moderationRepository;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     public CommentService(
         ICommentRepository commentRepository,
         IUserRepository userRepository,
         INotificationRepository notificationRepository,
         IRealTimeNotificationService realTimeNotificationService,
-        IPostRepository postRepository)
+        IPostRepository postRepository,
+        IContentModerationService moderationService,
+        IContentModerationRepository moderationRepository,
+        IServiceScopeFactory scopeFactory)
     {
         _commentRepository = commentRepository;
         _userRepository = userRepository;
         _notificationRepository = notificationRepository;
         _realTimeNotificationService = realTimeNotificationService;
         _postRepository = postRepository;
+        _moderationService = moderationService;
+        _moderationRepository = moderationRepository;
+        _scopeFactory = scopeFactory;
     }
 
     // Create Comment
@@ -38,14 +48,14 @@ public class CommentService
         // Extract hashtags from content
         var hashtags = ExtractHashtags(dto.Content);
 
-        // Create comment entity - Giữ nguyên parentCommentId từ frontend (nested replies)
+        // ✅ TẠO COMMENT TRƯỚC (như Instagram/Facebook - UX mượt mà)
         var comment = new Comment
         {
             PostId = dto.PostId,
             UserId = user.user_id,
             Content = dto.Content,
             Hashtags = string.Join(",", hashtags),
-            ParentCommentId = dto.ParentCommentId, // Giữ nguyên - cho phép nested
+            ParentCommentId = dto.ParentCommentId,
             CreatedAt = DateTime.UtcNow,
             IsDeleted = false,
             LikesCount = 0,
@@ -54,14 +64,103 @@ public class CommentService
 
         var createdComment = await _commentRepository.CreateAsync(comment);
         
-        // Gửi thông báo
+        // Gửi thông báo ngay
         await SendCommentNotificationAsync(createdComment, user);
 
-        // Fetch complete comment with all includes
+        // ✅ KIỂM TRA TOXIC TRONG BACKGROUND (với scope riêng)
+        _ = Task.Run(async () => await CheckAndDeleteToxicCommentAsync(createdComment.CommentId, dto.Content, currentAccountId, user.user_id));
 
         // Fetch complete comment with all includes
         var fullComment = await _commentRepository.GetByIdAsync(createdComment.CommentId);
         return MapToDto(fullComment!);
+    }
+
+    // Background moderation check (chạy trong scope riêng)
+    private async Task CheckAndDeleteToxicCommentAsync(int commentId, string content, int accountId, int userId)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        
+        var commentRepository = scope.ServiceProvider.GetRequiredService<ICommentRepository>();
+        var moderationService = scope.ServiceProvider.GetRequiredService<IContentModerationService>();
+        var moderationRepository = scope.ServiceProvider.GetRequiredService<IContentModerationRepository>();
+        var notificationRepository = scope.ServiceProvider.GetRequiredService<INotificationRepository>();
+        var realTimeNotificationService = scope.ServiceProvider.GetRequiredService<IRealTimeNotificationService>();
+        
+        try
+        {
+            Console.WriteLine($"[MODERATION] Checking comment {commentId}...");
+            
+            var moderationResult = await moderationService.AnalyzeTextAsync(content);
+            
+            Console.WriteLine($"[MODERATION] Result for comment {commentId}: Label={moderationResult.Label}, RiskLevel={moderationResult.RiskLevel}");
+            
+            // Lưu kết quả moderation vào database
+            var moderation = new ContentModeration
+            {
+                ContentType = "Comment",
+                ContentID = commentId,
+                AccountId = accountId,
+                PostId = null,
+                CommentId = commentId,
+                AIConfidence = moderationResult.Confidence,
+                ToxicLabel = moderationResult.Label,
+                Status = moderationResult.RiskLevel switch
+                {
+                    "high_risk" => "blocked",
+                    "medium_risk" => "pending",
+                    "low_risk" => "approved",
+                    _ => "approved"
+                },
+                CreatedAt = DateTime.UtcNow
+            };
+            
+            await moderationRepository.CreateAsync(moderation);
+            
+            // Nếu high_risk → Đợi 6 giây rồi xóa comment và thông báo cho user
+            if (moderationResult.RiskLevel == "high_risk")
+            {
+                Console.WriteLine($"[MODERATION] Comment {commentId} is toxic ({moderationResult.Label}). Waiting 6 seconds before deletion...");
+                
+                // ⏱️ Đợi 6 giây (như Instagram/Facebook)
+                await Task.Delay(6000);
+                
+                Console.WriteLine($"[MODERATION] DELETING toxic comment {commentId}: {moderationResult.Label}");
+                
+                await commentRepository.SoftDeleteAsync(commentId);
+                
+                // Gửi notification cho user về việc comment bị xóa
+                var notification = new Notification
+                {
+                    user_id = userId,
+                    sender_id = userId,
+                    type = NotificationType.Comment,
+                    content = $"Comment của bạn đã bị xóa do vi phạm quy định cộng đồng ({moderationResult.Label})",
+                    is_read = false,
+                    created_at = DateTimeOffset.UtcNow
+                };
+                
+                await notificationRepository.AddAsync(notification);
+                
+                var notificationDto = new NotificationDto
+                {
+                    NotificationId = notification.notification_id,
+                    UserId = userId,
+                    Content = notification.content,
+                    Type = NotificationType.Comment,
+                    IsRead = false,
+                    CreatedAt = notification.created_at
+                };
+                
+                await realTimeNotificationService.SendNotificationToUserAsync(userId, notificationDto);
+                
+                Console.WriteLine($"[MODERATION] Sent deletion notification to user {userId}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[MODERATION] Error checking comment {commentId}: {ex.Message}");
+            Console.WriteLine($"[MODERATION] Stack trace: {ex.StackTrace}");
+        }
     }
 
     // Update Comment
@@ -76,6 +175,14 @@ public class CommentService
         if (user == null || comment.UserId != user.user_id)
             throw new UnauthorizedAccessException("You can only edit your own comments");
 
+        // ✅ KIỂM TRA TOXIC KHI SỬA COMMENT
+        var moderationResult = await _moderationService.AnalyzeTextAsync(newContent);
+        
+        if (moderationResult.RiskLevel == "high_risk")
+        {
+            throw new Exception($"Comment bị chặn do vi phạm: {moderationResult.Label}");
+        }
+
         // Update comment
         var hashtags = ExtractHashtags(newContent);
         comment.Content = newContent;
@@ -84,6 +191,9 @@ public class CommentService
         comment.UpdatedAt = DateTime.UtcNow;
         
         var updatedComment = await _commentRepository.UpdateAsync(comment);
+
+        // ✅ LƯU KẾT QUẢ MODERATION
+        await SaveModerationResultAsync(moderationResult, "Comment", commentId, currentAccountId, null, commentId);
 
         return MapToDto(updatedComment);
     }
@@ -328,6 +438,31 @@ public class CommentService
         var regex = new Regex(@"#(\w+)");
         var matches = regex.Matches(content);
         return matches.Select(m => m.Groups[1].Value).Distinct().ToList();
+    }
+
+    // ✅ LƯU KẾT QUẢ MODERATION VÀO DATABASE
+    private async Task SaveModerationResultAsync(ModerationResult result, string contentType, int contentId, int accountId, int? postId, int? commentId)
+    {
+        var moderation = new ContentModeration
+        {
+            ContentType = contentType,
+            ContentID = contentId,
+            AccountId = accountId,
+            PostId = postId,
+            CommentId = commentId,
+            AIConfidence = result.Confidence,
+            ToxicLabel = result.Label,
+            Status = result.RiskLevel switch
+            {
+                "high_risk" => "blocked",
+                "medium_risk" => "pending",
+                "low_risk" => "approved",
+                _ => "approved"
+            },
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _moderationRepository.CreateAsync(moderation);
     }
 
     // Map Comment to DTO
