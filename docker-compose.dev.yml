@@ -1,0 +1,116 @@
+version: '3.8'
+
+# Development Docker Compose Configuration
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# This file extends docker-compose.yml with development-specific settings
+
+services:
+  # ==========================================
+  # SQL Server - Development Configuration
+  # ==========================================
+  sqlserver:
+    # Dev: Expose port for debugging with SSMS/Azure Data Studio
+    ports:
+      - "1434:1433"
+    
+    # Dev: Easier restart policy
+    restart: unless-stopped
+    
+    # Dev: Less strict health check
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # WebAPI Backend - Development Configuration
+  # ==========================================
+  webapi:
+    # Dev: Use development Dockerfile with hot-reload
+    build:
+      context: .
+      dockerfile: Presentation/WebAPI/Dockerfile
+    
+    # Dev: Enable hot-reload with volume mount
+    volumes:
+      - ./:/src:delegated
+    
+    # Dev: Additional debugging environment
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DOTNET_USE_POLLING_FILE_WATCHER=1
+      - DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER=1
+      
+      # Dev: Detailed logging
+      - Logging__LogLevel__Default=Debug
+      - Logging__LogLevel__Microsoft.AspNetCore=Information
+    
+    # Dev: Expose additional debugging ports
+    ports:
+      - "5297:5297"
+      - "5298:5298"  # Additional debug port
+    
+    # Dev: Easier restart
+    restart: unless-stopped
+    
+    # Dev: No resource limits for flexibility
+    deploy:
+      resources: {}
+
+  # ==========================================
+  # WebApp (React User Frontend) - Development
+  # ==========================================
+  webapp:
+    # Dev: Use development Dockerfile with hot-reload
+    build:
+      context: ./Presentation/WebApp/WebUsers
+      dockerfile: Dockerfile
+    
+    # Dev: Hot reload with volume mount
+    volumes:
+      - ./Presentation/WebApp/WebUsers:/usr/share/nginx/html:delegated
+    
+    # Dev: Environment variables
+    environment:
+      - NODE_ENV=development
+    
+    # Dev: Expose port
+    ports:
+      - "5173:80"
+    
+    # Dev: Easier restart
+    restart: unless-stopped
+    
+    # Dev: Depends on backend
+    depends_on:
+      - webapi
+
+  # ==========================================
+  # WebAdmins (React Admin Frontend) - Development
+  # ==========================================
+  webadmins:
+    # Dev: Use development Dockerfile with hot-reload
+    build:
+      context: ./Presentation/WebApp/WebAdmins
+      dockerfile: Dockerfile
+    
+    # Dev: Hot reload with volume mount
+    volumes:
+      - ./Presentation/WebApp/WebAdmins:/app:delegated
+      - /app/node_modules  # Prevent overwriting node_modules
+    
+    # Dev: Environment variables
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:5297
+    
+    # Dev: Expose port
+    ports:
+      - "3000:3000"
+    
+    # Dev: Easier restart
+    restart: unless-stopped
+    
+    # Dev: Depends on backend
+    depends_on:
+      - webapi

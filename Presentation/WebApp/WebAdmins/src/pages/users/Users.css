@@ -1,0 +1,152 @@
+.users-page {
+  max-width: 1400px;
+}
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 8px 0;
+}
+
+.page-header p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.users-toolbar {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.search-box {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  max-width: 500px;
+}
+
+.search-box .input {
+  flex: 1;
+}
+
+.filter-select {
+  width: 180px;
+  margin: 0;
+}
+
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.users-table th {
+  background: var(--bg);
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.users-table td {
+  padding: 16px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.users-table tbody tr:hover {
+  background: var(--bg);
+}
+
+.status-badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.status-badge.active {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-badge.banned {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.btn-action {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.btn-action.ban {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.btn-action.ban:hover {
+  background: #fecaca;
+}
+
+.btn-action.unban {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.btn-action.unban:hover {
+  background: #a7f3d0;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.loading-container {
+  display: flex;
+  justify-content: center;
+  padding: 60px;
+}
+
+@media (max-width: 768px) {
+  .users-toolbar {
+    flex-direction: column;
+  }
+  
+  .search-box {
+    max-width: none;
+  }
+  
+  .filter-select {
+    width: 100%;
+  }
+  
+  .users-table {
+    font-size: 12px;
+  }
+  
+  .users-table th,
+  .users-table td {
+    padding: 8px;
+  }
+}
