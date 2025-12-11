@@ -19,6 +19,43 @@ using UngDungMangXaHoi.Application.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ======================================
+// Helper: Đọc Secret từ Docker Secrets hoặc Environment Variable
+// ======================================
+static string GetSecretOrEnv(string secretName, string envVarName, string? fallbackConfigKey = null, IConfiguration? config = null)
+{
+    var secretPath = $"/run/secrets/{secretName}";
+    
+    // 1. Ưu tiên: Docker Secret (Production)
+    if (File.Exists(secretPath))
+    {
+        var secret = File.ReadAllText(secretPath).Trim();
+        Console.WriteLine($"[SECRET] Loaded '{secretName}' from Docker Secret");
+        return secret;
+    }
+    
+    // 2. Fallback: Environment Variable (Development)
+    var envValue = Environment.GetEnvironmentVariable(envVarName);
+    if (!string.IsNullOrEmpty(envValue))
+    {
+        Console.WriteLine($"[SECRET] Loaded '{envVarName}' from Environment Variable");
+        return envValue;
+    }
+    
+    // 3. Fallback: appsettings.json
+    if (config != null && !string.IsNullOrEmpty(fallbackConfigKey))
+    {
+        var configValue = config[fallbackConfigKey];
+        if (!string.IsNullOrEmpty(configValue))
+        {
+            Console.WriteLine($"[SECRET] Loaded '{fallbackConfigKey}' from appsettings.json");
+            return configValue;
+        }
+    }
+    
+    throw new InvalidOperationException($"Secret '{secretName}' not found in Docker Secrets, Environment Variables, or Configuration!");
+}
+
 // Load .env file vào environment variables (cho Environment.GetEnvironmentVariable)
 // TraversePath() sẽ tìm .env từ thư mục hiện tại lên thư mục cha
 try
@@ -77,11 +114,12 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // ======================================
-// Database Configuration (ƯU TIÊN Environment Variables → appsettings.json)
+// Database Configuration với Docker Secrets
 // ======================================
-// ASP.NET Core tự động merge env vars vào Configuration:
-// - Env var: ConnectionStrings__DefaultConnection → Configuration["ConnectionStrings:DefaultConnection"]
-// - Docker Compose set qua environment, dotnet run dùng appsettings.json
+// Đọc DB Password từ Docker Secret hoặc Environment Variable
+var dbPassword = GetSecretOrEnv("db_password", "DB_PASSWORD", "DbPassword", builder.Configuration);
+
+// Lấy connection string và inject password
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 if (string.IsNullOrEmpty(connectionString))
@@ -89,13 +127,31 @@ if (string.IsNullOrEmpty(connectionString))
     throw new InvalidOperationException("Database connection string not found! Check appsettings.json or environment variables.");
 }
 
+// Nếu connection string chưa có password, thêm vào
+if (!connectionString.Contains("Password=", StringComparison.OrdinalIgnoreCase))
+{
+    connectionString += $"Password={dbPassword};";
+}
+else
+{
+    // Replace placeholder hoặc password rỗng
+    connectionString = System.Text.RegularExpressions.Regex.Replace(
+        connectionString, 
+        @"Password=[^;]*;?", 
+        $"Password={dbPassword};", 
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase
+    );
+}
+
 Console.WriteLine($"[DB CONFIG] Using connection: {connectionString.Substring(0, Math.Min(50, connectionString.Length))}...");
 
 builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(connectionString));
 
-// JWT Authentication - ƯU TIÊN .env, fallback appsettings.json
-var jwtAccessSecret = Environment.GetEnvironmentVariable("JWT_ACCESS_SECRET")
-    ?? builder.Configuration["JwtSettings:AccessSecret"];
+// ======================================
+// JWT Authentication với Docker Secrets
+// ======================================
+var jwtAccessSecret = GetSecretOrEnv("jwt_access_secret", "JWT_ACCESS_SECRET", "JwtSettings:AccessSecret", builder.Configuration);
+var jwtRefreshSecret = GetSecretOrEnv("jwt_refresh_secret", "JWT_REFRESH_SECRET", "JwtSettings:RefreshSecret", builder.Configuration);
 
 var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER")
     ?? builder.Configuration["JwtSettings:Issuer"];
@@ -103,13 +159,27 @@ var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER")
 var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE")
     ?? builder.Configuration["JwtSettings:Audience"];
 
-if (string.IsNullOrEmpty(jwtAccessSecret))
-{
-    throw new InvalidOperationException("JWT AccessSecret not found! Check appsettings.json or JWT_ACCESS_SECRET env var.");
-}
-
 Console.WriteLine($"[JWT AUTH] AccessSecret length: {jwtAccessSecret.Length}");
+Console.WriteLine($"[JWT AUTH] RefreshSecret length: {jwtRefreshSecret.Length}");
 Console.WriteLine($"[JWT AUTH] Issuer: {jwtIssuer}, Audience: {jwtAudience}");
+
+// ======================================
+// Email Password với Docker Secrets
+// ======================================
+var emailPassword = GetSecretOrEnv("email_password", "EMAIL_PASSWORD", "Email:SmtpPass", builder.Configuration);
+// Inject vào Configuration để EmailService có thể đọc
+builder.Configuration["Email:SmtpPass"] = emailPassword;
+Console.WriteLine($"[EMAIL] Password loaded successfully");
+
+// ======================================
+// Inject JWT Secrets vào Configuration để các service khác đọc được
+// ======================================
+builder.Configuration["JwtSettings:AccessSecret"] = jwtAccessSecret;
+builder.Configuration["JwtSettings:RefreshSecret"] = jwtRefreshSecret;
+// Set environment variables để JwtTokenService có thể đọc
+Environment.SetEnvironmentVariable("JWT_ACCESS_SECRET", jwtAccessSecret);
+Environment.SetEnvironmentVariable("JWT_REFRESH_SECRET", jwtRefreshSecret);
+Environment.SetEnvironmentVariable("REFRESH_TOKEN_SECRET", jwtRefreshSecret); // JwtTokenService dùng tên này
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -231,8 +301,9 @@ builder.Services.AddScoped<CloudinaryService>(provider =>
                     ?? builder.Configuration["Cloudinary:CloudName"];
     var apiKey = Environment.GetEnvironmentVariable("CLOUDINARY_API_KEY")
                  ?? builder.Configuration["Cloudinary:ApiKey"];
-    var apiSecret = Environment.GetEnvironmentVariable("CLOUDINARY_API_SECRET")
-                    ?? builder.Configuration["Cloudinary:ApiSecret"];
+    
+    // Đọc API Secret từ Docker Secret
+    var apiSecret = GetSecretOrEnv("cloudinary_api_secret", "CLOUDINARY_API_SECRET", "Cloudinary:ApiSecret", builder.Configuration);
 
     if (string.IsNullOrEmpty(cloudName) || string.IsNullOrEmpty(apiKey) || string.IsNullOrEmpty(apiSecret))
     {

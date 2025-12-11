@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using UngDungMangXaHoi.Domain.Interfaces;
 using UngDungMangXaHoi.Domain.ValueObjects;
 using UngDungMangXaHoi.Application.DTOs;
+using UngDungMangXaHoi.Infrastructure.ExternalServices;
 
 namespace UngDungMangXaHoi.WebAPI.Controllers
 {
@@ -23,6 +24,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         private readonly IRefreshTokenRepository _refreshTokenRepository;
         private readonly Application.Services.AuthService _authService;
         private readonly Application.Services.AdminService _adminService;
+        private readonly CloudinaryService _cloudinaryService;
 
         public AdminController(
             IAccountRepository accountRepository,
@@ -32,7 +34,8 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             IEmailService emailService,
             IRefreshTokenRepository refreshTokenRepository,
             Application.Services.AuthService authService,
-            Application.Services.AdminService adminService)
+            Application.Services.AdminService adminService,
+            CloudinaryService cloudinaryService)
         {
             _accountRepository = accountRepository;
             _adminRepository = adminRepository;
@@ -42,6 +45,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             _refreshTokenRepository = refreshTokenRepository;
             _authService = authService;
             _adminService = adminService;
+            _cloudinaryService = cloudinaryService;
         }
 
       
@@ -55,6 +59,34 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             if (profile == null) return NotFound("Admin not found");
 
             return Ok(profile);
+        }
+
+        [HttpPost("upload-avatar")]
+        public async Task<IActionResult> UploadAvatar(IFormFile avatar)
+        {
+            if (avatar == null || avatar.Length == 0)
+                return BadRequest(new { message = "Không có file được tải lên" });
+
+            // Kiểm tra file là ảnh
+            var allowedTypes = new[] { "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp" };
+            if (!allowedTypes.Contains(avatar.ContentType.ToLower()))
+                return BadRequest(new { message = "Chỉ chấp nhận file ảnh (JPEG, PNG, GIF, WebP)" });
+
+            // Giới hạn kích thước 5MB
+            if (avatar.Length > 5 * 1024 * 1024)
+                return BadRequest(new { message = "Kích thước file không được vượt quá 5MB" });
+
+            try
+            {
+                using var stream = avatar.OpenReadStream();
+                var imageUrl = await _cloudinaryService.UploadImageAsync(stream, avatar.FileName);
+                
+                return Ok(new { avatarUrl = imageUrl });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = $"Lỗi khi tải ảnh: {ex.Message}" });
+            }
         }
 
         // Admin profile DTOs moved to Application.DTOs.AdminDto -> AdminUpdateProfileRequest

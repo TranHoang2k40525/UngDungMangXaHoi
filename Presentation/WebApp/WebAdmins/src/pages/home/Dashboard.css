@@ -117,6 +117,8 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .chart-header h3 {
@@ -126,7 +128,52 @@
   color: #333;
 }
 
-.chart-filter select {
+.chart-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.date-inputs {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.date-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+}
+
+.date-inputs input[type="date"] {
+  padding: 8px 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  background: white;
+  color: #333;
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 150px;
+}
+
+.date-inputs input[type="date"]:hover {
+  border-color: #667eea;
+}
+
+.date-inputs input[type="date"]:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.chart-controls select {
   padding: 8px 16px;
   border: 2px solid #e0e0e0;
   border-radius: 8px;
@@ -136,13 +183,14 @@
   font-size: 14px;
   cursor: pointer;
   transition: all 0.2s;
+  min-width: 130px;
 }
 
-.chart-filter select:hover {
+.chart-controls select:hover {
   border-color: #667eea;
 }
 
-.chart-filter select:focus {
+.chart-controls select:focus {
   outline: none;
   border-color: #667eea;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
@@ -158,6 +206,29 @@
 .chart-wrapper {
   height: 300px;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #667eea;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.chart-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #999;
+  font-weight: 500;
+  font-size: 14px;
 }
 
 /* Tables Grid */
@@ -350,6 +421,34 @@
 
   .stat-card {
     padding: 20px;
+  }
+
+  .chart-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .chart-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .date-inputs {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .date-inputs label {
+    width: 100%;
+  }
+
+  .date-inputs input[type="date"] {
+    width: 100%;
+  }
+
+  .chart-controls select {
+    width: 100%;
   }
 
   .chart-wrapper {

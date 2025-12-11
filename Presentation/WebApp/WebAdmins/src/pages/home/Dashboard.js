@@ -30,11 +30,35 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState(30); // 7, 30, 90 days
   
-  // Filter riêng cho từng biểu đồ
-  const [userChartFilter, setUserChartFilter] = useState('Day'); // Day/Week/Month
-  const [businessChartFilter, setBusinessChartFilter] = useState('Day'); // Day/Week/Month/Year
-  const [revenueChartFilter, setRevenueChartFilter] = useState('Day'); // Day/Week/Month/Year
-  const [postChartFilter, setPostChartFilter] = useState('Day'); // Day/Week/Month/Year
+  // Filter riêng cho từng biểu đồ với date range
+  const [userChartFilter, setUserChartFilter] = useState({
+    type: 'Day',
+    fromDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
+    toDate: new Date().toISOString().split('T')[0]
+  });
+  const [businessChartFilter, setBusinessChartFilter] = useState({
+    type: 'Day',
+    fromDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
+    toDate: new Date().toISOString().split('T')[0]
+  });
+  const [revenueChartFilter, setRevenueChartFilter] = useState({
+    type: 'Day',
+    fromDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
+    toDate: new Date().toISOString().split('T')[0]
+  });
+  const [postChartFilter, setPostChartFilter] = useState({
+    type: 'Day',
+    fromDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
+    toDate: new Date().toISOString().split('T')[0]
+  });
+  
+  // Loading state riêng cho từng biểu đồ
+  const [chartLoading, setChartLoading] = useState({
+    user: false,
+    business: false,
+    revenue: false,
+    post: false
+  });
   
   const [stats, setStats] = useState({
     newUsers: 0,
@@ -56,70 +80,85 @@ export default function Dashboard() {
   const [selectedPost, setSelectedPost] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Load initial data
   useEffect(() => {
-    loadDashboardData();
-  }, [dateRange, userChartFilter, businessChartFilter, revenueChartFilter, postChartFilter]);
+    loadInitialData();
+  }, []);
 
-  const loadDashboardData = async () => {
+  // Load specific chart data when filter changes
+  useEffect(() => {
+    if (!loading) loadUserChartData();
+  }, [userChartFilter]);
+
+  useEffect(() => {
+    if (!loading) loadBusinessChartData();
+  }, [businessChartFilter]);
+
+  useEffect(() => {
+    if (!loading) loadRevenueChartData();
+  }, [revenueChartFilter]);
+
+  useEffect(() => {
+    if (!loading) loadPostChartData();
+  }, [postChartFilter]);
+
+  const loadInitialData = async () => {
     try {
       setLoading(true);
-      const toDate = new Date();
-      const fromDate = new Date();
-      fromDate.setDate(toDate.getDate() - dateRange);
-
-      // Load tất cả data song song
+      
+      // Load stats cards và tables
       const [
         activeUsersRes,
-        newUsersRes,
-        businessRes,
-        revenueRes,
-        postRes,
         keywordsRes,
         postsRes,
       ] = await Promise.all([
         dashboardAPI.getActiveUsers(),
-        dashboardAPI.getNewUserStats(fromDate, toDate, userChartFilter),
-        dashboardAPI.getBusinessGrowth(fromDate, toDate, businessChartFilter),
-        dashboardAPI.getRevenue(fromDate, toDate, revenueChartFilter),
-        dashboardAPI.getPostGrowth(fromDate, toDate, postChartFilter),
-        dashboardAPI.getTopKeywords(fromDate, toDate),
-        dashboardAPI.getTopPosts(fromDate, toDate),
+        dashboardAPI.getTopKeywords(new Date(userChartFilter.fromDate), new Date(userChartFilter.toDate)),
+        dashboardAPI.getTopPosts(new Date(userChartFilter.fromDate), new Date(userChartFilter.toDate)),
       ]);
 
-      // Cập nhật stats cards
-      // Backend API response structure: { success, message, data }
-      const newUsersData = Array.isArray(newUsersRes) ? newUsersRes : (newUsersRes.data || newUsersRes);
       const activeUsersData = activeUsersRes.data || activeUsersRes;
-      
-      // Business Growth response: { labels: [], counts: [], totalBusinessAccounts }
-      const businessData = businessRes.data || businessRes;
-      const businessCounts = businessData.counts || [];
-      
-      // Revenue response: { labels: [], revenues: [], totalRevenue }
-      const revenueData = revenueRes.data || revenueRes;
-      const revenues = revenueData.revenues || [];
-      
-      // Post Growth response: { labels: [], counts: [], totalPosts }
-      const postData = postRes.data || postRes;
-      const postCounts = postData.counts || [];
-      
-      // Keywords response: { keywords: [...], totalSearches }
       const keywordsData = keywordsRes.data || keywordsRes;
-      const keywords = keywordsData.keywords || [];
-      
-      // Posts response: { posts: [...] }
       const postsData = postsRes.data || postsRes;
-      const posts = postsData.posts || [];
       
-      setStats({
-        newUsers: Array.isArray(newUsersData) ? newUsersData.reduce((sum, item) => sum + (item.Count || item.count || 0), 0) : 0,
+      setStats(prev => ({
+        ...prev,
         activeUsers: activeUsersData.Count || activeUsersData.count || 0,
-        businessAccounts: businessData.totalBusinessAccounts || businessCounts.reduce((sum, val) => sum + val, 0),
-        totalRevenue: revenueData.totalRevenue || revenues.reduce((sum, val) => sum + val, 0),
-        totalPosts: postData.totalPosts || postCounts.reduce((sum, val) => sum + val, 0),
-      });
+      }));
 
-      // Format data cho biểu đồ New Users
+      setTopKeywords(keywordsData.keywords || []);
+      setTopPosts(postsData.posts || []);
+
+      // Load tất cả charts
+      await Promise.all([
+        loadUserChartData(),
+        loadBusinessChartData(),
+        loadRevenueChartData(),
+        loadPostChartData(),
+      ]);
+
+    } catch (error) {
+      console.error('Error loading dashboard:', error);
+      alert('Không thể tải dữ liệu dashboard: ' + (error.message || 'Lỗi không xác định'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadUserChartData = async () => {
+    try {
+      setChartLoading(prev => ({ ...prev, user: true }));
+      const fromDate = new Date(userChartFilter.fromDate);
+      const toDate = new Date(userChartFilter.toDate);
+      
+      const newUsersRes = await dashboardAPI.getNewUserStats(fromDate, toDate, userChartFilter.type);
+      const newUsersData = Array.isArray(newUsersRes) ? newUsersRes : (newUsersRes.data || newUsersRes);
+      
+      setStats(prev => ({
+        ...prev,
+        newUsers: Array.isArray(newUsersData) ? newUsersData.reduce((sum, item) => sum + (item.Count || item.count || 0), 0) : 0,
+      }));
+
       if (Array.isArray(newUsersData) && newUsersData.length > 0) {
         setNewUserData({
           labels: newUsersData.map(item => item.DisplayTime),
@@ -132,8 +171,28 @@ export default function Dashboard() {
           }],
         });
       }
+    } catch (error) {
+      console.error('Error loading user chart:', error);
+    } finally {
+      setChartLoading(prev => ({ ...prev, user: false }));
+    }
+  };
 
-      // Format data cho biểu đồ Business Growth
+  const loadBusinessChartData = async () => {
+    try {
+      setChartLoading(prev => ({ ...prev, business: true }));
+      const fromDate = new Date(businessChartFilter.fromDate);
+      const toDate = new Date(businessChartFilter.toDate);
+      
+      const businessRes = await dashboardAPI.getBusinessGrowth(fromDate, toDate, businessChartFilter.type);
+      const businessData = businessRes.data || businessRes;
+      const businessCounts = businessData.counts || [];
+      
+      setStats(prev => ({
+        ...prev,
+        businessAccounts: businessData.totalBusinessAccounts || businessCounts.reduce((sum, val) => sum + val, 0),
+      }));
+
       if (businessData.labels && businessData.labels.length > 0) {
         setBusinessGrowthData({
           labels: businessData.labels,
@@ -146,22 +205,62 @@ export default function Dashboard() {
           }],
         });
       }
+    } catch (error) {
+      console.error('Error loading business chart:', error);
+    } finally {
+      setChartLoading(prev => ({ ...prev, business: false }));
+    }
+  };
 
-      // Format data cho biểu đồ Revenue
-      if (revenueData.labels && revenueData.labels.length > 0) {
+  const loadRevenueChartData = async () => {
+    try {
+      setChartLoading(prev => ({ ...prev, revenue: true }));
+      const fromDate = new Date(revenueChartFilter.fromDate);
+      const toDate = new Date(revenueChartFilter.toDate);
+      
+      const revenueRes = await dashboardAPI.getRevenue(fromDate, toDate, revenueChartFilter.type);
+      const revenueDataRes = revenueRes.data || revenueRes;
+      const revenues = revenueDataRes.revenues || [];
+      
+      setStats(prev => ({
+        ...prev,
+        totalRevenue: revenueDataRes.totalRevenue || revenues.reduce((sum, val) => sum + val, 0),
+      }));
+
+      if (revenueDataRes.labels && revenueDataRes.labels.length > 0) {
         setRevenueData({
-          labels: revenueData.labels,
+          labels: revenueDataRes.labels,
           datasets: [{
             label: 'Doanh thu (VNĐ)',
-            data: revenueData.revenues,
+            data: revenueDataRes.revenues,
             backgroundColor: 'rgba(54, 162, 235, 0.6)',
             borderColor: 'rgb(54, 162, 235)',
             borderWidth: 1,
           }],
         });
       }
+    } catch (error) {
+      console.error('Error loading revenue chart:', error);
+    } finally {
+      setChartLoading(prev => ({ ...prev, revenue: false }));
+    }
+  };
 
-      // Format data cho biểu đồ Post Growth
+  const loadPostChartData = async () => {
+    try {
+      setChartLoading(prev => ({ ...prev, post: true }));
+      const fromDate = new Date(postChartFilter.fromDate);
+      const toDate = new Date(postChartFilter.toDate);
+      
+      const postRes = await dashboardAPI.getPostGrowth(fromDate, toDate, postChartFilter.type);
+      const postData = postRes.data || postRes;
+      const postCounts = postData.counts || [];
+      
+      setStats(prev => ({
+        ...prev,
+        totalPosts: postData.totalPosts || postCounts.reduce((sum, val) => sum + val, 0),
+      }));
+
       if (postData.labels && postData.labels.length > 0) {
         setPostGrowthData({
           labels: postData.labels,
@@ -174,22 +273,10 @@ export default function Dashboard() {
           }],
         });
       }
-
-      // Set top keywords
-      if (keywords && keywords.length > 0) {
-        setTopKeywords(keywords);
-      }
-
-      // Set top posts
-      if (posts && posts.length > 0) {
-        setTopPosts(posts);
-      }
-
     } catch (error) {
-      console.error('Error loading dashboard:', error);
-      alert('Không thể tải dữ liệu dashboard: ' + (error.message || 'Lỗi không xác định'));
+      console.error('Error loading post chart:', error);
     } finally {
-      setLoading(false);
+      setChartLoading(prev => ({ ...prev, post: false }));
     }
   };
 
@@ -261,26 +348,6 @@ export default function Dashboard() {
     <div className="dashboard">
       <div className="dashboard-header">
         <h1>📊 Dashboard Admin</h1>
-        <div className="date-range-selector">
-          <button
-            className={dateRange === 7 ? 'active' : ''}
-            onClick={() => setDateRange(7)}
-          >
-            7 ngày
-          </button>
-          <button
-            className={dateRange === 30 ? 'active' : ''}
-            onClick={() => setDateRange(30)}
-          >
-            30 ngày
-          </button>
-          <button
-            className={dateRange === 90 ? 'active' : ''}
-            onClick={() => setDateRange(90)}
-          >
-            90 ngày
-          </button>
-        </div>
       </div>
 
       {/* Stats Cards */}
@@ -329,83 +396,195 @@ export default function Dashboard() {
       {/* Charts Grid */}
       <div className="charts-grid">
         {/* New Users Chart */}
-        {newUserData && (
-          <div className="chart-container">
-            <div className="chart-header">
-              <h3>📈 Tăng trưởng người dùng mới</h3>
-              <div className="chart-filter">
-                <select value={userChartFilter} onChange={(e) => setUserChartFilter(e.target.value)}>
-                  <option value="Day">Theo ngày</option>
-                  <option value="Week">Theo tuần</option>
-                  <option value="Month">Theo tháng</option>
-                </select>
+        <div className="chart-container">
+          <div className="chart-header">
+            <h3>📈 Tăng trưởng người dùng mới</h3>
+            <div className="chart-controls">
+              <div className="date-inputs">
+                <label>
+                  Từ ngày:
+                  <input 
+                    type="date" 
+                    value={userChartFilter.fromDate}
+                    max={userChartFilter.toDate}
+                    onChange={(e) => setUserChartFilter(prev => ({ ...prev, fromDate: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  Đến ngày:
+                  <input 
+                    type="date" 
+                    value={userChartFilter.toDate}
+                    min={userChartFilter.fromDate}
+                    max={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => setUserChartFilter(prev => ({ ...prev, toDate: e.target.value }))}
+                  />
+                </label>
               </div>
-            </div>
-            <div className="chart-wrapper">
-              <Line data={newUserData} options={chartOptions} />
+              <select 
+                value={userChartFilter.type} 
+                onChange={(e) => setUserChartFilter(prev => ({ ...prev, type: e.target.value }))}
+              >
+                <option value="Day">Theo ngày</option>
+                <option value="Week">Theo tuần</option>
+                <option value="Month">Theo tháng</option>
+              </select>
             </div>
           </div>
-        )}
+          <div className="chart-wrapper">
+            {chartLoading.user ? (
+              <div className="chart-loading">Đang tải...</div>
+            ) : newUserData ? (
+              <Line data={newUserData} options={chartOptions} />
+            ) : (
+              <div className="chart-empty">Không có dữ liệu</div>
+            )}
+          </div>
+        </div>
 
         {/* Business Growth Chart */}
-        {businessGrowthData && (
-          <div className="chart-container">
-            <div className="chart-header">
-              <h3>🏢 Tăng trưởng tài khoản Business</h3>
-              <div className="chart-filter">
-                <select value={businessChartFilter} onChange={(e) => setBusinessChartFilter(e.target.value)}>
-                  <option value="Day">Theo ngày</option>
-                  <option value="Week">Theo tuần</option>
-                  <option value="Month">Theo tháng</option>
-                  <option value="Year">Theo năm</option>
-                </select>
+        <div className="chart-container">
+          <div className="chart-header">
+            <h3>🏢 Tăng trưởng tài khoản Business</h3>
+            <div className="chart-controls">
+              <div className="date-inputs">
+                <label>
+                  Từ ngày:
+                  <input 
+                    type="date" 
+                    value={businessChartFilter.fromDate}
+                    max={businessChartFilter.toDate}
+                    onChange={(e) => setBusinessChartFilter(prev => ({ ...prev, fromDate: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  Đến ngày:
+                  <input 
+                    type="date" 
+                    value={businessChartFilter.toDate}
+                    min={businessChartFilter.fromDate}
+                    max={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => setBusinessChartFilter(prev => ({ ...prev, toDate: e.target.value }))}
+                  />
+                </label>
               </div>
-            </div>
-            <div className="chart-wrapper">
-              <Line data={businessGrowthData} options={chartOptions} />
+              <select 
+                value={businessChartFilter.type} 
+                onChange={(e) => setBusinessChartFilter(prev => ({ ...prev, type: e.target.value }))}
+              >
+                <option value="Day">Theo ngày</option>
+                <option value="Week">Theo tuần</option>
+                <option value="Month">Theo tháng</option>
+                <option value="Year">Theo năm</option>
+              </select>
             </div>
           </div>
-        )}
+          <div className="chart-wrapper">
+            {chartLoading.business ? (
+              <div className="chart-loading">Đang tải...</div>
+            ) : businessGrowthData ? (
+              <Line data={businessGrowthData} options={chartOptions} />
+            ) : (
+              <div className="chart-empty">Không có dữ liệu</div>
+            )}
+          </div>
+        </div>
 
         {/* Revenue Chart */}
-        {revenueData && (
-          <div className="chart-container">
-            <div className="chart-header">
-              <h3>💰 Doanh thu từ Business</h3>
-              <div className="chart-filter">
-                <select value={revenueChartFilter} onChange={(e) => setRevenueChartFilter(e.target.value)}>
-                  <option value="Day">Theo ngày</option>
-                  <option value="Week">Theo tuần</option>
-                  <option value="Month">Theo tháng</option>
-                  <option value="Year">Theo năm</option>
-                </select>
+        <div className="chart-container">
+          <div className="chart-header">
+            <h3>💰 Doanh thu từ Business</h3>
+            <div className="chart-controls">
+              <div className="date-inputs">
+                <label>
+                  Từ ngày:
+                  <input 
+                    type="date" 
+                    value={revenueChartFilter.fromDate}
+                    max={revenueChartFilter.toDate}
+                    onChange={(e) => setRevenueChartFilter(prev => ({ ...prev, fromDate: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  Đến ngày:
+                  <input 
+                    type="date" 
+                    value={revenueChartFilter.toDate}
+                    min={revenueChartFilter.fromDate}
+                    max={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => setRevenueChartFilter(prev => ({ ...prev, toDate: e.target.value }))}
+                  />
+                </label>
               </div>
-            </div>
-            <div className="chart-wrapper">
-              <Bar data={revenueData} options={revenueChartOptions} />
+              <select 
+                value={revenueChartFilter.type} 
+                onChange={(e) => setRevenueChartFilter(prev => ({ ...prev, type: e.target.value }))}
+              >
+                <option value="Day">Theo ngày</option>
+                <option value="Week">Theo tuần</option>
+                <option value="Month">Theo tháng</option>
+                <option value="Year">Theo năm</option>
+              </select>
             </div>
           </div>
-        )}
+          <div className="chart-wrapper">
+            {chartLoading.revenue ? (
+              <div className="chart-loading">Đang tải...</div>
+            ) : revenueData ? (
+              <Bar data={revenueData} options={revenueChartOptions} />
+            ) : (
+              <div className="chart-empty">Không có dữ liệu</div>
+            )}
+          </div>
+        </div>
 
         {/* Post Growth Chart */}
-        {postGrowthData && (
-          <div className="chart-container">
-            <div className="chart-header">
-              <h3>📝 Tăng trưởng bài đăng</h3>
-              <div className="chart-filter">
-                <select value={postChartFilter} onChange={(e) => setPostChartFilter(e.target.value)}>
-                  <option value="Day">Theo ngày</option>
-                  <option value="Week">Theo tuần</option>
-                  <option value="Month">Theo tháng</option>
-                  <option value="Year">Theo năm</option>
-                </select>
+        <div className="chart-container">
+          <div className="chart-header">
+            <h3>📝 Tăng trưởng bài đăng</h3>
+            <div className="chart-controls">
+              <div className="date-inputs">
+                <label>
+                  Từ ngày:
+                  <input 
+                    type="date" 
+                    value={postChartFilter.fromDate}
+                    max={postChartFilter.toDate}
+                    onChange={(e) => setPostChartFilter(prev => ({ ...prev, fromDate: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  Đến ngày:
+                  <input 
+                    type="date" 
+                    value={postChartFilter.toDate}
+                    min={postChartFilter.fromDate}
+                    max={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => setPostChartFilter(prev => ({ ...prev, toDate: e.target.value }))}
+                  />
+                </label>
               </div>
-            </div>
-            <div className="chart-wrapper">
-              <Line data={postGrowthData} options={chartOptions} />
+              <select 
+                value={postChartFilter.type} 
+                onChange={(e) => setPostChartFilter(prev => ({ ...prev, type: e.target.value }))}
+              >
+                <option value="Day">Theo ngày</option>
+                <option value="Week">Theo tuần</option>
+                <option value="Month">Theo tháng</option>
+                <option value="Year">Theo năm</option>
+              </select>
             </div>
           </div>
-        )}
+          <div className="chart-wrapper">
+            {chartLoading.post ? (
+              <div className="chart-loading">Đang tải...</div>
+            ) : postGrowthData ? (
+              <Line data={postGrowthData} options={chartOptions} />
+            ) : (
+              <div className="chart-empty">Không có dữ liệu</div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Tables Grid */}
@@ -425,13 +604,13 @@ export default function Dashboard() {
               <tbody>
                 {topKeywords.length > 0 ? (
                   topKeywords.map((keyword, index) => (
-                    <tr key={keyword.Keyword}>
+                    <tr key={`keyword-${index}-${keyword.Keyword}`}>
                       <td>{index + 1}</td>
                       <td className="keyword-cell">
                         <strong>{keyword.Keyword}</strong>
                       </td>
                       <td>
-                        <span className="search-count">{keyword.SearchCount.toLocaleString()}</span>
+                        <span className="search-count">{keyword.SearchCount?.toLocaleString()}</span>
                       </td>
                     </tr>
                   ))
@@ -462,26 +641,26 @@ export default function Dashboard() {
               <tbody>
                 {topPosts.length > 0 ? (
                   topPosts.map((post, index) => (
-                    <tr key={post.postId}>
+                    <tr key={post.PostId || index}>
                       <td>{index + 1}</td>
                       <td className="post-content-cell">
                         <div className="post-preview">
-                          {post.Content.substring(0, 60)}
-                          {post.Content.length > 60 && '...'}
+                          {post.Content ? post.Content.substring(0, 60) : 'Không có nội dung'}
+                          {post.Content && post.Content.length > 60 && '...'}
                         </div>
                       </td>
                       <td>
                         <div className="author-info">
-                          <strong>{post.AuthorName}</strong>
-                          <small>@{post.AuthorUsername}</small>
+                          <strong>{post.AuthorName || 'N/A'}</strong>
+                          <small>@{post.AuthorUsername || 'unknown'}</small>
                         </div>
                       </td>
                       <td>
                         <div className="interaction-stats">
-                          <span className="reaction-count">❤️ {post.ReactionCount}</span>
-                          <span className="comment-count">💬 {post.CommentCount}</span>
+                          <span className="reaction-count">❤️ {post.ReactionCount || 0}</span>
+                          <span className="comment-count">💬 {post.CommentCount || 0}</span>
                           <span className="total-count">
-                            <strong>{post.TotalInteractions}</strong> tổng
+                            <strong>{post.TotalInteractions || 0}</strong> tổng
                           </span>
                         </div>
                       </td>
