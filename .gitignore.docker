@@ -43,3 +43,6 @@ docker-compose.override.yml.backup
 *~
 .DS_Store
 Thumbs.db
+
+
+*.md
