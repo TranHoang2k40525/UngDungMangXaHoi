@@ -35,7 +35,9 @@ catch (Exception)
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        // Serialize enum as number instead of string for better frontend compatibility
+        // options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
 
 builder.Services.AddEndpointsApiExplorer();
@@ -135,7 +137,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 var path = context.HttpContext.Request.Path;
 
                 // Nếu request đến SignalR hub và có token trong query
-                if (!string.IsNullOrEmpty(accessToken) && 
+                if (!string.IsNullOrEmpty(accessToken) &&
                     (path.StartsWithSegments("/hubs") || path.StartsWithSegments("/hub")))
                 {
                     context.Token = accessToken;
@@ -157,7 +159,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("UserOnly", policy => policy.RequireAssertion(context => context.User.HasClaim(c=>c.Type == "account_type" && (c.Value == "User"  || c.Value == "Business"))));
+    options.AddPolicy("UserOnly", policy => policy.RequireAssertion(context => context.User.HasClaim(c => c.Type == "account_type" && (c.Value == "User" || c.Value == "Business"))));
     options.AddPolicy("BusinessOnly", policy => policy.RequireClaim("account_type", "Business"));
     options.AddPolicy("AdminOnly", policy => policy.RequireClaim("account_type", "Admin"));
 

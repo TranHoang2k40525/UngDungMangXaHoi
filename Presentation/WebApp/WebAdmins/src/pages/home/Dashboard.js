@@ -425,13 +425,13 @@ export default function Dashboard() {
               <tbody>
                 {topKeywords.length > 0 ? (
                   topKeywords.map((keyword, index) => (
-                    <tr key={keyword.Keyword}>
+                    <tr key={`keyword-${index}-${keyword.Keyword}`}>
                       <td>{index + 1}</td>
                       <td className="keyword-cell">
                         <strong>{keyword.Keyword}</strong>
                       </td>
                       <td>
-                        <span className="search-count">{keyword.SearchCount.toLocaleString()}</span>
+                        <span className="search-count">{keyword.SearchCount?.toLocaleString()}</span>
                       </td>
                     </tr>
                   ))
@@ -462,26 +462,26 @@ export default function Dashboard() {
               <tbody>
                 {topPosts.length > 0 ? (
                   topPosts.map((post, index) => (
-                    <tr key={post.postId}>
+                    <tr key={post.PostId || index}>
                       <td>{index + 1}</td>
                       <td className="post-content-cell">
                         <div className="post-preview">
-                          {post.Content.substring(0, 60)}
-                          {post.Content.length > 60 && '...'}
+                          {post.Content ? post.Content.substring(0, 60) : 'Không có nội dung'}
+                          {post.Content && post.Content.length > 60 && '...'}
                         </div>
                       </td>
                       <td>
                         <div className="author-info">
-                          <strong>{post.AuthorName}</strong>
-                          <small>@{post.AuthorUsername}</small>
+                          <strong>{post.AuthorName || 'N/A'}</strong>
+                          <small>@{post.AuthorUsername || 'unknown'}</small>
                         </div>
                       </td>
                       <td>
                         <div className="interaction-stats">
-                          <span className="reaction-count">❤️ {post.ReactionCount}</span>
-                          <span className="comment-count">💬 {post.CommentCount}</span>
+                          <span className="reaction-count">❤️ {post.ReactionCount || 0}</span>
+                          <span className="comment-count">💬 {post.CommentCount || 0}</span>
                           <span className="total-count">
-                            <strong>{post.TotalInteractions}</strong> tổng
+                            <strong>{post.TotalInteractions || 0}</strong> tổng
                           </span>
                         </div>
                       </td>
