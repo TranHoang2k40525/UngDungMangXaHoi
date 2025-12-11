@@ -126,10 +126,10 @@ export default function MoMoQRPayment({ navigation }) {
         {
           text: 'OK',
           onPress: () => {
-            // Navigate to Home and refresh profile
+            // Navigate to MainTabs with Profile tab selected and refresh
             navigation.reset({
               index: 0,
-              routes: [{ name: 'Home' }],
+              routes: [{ name: 'MainTabs', params: { screen: 'Profile' } }],
             });
           },
         },

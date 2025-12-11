@@ -229,7 +229,12 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         /// </summary>
     [HttpPost("avatar")]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> UpdateAvatar(IFormFile avatarFile,UpdateAvatarRequest request)
+    public async Task<IActionResult> UpdateAvatar(
+        IFormFile avatarFile,
+        [FromForm] bool CreatePost = false,
+        [FromForm] string? PostCaption = null,
+        [FromForm] string? PostLocation = null,
+        [FromForm] string PostPrivacy = "public")
         {
             try
             {
@@ -245,6 +250,16 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 }
 
                 var accountId = int.Parse(userIdClaim.Value);
+                
+                // Build request object from individual parameters
+                var request = new UpdateAvatarRequest
+                {
+                    CreatePost = CreatePost,
+                    PostCaption = PostCaption,
+                    PostLocation = PostLocation,
+                    PostPrivacy = PostPrivacy
+                };
+                
                 var (success, message, avatarUrl) = await _profileService.UpdateAvatarByAccountIdAsync(accountId, avatarFile, request);
 
                 if (!success)

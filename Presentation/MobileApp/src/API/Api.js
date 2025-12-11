@@ -7,7 +7,7 @@ import { Platform } from "react-native";
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
 // Nếu test trên máy tính: dùng localhost
 // Nếu test trên điện thoại thật: dùng IP của máy tính (xem bằng ipconfig)
-export const API_BASE_URL = "http://172.29.96.1:5297"; // Backend đang chạy trên IP máy tính
+export const API_BASE_URL = "http://192.168.36.89:5297"; // Backend đang chạy trên IP máy tính
 
 
 // Hàm helper để gọi API
@@ -340,12 +340,16 @@ export const updateAvatar = async ({
   if (postLocation) form.append("PostLocation", postLocation);
   form.append("PostPrivacy", postPrivacy);
 
+  // Build headers object - only include Authorization if it exists
+  const fetchHeaders = {};
+  if (headers.Authorization) {
+    fetchHeaders.Authorization = headers.Authorization;
+  }
+  // Do NOT set Content-Type - let fetch set it automatically with boundary
+
   const res = await fetch(`${API_BASE_URL}/api/users/profile/avatar`, {
     method: "POST",
-    headers: {
-      ...headers,
-      Accept: "application/json",
-    },
+    headers: fetchHeaders,
     body: form,
   });
 
@@ -413,14 +417,18 @@ export const uploadGroupAvatar = async (
 
   form.append("file", { uri, name, type });
 
+  // Build headers object - only include Authorization if it exists
+  const fetchHeaders = {};
+  if (headers.Authorization) {
+    fetchHeaders.Authorization = headers.Authorization;
+  }
+  // Do NOT set Content-Type - let fetch set it automatically with boundary
+
   const res = await fetch(
     `${API_BASE_URL}/api/groupchat/${conversationId}/avatar`,
     {
       method: "POST",
-      headers: {
-        ...headers,
-        Accept: "application/json",
-      },
+      headers: fetchHeaders,
       body: form,
     }
   );
@@ -636,13 +644,16 @@ export const createPost = async ({
     console.warn("[API] createPost: failed to append mentions/tags", e);
   }
 
+  // Build headers object - only include Authorization if it exists
+  const fetchHeaders = {};
+  if (headers.Authorization) {
+    fetchHeaders.Authorization = headers.Authorization;
+  }
+  // Do NOT set Content-Type - let fetch set it automatically with boundary
+
   const res = await fetch(`${API_BASE_URL}/api/posts`, {
     method: "POST",
-    headers: {
-      ...headers,
-      // KHÔNG set 'Content-Type' để RN tự thêm boundary của multipart
-      Accept: "application/json",
-    },
+    headers: fetchHeaders,
     body: form,
   });
 
@@ -1124,12 +1135,16 @@ export const createStory = async ({
     });
   }
 
+  // Build headers object - only include Authorization if it exists
+  const fetchHeaders = {};
+  if (headers.Authorization) {
+    fetchHeaders.Authorization = headers.Authorization;
+  }
+  // Do NOT set Content-Type - let fetch set it automatically with boundary
+
   const res = await fetch(`${API_BASE_URL}/api/stories`, {
     method: "POST",
-    headers: {
-      ...headers,
-      Accept: "application/json",
-    },
+    headers: fetchHeaders,
     body: form,
   });
 
