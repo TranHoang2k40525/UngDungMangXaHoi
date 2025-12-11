@@ -11,17 +11,20 @@ services:
     container_name: ungdungmxh-sqlserver
     environment:
       - ACCEPT_EULA=Y
-      - SA_PASSWORD=${DB_PASSWORD}
+      # Sử dụng Docker Secret thay vì biến môi trường
+      - MSSQL_SA_PASSWORD_FILE=/run/secrets/db_password
       - MSSQL_PID=Developer
     ports:
       - "1434:1433"  # Máy host dùng 1434, container vẫn dùng 1433
     volumes:
       - sqlserver-data:/var/opt/mssql
+    secrets:
+      - db_password
     networks:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P ${DB_PASSWORD} -Q 'SELECT 1' || exit 1"]
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P $(cat /run/secrets/db_password) -Q 'SELECT 1' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -38,26 +41,67 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:5297
       - DOTNET_USE_POLLING_FILE_WATCHER=1
-      # Database connection (use service name 'sqlserver' as host)
-      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=ungdungmangxahoiv_2;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;
-      # JWT settings (pass as simple env vars for Program.cs to read)
-      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      # Database connection (Password sẽ được đọc từ /run/secrets/db_password trong Program.cs)
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=ungdungmangxahoiv_2;User Id=sa;TrustServerCertificate=True;
+      # JWT settings (Issuer và Audience không phải secret)
       - JWT_ISSUER=UngDungMangXaHoi
       - JWT_AUDIENCE=UngDungMangXaHoi
-      # Cloudinary settings (pass as simple env vars)
+      # Cloudinary settings (API Key không phải secret)
       - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
       - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
-      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
-      # Email settings (pass as simple env vars)
+      # Email settings (User không phải secret)
       - EMAIL_USER=${EMAIL_USER}
-      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+    # Docker Secrets sẽ được mount vào /run/secrets/
+    secrets:
+      - db_password
+      - jwt_access_secret
+      - jwt_refresh_secret
+      - cloudinary_api_secret
+      - email_password
     volumes:
       # Mount source code for hot-reload (dotnet watch)
       - ./:/src:delegated
     depends_on:
       sqlserver:
         condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # WebApp - React User Frontend
+  webapp:
+    build:
+      context: ./Presentation/WebApp/WebUsers
+      dockerfile: Dockerfile
+    container_name: ungdungmxh-webapp
+    ports:
+      - "5173:80"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./Presentation/WebApp/WebUsers:/usr/share/nginx/html:delegated
+    depends_on:
+      - webapi
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # WebAdmins - React Admin Frontend
+  webadmins:
+    build:
+      context: ./Presentation/WebApp/WebAdmins
+      dockerfile: Dockerfile
+    container_name: ungdungmxh-webadmins
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:5297
+    volumes:
+      - ./Presentation/WebApp/WebAdmins:/app:delegated
+      - /app/node_modules
+    depends_on:
+      - webapi
     networks:
       - app-network
     restart: unless-stopped
@@ -71,3 +115,17 @@ volumes:
 networks:
   app-network:
     driver: bridge
+
+# Docker Secrets - Đọc từ file trong thư mục secrets/
+# Docker sẽ tự động mount các file này vào /run/secrets/ trong container
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  jwt_access_secret:
+    file: ./secrets/jwt_access_secret.txt
+  jwt_refresh_secret:
+    file: ./secrets/jwt_refresh_secret.txt
+  cloudinary_api_secret:
+    file: ./secrets/cloudinary_api_secret.txt
+  email_password:
+    file: ./secrets/email_password.txt

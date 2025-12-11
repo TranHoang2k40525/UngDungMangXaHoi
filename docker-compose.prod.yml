@@ -5,6 +5,16 @@ version: '3.8'
 
 services:
   sqlserver:
+    # Production: Sử dụng Docker Secret cho password
+    environment:
+      - MSSQL_SA_PASSWORD_FILE=/run/secrets/db_password
+      - MSSQL_ENABLE_SSL=1
+      - MSSQL_FORCE_ENCRYPTION=1
+    
+    # Production: Mount secrets
+    secrets:
+      - db_password
+    
     # Production database with resource limits
     deploy:
       resources:
@@ -17,14 +27,17 @@ services:
     # Production volume with backup strategy
     volumes:
       - sqlserver-prod-data:/var/opt/mssql
-    # Remove port exposure for security (only accessible within Docker network)
-    ports: []
+    # Production port mapping (nếu cần access từ host, nếu không thì comment dòng này)
+    ports:
+      - "1434:1433"  # Máy host dùng 1434, container dùng 1433
     # Production restart policy
     restart: always
     healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P $(cat /run/secrets/db_password) -Q 'SELECT 1' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 40s
 
   webapi:
     # In CI/CD we prefer to deploy images pushed to a registry.
@@ -35,28 +48,24 @@ services:
     # (Optional) set a container name in production
     container_name: ungdungmxh-webapi-prod
     
-    # Production environment variables (no secrets in plain text!)
+    # Production environment variables (secrets được đọc từ /run/secrets/ trong code)
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:5297
       
-      # Database connection (read password from secret)
-      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=ungdungmangxahoiv_2;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;Encrypt=True;
+      # Database connection (Password sẽ được đọc từ /run/secrets/db_password trong Program.cs)
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=ungdungmangxahoiv_2;User Id=sa;TrustServerCertificate=True;Encrypt=True;
       
-      # JWT settings (read from secrets)
-      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      # JWT settings (Issuer và Audience không phải secret)
       - JWT_ISSUER=${JWT_ISSUER:-UngDungMangXaHoi}
       - JWT_AUDIENCE=${JWT_AUDIENCE:-UngDungMangXaHoi}
       
-      # Cloudinary (read from secrets)
+      # Cloudinary (API Key không phải secret, nhưng API Secret sẽ đọc từ /run/secrets/)
       - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
       - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
-      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
       
-      # Email (read from secrets)
+      # Email (User không phải secret, nhưng Password sẽ đọc từ /run/secrets/)
       - EMAIL_USER=${EMAIL_USER}
-      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
     
     # Use Docker secrets (more secure than env vars)
     secrets:
@@ -100,6 +109,45 @@ services:
       retries: 3
       start_period: 40s
 
+  # WebApp - Production Configuration
+  webapp:
+    image: ${WEBAPP_IMAGE:-ungdungmxh/webapp:latest}
+    container_name: ungdungmxh-webapp-prod
+    environment:
+      - NODE_ENV=production
+    volumes: []  # No volume mounts in production
+    ports:
+      - "5173:80"
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # WebAdmins - Production Configuration
+  webadmins:
+    image: ${WEBADMINS_IMAGE:-ungdungmxh/webadmins:latest}
+    container_name: ungdungmxh-webadmins-prod
+    environment:
+      - NODE_ENV=production
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:5297}
+    volumes: []  # No volume mounts in production
+    ports:
+      - "3000:80"  # Production serves on port 80
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
 # Production volumes with backup labels
 volumes:
   sqlserver-prod-data:
@@ -125,6 +173,4 @@ secrets:
 networks:
   app-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.28.0.0/16
+
