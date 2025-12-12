@@ -1,10 +1,16 @@
 pipeline {
   agent any
 
+  parameters {
+    string(name: 'DOCKER_NAMESPACE', defaultValue: 'minhvu0809', description: 'Docker Hub username')
+    string(name: 'PROD_HOST', defaultValue: '192.168.1.100', description: 'Production server IP')
+    string(name: 'PROD_DIR', defaultValue: '/root/ungdungmxh', description: 'Production deployment directory')
+  }
+
   environment {
-    // Registry and image name pieces. Configure DOCKER_NAMESPACE in Jenkins or set below.
+    // Registry and image name pieces
     REGISTRY = 'docker.io'
-    DOCKER_NAMESPACE = "your-docker-namespace" // replace or set via Jenkins credentials/params
+    DOCKER_NAMESPACE = "${params.DOCKER_NAMESPACE}"
     WEBAPI_IMAGE_NAME = "${DOCKER_NAMESPACE}/ungdungmxh-webapi"
     WEBAPP_IMAGE_NAME = "${DOCKER_NAMESPACE}/ungdungmxh-webapp"
     WEBADMINS_IMAGE_NAME = "${DOCKER_NAMESPACE}/ungdungmxh-webadmins"
@@ -52,7 +58,7 @@ pipeline {
               env.FULL_WEBAPP_IMAGE = "${REGISTRY}/${WEBAPP_IMAGE_NAME}:${TAG}"
             }
             echo "Building WebApp (Users) image ${FULL_WEBAPP_IMAGE}"
-            sh "docker build -f Presentation/WebApp/WebUsers/Dockerfile.prod -t ${FULL_WEBAPP_IMAGE} Presentation/WebApp/WebUsers"
+            sh "docker build -f Presentation/WebApp/WebUsers/Dockerfile.production -t ${FULL_WEBAPP_IMAGE} Presentation/WebApp/WebUsers"
           }
         }
         
@@ -62,7 +68,7 @@ pipeline {
               env.FULL_WEBADMINS_IMAGE = "${REGISTRY}/${WEBADMINS_IMAGE_NAME}:${TAG}"
             }
             echo "Building WebAdmins image ${FULL_WEBADMINS_IMAGE}"
-            sh "docker build -f Presentation/WebApp/WebAdmins/Dockerfile.prod -t ${FULL_WEBADMINS_IMAGE} Presentation/WebApp/WebAdmins"
+            sh "docker build -f Presentation/WebApp/WebAdmins/Dockerfile.production -t ${FULL_WEBADMINS_IMAGE} Presentation/WebApp/WebAdmins"
           }
         }
       }
