@@ -5,10 +5,10 @@ version: '3.8'
 # Usage: docker-compose up -d
 
 services:
-  # SQL Server Database
+  # SQL Server Database (Development)
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: ungdungmxh-sqlserver
+    container_name: ungdungmxh-sqlserver-dev
     environment:
       - ACCEPT_EULA=Y
       # Sử dụng Docker Secret thay vì biến môi trường
@@ -17,7 +17,7 @@ services:
     ports:
       - "1434:1433"  # Máy host dùng 1434, container vẫn dùng 1433
     volumes:
-      - sqlserver-data:/var/opt/mssql
+      - sqlserver-dev-data:/var/opt/mssql
     secrets:
       - db_password
     networks:
@@ -29,12 +29,12 @@ services:
       timeout: 5s
       retries: 5
 
-  # WebAPI Backend (ASP.NET Core with hot-reload)
+  # WebAPI Backend (Development - ASP.NET Core with hot-reload)
   webapi:
     build:
       context: .
       dockerfile: Presentation/WebAPI/Dockerfile
-    container_name: ungdungmxh-webapi
+    container_name: ungdungmxh-webapi-dev
     ports:
       - "5297:5297"
     environment:
@@ -68,48 +68,17 @@ services:
       - app-network
     restart: unless-stopped
 
-  # WebApp - React User Frontend
-  webapp:
-    build:
-      context: ./Presentation/WebApp/WebUsers
-      dockerfile: Dockerfile
-    container_name: ungdungmxh-webapp
-    ports:
-      - "5173:80"
-    environment:
-      - NODE_ENV=development
-    volumes:
-      - ./Presentation/WebApp/WebUsers:/usr/share/nginx/html:delegated
-    depends_on:
-      - webapi
-    networks:
-      - app-network
-    restart: unless-stopped
+  # Note: Frontend services removed from dev environment
+  # Run frontend natively for better hot-reload performance:
+  #   cd Presentation/WebApp/WebAdmins && npm run dev
+  #   cd Presentation/WebApp/WebUsers && npm start (if exists)
 
-  # WebAdmins - React Admin Frontend
-  webadmins:
-    build:
-      context: ./Presentation/WebApp/WebAdmins
-      dockerfile: Dockerfile
-    container_name: ungdungmxh-webadmins
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=development
-      - VITE_API_URL=http://localhost:5297
-    volumes:
-      - ./Presentation/WebApp/WebAdmins:/app:delegated
-      - /app/node_modules
-    depends_on:
-      - webapi
-    networks:
-      - app-network
-    restart: unless-stopped
-
-# Persistent volumes for data storage
+# Persistent volumes for data storage (Development)
 volumes:
-  sqlserver-data:
+  sqlserver-dev-data:
     driver: local
+    labels:
+      environment: "development"
 
 # Custom network for service communication
 networks:

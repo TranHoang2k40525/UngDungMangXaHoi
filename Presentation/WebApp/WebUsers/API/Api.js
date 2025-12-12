@@ -1,5 +1,18 @@
-// API Base URL (có thể sửa lại IP để trùng MobileApp)
-export const API_BASE_URL = 'http://192.168.1.103:5297';
+// Tự động detect backend URL dựa trên hostname
+// VD: Truy cập từ http://192.168.1.103:5173 → API: http://192.168.1.103:5297
+// VD: Truy cập từ http://localhost:5173 → API: http://localhost:5297
+const getApiBaseUrl = () => {
+  // Production: Nếu có VITE_API_URL từ .env
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // Development: Tự động dùng hostname
+  const hostname = window.location.hostname;
+  return `http://${hostname}:5297`;
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 
 // Hàm helper để gọi API
 export const apiCall = async (endpoint, options = {}) => {

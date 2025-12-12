@@ -31,7 +31,7 @@ RUN dotnet build -c Release -o /app/build --no-restore
 # Stage 3: Publish application
 # ==================================
 FROM build AS publish
-RUN dotnet publish -c Release -o /app/publish --no-restore --no-build \
+RUN dotnet publish -c Release -o /app/publish --no-restore \
     /p:UseAppHost=false
 
 # ==================================
