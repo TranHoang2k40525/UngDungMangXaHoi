@@ -29,17 +29,6 @@ pipeline {
       }
     }
 
-    stage('Restore & Build (WebAPI)') {
-      steps {
-        echo 'Restoring and building .NET WebAPI (Release)'
-        sh 'dotnet --version || true'
-        sh 'dotnet restore UngDungMangXaHoi.sln'
-        sh 'dotnet build Presentation/WebAPI -c Release'
-        // Optional: run tests if present
-        // sh 'dotnet test --no-build'
-      }
-    }
-
     stage('Build Docker Images') {
       parallel {
         stage('Build WebAPI') {
