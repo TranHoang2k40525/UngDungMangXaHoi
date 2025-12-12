@@ -14,8 +14,8 @@ ENV VITE_API_URL=${VITE_API_URL}
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install --production
+# Install all dependencies (including devDependencies for build tools like vite)
+RUN npm ci
 
 # Copy source code
 COPY . .
