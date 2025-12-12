@@ -15,22 +15,16 @@ COPY Presentation/WebAPI/UngDungMangXaHoi.WebAPI.csproj Presentation/WebAPI/
 RUN dotnet restore
 
 # ==================================
-# Stage 2: Build application
+# Stage 2: Build and Publish application
 # ==================================
-FROM restore AS build
+FROM restore AS publish
 WORKDIR /src
 
 # Copy all source code
 COPY . .
 
-# Build in Release mode
+# Publish directly (build is included in publish)
 WORKDIR /src/Presentation/WebAPI
-RUN dotnet build -c Release -o /app/build --no-restore
-
-# ==================================
-# Stage 3: Publish application
-# ==================================
-FROM build AS publish
 RUN dotnet publish -c Release -o /app/publish --no-restore \
     /p:UseAppHost=false
 
