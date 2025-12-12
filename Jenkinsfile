@@ -3,7 +3,7 @@ pipeline {
 
   parameters {
     string(name: 'DOCKER_NAMESPACE', defaultValue: 'minhvu0809', description: 'Docker Hub username')
-    string(name: 'PROD_HOST', defaultValue: '192.168.1.100', description: 'Production server IP')
+    string(name: 'PROD_HOST', defaultValue: '192.168.0.103', description: 'Production server IP')
     string(name: 'PROD_DIR', defaultValue: '/root/ungdungmxh', description: 'Production deployment directory')
   }
 
