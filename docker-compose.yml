@@ -18,13 +18,14 @@ services:
       - "1434:1433"  # Máy host dùng 1434, container vẫn dùng 1433
     volumes:
       - sqlserver-dev-data:/var/opt/mssql
+      - ./healthcheck-sqlserver.sh:/healthcheck.sh:ro
     secrets:
       - db_password
     networks:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "sh", "-c", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$(cat /run/secrets/db_password)\" -C -Q 'SELECT 1' || exit 1"]
+      test: ["CMD", "sh", "/healthcheck.sh"]
       interval: 15s
       timeout: 10s
       retries: 10
