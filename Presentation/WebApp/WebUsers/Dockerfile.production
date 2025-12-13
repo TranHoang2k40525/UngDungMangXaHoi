@@ -72,7 +72,9 @@ RUN chown -R nginx:nginx /usr/share/nginx/html && \
              /var/cache/nginx/fastcgi_temp /var/cache/nginx/uwsgi_temp \
              /var/cache/nginx/scgi_temp && \
     chown -R nginx:nginx /var/cache/nginx && \
-    chmod -R 755 /var/cache/nginx
+    chmod -R 755 /var/cache/nginx && \
+    # Configure nginx to write PID to /tmp where nginx user has write permission
+    echo 'pid /tmp/nginx.pid;' > /etc/nginx/conf.d/pid.conf
 
 EXPOSE 80
 

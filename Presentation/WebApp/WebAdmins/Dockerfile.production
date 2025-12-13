@@ -35,7 +35,7 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # Copy custom nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Set permissions (nginx user already exists in base image)
+# Set permissions and prepare nginx directories
 RUN chown -R nginx:nginx /usr/share/nginx/html && \
     chmod -R 755 /usr/share/nginx/html && \
     # Create nginx cache directories with proper permissions
@@ -43,13 +43,15 @@ RUN chown -R nginx:nginx /usr/share/nginx/html && \
              /var/cache/nginx/fastcgi_temp /var/cache/nginx/uwsgi_temp \
              /var/cache/nginx/scgi_temp && \
     chown -R nginx:nginx /var/cache/nginx && \
-    chmod -R 755 /var/cache/nginx
+    chmod -R 755 /var/cache/nginx && \
+    # Configure nginx to write PID to /tmp where nginx user has write permission
+    echo 'pid /tmp/nginx.pid;' > /etc/nginx/conf.d/pid.conf
 
 EXPOSE 80
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
+    CMD wget --quiet --tries=1 --spider http://localhost/health || exit 1
 
 USER nginx
 
