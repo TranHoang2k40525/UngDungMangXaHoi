@@ -78,9 +78,8 @@ services:
       - cloudinary_api_secret
       - email_password
     
-    # Production resource limits
+    # Production resource limits (single instance for WSL2 test environment)
     deploy:
-      replicas: 2  # Run 2 instances for high availability
       resources:
         limits:
           cpus: '1.0'
@@ -88,11 +87,6 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
     
     # NO volume mounts in production (use built image)
     volumes: []
