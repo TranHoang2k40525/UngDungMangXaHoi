@@ -24,10 +24,11 @@ services:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P $(cat /run/secrets/db_password) -Q 'SELECT 1' || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P $(cat /run/secrets/db_password) -C -Q 'SELECT 1' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
 
   # WebAPI Backend (Development - ASP.NET Core with hot-reload)
   webapi:
