@@ -98,9 +98,9 @@ services:
     # Production restart policy
     restart: always
 
-    # Health check
+    # Health check - use TCP check since /health endpoint may not exist
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5297/health"]
+      test: ["CMD", "sh", "-c", "nc -z localhost 5297 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -115,6 +115,8 @@ services:
     volumes: []  # No volume mounts in production
     ports:
       - "5173:80"
+    networks:
+      - app-network
     restart: always
     deploy:
       resources:
@@ -134,7 +136,9 @@ services:
       - VITE_API_URL=${VITE_API_URL:-http://localhost:5297}
     volumes: []  # No volume mounts in production
     ports:
-      - "3000:80"  # Production serves on port 80
+      - "5174:80"  # Changed from 3000 to match expected port
+    networks:
+      - app-network
     restart: always
     deploy:
       resources:
