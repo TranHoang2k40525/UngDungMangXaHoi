@@ -5,6 +5,9 @@ version: '3.8'
 
 services:
   sqlserver:
+    # Production: Container riêng biệt với dev
+    container_name: ungdungmxh-sqlserver-prod
+    
     # Production: Sử dụng Docker Secret cho password
     environment:
       - MSSQL_SA_PASSWORD_FILE=/run/secrets/db_password
@@ -27,9 +30,9 @@ services:
     # Production volume with backup strategy
     volumes:
       - sqlserver-prod-data:/var/opt/mssql
-    # Production port mapping (nếu cần access từ host, nếu không thì comment dòng này)
+    # Production port mapping (khác với dev để tránh conflict)
     ports:
-      - "1434:1433"  # Máy host dùng 1434, container dùng 1433
+      - "1435:1433"  # Dev dùng 1434, Prod dùng 1435
     # Production restart policy
     restart: always
     healthcheck:
