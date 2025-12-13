@@ -93,7 +93,7 @@ services:
 
     # Production ports (behind reverse proxy/load balancer)
     ports:
-      - "5297:5297"
+      - "5397:5297"  # Dev dùng 5297, Prod dùng 5397
 
     # Production restart policy
     restart: always
@@ -114,7 +114,7 @@ services:
       - NODE_ENV=production
     volumes: []  # No volume mounts in production
     ports:
-      - "5173:80"
+      - "5273:80"  # Dev dùng 5173, Prod dùng 5273
     networks:
       - app-network
     restart: always
@@ -133,10 +133,10 @@ services:
     container_name: ungdungmxh-webadmins-prod
     environment:
       - NODE_ENV=production
-      - VITE_API_URL=${VITE_API_URL:-http://localhost:5297}
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:5397}
     volumes: []  # No volume mounts in production
     ports:
-      - "5174:80"  # Changed from 3000 to match expected port
+      - "5274:80"  # Dev dùng 5174, Prod dùng 5274
     networks:
       - app-network
     restart: always
