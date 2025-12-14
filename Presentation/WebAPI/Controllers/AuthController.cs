@@ -75,7 +75,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 return BadRequest(new { message = "Tên người dùng đã tồn tại." });
             }
 
-            var failedAttempts = await _otpRepository.GetFailedAttemptsAsync(0, "register");
+            var failedAttempts = await _otpRepository.GetFailedAttemptsAsync(0, "register"); // lấy số lần gửiotp cho đăng ký.
             if (failedAttempts >= 5)
             {
                 return StatusCode(429, new { message = "Quá nhiều lần thử. Vui lòng thử lại sau 2 phút." });
