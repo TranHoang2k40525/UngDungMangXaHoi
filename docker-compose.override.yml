@@ -5,36 +5,23 @@ version: '3.8'
 # For production, use: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
 
 services:
+  # ==========================================
+  # SQL Server - Development Overrides
+  # ==========================================
   sqlserver:
-    # Dev: Expose port for debugging with SSMS/Azure Data Studio
-    ports:
-      - "1434:1433"
-    
-    # Dev: Easier restart policy
-    restart: unless-stopped
-    
     # Dev: Less strict health check
     healthcheck:
       interval: 10s
       timeout: 5s
       retries: 5
 
+  # ==========================================
+  # WebAPI Backend - Development Overrides
+  # ==========================================
   webapi:
-    # Dev: Use development Dockerfile with hot-reload
-    build:
-      context: .
-      dockerfile: Presentation/WebAPI/Dockerfile
-    
-    # Dev: Enable hot-reload with volume mount
-    volumes:
-      - ./:/src:delegated
-    
     # Dev: Additional debugging environment
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - DOTNET_USE_POLLING_FILE_WATCHER=1
       - DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER=1
-      
       # Dev: Detailed logging
       - Logging__LogLevel__Default=Debug
       - Logging__LogLevel__Microsoft.AspNetCore=Information
@@ -42,10 +29,7 @@ services:
     # Dev: Expose additional debugging ports
     ports:
       - "5297:5297"
-      - "5298:5298"  # Additional debug port
-    
-    # Dev: Easier restart
-    restart: unless-stopped
+      - "5298:5298"  # Additional debug port for remote debugging
     
     # Dev: No resource limits for flexibility
     deploy:

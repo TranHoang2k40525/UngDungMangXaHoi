@@ -1,0 +1,85 @@
+version: '3.8'
+
+# Jenkins CI/CD Server - Docker Compose Configuration
+# This file is SEPARATE from app docker-compose.yml
+# Usage: docker-compose -f jenkins-docker-compose.yml up -d
+
+services:
+  jenkins:
+    image: jenkins/jenkins:lts-jdk17
+    container_name: jenkins-ungdungmxh
+    privileged: true
+    user: root
+    
+    ports:
+      - "8080:8080"   # Jenkins Web UI
+      - "50000:50000" # Jenkins Agent port
+    
+    volumes:
+      # Jenkins data persistence
+      - jenkins_home:/var/jenkins_home
+      
+      # Mount Docker socket to allow Jenkins to build Docker images
+      - /var/run/docker.sock:/var/run/docker.sock
+      
+      # Optional: Mount Maven/Gradle cache (if needed)
+      # - jenkins_m2:/root/.m2
+    
+    environment:
+      # Java options (Setup wizard ENABLED for security)
+      - JAVA_OPTS=-Djenkins.model.Jenkins.slaveAgentPort=50000
+      
+      # Docker host (to build Docker images from Jenkins)
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      
+      # Timezone
+      - TZ=Asia/Ho_Chi_Minh
+    
+    # Install Docker CLI inside Jenkins container
+    entrypoint: >
+      sh -c "
+      apt-get update &&
+      apt-get install -y docker.io &&
+      /usr/local/bin/jenkins.sh
+      "
+    
+    restart: always
+    
+    networks:
+      - jenkins-network
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # Optional: Jenkins Agent (if you need distributed builds)
+  # jenkins-agent:
+  #   image: jenkins/ssh-agent:latest
+  #   container_name: jenkins-agent-ungdungmxh
+  #   environment:
+  #     - JENKINS_AGENT_SSH_PUBKEY=<your-ssh-public-key>
+  #   networks:
+  #     - jenkins-network
+
+# Persistent volumes
+volumes:
+  jenkins_home:
+    driver: local
+    labels:
+      description: "Jenkins home directory with all configurations, jobs, plugins"
+  
+  # jenkins_m2:
+  #   driver: local
+  #   labels:
+  #     description: "Maven cache"
+
+# Jenkins network
+networks:
+  jenkins-network:
+    driver: bridge
+    labels:
+      description: "Network for Jenkins and its agents"
+

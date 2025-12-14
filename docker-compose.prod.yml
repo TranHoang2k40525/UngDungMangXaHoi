@@ -5,6 +5,19 @@ version: '3.8'
 
 services:
   sqlserver:
+    # Production: Container riêng biệt với dev
+    container_name: ungdungmxh-sqlserver-prod
+    
+    # Production: Sử dụng Docker Secret cho password
+    environment:
+      - MSSQL_SA_PASSWORD_FILE=/run/secrets/db_password
+      - MSSQL_ENABLE_SSL=1
+      - MSSQL_FORCE_ENCRYPTION=1
+    
+    # Production: Mount secrets
+    secrets:
+      - db_password
+    
     # Production database with resource limits
     deploy:
       resources:
@@ -17,14 +30,17 @@ services:
     # Production volume with backup strategy
     volumes:
       - sqlserver-prod-data:/var/opt/mssql
-    # Remove port exposure for security (only accessible within Docker network)
-    ports: []
+    # Production port mapping (khác với dev để tránh conflict)
+    ports:
+      - "1435:1433"  # Dev dùng 1434, Prod dùng 1435
     # Production restart policy
     restart: always
     healthcheck:
+      test: ["CMD", "sh", "-c", "PASSWORD=$$(cat /run/secrets/db_password) && /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$PASSWORD\" -C -Q 'SELECT 1' > /dev/null"]
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 40s
 
   webapi:
     # In CI/CD we prefer to deploy images pushed to a registry.
@@ -35,28 +51,24 @@ services:
     # (Optional) set a container name in production
     container_name: ungdungmxh-webapi-prod
     
-    # Production environment variables (no secrets in plain text!)
+    # Production environment variables (secrets được đọc từ /run/secrets/ trong code)
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:5297
       
-      # Database connection (read password from secret)
-      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=ungdungmangxahoiv_2;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;Encrypt=True;
+      # Database connection (Password sẽ được đọc từ /run/secrets/db_password trong Program.cs)
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=ungdungmangxahoiv_2;User Id=sa;TrustServerCertificate=True;Encrypt=True;
       
-      # JWT settings (read from secrets)
-      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      # JWT settings (Issuer và Audience không phải secret)
       - JWT_ISSUER=${JWT_ISSUER:-UngDungMangXaHoi}
       - JWT_AUDIENCE=${JWT_AUDIENCE:-UngDungMangXaHoi}
       
-      # Cloudinary (read from secrets)
+      # Cloudinary (API Key không phải secret, nhưng API Secret sẽ đọc từ /run/secrets/)
       - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
       - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
-      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
       
-      # Email (read from secrets)
+      # Email (User không phải secret, nhưng Password sẽ đọc từ /run/secrets/)
       - EMAIL_USER=${EMAIL_USER}
-      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
     
     # Use Docker secrets (more secure than env vars)
     secrets:
@@ -66,9 +78,8 @@ services:
       - cloudinary_api_secret
       - email_password
     
-    # Production resource limits
+    # Production resource limits (single instance for WSL2 test environment)
     deploy:
-      replicas: 2  # Run 2 instances for high availability
       resources:
         limits:
           cpus: '1.0'
@@ -76,29 +87,67 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
     
     # NO volume mounts in production (use built image)
     volumes: []
 
     # Production ports (behind reverse proxy/load balancer)
     ports:
-      - "5297:5297"
+      - "5397:5297"  # Dev dùng 5297, Prod dùng 5397
 
     # Production restart policy
     restart: always
 
-    # Health check
+    # Health check - use TCP check since /health endpoint may not exist
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5297/health"]
+      test: ["CMD", "sh", "-c", "nc -z localhost 5297 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  # WebApp - Production Configuration
+  webapp:
+    image: ${WEBAPP_IMAGE:-ungdungmxh/webapp:latest}
+    container_name: ungdungmxh-webapp-prod
+    environment:
+      - NODE_ENV=production
+    volumes: []  # No volume mounts in production
+    ports:
+      - "5273:80"  # Dev dùng 5173, Prod dùng 5273
+    networks:
+      - app-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # WebAdmins - Production Configuration
+  webadmins:
+    image: ${WEBADMINS_IMAGE:-ungdungmxh/webadmins:latest}
+    container_name: ungdungmxh-webadmins-prod
+    environment:
+      - NODE_ENV=production
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:5397}
+    volumes: []  # No volume mounts in production
+    ports:
+      - "5274:80"  # Dev dùng 5174, Prod dùng 5274
+    networks:
+      - app-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
 
 # Production volumes with backup labels
 volumes:
@@ -125,6 +174,4 @@ secrets:
 networks:
   app-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.28.0.0/16
+

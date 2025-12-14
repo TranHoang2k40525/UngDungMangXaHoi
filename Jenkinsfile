@@ -1,12 +1,19 @@
 pipeline {
   agent any
 
+  parameters {
+    string(name: 'DOCKER_NAMESPACE', defaultValue: 'minhvu0809', description: 'Docker Hub username')
+    string(name: 'PROD_HOST', defaultValue: '192.168.0.103', description: 'Production server IP')
+    string(name: 'PROD_DIR', defaultValue: '/root/ungdungmxh', description: 'Production deployment directory')
+  }
+
   environment {
-    // Registry and image name pieces. Configure DOCKER_NAMESPACE in Jenkins or set below.
+    // Registry and image name pieces
     REGISTRY = 'docker.io'
-    DOCKER_NAMESPACE = "your-docker-namespace" // replace or set via Jenkins credentials/params
+    DOCKER_NAMESPACE = "${params.DOCKER_NAMESPACE}"
     WEBAPI_IMAGE_NAME = "${DOCKER_NAMESPACE}/ungdungmxh-webapi"
     WEBAPP_IMAGE_NAME = "${DOCKER_NAMESPACE}/ungdungmxh-webapp"
+    WEBADMINS_IMAGE_NAME = "${DOCKER_NAMESPACE}/ungdungmxh-webadmins"
     TAG = "${env.GIT_COMMIT?.substring(0,8) ?: 'latest'}"
   }
 
@@ -22,29 +29,37 @@ pipeline {
       }
     }
 
-    stage('Restore & Build (WebAPI)') {
-      steps {
-        echo 'Restoring and building .NET WebAPI (Release)'
-        sh 'dotnet --version || true'
-        sh 'dotnet restore UngDungMangXaHoi.sln'
-        sh 'dotnet build Presentation/WebAPI -c Release'
-        // Optional: run tests if present
-        // sh 'dotnet test --no-build'
-      }
-    }
-
     stage('Build Docker Images') {
-      steps {
-        script {
-          env.FULL_WEBAPI_IMAGE = "${REGISTRY}/${WEBAPI_IMAGE_NAME}:${TAG}"
-          env.FULL_WEBAPP_IMAGE = "${REGISTRY}/${WEBAPP_IMAGE_NAME}:${TAG}"
+      parallel {
+        stage('Build WebAPI') {
+          steps {
+            script {
+              env.FULL_WEBAPI_IMAGE = "${REGISTRY}/${WEBAPI_IMAGE_NAME}:${TAG}"
+            }
+            echo "Building WebAPI image ${FULL_WEBAPI_IMAGE}"
+            sh "docker build -f Presentation/WebAPI/Dockerfile.production -t ${FULL_WEBAPI_IMAGE} ."
+          }
         }
-
-        echo "Building WebAPI image ${FULL_WEBAPI_IMAGE}"
-        sh "docker build -f Presentation/WebAPI/Dockerfile.production -t ${FULL_WEBAPI_IMAGE} ."
-
-        echo "Building WebApp image ${FULL_WEBAPP_IMAGE}"
-        sh "docker build -f Presentation/WebApp/Dockerfile -t ${FULL_WEBAPP_IMAGE} Presentation/WebApp"
+        
+        stage('Build WebApp (Users)') {
+          steps {
+            script {
+              env.FULL_WEBAPP_IMAGE = "${REGISTRY}/${WEBAPP_IMAGE_NAME}:${TAG}"
+            }
+            echo "Building WebApp (Users) image ${FULL_WEBAPP_IMAGE}"
+            sh "docker build -f Presentation/WebApp/WebUsers/Dockerfile.production -t ${FULL_WEBAPP_IMAGE} Presentation/WebApp/WebUsers"
+          }
+        }
+        
+        stage('Build WebAdmins') {
+          steps {
+            script {
+              env.FULL_WEBADMINS_IMAGE = "${REGISTRY}/${WEBADMINS_IMAGE_NAME}:${TAG}"
+            }
+            echo "Building WebAdmins image ${FULL_WEBADMINS_IMAGE}"
+            sh "docker build -f Presentation/WebApp/WebAdmins/Dockerfile.production -t ${FULL_WEBADMINS_IMAGE} Presentation/WebApp/WebAdmins"
+          }
+        }
       }
     }
 
@@ -55,6 +70,7 @@ pipeline {
           sh 'echo $DOCKER_PASS | docker login ${REGISTRY} -u $DOCKER_USER --password-stdin'
           sh 'docker push ${FULL_WEBAPI_IMAGE}'
           sh 'docker push ${FULL_WEBAPP_IMAGE}'
+          sh 'docker push ${FULL_WEBADMINS_IMAGE}'
           sh 'docker logout ${REGISTRY}'
         }
       }
@@ -70,7 +86,7 @@ pipeline {
             def PROD_DIR = env.PROD_DIR ?: '/opt/ungdungmxh' // path on prod host where docker-compose files live
 
             // Option A: If repository is already present on prod host, do a git pull then docker-compose pull/up
-            sh "ssh -i ${SSH_KEY} -o StrictHostKeyChecking=no ${SSH_USER}@${PROD_HOST} \"cd ${PROD_DIR} && git reset --hard && git pull origin main && export WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE} && export WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE} && docker-compose -f docker-compose.yml -f docker-compose.prod.yml pull && docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d\""
+            sh "ssh -i ${SSH_KEY} -o StrictHostKeyChecking=no ${SSH_USER}@${PROD_HOST} \"cd ${PROD_DIR} && git reset --hard && git pull origin main && export WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE} && export WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE} && export WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE} && docker-compose -f docker-compose.yml -f docker-compose.prod.yml pull && docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d\""
 
             // Option B (alternative): scp compose files to host and run docker-compose there. Uncomment and adapt if preferred.
             // sh "scp -i ${SSH_KEY} docker-compose.yml ${SSH_USER}@${PROD_HOST}:${PROD_DIR}/docker-compose.yml"

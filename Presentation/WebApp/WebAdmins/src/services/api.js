@@ -1,9 +1,22 @@
 import axios from 'axios';
 
-// Sử dụng environment variable từ Vite
-// Development: http://localhost:5297
-// Production: /api (sẽ được NGINX proxy đến backend)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5297';
+// Tự động detect backend URL
+// Development: Dùng window.location.hostname (tự động lấy IP máy đang chạy)
+// Production: Dùng /api (NGINX proxy)
+const getApiBaseUrl = () => {
+  // Nếu có VITE_API_URL từ .env thì dùng (Production)
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // Development: Tự động dùng hostname hiện tại
+  // VD: Nếu truy cập từ http://192.168.1.103:3000 → API sẽ là http://192.168.1.103:5297
+  // VD: Nếu truy cập từ http://localhost:3000 → API sẽ là http://localhost:5297
+  const hostname = window.location.hostname;
+  return `http://${hostname}:5297`;
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Tạo axios instance
 const apiClient = axios.create({
