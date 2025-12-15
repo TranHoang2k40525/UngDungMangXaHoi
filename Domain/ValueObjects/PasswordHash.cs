@@ -8,8 +8,10 @@ namespace UngDungMangXaHoi.Domain.ValueObjects
 
         public PasswordHash(string value)
         {
-            if (string.IsNullOrWhiteSpace(value))
-                throw new ArgumentException("Password hash cannot be null or empty", nameof(value));
+            // Allow empty string for pending accounts (chưa hoàn tất đăng ký)
+            // Chỉ reject NULL
+            if (value == null)
+                throw new ArgumentException("Password hash cannot be null", nameof(value));
 
             Value = value;
         }
