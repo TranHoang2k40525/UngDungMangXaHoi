@@ -74,9 +74,6 @@ services:
     secrets:
       - db_password
       - jwt_access_secret
-      - jwt_refresh_secret
-      - cloudinary_api_secret
-      - email_password
     
     # Production resource limits (single instance for WSL2 test environment)
     deploy:
@@ -163,12 +160,6 @@ secrets:
     file: ./secrets/db_password.txt
   jwt_access_secret:
     file: ./secrets/jwt_access_secret.txt
-  jwt_refresh_secret:
-    file: ./secrets/jwt_refresh_secret.txt
-  cloudinary_api_secret:
-    file: ./secrets/cloudinary_api_secret.txt
-  email_password:
-    file: ./secrets/email_password.txt
 
 # Production network
 networks:
