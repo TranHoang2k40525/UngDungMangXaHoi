@@ -14,10 +14,24 @@ const getApiBaseUrl = () => {
 
 export const API_BASE_URL = getApiBaseUrl();
 
+// Normalize API base: if VITE_API_URL is '/api' (nginx proxy), use relative paths
+const normalizeBase = (b) => {
+  if (!b) return '';
+  if (b === '/api') return '';
+  return b.replace(/\/+$/, '');
+};
+const NORMALIZED_API_BASE = normalizeBase(API_BASE_URL);
+const buildUrl = (path) => (NORMALIZED_API_BASE ? `${NORMALIZED_API_BASE}${path}` : path);
+
 // Hàm helper để gọi API
 export const apiCall = async (endpoint, options = {}) => {
   const doFetch = async (opts) => {
-    return fetch(`${API_BASE_URL}${endpoint}`, {
+    // Normalize base URL to avoid double "/api/api" when VITE_API_URL is set to "/api"
+    let base = API_BASE_URL || '';
+    if (base === '/api') base = ''; // use relative path when proxying through nginx
+    // strip trailing slash from base
+    if (base.endsWith('/')) base = base.slice(0, -1);
+    return fetch(`${base}${endpoint}`, {
       ...opts,
       headers: {
         'Content-Type': 'application/json',
@@ -35,7 +49,7 @@ export const apiCall = async (endpoint, options = {}) => {
       try {
         const refreshToken = localStorage.getItem('refreshToken');
         if (refreshToken) {
-          const rf = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+          const rf = await fetch(buildUrl('/api/auth/refresh'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({ RefreshToken: refreshToken }),
@@ -254,7 +268,7 @@ const postsAPI = {
     }
     if (video) form.append('Video', video);
 
-    const res = await fetch(`${API_BASE_URL}/api/posts`, {
+    const res = await fetch(buildUrl('/api/posts'), {
       method: 'POST',
       headers: { ...headers, Accept: 'application/json' }, // do not set Content-Type for multipart
       body: form,
@@ -294,7 +308,7 @@ const postsAPI = {
   },
   async deletePost(postId) {
     const token = localStorage.getItem('accessToken');
-    const res = await fetch(`${API_BASE_URL}/api/posts/${postId}`, {
+    const res = await fetch(buildUrl(`/api/posts/${postId}`), {
       method: 'DELETE',
       headers: { Authorization: token ? `Bearer ${token}` : '', Accept: 'application/json' },
     });

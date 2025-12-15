@@ -18,9 +18,18 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
+// Normalize API base for axios: if set to '/api' (nginx proxy), use relative paths
+const normalizeBase = (b) => {
+  if (!b) return '';
+  if (b === '/api') return '';
+  return b.replace(/\/+$/, '');
+};
+
+const NORMALIZED_API_BASE = normalizeBase(API_BASE_URL);
+
 // Tạo axios instance
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: NORMALIZED_API_BASE || undefined,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -51,7 +60,8 @@ apiClient.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem('refreshToken');
         if (refreshToken) {
-          const response = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {
+          const refreshUrl = (NORMALIZED_API_BASE ? `${NORMALIZED_API_BASE}/api/auth/refresh` : '/api/auth/refresh');
+          const response = await axios.post(refreshUrl, {
             RefreshToken: refreshToken,
           });
 
