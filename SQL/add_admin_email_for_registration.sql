@@ -24,8 +24,8 @@ INSERT INTO [dbo].[Accounts] (
 )
 VALUES (
     'admin@example.com',      -- Email được cấp quyền
-    NULL,                     -- Số điện thoại (để NULL, sẽ cập nhật khi đăng ký)
-    'TEMP_HASH_PLACEHOLDER',  -- Password hash tạm (sẽ cập nhật khi đăng ký)
+    'PENDING_TEMP',           -- Số điện thoại tạm (UNIQUE constraint không cho NULL, sẽ cập nhật khi đăng ký)
+    '',                       -- Password hash rỗng (sẽ cập nhật khi đăng ký)
     'Admin',                  -- Account type = Admin
     'pending',                -- Status = pending (chưa hoàn tất đăng ký)
     GETUTCDATE(),            -- Created at

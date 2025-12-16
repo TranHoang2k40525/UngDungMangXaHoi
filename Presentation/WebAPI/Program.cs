@@ -31,6 +31,8 @@ catch (Exception)
     Console.WriteLine("No .env file found, using appsettings.json only");
 }
 
+
+
 // Add services to the container.
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -91,12 +93,52 @@ if (string.IsNullOrEmpty(connectionString))
     throw new InvalidOperationException("Database connection string not found! Check appsettings.json or environment variables.");
 }
 
+// Đọc password từ Docker secret nếu có (Production environment)
+const string dbPasswordSecretPath = "/run/secrets/db_password";
+if (File.Exists(dbPasswordSecretPath))
+{
+    try
+    {
+        var dbPassword = File.ReadAllText(dbPasswordSecretPath).Trim();
+        if (!string.IsNullOrEmpty(dbPassword))
+        {
+            // Inject password vào connection string nếu chưa có
+            if (!connectionString.Contains("Password=", StringComparison.OrdinalIgnoreCase))
+            {
+                connectionString += $";Password={dbPassword}";
+                Console.WriteLine("[DB CONFIG] Injected password from Docker secret");
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[DB CONFIG] Warning: Could not read db_password secret: {ex.Message}");
+    }
+}
+
 Console.WriteLine($"[DB CONFIG] Using connection: {connectionString.Substring(0, Math.Min(50, connectionString.Length))}...");
 
 builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(connectionString));
 
-// JWT Authentication - ƯU TIÊN .env, fallback appsettings.json
-var jwtAccessSecret = Environment.GetEnvironmentVariable("JWT_ACCESS_SECRET")
+// JWT Authentication - ƯU TIÊN Docker secret → .env → appsettings.json
+// Đọc JWT Access Secret từ Docker secret file (Production)
+string? jwtAccessSecret = null;
+const string jwtAccessSecretPath = "/run/secrets/jwt_access_secret";
+if (File.Exists(jwtAccessSecretPath))
+{
+    try
+    {
+        jwtAccessSecret = File.ReadAllText(jwtAccessSecretPath).Trim();
+        Console.WriteLine("[JWT] Loaded AccessSecret from Docker secret");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[JWT] Warning: Could not read jwt_access_secret: {ex.Message}");
+    }
+}
+
+// Fallback to environment variable or appsettings
+jwtAccessSecret ??= Environment.GetEnvironmentVariable("JWT_ACCESS_SECRET")
     ?? builder.Configuration["JwtSettings:AccessSecret"];
 
 var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER")
@@ -107,7 +149,7 @@ var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE")
 
 if (string.IsNullOrEmpty(jwtAccessSecret))
 {
-    throw new InvalidOperationException("JWT AccessSecret not found! Check appsettings.json or JWT_ACCESS_SECRET env var.");
+    throw new InvalidOperationException("JWT AccessSecret not found! Check appsettings.json, JWT_ACCESS_SECRET env var, or Docker secret.");
 }
 
 Console.WriteLine($"[JWT AUTH] AccessSecret length: {jwtAccessSecret.Length}");
