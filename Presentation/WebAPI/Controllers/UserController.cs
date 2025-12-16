@@ -70,7 +70,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
             {
-                return Unauthorized(new { message = "Token không hợp lệ!" });
+                return Unauthorized(new { message = "Token không hợp lệ!" }); // Nếu thất bại , trả về lỗi 401 
             }
             var profile = await _userService.GetPublicProfileByIdAsync(accountId, userId);
             if (profile == null) return NotFound(new { message = "Không tìm thấy user." });
