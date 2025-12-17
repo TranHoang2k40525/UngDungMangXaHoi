@@ -1,17 +1,26 @@
 import axios from 'axios';
 
 // Tự động detect backend URL
-// Development: Dùng window.location.hostname (tự động lấy IP máy đang chạy)
-// Production: Dùng /api (NGINX proxy)
+// Priority (runtime): window.__ENV.VITE_API_URL (injected at container start)
+// Build-time: import.meta.env.VITE_API_URL (baked by Vite)
+// Fallback (dev): use current hostname with default WebAPI port 5297
 const getApiBaseUrl = () => {
-  // Nếu có VITE_API_URL từ .env thì dùng (Production)
+  try {
+    // Runtime override injected into the page by the container (env-config)
+    // e.g. window.__ENV = { VITE_API_URL: 'http://webapi:5297' }
+    if (window && window.__ENV && window.__ENV.VITE_API_URL) {
+      return window.__ENV.VITE_API_URL;
+    }
+  } catch (e) {
+    // ignore when window not available
+  }
+
+  // Nếu có VITE_API_URL từ build-time env thì dùng (Production build)
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-  
+
   // Development: Tự động dùng hostname hiện tại
-  // VD: Nếu truy cập từ http://192.168.1.103:3000 → API sẽ là http://192.168.1.103:5297
-  // VD: Nếu truy cập từ http://localhost:3000 → API sẽ là http://localhost:5297
   const hostname = window.location.hostname;
   return `http://${hostname}:5297`;
 };
