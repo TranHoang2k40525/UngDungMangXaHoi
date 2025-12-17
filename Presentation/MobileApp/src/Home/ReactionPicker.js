@@ -7,7 +7,7 @@ import {
   Animated,
 } from "react-native";
 
-const REACTIONS = [
+export const REACTIONS = [
   { type: 1, emoji: "❤️", label: "Like" },
   { type: 2, emoji: "😍", label: "Love" },
   { type: 3, emoji: "😂", label: "Haha" },
@@ -15,6 +15,11 @@ const REACTIONS = [
   { type: 5, emoji: "😢", label: "Sad" },
   { type: 6, emoji: "😠", label: "Angry" },
 ];
+
+export const getReactionEmoji = (type) => {
+  const reaction = REACTIONS.find((r) => r.type === type);
+  return reaction ? reaction.emoji : "❤️";
+};
 
 const ReactionPicker = ({ visible, onSelectReaction, position }) => {
   const scaleAnim = React.useRef(new Animated.Value(0)).current;
