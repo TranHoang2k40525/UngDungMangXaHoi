@@ -536,10 +536,10 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             {
                 await _otpRepository.DeleteAsync(otp.otp_id);
                 return StatusCode(429, new { message = "Quá nhiều lần thử thất bại. Vui lòng thử lại sau 2 phút." });
-            }
+            } 
 
             Console.WriteLine($"[RESET-PASSWORD-WITH-OTP] Verifying OTP");
-
+            
             // Xác thực OTP
             if (!_passwordHasher.VerifyPassword(request.Otp, otp.otp_hash))
             {

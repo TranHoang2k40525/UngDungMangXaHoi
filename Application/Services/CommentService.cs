@@ -68,7 +68,7 @@ public class CommentService
         await SendCommentNotificationAsync(createdComment, user);
 
         // ✅ KIỂM TRA TOXIC TRONG BACKGROUND (với scope riêng)
-        _ = Task.Run(async () => await CheckAndDeleteToxicCommentAsync(createdComment.CommentId, dto.Content, currentAccountId, user.user_id));
+        _= Task.Run(async () => await CheckAndDeleteToxicCommentAsync(createdComment.CommentId, dto.Content, currentAccountId, user.user_id));
 
         // Fetch complete comment with all includes
         var fullComment = await _commentRepository.GetByIdAsync(createdComment.CommentId);
