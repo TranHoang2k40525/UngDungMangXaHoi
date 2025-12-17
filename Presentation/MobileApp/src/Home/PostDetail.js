@@ -22,6 +22,7 @@ import { useFollow } from "../Context/FollowContext";
 import CommentsModal from "./CommentsModal";
 import ReactionPicker from "./ReactionPicker";
 import ReactionsListModal from "./ReactionsListModal";
+import SharePostModal from "./SharePostModal";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   getUserPostsById,
@@ -131,6 +132,10 @@ export default function PostDetail() {
   const [showReactionsList, setShowReactionsList] = useState(false);
   const [showReactionsListPostId, setShowReactionsListPostId] = useState(null);
   const recentReactionChanges = React.useRef({});
+
+  // Share modal state
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [sharePost, setSharePost] = useState(null);
 
   // Ensure FlatList scrolls to correct index after posts are loaded
   useEffect(() => {
@@ -705,24 +710,10 @@ export default function PostDetail() {
     }
   };
 
-  // Handle repost
-  const onRepost = async (post) => {
-    try {
-      const shareUrl = `https://yourapp.com/post/${post.id}`;
-      await Share.share({
-        message: post.caption || "Xem bài viết này!",
-        url: shareUrl,
-      });
-      setPostStates((prev) => ({
-        ...prev,
-        [post.id]: {
-          ...prev[post.id],
-          sharesCount: (prev[post.id]?.sharesCount || 0) + 1,
-        },
-      }));
-    } catch (error) {
-      console.error("Error sharing:", error);
-    }
+  // Handler for share button
+  const onShare = async (post) => {
+    setSharePost(post);
+    setShowShareModal(true);
   };
 
   // Handle follow toggle
@@ -1188,11 +1179,7 @@ export default function PostDetail() {
                     </Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity onPress={() => onRepost(post)}>
-                    <Ionicons name="repeat-outline" size={28} color="#262626" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity onPress={() => onRepost(post)}>
+                  <TouchableOpacity onPress={() => onShare(post)}>
                     <Ionicons
                       name="paper-plane-outline"
                       size={26}
@@ -1761,6 +1748,16 @@ export default function PostDetail() {
         visible={showReactionsList}
         onClose={() => setShowReactionsList(false)}
         postId={showReactionsListPostId}
+      />
+
+      {/* Share Post Modal */}
+      <SharePostModal
+        visible={showShareModal}
+        onClose={() => {
+          setShowShareModal(false);
+          setSharePost(null);
+        }}
+        post={sharePost}
       />
     </SafeAreaView>
   );

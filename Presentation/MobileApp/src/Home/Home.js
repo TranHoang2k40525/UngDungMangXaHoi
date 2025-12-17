@@ -1050,18 +1050,6 @@ export default function Home() {
     setShowShareModal(true);
   };
 
-  const onRepost = (postId) => {
-    setPostStates((prev) => {
-      const cur = prev[postId] || {
-        liked: false,
-        likes: 0,
-        shares: 0,
-        comments: 0,
-      };
-      return { ...prev, [postId]: { ...cur, shares: cur.shares + 1 } };
-    });
-  };
-
   const getOwnerId = () => {
     const fromCtx =
       ctxUser?.user_id ?? ctxUser?.userId ?? ctxUser?.UserId ?? ctxUser?.id;
@@ -1886,9 +1874,6 @@ export default function Home() {
                   >
                     {postStates[p.id]?.comments ?? 0}
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => onRepost(p.id)}>
-                  <Ionicons name="repeat-outline" size={28} color="#262626" />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => onShare(p)}>
                   <Ionicons

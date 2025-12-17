@@ -58,6 +58,7 @@ import Slider from "@react-native-community/slider";
 import CommentsModal from "./CommentsModal";
 import ReactionPicker from "./ReactionPicker";
 import ReactionsListModal from "./ReactionsListModal";
+import SharePostModal from "./SharePostModal";
 
 // Component wrapper cho mỗi video item để dùng useVideoPlayer hook
 const ReelVideoPlayer = React.memo(
@@ -374,6 +375,10 @@ export default function Reels() {
   const [showReactionsList, setShowReactionsList] = useState(false);
   const [showReactionsListPostId, setShowReactionsListPostId] = useState(null);
 
+  // Share modal state
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [sharePost, setSharePost] = useState(null);
+
   // tap gesture helpers
   const tapTimerRef = useRef(null);
   const tapTimesRef = useRef([]);
@@ -568,10 +573,10 @@ export default function Reels() {
       const selected =
         selectedId != null ? uniq.find((p) => p.id === selectedId) : null;
       const rest = uniq.filter((p) => !selected || p.id !== selected.id);
-      
+
       // KHÔNG SORT NỮA - giữ nguyên thứ tự backend trả về
       // Backend đã xử lý: follower > search > newest, cho phép lặp lại
-      
+
       return selected ? [selected, ...rest] : rest;
     },
     [] // Xóa dependency getWatchedSet
@@ -882,6 +887,7 @@ export default function Reels() {
             reactionType: reactionData?.userReaction,
             topReactions: topReactions,
             reactionCounts: reactionData?.reactionCounts || [],
+            shares: reel?.sharesCount ?? 0,
           };
         } catch (err) {
           console.error(`[VIDEO] Error loading reactions for ${reel.id}:`, err);
@@ -891,6 +897,7 @@ export default function Reels() {
             reactionType: null,
             topReactions: [],
             reactionCounts: [],
+            shares: reel?.sharesCount ?? 0,
           };
         }
       }
@@ -1357,9 +1364,14 @@ export default function Reels() {
             <Ionicons name="chatbubble-outline" size={28} color="#fff" />
             <Text style={styles.sideCount}>{item?.commentsCount || 0}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.sideBtn}>
+          <TouchableOpacity
+            style={styles.sideBtn}
+            onPress={() => onShare(item)}
+          >
             <Ionicons name="paper-plane-outline" size={28} color="#fff" />
-            <Text style={styles.sideCount}>0</Text>
+            <Text style={styles.sideCount}>
+              {videoStates[item?.id]?.shares ?? 0}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.sideBtn, { marginTop: 6 }]}
@@ -1548,6 +1560,12 @@ export default function Reels() {
           : p
       )
     );
+  };
+
+  // Handler for share button
+  const onShare = async (post) => {
+    setSharePost(post);
+    setShowShareModal(true);
   };
 
   const pickPrivacy = async (privacyKey) => {
@@ -2276,6 +2294,16 @@ export default function Reels() {
         visible={showReactionsList}
         onClose={() => setShowReactionsList(false)}
         postId={showReactionsListPostId}
+      />
+
+      {/* Share Post Modal */}
+      <SharePostModal
+        visible={showShareModal}
+        onClose={() => {
+          setShowShareModal(false);
+          setSharePost(null);
+        }}
+        post={sharePost}
       />
     </SafeAreaView>
   );
