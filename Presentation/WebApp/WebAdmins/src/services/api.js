@@ -102,31 +102,44 @@ export const authAPI = {
 
   async verifyAdminOtp(data) {
     const result = await apiClient.post('/api/auth/verify-admin-otp', data);
-    if (result.accessToken && result.refreshToken) {
-      localStorage.setItem('accessToken', result.accessToken);
-      localStorage.setItem('refreshToken', result.refreshToken);
+    // Backend may return { AccessToken, RefreshToken } or { accessToken, refreshToken }
+    const access = result?.AccessToken || result?.accessToken || result?.access || null;
+    const refresh = result?.RefreshToken || result?.refreshToken || result?.refresh || null;
+    if (access && refresh) {
+      localStorage.setItem('accessToken', access);
+      localStorage.setItem('refreshToken', refresh);
     }
     return result;
   },
 
   async login(credentials) {
     const result = await apiClient.post('/api/auth/login', credentials);
-    
-    if (result.accessToken && result.refreshToken) {
-      localStorage.setItem('accessToken', result.accessToken);
-      localStorage.setItem('refreshToken', result.refreshToken);
-      
-      // Kiểm tra account type
-      const payload = JSON.parse(atob(result.accessToken.split('.')[1]));
-      const accountType = payload.account_type || payload.role;
-      
-      if (accountType !== 'Admin') {
+
+    // Accept various casing from backend
+    const access = result?.AccessToken || result?.accessToken || result?.access || null;
+    const refresh = result?.RefreshToken || result?.refreshToken || result?.refresh || null;
+
+    if (access && refresh) {
+      localStorage.setItem('accessToken', access);
+      localStorage.setItem('refreshToken', refresh);
+
+      // Kiểm tra account type inside token
+      try {
+        const payload = JSON.parse(atob(access.split('.')[1]));
+        const accountType = payload.account_type || payload.role;
+        if (accountType !== 'Admin') {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          throw new Error('Chỉ tài khoản Admin mới có thể đăng nhập');
+        }
+      } catch (e) {
+        // If token parsing fails, clear tokens to force re-login
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
-        throw new Error('Chỉ tài khoản Admin mới có thể đăng nhập');
+        throw new Error('Token không hợp lệ');
       }
     }
-    
+
     return result;
   },
 
