@@ -37,8 +37,8 @@ catch (Exception)
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        // Serialize enum as number instead of string for better frontend compatibility
-        // options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        // Allow enums to be (de)serialized from/to strings so frontend can send 'Nam'/'Nữ'/'Khác'
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
 
