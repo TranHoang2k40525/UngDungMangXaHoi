@@ -13,35 +13,27 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { API_BASE_URL } from "../API/Api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { REACTIONS, getReactionEmoji } from "./ReactionPicker";
 
+// Map nhãn tiếng Việt cho các reaction
+const VIETNAMESE_LABELS = {
+  Like: "Thích",
+  Love: "Yêu thích",
+  Haha: "Haha",
+  Wow: "Wow",
+  Sad: "Buồn",
+  Angry: "Phẫn nộ",
+};
+
+// Tạo REACTION_TYPES động từ REACTIONS
 const REACTION_TYPES = [
   { type: null, label: "Tất cả" },
-  { type: 1, emoji: "❤️", label: "Thích" },
-  { type: 2, emoji: "😍", label: "Yêu thích" },
-  { type: 3, emoji: "😂", label: "Haha" },
-  { type: 4, emoji: "😮", label: "Wow" },
-  { type: 5, emoji: "😢", label: "Buồn" },
-  { type: 6, emoji: "😠", label: "Phẫn nộ" },
+  ...REACTIONS.map((r) => ({
+    type: r.type,
+    emoji: r.emoji,
+    label: VIETNAMESE_LABELS[r.label] || r.label,
+  })),
 ];
-
-const getReactionEmoji = (reactionType) => {
-  switch (reactionType) {
-    case 1:
-      return "❤️";
-    case 2:
-      return "😍";
-    case 3:
-      return "😂";
-    case 4:
-      return "😮";
-    case 5:
-      return "😢";
-    case 6:
-      return "😠";
-    default:
-      return "❤️";
-  }
-};
 
 const ReactionsListModal = ({ visible, onClose, postId }) => {
   const navigation = useNavigation();
