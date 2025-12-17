@@ -25,7 +25,7 @@ import { useUser } from "../Context/UserContext";
 import { useFollow } from "../Context/FollowContext";
 import * as ImagePicker from "expo-image-picker";
 import CommentsModal from "./CommentsModal";
-import ReactionPicker from "./ReactionPicker";
+import ReactionPicker, { getReactionEmoji } from "./ReactionPicker";
 import ReactionsListModal from "./ReactionsListModal";
 import SharePostModal from "./SharePostModal";
 import {
@@ -159,25 +159,6 @@ const PostImagesCarousel = ({ images = [] }) => {
       )}
     </View>
   );
-};
-
-const getReactionEmoji = (reactionType) => {
-  switch (reactionType) {
-    case 1:
-      return "❤️"; // Like
-    case 2:
-      return "😍"; // Love
-    case 3:
-      return "😂"; // Haha
-    case 4:
-      return "😮"; // Wow
-    case 5:
-      return "😢"; // Sad
-    case 6:
-      return "😠"; // Angry
-    default:
-      return "❤️";
-  }
 };
 
 export default function Home() {
@@ -1050,6 +1031,18 @@ export default function Home() {
     setShowShareModal(true);
   };
 
+  const onRepost = (postId) => {
+    setPostStates((prev) => {
+      const cur = prev[postId] || {
+        liked: false,
+        likes: 0,
+        shares: 0,
+        comments: 0,
+      };
+      return { ...prev, [postId]: { ...cur, shares: cur.shares + 1 } };
+    });
+  };
+
   const getOwnerId = () => {
     const fromCtx =
       ctxUser?.user_id ?? ctxUser?.userId ?? ctxUser?.UserId ?? ctxUser?.id;
@@ -1874,6 +1867,9 @@ export default function Home() {
                   >
                     {postStates[p.id]?.comments ?? 0}
                   </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => onRepost(p.id)}>
+                  <Ionicons name="repeat-outline" size={28} color="#262626" />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => onShare(p)}>
                   <Ionicons
