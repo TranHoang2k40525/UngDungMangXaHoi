@@ -58,7 +58,9 @@ configs/*.conf
 **/appsettings.json
 
 ## Documentation files (all .md files except README.md)
-
+*.md
 !README.md
+
+# If you want to keep other specific markdown files tracked, add more negated patterns.
  
 
