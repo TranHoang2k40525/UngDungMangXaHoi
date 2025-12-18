@@ -7,8 +7,46 @@ import { Platform } from "react-native";
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
 // Nếu test trên máy tính: dùng localhost
 // Nếu test trên điện thoại thật: dùng IP của máy tính (xem bằng ipconfig)
-export const API_BASE_URL = "http://172.20.10.6:5297"; // Backend đang chạy trên IP máy tính
+export const API_BASE_URL = "http://10.10.2.22:5297"; // Backend đang chạy trên IP máy tính
 
+// Helper function để đảm bảo tên file luôn có đuôi mở rộng hợp lệ
+const ensureFileExtension = (filename, mimeType, defaultExt) => {
+  if (!filename) return defaultExt;
+
+  // Nếu filename đã có đuôi file hợp lệ thì giữ nguyên
+  const hasExtension = /\.[a-zA-Z0-9]{2,5}$/.test(filename);
+  if (hasExtension) return filename;
+
+  // Nếu không có đuôi, thêm đuôi dựa vào mimeType hoặc defaultExt
+  let extension = defaultExt;
+  if (mimeType) {
+    const mimeToExt = {
+      "image/jpeg": ".jpg",
+      "image/jpg": ".jpg",
+      "image/png": ".png",
+      "image/gif": ".gif",
+      "image/webp": ".webp",
+      "video/mp4": ".mp4",
+      "video/quicktime": ".mov",
+      "video/x-msvideo": ".avi",
+    };
+    extension = mimeToExt[mimeType.toLowerCase()] || defaultExt;
+  }
+
+  return filename + extension;
+};
+
+// Helper function để lấy đuôi file từ URI
+const getFileExtensionFromUri = (uri) => {
+  try {
+    // Loại bỏ query parameters và fragments
+    const cleanUri = uri.split("?")[0].split("#")[0];
+    const match = cleanUri.match(/\.(\w{2,5})$/);
+    return match ? "." + match[1] : null;
+  } catch (e) {
+    return null;
+  }
+};
 
 // Hàm helper để gọi API
 const apiCall = async (endpoint, options = {}) => {
@@ -49,7 +87,10 @@ const apiCall = async (endpoint, options = {}) => {
 
     if (!response.ok) {
       // Nếu 401 hoặc 403: thử refresh token 1 lần rồi gọi lại
-      if ((response.status === 401 || response.status === 403) && !options._retry) {
+      if (
+        (response.status === 401 || response.status === 403) &&
+        !options._retry
+      ) {
         try {
           const storedRefresh = await AsyncStorage.getItem("refreshToken");
           if (storedRefresh) {
@@ -334,7 +375,15 @@ export const updateAvatar = async ({
   } catch (e) {
     console.warn("[API] updateAvatar compress failed", e);
   }
-  form.append("avatarFile", { uri, name, type });
+
+  // Đảm bảo tên file có đuôi mở rộng hợp lệ
+  const fileExtFromUri = getFileExtensionFromUri(uri);
+  let fileName = name;
+  if (!fileExtFromUri || !/\.[a-zA-Z0-9]{2,5}$/.test(fileName)) {
+    fileName = ensureFileExtension(fileName, type, fileExtFromUri || ".jpg");
+  }
+
+  form.append("avatarFile", { uri, name: fileName, type });
   form.append("CreatePost", createPost ? "true" : "false");
   if (postCaption) form.append("PostCaption", postCaption);
   if (postLocation) form.append("PostLocation", postLocation);
@@ -415,7 +464,14 @@ export const uploadGroupAvatar = async (
     console.warn("[API] normalizeUri failed", e);
   }
 
-  form.append("file", { uri, name, type });
+  // Đảm bảo tên file có đuôi mở rộng hợp lệ
+  const fileExtFromUri = getFileExtensionFromUri(uri);
+  let fileName = name;
+  if (!fileExtFromUri || !/\.[a-zA-Z0-9]{2,5}$/.test(fileName)) {
+    fileName = ensureFileExtension(fileName, type, fileExtFromUri || ".jpg");
+  }
+
+  form.append("file", { uri, name: fileName, type });
 
   // Build headers object - only include Authorization if it exists
   const fetchHeaders = {};
@@ -602,18 +658,40 @@ export const createPost = async ({
       // Normalize iOS ph:// URIs first
       const normalizedUri = await normalizeUri(img.uri);
       const compressed = await compressImage(normalizedUri, 1080, 0.75);
+
+      // Đảm bảo tên file có đuôi mở rộng hợp lệ
+      const imgType = img.type || "image/jpeg";
+      const fileExtFromUri = getFileExtensionFromUri(normalizedUri);
+      let fileName = img.name || `image_${idx}`;
+      fileName = ensureFileExtension(
+        fileName,
+        imgType,
+        fileExtFromUri || ".jpg"
+      );
+
       form.append("Images", {
         uri: compressed || normalizedUri,
-        name: img.name || `image_${idx}.jpg`,
-        type: img.type || "image/jpeg",
+        name: fileName,
+        type: imgType,
       });
     } catch (e) {
       console.warn("[API] createPost compress image failed", e);
       const normalizedUri = await normalizeUri(img.uri);
+
+      // Đảm bảo tên file có đuôi mở rộng hợp lệ
+      const imgType = img.type || "image/jpeg";
+      const fileExtFromUri = getFileExtensionFromUri(normalizedUri);
+      let fileName = img.name || `image_${idx}`;
+      fileName = ensureFileExtension(
+        fileName,
+        imgType,
+        fileExtFromUri || ".jpg"
+      );
+
       form.append("Images", {
         uri: normalizedUri,
-        name: img.name || `image_${idx}.jpg`,
-        type: img.type || "image/jpeg",
+        name: fileName,
+        type: imgType,
       });
     }
   }
@@ -953,14 +1031,17 @@ export const addReaction = async (postId, reactionType) => {
   );
   const headers = await getAuthHeaders();
   console.log(`[API] addReaction headers:`, headers);
-  
+
   // Check if we have a valid token
   const token = await AsyncStorage.getItem("accessToken");
   console.log(`[API] addReaction token exists:`, !!token);
   if (token) {
-    console.log(`[API] addReaction token preview:`, token.substring(0, 20) + "...");
+    console.log(
+      `[API] addReaction token preview:`,
+      token.substring(0, 20) + "..."
+    );
   }
-  
+
   const body = { postId, reactionType };
   console.log(`[API] addReaction request body:`, body);
 
@@ -1126,12 +1207,25 @@ export const createStory = async ({
   form.append("Privacy", privacy);
   if (userId) form.append("UserId", String(userId));
   if (media) {
+    const defaultName =
+      mediaType === "video" ? "story_video.mp4" : "story_image.jpg";
+    const mediaTypeMime =
+      media.type || (mediaType === "video" ? "video/mp4" : "image/jpeg");
+
+    // Đảm bảo tên file có đuôi mở rộng hợp lệ
+    const fileExtFromUri = getFileExtensionFromUri(media.uri);
+    let fileName = media.name || defaultName;
+    const defaultExt = mediaType === "video" ? ".mp4" : ".jpg";
+    fileName = ensureFileExtension(
+      fileName,
+      mediaTypeMime,
+      fileExtFromUri || defaultExt
+    );
+
     form.append("Media", {
       uri: media.uri,
-      name:
-        media.name ||
-        (mediaType === "video" ? "story_video.mp4" : "story_image.jpg"),
-      type: media.type || (mediaType === "video" ? "video/mp4" : "image/jpeg"),
+      name: fileName,
+      type: mediaTypeMime,
     });
   }
 

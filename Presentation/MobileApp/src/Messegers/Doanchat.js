@@ -410,10 +410,23 @@ export default function Doanchat() {
 
       // Create FormData
       const formData = new FormData();
+
+      // Lấy đuôi file từ URI hoặc sử dụng default
+      let fileName = "photo.jpg";
+      try {
+        const uriParts = imageAsset.uri.split("/");
+        const uriFileName = uriParts[uriParts.length - 1].split("?")[0];
+        if (uriFileName && /\.[a-zA-Z0-9]{2,5}$/.test(uriFileName)) {
+          fileName = uriFileName;
+        }
+      } catch (e) {
+        console.warn("[Doanchat] Could not extract filename from URI", e);
+      }
+
       formData.append("file", {
         uri: imageAsset.uri,
         type: "image/jpeg",
-        name: "photo.jpg",
+        name: fileName,
       });
 
       // Get token
