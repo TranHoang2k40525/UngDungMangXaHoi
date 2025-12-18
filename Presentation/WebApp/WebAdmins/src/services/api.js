@@ -160,6 +160,10 @@ export const authAPI = {
     return apiClient.post('/api/auth/forgot-password', { Email: email });
   },
 
+  async verifyForgotPasswordOtp(data) {
+    return apiClient.post('/api/auth/verify-forgot-password-otp', data);
+  },
+
   async resetPassword(data) {
     return apiClient.post('/api/auth/reset-password', data);
   },

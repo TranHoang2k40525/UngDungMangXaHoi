@@ -31,7 +31,9 @@ export const AdminProvider = ({ children }) => {
 
   // Load admin profile on mount
   useEffect(() => {
-    loadAdminProfile();
+    // Only attempt to load admin profile if an access token exists
+    const token = localStorage.getItem('accessToken');
+    if (token) loadAdminProfile();
   }, []);
 
   const loadAdminProfile = async () => {
