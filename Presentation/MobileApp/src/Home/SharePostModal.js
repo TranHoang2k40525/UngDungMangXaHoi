@@ -16,7 +16,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { getFollowing, getFollowers, createShare } from "../API/Api";
 import MessageAPI from "../API/MessageAPI";
 
-export default function SharePostModal({ visible, onClose, post }) {
+export default function SharePostModal({
+  visible,
+  onClose,
+  post,
+  onShareSuccess,
+}) {
   const [loading, setLoading] = useState(false);
   const [friends, setFriends] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -131,6 +136,16 @@ export default function SharePostModal({ visible, onClose, post }) {
         null
       );
 
+      // Ghi nhận lượt chia sẻ vào database
+      await createShare({
+        postId: post.id,
+        caption: "",
+        privacy: "public",
+      });
+      console.log(
+        `[SharePostModal] ✅ Share recorded to database for post ${post.id}`
+      );
+
       // Dừng animation và đánh dấu đã chia sẻ thành công
       spinAnimation.stop();
       spinValue.setValue(0);
@@ -140,6 +155,11 @@ export default function SharePostModal({ visible, onClose, post }) {
         return newSet;
       });
       setSharedFriends((prev) => new Set([...prev, friendId]));
+
+      // Gọi callback để cập nhật UI người dùng
+      if (onShareSuccess && post?.id) {
+        onShareSuccess(post.id);
+      }
     } catch (error) {
       console.error("Share to messenger error:", error);
       const spinValue = spinAnimations.current[friendId];

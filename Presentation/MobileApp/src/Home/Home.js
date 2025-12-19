@@ -46,6 +46,7 @@ import {
   addReaction,
   getReactionSummary,
   getCommentCount,
+  getShareCount,
   API_BASE_URL,
   getFeedStories,
 } from "../API/Api";
@@ -578,8 +579,12 @@ export default function Home() {
           for (const p of arr) {
             try {
               console.log(`[HOME] Loading reactions for post ${p.id}...`);
-              const reactionData = await getReactionSummary(p.id);
+              const [reactionData, shareCount] = await Promise.all([
+                getReactionSummary(p.id),
+                getShareCount(p.id),
+              ]);
               console.log(`[HOME] Post ${p.id} reaction data:`, reactionData);
+              console.log(`[HOME] Post ${p.id} share count:`, shareCount);
               const topReactions = (reactionData?.reactionCounts || [])
                 .sort((a, b) => b.count - a.count)
                 .slice(0, 3)
@@ -587,7 +592,7 @@ export default function Home() {
               next[p.id] = {
                 liked: reactionData?.userReaction != null,
                 likes: Number(reactionData?.totalReactions ?? 0),
-                shares: Number(p.sharesCount ?? 0),
+                shares: Number(shareCount ?? 0),
                 comments: Number(p.commentsCount ?? 0),
                 reactionType: reactionData?.userReaction,
                 topReactions: topReactions, // Top 3 most used reactions
@@ -1031,18 +1036,6 @@ export default function Home() {
     setShowShareModal(true);
   };
 
-  const onRepost = (postId) => {
-    setPostStates((prev) => {
-      const cur = prev[postId] || {
-        liked: false,
-        likes: 0,
-        shares: 0,
-        comments: 0,
-      };
-      return { ...prev, [postId]: { ...cur, shares: cur.shares + 1 } };
-    });
-  };
-
   const getOwnerId = () => {
     const fromCtx =
       ctxUser?.user_id ?? ctxUser?.userId ?? ctxUser?.UserId ?? ctxUser?.id;
@@ -1302,11 +1295,15 @@ export default function Home() {
           console.log(
             `[HOME REFRESH] 📊 Loading reactions for post ${p.id}...`
           );
-          const reactionData = await getReactionSummary(p.id);
+          const [reactionData, shareCount] = await Promise.all([
+            getReactionSummary(p.id),
+            getShareCount(p.id),
+          ]);
           console.log(
             `[HOME REFRESH] Post ${p.id} reaction data:`,
             JSON.stringify(reactionData)
           );
+          console.log(`[HOME REFRESH] Post ${p.id} share count:`, shareCount);
           const topReactions = (reactionData?.reactionCounts || [])
             .sort((a, b) => b.count - a.count)
             .slice(0, 3)
@@ -1314,7 +1311,7 @@ export default function Home() {
           next[p.id] = {
             liked: reactionData?.userReaction != null,
             likes: Number(reactionData?.totalReactions ?? 0),
-            shares: Number(p.sharesCount ?? 0),
+            shares: Number(shareCount ?? 0),
             comments: Number(p.commentsCount ?? 0),
             reactionType: reactionData?.userReaction,
             topReactions: topReactions,
@@ -1375,7 +1372,10 @@ export default function Home() {
       const newStates = {};
       for (const p of arr) {
         try {
-          const reactionData = await getReactionSummary(p.id);
+          const [reactionData, shareCount] = await Promise.all([
+            getReactionSummary(p.id),
+            getShareCount(p.id),
+          ]);
           const topReactions = (reactionData?.reactionCounts || [])
             .sort((a, b) => b.count - a.count)
             .slice(0, 3)
@@ -1383,7 +1383,7 @@ export default function Home() {
           newStates[p.id] = {
             liked: reactionData?.userReaction != null,
             likes: Number(reactionData?.totalReactions ?? 0),
-            shares: Number(p.sharesCount ?? 0),
+            shares: Number(shareCount ?? 0),
             comments: Number(p.commentsCount ?? 0),
             reactionType: reactionData?.userReaction,
             topReactions: topReactions,
@@ -1867,9 +1867,6 @@ export default function Home() {
                   >
                     {postStates[p.id]?.comments ?? 0}
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => onRepost(p.id)}>
-                  <Ionicons name="repeat-outline" size={28} color="#262626" />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => onShare(p)}>
                   <Ionicons
@@ -2514,6 +2511,19 @@ export default function Home() {
           setSharePost(null);
         }}
         post={sharePost}
+        onShareSuccess={(postId) => {
+          // Cập nhật Optimistic UI - tăng số lượt chia sẻ ngay lập tức
+          setPostStates((prev) => ({
+            ...prev,
+            [postId]: {
+              ...prev[postId],
+              shares: (prev[postId]?.shares || 0) + 1,
+            },
+          }));
+          console.log(
+            `[HOME] 🔄 Optimistic UI: Increased share count for post ${postId}`
+          );
+        }}
       />
     </SafeAreaView>
   );
