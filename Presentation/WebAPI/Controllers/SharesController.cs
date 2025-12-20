@@ -115,29 +115,6 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
             }
         }
 
-        /// <summary>
-        /// Xóa một share
-        /// </summary>
-        [HttpDelete("{shareId}")]
-        public async Task<IActionResult> DeleteShare(int shareId)
-        {
-            try
-            {
-                var userId = GetCurrentUserId();
-                await _shareService.DeleteShareAsync(shareId, userId);
-
-                return Ok(new { message = "Xóa chia sẻ thành công" });
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                return Forbid(ex.Message);
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { error = ex.Message });
-            }
-        }
-
         private int GetCurrentUserId()
         {
             var userIdClaim = User.FindFirst("user_id")?.Value;

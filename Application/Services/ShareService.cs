@@ -80,31 +80,6 @@ namespace UngDungMangXaHoi.Application.Services
             return await _shareRepository.GetShareCountByPostIdAsync(postId);
         }
 
-        public async Task DeleteShareAsync(int shareId, int userId)
-        {
-            var share = await _shareRepository.GetByIdAsync(shareId);
-            
-            if (share == null)
-            {
-                throw new Exception("Chia sẻ không tồn tại");
-            }
-
-            // Chỉ cho phép người tạo share xóa
-            if (share.user_id != userId)
-            {
-                throw new UnauthorizedAccessException("Bạn không có quyền xóa chia sẻ này");
-            }
-
-            await _shareRepository.DeleteAsync(share);
-
-            // Cập nhật real-time
-            var post = await _postRepository.GetByIdAsync(share.post_id);
-            if (post != null)
-            {
-                await SendShareUpdateToPostOwner(post, userId);
-            }
-        }
-
         private async Task CreateAndSendShareNotification(Post post, int sharerUserId)
         {
             var sharer = await _userRepository.GetByIdAsync(sharerUserId);
