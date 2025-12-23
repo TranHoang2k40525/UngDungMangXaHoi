@@ -33,6 +33,7 @@ namespace UngDungMangXaHoi.Application.Services
             var followersCount = await _userRepository.GetFollowersCountAsync(targetUser.user_id);
             var followingCount = await _userRepository.GetFollowingCountAsync(targetUser.user_id);
             var isFollowing = await _userRepository.IsFollowingAsync(currentUser.user_id, targetUser.user_id);
+            var isFollowingMe = await _userRepository.IsFollowingAsync(targetUser.user_id, currentUser.user_id);
 
             return new PublicProfileDto
             {
@@ -49,6 +50,7 @@ namespace UngDungMangXaHoi.Application.Services
                 FollowersCount = followersCount,
                 FollowingCount = followingCount,
                 IsFollowing = isFollowing,
+                IsFollowingMe = isFollowingMe,
                 AccountType = targetUser.Account.account_type.ToString()
             };
         }
@@ -68,6 +70,7 @@ namespace UngDungMangXaHoi.Application.Services
             var followersCount = await _userRepository.GetFollowersCountAsync(targetUser.user_id);
             var followingCount = await _userRepository.GetFollowingCountAsync(targetUser.user_id);
             var isFollowing = await _userRepository.IsFollowingAsync(currentUser.user_id, targetUser.user_id);
+            var isFollowingMe = await _userRepository.IsFollowingAsync(targetUser.user_id, currentUser.user_id);
 
             return new PublicProfileDto
             {
@@ -84,6 +87,7 @@ namespace UngDungMangXaHoi.Application.Services
                 FollowersCount = followersCount,
                 FollowingCount = followingCount,
                 IsFollowing = isFollowing,
+                IsFollowingMe = isFollowingMe,
                 AccountType = targetUser.Account.account_type.ToString()
             };
         }
