@@ -168,24 +168,58 @@ export default function Dashboard() {
           (reaction + comment + (engagement?.ShareCount ?? 0))
         ) || 0;
 
-        // collect media urls (normalize various property names)
-        const rawMediaList = Array.isArray(media) ? media.map(m => m?.MediaUrl ?? m?.mediaUrl ?? m?.Url ?? m?.url ?? '') .filter(Boolean) : [];
-
-        // Build absolute URLs when backend returned filenames or relative paths
+        // collect media items (support multiple shapes) and normalize
         const ensureAbsolute = (u) => {
           if (!u) return '';
+          if (typeof u !== 'string') return '';
           // already absolute
           if (u.startsWith('http://') || u.startsWith('https://')) return u;
           // absolute path on same host
           if (u.startsWith('/')) return window.location.origin + u;
+          // fallback: if starts with 'Assets' or 'assets' assume relative
+          if (/^assets\//i.test(u)) return window.location.origin + '/' + u.replace(/^\/+/, '');
           // fallback: treat as filename inside Assets/Images
           return window.location.origin + '/Assets/Images/' + u;
         };
 
-        const mediaList = rawMediaList.map(ensureAbsolute);
+        const mediaSource = media || p.MediaItems || p.mediaItems || p.MediaUrls || p.mediaUrls || p.Videos || p.Images || [];
+        const mediaList = Array.isArray(mediaSource) ? mediaSource.map(m => {
+          if (!m) return null;
+          if (typeof m === 'string') {
+            const url = ensureAbsolute(m);
+            const type = url.toLowerCase().endsWith('.mp4') ? 'video' : 'image';
+            return { type, url, poster: null };
+          }
+          const url = ensureAbsolute(m.MediaUrl ?? m.mediaUrl ?? m.Url ?? m.url ?? m.file ?? m.Path ?? '');
+          const type = (m.MediaType ?? m.type ?? (url && url.toLowerCase().endsWith('.mp4') ? 'video' : 'image')) || 'image';
+          const poster = ensureAbsolute(m.Poster ?? m.poster ?? m.Thumbnail ?? m.thumbnail ?? m.thumb ?? m.Preview ?? m.preview ?? null) || null;
+          return { type, url, poster };
+        }).filter(x => x && x.url) : [];
 
-        // author avatar fallback
-        const rawAvatar = author?.AvatarUrl ?? author?.avatarUrl ?? author?.Avatar ?? author?.avatar ?? '';
+        // Choose thumbnail: prefer image; if only videos, prefer poster, otherwise fallback to video URL and mark as video
+        let thumbnailUrl = '';
+        let thumbnailIsVideo = false;
+        if (mediaList.length > 0) {
+          const firstImage = mediaList.find(m => m.type && m.type.toLowerCase() === 'image');
+          if (firstImage) {
+            thumbnailUrl = firstImage.url;
+            thumbnailIsVideo = false;
+          } else {
+            const firstVideo = mediaList.find(m => m.type && m.type.toLowerCase() === 'video');
+            if (firstVideo) {
+              if (firstVideo.poster) {
+                thumbnailUrl = firstVideo.poster;
+                thumbnailIsVideo = false;
+              } else {
+                thumbnailUrl = firstVideo.url;
+                thumbnailIsVideo = true;
+              }
+            }
+          }
+        }
+
+        // author avatar fallback - accept many property names
+        const rawAvatar = author?.AvatarUrl ?? author?.avatarUrl ?? author?.Avatar ?? author?.avatar ?? author?.avatar_path ?? author?.avatarUrlPath ?? '';
         const avatar = rawAvatar ? ensureAbsolute(rawAvatar) : '';
 
         return {
@@ -194,10 +228,12 @@ export default function Dashboard() {
           AuthorName: authorName,
           AuthorUsername: authorUsername,
           AuthorAvatar: avatar,
-          MediaUrls: mediaList,
+          MediaUrls: mediaList.map(m => m.url),
+          Thumbnail: thumbnailUrl,
+          ThumbnailIsVideo: thumbnailIsVideo,
           ReactionCount: reaction,
           CommentCount: comment,
-          TotalInteractions: total,
+          TotalInteractions: (reaction || 0) + (comment || 0),
           Raw: p
         };
       });
@@ -645,6 +681,16 @@ export default function Dashboard() {
     }
   };
 
+  // Shared helper to convert filenames or relative paths to absolute URLs
+  const ensureAbsolute = (u) => {
+    if (!u) return '';
+    if (typeof u !== 'string') return '';
+    if (u.startsWith('http://') || u.startsWith('https://')) return u;
+    if (u.startsWith('/')) return window.location.origin + u;
+    if (/^assets\//i.test(u)) return window.location.origin + '/' + u.replace(/^\/+/, '');
+    return window.location.origin + '/Assets/Images/' + u;
+  };
+
   function normalizeTopPost(p) {
     const avatarCandidates = [
       p.AuthorAvatar, p.author?.avatarUrl, p.author?.AvatarUrl, p.user?.avatar, p.avatar, p.author?.avatar?.url
@@ -978,8 +1024,12 @@ export default function Dashboard() {
                       <td className="post-content-cell">
                         <div className="post-preview">
                           <div className="post-preview-inner">
-                            {post.MediaUrls && post.MediaUrls.length > 0 ? (
-                              <img src={post.MediaUrls[0]} alt="thumb" className="post-thumb" />
+                            {post.Thumbnail ? (
+                              post.ThumbnailIsVideo ? (
+                                <video className="post-thumb" src={post.Thumbnail} muted loop playsInline />
+                              ) : (
+                                <img src={post.Thumbnail} alt="thumb" className="post-thumb" />
+                              )
                             ) : null}
                             <div className="post-preview-text">
                               {post.Content ? post.Content.substring(0, 60) : 'Không có nội dung'}
