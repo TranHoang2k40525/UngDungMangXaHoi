@@ -22,6 +22,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         private readonly IPostRepository _postRepository;
         private readonly IUserRepository _userRepository;
         private readonly ICommentRepository _commentRepository;
+            private readonly IAdminRepository _adminRepository;
 
         private readonly PostsService _postsService;
         private readonly BusinessPostInjectionService _businessPostInjectionService;
@@ -43,12 +44,15 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             VideoTranscodeService videoTranscoder,
             IContentModerationService moderationService,
-            IContentModerationRepository moderationRepository)
+            IContentModerationRepository moderationRepository,
+            IAdminRepository adminRepository)
 
         {
             _postRepository = postRepository;
             _userRepository = userRepository;
             _commentRepository = commentRepository;
+
+            _adminRepository = adminRepository;
 
             _postsService = postsService;
             _businessPostInjectionService = businessPostInjectionService;
@@ -507,8 +511,20 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                     return NotFound(new { message = "Post not found" });
                 }
 
-                // Kiểm tra quyền xem post
-                if (post.privacy == "private" && currentUserId != post.user_id)
+                // Kiểm tra quyền xem post: cho phép owner hoặc admin xem private post
+                var isAdmin = false;
+                try
+                {
+                    var accountIdStr2 = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                    if (!string.IsNullOrEmpty(accountIdStr2) && int.TryParse(accountIdStr2, out var accountId2))
+                    {
+                        var admin = await _adminRepository.GetByAccountIdAsync(accountId2);
+                        if (admin != null) isAdmin = true;
+                    }
+                }
+                catch { }
+
+                if (post.privacy == "private" && currentUserId != post.user_id && !isAdmin)
                 {
                     return Forbid();
                 }
