@@ -40,6 +40,8 @@ builder.Services.AddControllers()
         // Allow enums to be (de)serialized from/to strings so frontend can send 'Nam'/'Nữ'/'Khác'
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+        // Use camelCase naming so frontend JS can access properties with conventional camelCase keys
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
     });
 
 builder.Services.AddEndpointsApiExplorer();

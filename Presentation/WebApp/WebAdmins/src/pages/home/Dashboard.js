@@ -126,8 +126,28 @@ export default function Dashboard() {
         activeUsers: activeUsersData.Count || activeUsersData.count || 0,
       }));
 
-      setTopKeywords(keywordsData.keywords || []);
-      setTopPosts(postsData.posts || []);
+      // Normalize top keywords: backend may return different casing
+      const rawKeywords = keywordsData?.keywords || [];
+      const normalizedKeywords = rawKeywords.map(k => ({
+        Keyword: k.Keyword ?? k.keyword ?? k.Key ?? '',
+        SearchCount: Number(k.SearchCount ?? k.searchCount ?? k.search_count ?? 0) || 0,
+        Tyle: Number(k.Tyle ?? k.tyle ?? k.tly ?? 0) || 0
+      }));
+      setTopKeywords(normalizedKeywords);
+
+      // Normalize top posts to the flat shape expected by the table
+      const rawPosts = postsData?.posts || [];
+      const normalizedPosts = rawPosts.map(p => ({
+        PostId: p.PostId ?? p.postId ?? p.post_id ?? null,
+        Content: p.Content ?? p.caption ?? p.Caption ?? p.content ?? '',
+        AuthorName: p.Author?.FullName ?? p.Author?.fullName ?? p.FullName ?? p.authorName ?? '',
+        AuthorUsername: p.Author?.UserName ?? p.Author?.Username ?? p.Author?.username ?? p.AuthorUsername ?? '',
+        ReactionCount: Number(p.ReactionCount ?? p.reactionCount ?? p.Engagement?.ReactionCount ?? p.engagement?.reactionCount ?? 0) || 0,
+        CommentCount: Number(p.CommentCount ?? p.commentCount ?? p.Engagement?.CommentCount ?? p.engagement?.commentCount ?? 0) || 0,
+        TotalInteractions: Number(p.TotalInteractions ?? p.totalInteractions ?? p.Engagement?.TotalEngagement ?? p.engagement?.totalEngagement ?? 0) || 0,
+        Raw: p
+      }));
+      setTopPosts(normalizedPosts);
 
       // Load tất cả charts
       await Promise.all([
@@ -153,24 +173,76 @@ export default function Dashboard() {
       
       const newUsersRes = await dashboardAPI.getNewUserStats(fromDate, toDate, userChartFilter.type);
       const newUsersData = Array.isArray(newUsersRes) ? newUsersRes : (newUsersRes.data || newUsersRes);
-      
-      setStats(prev => ({
-        ...prev,
-        newUsers: Array.isArray(newUsersData) ? newUsersData.reduce((sum, item) => sum + (item.Count || item.count || 0), 0) : 0,
-      }));
 
-      if (Array.isArray(newUsersData) && newUsersData.length > 0) {
-        setNewUserData({
-          labels: newUsersData.map(item => item.DisplayTime),
-          datasets: [{
-            label: 'Người dùng mới',
-            data: newUsersData.map(item => item.Count || item.count),
-            borderColor: 'rgb(75, 192, 192)',
-            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-            tension: 0.3,
-          }],
+      // Normalize returned items into a map: DisplayTime -> Count
+      const countMap = {};
+      if (Array.isArray(newUsersData)) {
+        newUsersData.forEach(item => {
+          const key = item.DisplayTime || item.displayTime || '';
+          const val = Number(item.Count ?? item.count ?? 0) || 0;
+          if (!key) return;
+          countMap[key] = (countMap[key] || 0) + val;
         });
       }
+
+      // Helper to format labels the same way backend does
+      const formatLabel = (dateObj, type) => {
+        const dd = String(dateObj.getDate()).padStart(2, '0');
+        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const yyyy = dateObj.getFullYear();
+        if (type === 'Month') return `${mm}/${yyyy}`; // MM/yyyy
+        // Day and Week use dd/MM/yyyy as backend's GetUserNewDate uses
+        return `${dd}/${mm}/${yyyy}`;
+      };
+
+      // Build expected labels for the selected grouping and fill missing periods with 0
+      const expectedLabels = [];
+      const counts = [];
+      const grouping = userChartFilter.type || 'Day';
+      const cur = new Date(fromDate);
+
+      if (grouping === 'Month') {
+        cur.setDate(1);
+        while (cur <= toDate) {
+          const lbl = formatLabel(cur, 'Month');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+          cur.setMonth(cur.getMonth() + 1);
+        }
+      } else if (grouping === 'Week') {
+        // Step by 7 days
+        while (cur <= toDate) {
+          const lbl = formatLabel(cur, 'Day');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+          cur.setDate(cur.getDate() + 7);
+        }
+      } else {
+        // Day grouping: every day
+        while (cur <= toDate) {
+          const lbl = formatLabel(cur, 'Day');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+          cur.setDate(cur.getDate() + 1);
+        }
+      }
+
+      setStats(prev => ({
+        ...prev,
+        newUsers: counts.reduce((sum, v) => sum + v, 0),
+      }));
+
+      // Always set chart data (even if all zeros) so chart shows full period
+      setNewUserData({
+        labels: expectedLabels,
+        datasets: [{
+          label: 'Người dùng mới',
+          data: counts,
+          borderColor: 'rgb(75, 192, 192)',
+          backgroundColor: 'rgba(75, 192, 192, 0.2)',
+          tension: 0.3,
+        }],
+      });
     } catch (error) {
       console.error('Error loading user chart:', error);
     } finally {
@@ -295,7 +367,10 @@ export default function Dashboard() {
   const handleViewPost = async (postId) => {
     try {
       const postDetail = await dashboardAPI.getPostDetail(postId);
-      setSelectedPost(postDetail.data);
+      // apiClient interceptor returns response.data directly in many places,
+      // frontend code sometimes expects { data: ... } shape. Accept both.
+      const payload = postDetail?.data || postDetail;
+      setSelectedPost(payload);
       setIsModalOpen(true);
     } catch (error) {
       console.error('Error loading post detail:', error);
