@@ -178,11 +178,8 @@ export default function Dashboard() {
           if (u.startsWith('http://') || u.startsWith('https://')) return u;
           // absolute path on same host
           if (u.startsWith('/')) return window.location.origin + u;
-          // otherwise try to detect media type by extension
-          const lower = u.toLowerCase();
-          const isVideo = lower.endsWith('.mp4') || lower.endsWith('.mov') || lower.endsWith('.m4v') || lower.endsWith('.avi') || lower.endsWith('.wmv') || lower.endsWith('.mkv');
-          const folder = isVideo ? 'Videos' : 'Images';
-          return `${window.location.origin}/Assets/${folder}/${u}`;
+          // fallback: treat as filename inside Assets/Images
+          return window.location.origin + '/Assets/Images/' + u;
         };
 
         const mediaList = rawMediaList.map(ensureAbsolute);
@@ -296,12 +293,22 @@ export default function Dashboard() {
           cur.setMonth(cur.getMonth() + 1);
         }
       } else if (grouping === 'Week') {
-        // Step by 7 days
+        // Step by 7 days, label as Week
         while (cur <= toDate) {
-          const lbl = formatLabel(cur, 'Day');
+          const lbl = formatLabel(cur, 'Week');
           expectedLabels.push(lbl);
           counts.push(countMap[lbl] || 0);
           cur.setDate(cur.getDate() + 7);
+        }
+      } else if (grouping === 'Year') {
+        // Step by year
+        const startYear = cur.getFullYear();
+        const endYear = toDate.getFullYear();
+        for (let y = startYear; y <= endYear; y++) {
+          const yearDate = new Date(y, 0, 1);
+          const lbl = formatLabel(yearDate, 'Year');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
         }
       } else {
         // Day grouping: every day
@@ -356,8 +363,6 @@ export default function Dashboard() {
           if (!v) return;
           countMap[v] = (countMap[v] || 0) + val;
         });
-        // also register the raw label itself
-        if (lbl) countMap[lbl] = (countMap[lbl] || 0) + val;
       });
 
       const grouping = businessChartFilter.type || 'Day';
@@ -379,6 +384,15 @@ export default function Dashboard() {
           expectedLabels.push(lbl);
           counts.push(countMap[lbl] || 0);
           cur.setDate(cur.getDate() + 7);
+        }
+      } else if (grouping === 'Year') {
+        const startYear = cur.getFullYear();
+        const endYear = toDate.getFullYear();
+        for (let y = startYear; y <= endYear; y++) {
+          const yearDate = new Date(y, 0, 1);
+          const lbl = formatPeriodLabel(yearDate, 'Year');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
         }
       } else {
         while (cur <= toDate) {
@@ -430,7 +444,6 @@ export default function Dashboard() {
           if (!v) return;
           countMap[v] = (countMap[v] || 0) + val;
         });
-        if (lbl) countMap[lbl] = (countMap[lbl] || 0) + val;
       });
 
       const grouping = revenueChartFilter.type || 'Day';
@@ -452,6 +465,15 @@ export default function Dashboard() {
           expectedLabels.push(lbl);
           values.push(countMap[lbl] || 0);
           cur.setDate(cur.getDate() + 7);
+        }
+      } else if (grouping === 'Year') {
+        const startYear = cur.getFullYear();
+        const endYear = toDate.getFullYear();
+        for (let y = startYear; y <= endYear; y++) {
+          const yearDate = new Date(y, 0, 1);
+          const lbl = formatPeriodLabel(yearDate, 'Year');
+          expectedLabels.push(lbl);
+          values.push(countMap[lbl] || 0);
         }
       } else {
         while (cur <= toDate) {
@@ -503,7 +525,6 @@ export default function Dashboard() {
           if (!v) return;
           countMap[v] = (countMap[v] || 0) + val;
         });
-        if (lbl) countMap[lbl] = (countMap[lbl] || 0) + val;
       });
 
       const grouping = postChartFilter.type || 'Day';
@@ -525,6 +546,15 @@ export default function Dashboard() {
           expectedLabels.push(lbl);
           counts.push(countMap[lbl] || 0);
           cur.setDate(cur.getDate() + 7);
+        }
+      } else if (grouping === 'Year') {
+        const startYear = cur.getFullYear();
+        const endYear = toDate.getFullYear();
+        for (let y = startYear; y <= endYear; y++) {
+          const yearDate = new Date(y, 0, 1);
+          const lbl = formatPeriodLabel(yearDate, 'Year');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
         }
       } else {
         while (cur <= toDate) {
@@ -614,6 +644,28 @@ export default function Dashboard() {
       }
     }
   };
+
+  function normalizeTopPost(p) {
+    const avatarCandidates = [
+      p.AuthorAvatar, p.author?.avatarUrl, p.author?.AvatarUrl, p.user?.avatar, p.avatar, p.author?.avatar?.url
+    ];
+    const avatarRaw = avatarCandidates.find(x=>x);
+    const _avatar = ensureAbsolute(avatarRaw);
+
+    const mediaSource = p.Media || p.media || p.Images || p.Videos || p.mediaUrls || p.MediaUrls || [];
+    const mediaList = (Array.isArray(mediaSource) ? mediaSource : []).map(m=>{
+      const url = m.url || m.MediaUrl || m.mediaUrl || m; 
+      const type = m.type || (url && url.toLowerCase().endsWith('.mp4') ? 'video' : 'image');
+      const poster = m.poster || m.thumb || null;
+      return { type, url: ensureAbsolute(url), poster: poster ? ensureAbsolute(poster) : null };
+    });
+
+    const comments = p.commentsCount ?? p.comments ?? p.CommentCount ?? 0;
+    const reactions = p.reactionsCount ?? p.reactionCount ?? p.likes ?? 0;
+    const total = (reactions||0) + (comments||0);
+
+    return { ...p, _avatar, _media: mediaList, _comments: comments, _reactions: reactions, _total: total };
+  }
 
   if (loading) {
     return (

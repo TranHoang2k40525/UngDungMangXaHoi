@@ -3,6 +3,14 @@ import { useEffect, useState } from 'react';
 import { FiHeart, FiMessageSquare, FiRepeat, FiBarChart2, FiX } from 'react-icons/fi';
 import { reactionsAPI } from '../services/api.js';
 
+function ensureAbsolute(url) {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/')) return window.location.origin + url;
+  // fallback: treat as filename inside Assets/Images
+  return window.location.origin + '/Assets/Images/' + url;
+}
+
 export default function PostModal({ post, onClose }) {
   if (!post) return null;
 
