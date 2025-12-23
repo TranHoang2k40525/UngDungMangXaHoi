@@ -34,4 +34,13 @@ namespace UngDungMangXaHoi.Application.DTOs
         public string ViewerAvatar { get; set; } = string.Empty;
         public DateTime ViewedAt { get; set; }
     }
+
+    // DTO for grouped stories by user in feed
+    public class UserStoriesGroupDto
+    {
+        public int UserId { get; set; }
+        public string UserName { get; set; } = string.Empty;
+        public string UserAvatar { get; set; } = string.Empty;
+        public List<StoryDto> Stories { get; set; } = new List<StoryDto>();
+    }
 }

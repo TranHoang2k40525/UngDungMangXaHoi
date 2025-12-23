@@ -215,6 +215,7 @@ const styles = StyleSheet.create({
         padding: 2,
         backgroundColor: "#fff",
         marginBottom: 4,
+        overflow: "hidden", // Ngăn avatar bị tràn ra ngoài
     },
     storyAvatarBorder: {
         borderWidth: 2,
@@ -229,12 +230,14 @@ const styles = StyleSheet.create({
         width: "100%",
         height: "100%",
         borderRadius: 32,
+        backgroundColor: "#F3F4F6", // Background cho avatar khi chưa load
     },
     storyName: {
         fontSize: 12,
         textAlign: "center",
         color: "#262626",
         width: "100%",
+        marginTop: 2,
     },
     plusCircle: {
         width: "100%",
@@ -251,13 +254,14 @@ const styles = StyleSheet.create({
     },
     indicator: {
         position: "absolute",
-        top: -2,
-        right: 6,
+        top: 0,
+        right: 8,
         width: 12,
         height: 12,
         borderRadius: 6,
         backgroundColor: "#FF3B30",
         borderWidth: 2,
         borderColor: "#fff",
+        zIndex: 10, // Đảm bảo indicator luôn ở trên cùng
     },
 });

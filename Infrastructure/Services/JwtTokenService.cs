@@ -54,14 +54,9 @@ namespace UngDungMangXaHoi.Infrastructure.Services
                 new Claim(ClaimTypes.NameIdentifier, account.account_id.ToString()),
                 new Claim(ClaimTypes.Email, account.email?.Value ?? string.Empty),
                 new Claim(ClaimTypes.Role, account.account_type.ToString()),
-                new Claim("account_type", account.account_type.ToString())
+                new Claim("account_type", account.account_type.ToString()),
+                new Claim("user_id", account.User?.user_id.ToString() ?? "0")
             };
-
-            // Add user_id claim if this is a User account (not Admin)
-            if (account.account_type == AccountType.User && account.User != null)
-            {
-                claims.Add(new Claim("user_id", account.User.user_id.ToString()));
-            }
 
             var now = DateTime.UtcNow;
             var tokenDescriptor = new SecurityTokenDescriptor

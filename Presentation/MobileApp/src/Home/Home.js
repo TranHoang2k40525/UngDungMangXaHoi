@@ -105,30 +105,29 @@ const PostImagesCarousel = ({ images = [] }) => {
               style={[styles.postImage, { width: imageWidth }]}
             />
           </TouchableOpacity>
-        )}
-        onMomentumScrollEnd={(e) => {
+                )}
+                onMomentumScrollEnd={(e) => {
           const w = e.nativeEvent.layoutMeasurement.width || imageWidth;
-          const x = e.nativeEvent.contentOffset.x || 0;
-          setIndex(Math.max(0, Math.round(x / w)));
-        }}
-      />
-      <View style={styles.imageCounter}>
-        <Text style={styles.imageCounterText}>
-          {index + 1}/{images.length}
-        </Text>
-      </View>
-      <View style={styles.dotsContainer}>
-        {images.map((_, i) => (
-          <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
-        ))}
-      </View>
+                    const x = e.nativeEvent.contentOffset.x || 0;
+                    setIndex(Math.max(0, Math.round(x / w)));
+                }}
+            />
+            <View style={styles.imageCounter}>
+                <Text style={styles.imageCounterText}>
+                    {index + 1}/{images.length}
+                </Text>
+            </View>
+            <View style={styles.dotsContainer}>
+                {images.map((_, i) => (
+                    <View
+                        key={i}
+                        style={[styles.dot, i === index && styles.dotActive]}
+                    />
+                ))}
+            </View>
       {/* ImageViewer modal */}
       {viewerVisible && (
-        <Modal
-          visible={viewerVisible}
-          transparent
-          onRequestClose={() => setViewerVisible(false)}
-        >
+        <Modal visible={viewerVisible} transparent onRequestClose={() => setViewerVisible(false)}>
           <ImageViewer
             imageUrls={images.map((url) => ({ url }))}
             index={viewerIndex}
@@ -138,27 +137,15 @@ const PostImagesCarousel = ({ images = [] }) => {
             saveToLocalByLongPress={false}
             enablePreload={true}
             renderIndicator={(currentIndex, allSize) => (
-              <View
-                style={{
-                  position: "absolute",
-                  top: 40,
-                  right: 20,
-                  backgroundColor: "rgba(0,0,0,0.5)",
-                  borderRadius: 12,
-                  paddingHorizontal: 10,
-                  paddingVertical: 4,
-                }}
-              >
-                <Text style={{ color: "#fff", fontWeight: "bold" }}>
-                  {currentIndex}/{allSize}
-                </Text>
+              <View style={{ position: 'absolute', top: 40, right: 20, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 }}>
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>{currentIndex}/{allSize}</Text>
               </View>
             )}
           />
         </Modal>
       )}
-    </View>
-  );
+        </View>
+    );
 };
 
 const getReactionEmoji = (reactionType) => {
@@ -299,294 +286,295 @@ export default function Home() {
     };
   };
   // Stories storage key helper (per-user)
-  const storiesStorageKey = (userId) => {
-    if (userId == null) return "currentUserStories";
-    return `currentUserStories_${userId}`;
-  };
-  // Stories data for header: add slot + my story
-  const storiesData = useMemo(
-    () => [
-      {
-        id: "add",
-        name: "Thêm vào chuyện của bạn",
-        avatar: null,
-        hasStory: false,
-        storyData: null,
-      },
-      myStorySlot,
-    ],
-    [myStorySlot]
-  );
+    const storiesStorageKey = (userId) => {
+        if (userId == null) return "currentUserStories";
+        return `currentUserStories_${userId}`;
+    };
+  // Stories data for header: add slot + my story + friend stories
+  const storiesData = useMemo(() => [
+    { id: 'add', name: 'Thêm vào chuyện của bạn', avatar: null, hasStory: false, storyData: null },
+    myStorySlot,
+    ...friendStories
+  ], [myStorySlot, friendStories]);
   // Function to load user avatar and info
-  const loadUserAvatar = async () => {
-    try {
-      const userStr = await AsyncStorage.getItem("userInfo");
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        const rawAvatar = user?.avatarUrl ?? user?.avatar_url ?? null;
-        const avatarUri = rawAvatar
-          ? String(rawAvatar).startsWith("http")
-            ? rawAvatar
-            : `${API_BASE_URL}${rawAvatar}`
-          : null;
-
-        setMyStorySlot((prev) => ({
-          ...prev,
-          name: user?.username || prev.name,
-          avatar: avatarUri
-            ? { uri: avatarUri }
-            : require("../Assets/trai.png"),
-        }));
-
-        const key = storiesStorageKey(
-          user?.user_id ?? user?.userId ?? user?.UserId ?? null
-        );
-        const savedStoriesStr = await AsyncStorage.getItem(key);
-        if (savedStoriesStr) {
-          try {
-            let storiesArray = JSON.parse(savedStoriesStr);
-            storiesArray = storiesArray.map((story) => ({
-              ...story,
-              userAvatar: avatarUri,
-              userName: user?.username || story.userName,
-            }));
-            await AsyncStorage.setItem(key, JSON.stringify(storiesArray));
-            setMyStorySlot((prev) => ({
-              ...prev,
-              storyData: storiesArray,
-            }));
-          } catch (e) {
-            console.warn("[HOME] Failed updating saved stories avatars:", e);
-          }
-        }
-      }
-    } catch (e) {
-      console.warn("[HOME] Error loading user avatar:", e);
-    }
-  };
-
-  // Check user story (per-user storage + API fallback)
-  const checkUserStory = async (userId) => {
-    try {
-      const key = storiesStorageKey(userId);
-      const savedStories = await AsyncStorage.getItem(key);
-      if (savedStories) {
-        let storiesArray = JSON.parse(savedStories);
-        const storedOwnerId =
-          storiesArray && storiesArray.length > 0
-            ? storiesArray[0].userId ?? storiesArray[0].user_id ?? null
-            : null;
-        if (storedOwnerId != null && Number(storedOwnerId) !== Number(userId)) {
-          await AsyncStorage.removeItem(key);
-        } else {
-          const now = Date.now();
-          const validStories = storiesArray.filter((s) => {
-            const age = now - new Date(s.createdAt).getTime();
-            return age < 24 * 60 * 60 * 1000;
-          });
-
-          if (validStories.length > 0) {
-            if (validStories.length !== storiesArray.length) {
-              await AsyncStorage.setItem(key, JSON.stringify(validStories));
-            }
-
-            setMyStorySlot((prev) => ({
-              ...prev,
-              hasStory: true,
-              id: "me",
-              storyData: validStories,
-            }));
-            return;
-          } else {
-            await AsyncStorage.removeItem(key);
-            setMyStorySlot((prev) => ({
-              ...prev,
-              hasStory: false,
-              storyData: null,
-            }));
-            return;
-          }
-        }
-      }
-
-      // API fallback for current user's stories
-      const response = await fetch(
-        `${API_BASE_URL}/api/stories/user/${userId}/active`
-      );
-      if (!response.ok) {
-        console.log("[HOME] No active stories found from API");
-        setMyStorySlot((prev) => ({
-          ...prev,
-          hasStory: false,
-          storyData: null,
-        }));
-        return;
-      }
-
-      const data = await response.json();
-      let storiesFromAPI = [];
-      if (data?.data) {
-        storiesFromAPI = Array.isArray(data.data) ? data.data : [data.data];
-      }
-
-      if (storiesFromAPI.length > 0) {
-        const storyDataArray = storiesFromAPI.map((story) => ({
-          id: story.id,
-          mediaUrl: story.mediaUrl,
-          mediaType: story.mediaType,
-          userName: story.userName,
-          userAvatar: story.userAvatar,
-          createdAt: story.createdAt,
-          viewCount: story.viewCount || 0,
-          userId: story.userId ?? userId,
-        }));
-
-        setMyStorySlot((prev) => ({
-          ...prev,
-          hasStory: true,
-          id: "me",
-          storyData: storyDataArray,
-        }));
-
-        await AsyncStorage.setItem(key, JSON.stringify(storyDataArray));
-      } else {
-        setMyStorySlot((prev) => ({
-          ...prev,
-          hasStory: false,
-          storyData: null,
-        }));
-      }
-    } catch (error) {
-      console.error("[HOME] Error checking user stories:", error);
-    }
-  };
-
-  // ✅ FIX: Load friend stories with proper deduplication
-  const loadFeedStories = async () => {
-    try {
-      console.log("[Home] Loading feed stories...");
-      const res = await getFeedStories();
-      const raw = res?.data ?? res ?? [];
-      const list = Array.isArray(raw) ? raw : [];
-
-      console.log("[Home] Raw feed stories count:", list.length);
-
-      // ✅ Deduplicate by userId BEFORE mapping
-      const uniqueUsers = new Map();
-
-      for (const userStory of list) {
-        const uid = String(userStory.userId);
-
-        // Skip current user
-        if (Number(uid) === Number(currentUserId)) {
-          continue;
-        }
-
-        // Keep first occurrence or merge stories
-        if (!uniqueUsers.has(uid)) {
-          uniqueUsers.set(uid, userStory);
-        } else {
-          // If duplicate, merge stories
-          const existing = uniqueUsers.get(uid);
-          const existingStories = Array.isArray(existing.stories)
-            ? existing.stories
-            : [];
-          const newStories = Array.isArray(userStory.stories)
-            ? userStory.stories
-            : [];
-          existing.stories = [...existingStories, ...newStories];
-        }
-      }
-
-      console.log("[Home] Unique users after deduplication:", uniqueUsers.size);
-
-      // Map to final format
-      const mapped = Array.from(uniqueUsers.values()).map((u) => {
-        const stories = Array.isArray(u.stories) ? u.stories : [];
-        const hasStory = stories.length > 0 || !!u.storyId || !!u.mediaUrl;
-
-        return {
-          id: String(u.userId),
-          name: u.username || u.userName || "user",
-          avatar:
-            u.userAvatar ||
-            u.avatarUrl ||
-            (u.avatar ? `${API_BASE_URL}${u.avatar}` : null),
-          hasStory,
-          storyData:
-            stories.length > 0
-              ? stories.map((s) => ({
-                  id: s.id || s.storyId,
-                  mediaUrl: s.mediaUrl || s.media_url || s.url,
-                  mediaType:
-                    s.mediaType ||
-                    s.media_type ||
-                    (s.url && s.url.endsWith(".mp4") ? "video" : "image"),
-                  userName: u.username || u.userName,
-                  userAvatar: u.userAvatar || u.avatarUrl,
-                  createdAt: s.createdAt || s.created_at,
-                  userId: u.userId,
-                  privacy: s.privacy || "public",
-                }))
-              : u.story
-              ? [u.story]
-              : [],
-        };
-      });
-
-      console.log("[Home] Final mapped friends with stories:", mapped.length);
-      setFriendStories(mapped);
-    } catch (e) {
-      console.warn("[HOME] loadFeedStories error:", e);
-    }
-  };
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
+    const loadUserAvatar = async () => {
         try {
-          const userStr = await AsyncStorage.getItem("userInfo");
-          if (userStr) {
-            const user = JSON.parse(userStr);
-            const raw =
-              user?.user_id ?? user?.userId ?? user?.UserId ?? user?.id ?? null;
-            const uidNum = raw != null ? Number(raw) : null;
-            if (mounted)
-              setCurrentUserId(Number.isFinite(uidNum) ? uidNum : null);
+            const userStr = await AsyncStorage.getItem("userInfo");
+            if (userStr) {
+                const user = JSON.parse(userStr);
+                const rawAvatar = user?.avatarUrl ?? user?.avatar_url ?? null;
+                const avatarUri = rawAvatar
+                    ? String(rawAvatar).startsWith("http")
+                        ? rawAvatar
+                        : `${API_BASE_URL}${rawAvatar}`
+                    : null;
 
-            if (Number.isFinite(uidNum)) {
-              await checkUserStory(uidNum);
+                setMyStorySlot((prev) => ({
+                    ...prev,
+                    name: user?.username || prev.name,
+                    avatar: avatarUri
+                        ? { uri: avatarUri }
+                        : require("../Assets/trai.png"),
+                }));
+
+                const key = storiesStorageKey(
+                    user?.user_id ?? user?.userId ?? user?.UserId ?? null
+                );
+                const savedStoriesStr = await AsyncStorage.getItem(key);
+                if (savedStoriesStr) {
+                    try {
+                        let storiesArray = JSON.parse(savedStoriesStr);
+                        storiesArray = storiesArray.map((story) => ({
+                            ...story,
+                            userAvatar: avatarUri,
+                            userName: user?.username || story.userName,
+                        }));
+                        await AsyncStorage.setItem(
+                            key,
+                            JSON.stringify(storiesArray)
+                        );
+                        setMyStorySlot((prev) => ({
+                            ...prev,
+                            storyData: storiesArray,
+                        }));
+                    } catch (e) {
+                        console.warn(
+                            "[HOME] Failed updating saved stories avatars:",
+                            e
+                        );
+                    }
+                }
             }
-            await loadUserAvatar();
-          }
         } catch (e) {
-          console.warn("[HOME] Error loading user from AsyncStorage:", e);
+            console.warn("[HOME] Error loading user avatar:", e);
         }
+    };
 
+    // Check user story (per-user storage + API fallback)
+    const checkUserStory = async (userId) => {
         try {
-          const prof = await getProfile();
-          const profId = prof?.userId ?? prof?.UserId;
-          if (profId != null) {
-            const uid = Number(profId);
-            if (Number.isFinite(uid)) {
-              if (mounted) setCurrentUserId(uid);
+            const key = storiesStorageKey(userId);
+            const savedStories = await AsyncStorage.getItem(key);
+            if (savedStories) {
+                let storiesArray = JSON.parse(savedStories);
+                const storedOwnerId =
+                    storiesArray && storiesArray.length > 0
+                        ? storiesArray[0].userId ??
+                          storiesArray[0].user_id ??
+                          null
+                        : null;
+                if (
+                    storedOwnerId != null &&
+                    Number(storedOwnerId) !== Number(userId)
+                ) {
+                    await AsyncStorage.removeItem(key);
+                } else {
+                    const now = Date.now();
+                    const validStories = storiesArray.filter((s) => {
+                        const age = now - new Date(s.createdAt).getTime();
+                        return age < 24 * 60 * 60 * 1000;
+                    });
+
+                    if (validStories.length > 0) {
+                        if (validStories.length !== storiesArray.length) {
+                            await AsyncStorage.setItem(
+                                key,
+                                JSON.stringify(validStories)
+                            );
+                        }
+
+                        setMyStorySlot((prev) => ({
+                            ...prev,
+                            hasStory: true,
+                            id: "me",
+                            storyData: validStories,
+                        }));
+                        return;
+                    } else {
+                        await AsyncStorage.removeItem(key);
+                        setMyStorySlot((prev) => ({
+                            ...prev,
+                            hasStory: false,
+                            storyData: null,
+                        }));
+                        return;
+                    }
+                }
+            }
+
+            // API fallback for current user's stories
+            const response = await fetch(
+                `${API_BASE_URL}/api/stories/user/${userId}/active`
+            );
+            if (!response.ok) {
+        console.log('[HOME] No active stories found from API');
+        setMyStorySlot(prev => ({
+                    ...prev,
+                    hasStory: false,
+                    storyData: null,
+                }));
+                return;
+            }
+
+            const data = await response.json();
+            let storiesFromAPI = [];
+            if (data?.data) {
+                storiesFromAPI = Array.isArray(data.data)
+                    ? data.data
+                    : [data.data];
+            }
+
+            if (storiesFromAPI.length > 0) {
+                const storyDataArray = storiesFromAPI.map((story) => ({
+                    id: story.id,
+                    mediaUrl: story.mediaUrl,
+                    mediaType: story.mediaType,
+                    userName: story.userName,
+                    userAvatar: story.userAvatar,
+                    createdAt: story.createdAt,
+                    viewCount: story.viewCount || 0,
+                    userId: story.userId ?? userId,
+                }));
+
+                setMyStorySlot((prev) => ({
+                    ...prev,
+                    hasStory: true,
+                    id: "me",
+                    storyData: storyDataArray,
+                }));
+
+                await AsyncStorage.setItem(key, JSON.stringify(storyDataArray));
+            } else {
+                setMyStorySlot((prev) => ({
+                    ...prev,
+                    hasStory: false,
+                    storyData: null,
+                }));
+            }
+        } catch (error) {
+            console.error("[HOME] Error checking user stories:", error);
+        }
+    };
+
+    // ✅ Load friend stories - API now returns grouped by user
+    const loadFeedStories = async () => {
+        try {
+            console.log("[Home] ===== Loading feed stories =====");
+            console.log("[Home] Current user ID:", currentUserId);
+            
+            const res = await getFeedStories();
+            console.log("[Home] API Response:", JSON.stringify(res, null, 2));
+            
+            const raw = res?.data ?? res ?? [];
+            const list = Array.isArray(raw) ? raw : [];
+
+            console.log("[Home] Raw feed stories (grouped by user) count:", list.length);
+            console.log("[Home] Raw data structure:", JSON.stringify(list, null, 2));
+
+            // Map from API format (UserStoriesGroupDto) to component format
+            // HIỂN THỊ TẤT CẢ BẠN BÈ (kể cả không có story)
+            const mapped = list
+                .filter((userGroup) => {
+                    // Skip current user
+                    const shouldSkip = Number(userGroup.userId) === Number(currentUserId);
+                    console.log(`[Home] User ${userGroup.userId} (${userGroup.userName}): Skip=${shouldSkip}`);
+                    return !shouldSkip;
+                })
+                .map((userGroup) => {
+                    const stories = Array.isArray(userGroup.stories) ? userGroup.stories : [];
+                    
+                    // Process avatar URL
+                    let avatarUrl = userGroup.userAvatar || userGroup.avatarUrl;
+                    if (avatarUrl && !avatarUrl.startsWith('http')) {
+                        avatarUrl = `${API_BASE_URL}${avatarUrl}`;
+                    }
+
+                    const result = {
+                        id: String(userGroup.userId),
+                        name: userGroup.userName || userGroup.username || "user",
+                        avatar: avatarUrl,
+                        hasStory: stories.length > 0, // true nếu có story, false nếu chưa có
+                        storyData: stories.length > 0 ? stories.map((s) => ({
+                            id: s.id,
+                            mediaUrl: s.mediaUrl,
+                            mediaType: s.mediaType,
+                            userName: userGroup.userName,
+                            userAvatar: avatarUrl,
+                            createdAt: s.createdAt,
+                            userId: userGroup.userId,
+                            privacy: s.privacy || "public",
+                            viewCount: s.viewCount || 0,
+                        })) : [], // Bạn bè chưa có story thì storyData = []
+                    };
+                    
+                    console.log(`[Home] Mapped user: ${result.name}, hasStory: ${result.hasStory}, stories count: ${result.storyData.length}`);
+                    return result;
+                });
+
+            console.log("[Home] Final mapped friends with stories:", mapped.length);
+            console.log("[Home] Mapped data:", JSON.stringify(mapped, null, 2));
+            setFriendStories(mapped);
+        } catch (e) {
+            console.warn("[HOME] loadFeedStories error:", e);
+            console.error("[HOME] Error stack:", e.stack);
+        }
+    };
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                try {
+                    const userStr = await AsyncStorage.getItem("userInfo");
+                    if (userStr) {
+                        const user = JSON.parse(userStr);
+                        const raw =
+                            user?.user_id ??
+                            user?.userId ??
+                            user?.UserId ??
+                            user?.id ??
+                            null;
+                        const uidNum = raw != null ? Number(raw) : null;
+                        if (mounted)
+                            setCurrentUserId(
+                                Number.isFinite(uidNum) ? uidNum : null
+                            );
+
+                        if (Number.isFinite(uidNum)) {
+                            await checkUserStory(uidNum);
+                        }
+                        await loadUserAvatar();
+                    }
+                } catch (e) {
+                    console.warn(
+                        "[HOME] Error loading user from AsyncStorage:",
+                        e
+                    );
+                }
+
+                try {
+                    const prof = await getProfile();
+                    const profId = prof?.userId ?? prof?.UserId;
+                    if (profId != null) {
+                        const uid = Number(profId);
+                        if (Number.isFinite(uid)) {
+                            if (mounted) setCurrentUserId(uid);
               console.log("[HOME] getProfile() -> userId set:", uid);
             } else {
               console.log("[HOME] getProfile() -> invalid userId:", profId);
-            }
+                        }
           } else {
             console.log("[HOME] getProfile() -> no userId on payload");
-          }
-        } catch (e) {
-          console.log(
-            "[HOME] getProfile() failed (non-fatal):",
-            e?.message || e
-          );
-        }
+                    }
+                } catch (e) {
+                    console.log(
+                        "[HOME] getProfile() failed (non-fatal):",
+                        e?.message || e
+                    );
+                }
 
-        const data = await getFeed(1, 10);
-        if (mounted) {
+                const data = await getFeed(1, 10);
+                if (mounted) {
           let arr = Array.isArray(data) ? data : [];
           console.log(`[HOME] 📥 Initial feed loaded - ${arr.length} posts`);
           // KHÔNG sort lại - backend đã trả về thứ tự đúng (prioritized + Business injected)
@@ -669,51 +657,57 @@ export default function Home() {
     }
   }, [currentUserId]);
 
-  useEffect(() => {
-    if (route.params?.createdStory && route.params?.newStory) {
-      const story = route.params.newStory;
-      const ownerId = story.userId ?? story.user_id ?? currentUserId ?? null;
-      const newStoryData = {
-        id: story.id,
-        mediaUrl: story.mediaUrl,
-        mediaType: story.mediaType,
-        createdAt: story.createdAt,
-        userName: story.userName,
-        userAvatar: story.userAvatar,
-        viewCount: 0,
-        userId: ownerId,
-      };
-      (async () => {
-        try {
-          const key = storiesStorageKey(ownerId);
-          const savedStories = await AsyncStorage.getItem(key);
-          let storiesArray = savedStories ? JSON.parse(savedStories) : [];
-          const now = Date.now();
-          storiesArray = storiesArray.filter((s) => {
-            const age = now - new Date(s.createdAt).getTime();
-            return age < 24 * 60 * 60 * 1000;
-          });
-          storiesArray.unshift(newStoryData);
-          await AsyncStorage.setItem(key, JSON.stringify(storiesArray));
-          if (Number(ownerId) === Number(currentUserId)) {
-            setMyStorySlot((prev) => ({
-              ...prev,
-              id: "me",
-              hasStory: true,
-              storyData: storiesArray,
-            }));
-          }
-          await loadFeedStories();
-        } catch (e) {
-          console.warn("[HOME] Failed to save story array:", e);
+    useEffect(() => {
+        if (route.params?.createdStory && route.params?.newStory) {
+            const story = route.params.newStory;
+            const ownerId =
+                story.userId ?? story.user_id ?? currentUserId ?? null;
+            const newStoryData = {
+                id: story.id,
+                mediaUrl: story.mediaUrl,
+                mediaType: story.mediaType,
+                createdAt: story.createdAt,
+                userName: story.userName,
+                userAvatar: story.userAvatar,
+                viewCount: 0,
+                userId: ownerId,
+            };
+            (async () => {
+                try {
+                    const key = storiesStorageKey(ownerId);
+                    const savedStories = await AsyncStorage.getItem(key);
+                    let storiesArray = savedStories
+                        ? JSON.parse(savedStories)
+                        : [];
+                    const now = Date.now();
+                    storiesArray = storiesArray.filter((s) => {
+                        const age = now - new Date(s.createdAt).getTime();
+                        return age < 24 * 60 * 60 * 1000;
+                    });
+                    storiesArray.unshift(newStoryData);
+                    await AsyncStorage.setItem(
+                        key,
+                        JSON.stringify(storiesArray)
+                    );
+                    if (Number(ownerId) === Number(currentUserId)) {
+                        setMyStorySlot((prev) => ({
+                            ...prev,
+                            id: "me",
+                            hasStory: true,
+                            storyData: storiesArray,
+                        }));
+                    }
+                    await loadFeedStories();
+                } catch (e) {
+                    console.warn("[HOME] Failed to save story array:", e);
+                }
+            })();
+            navigation.setParams({
+                createdStory: undefined,
+                newStory: undefined,
+                timestamp: undefined,
+            });
         }
-      })();
-      navigation.setParams({
-        createdStory: undefined,
-        newStory: undefined,
-        timestamp: undefined,
-      });
-    }
   }, [route.params?.timestamp]);
   // Refresh feed when screen focuses + reload avatar
   useEffect(() => {
@@ -771,10 +765,9 @@ export default function Home() {
   // Reload story whenever currentUserId changes
   useEffect(() => {
     if (currentUserId != null && Number.isFinite(currentUserId)) {
-      console.log(
-        "[HOME] CurrentUserId changed, reloading story:",
-        currentUserId
-      );
+      console.log('[HOME] CurrentUserId changed, reloading story:', currentUserId);
+      // ✅ Load friend stories when currentUserId is available
+      loadFeedStories();
       checkUserStory(currentUserId);
     }
   }, [currentUserId]);
@@ -825,63 +818,68 @@ export default function Home() {
     }
   };
 
-  const handleAddStory = async () => {
-    try {
-      const { status } =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== "granted") {
-        console.log("Media library permission not granted");
-        return;
-      }
-      const libOpts = {
-        quality: 0.9,
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
-      };
-      const result = await ImagePicker.launchImageLibraryAsync(libOpts);
-      if (result.canceled) return;
-      const asset =
-        result.assets && result.assets.length > 0 ? result.assets[0] : null;
-      const uri = asset?.uri || result.uri;
-      if (!uri) return;
-      let durationSec = null;
-      if (asset?.duration != null) {
-        durationSec =
-          asset.duration > 1000
-            ? Math.round(asset.duration / 1000)
-            : asset.duration;
-      } else if (asset?.durationMillis != null) {
-        durationSec = Math.round(asset.durationMillis / 1000);
-      } else if (result.duration != null) {
-        durationSec =
-          result.duration > 1000
-            ? Math.round(result.duration / 1000)
-            : result.duration;
-      } else if (result.durationMillis != null) {
-        durationSec = Math.round(result.durationMillis / 1000);
-      }
-      if (durationSec != null && durationSec > 30) {
-        Alert.alert(
-          "Video quá dài",
-          `Video dài ${Math.floor(durationSec / 60)}:${String(
-            durationSec % 60
-          ).padStart(2, "0")}. Vui lòng chọn video có độ dài tối đa 30 giây.`
-        );
-        return;
-      }
-      const filename = asset?.fileName || uri.split("/").pop();
-      const fileObj = {
-        uri,
-        name: filename,
-        type:
-          asset?.type === "video" || asset?.mediaType === "video"
-            ? "video/mp4"
-            : asset?.type || "application/octet-stream",
-      };
-      navigation.navigate("CreateStory", { media: fileObj });
-    } catch (e) {
-      console.warn("[HOME] handleAddStory error", e?.message || e);
-    }
-  };
+    const handleAddStory = async () => {
+        try {
+            const { status } =
+                await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== "granted") {
+                console.log("Media library permission not granted");
+                return;
+            }
+            const libOpts = {
+                quality: 0.9,
+                mediaTypes: ImagePicker.MediaTypeOptions.All,
+            };
+            const result = await ImagePicker.launchImageLibraryAsync(libOpts);
+            if (result.canceled) return;
+            const asset =
+                result.assets && result.assets.length > 0
+                    ? result.assets[0]
+                    : null;
+            const uri = asset?.uri || result.uri;
+            if (!uri) return;
+            let durationSec = null;
+            if (asset?.duration != null) {
+                durationSec =
+                    asset.duration > 1000
+                        ? Math.round(asset.duration / 1000)
+                        : asset.duration;
+            } else if (asset?.durationMillis != null) {
+                durationSec = Math.round(asset.durationMillis / 1000);
+            } else if (result.duration != null) {
+                durationSec =
+                    result.duration > 1000
+                        ? Math.round(result.duration / 1000)
+                        : result.duration;
+            } else if (result.durationMillis != null) {
+                durationSec = Math.round(result.durationMillis / 1000);
+            }
+            if (durationSec != null && durationSec > 30) {
+                Alert.alert(
+                    "Video quá dài",
+                    `Video dài ${Math.floor(durationSec / 60)}:${String(
+                        durationSec % 60
+                    ).padStart(
+                        2,
+                        "0"
+                    )}. Vui lòng chọn video có độ dài tối đa 30 giây.`
+                );
+                return;
+            }
+            const filename = asset?.fileName || uri.split("/").pop();
+            const fileObj = {
+                uri,
+                name: filename,
+                type:
+                    asset?.type === "video" || asset?.mediaType === "video"
+                        ? "video/mp4"
+                        : asset?.type || "application/octet-stream",
+            };
+            navigation.navigate("CreateStory", { media: fileObj });
+        } catch (e) {
+            console.warn("[HOME] handleAddStory error", e?.message || e);
+        }
+    };
 
   const onToggleLike = (postId) => {
     // Get current reaction type, default to Like (1) if no reaction
@@ -3072,47 +3070,47 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   addStoryAvatar: {
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
     width: 62,
     height: 62,
     borderRadius: 31,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   plusCircle: {
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "#111827",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: '#111827',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   plusText: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 22,
     lineHeight: 22,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   addButtonHeader: {
     width: 36,
     height: 32,
     borderRadius: 8,
-    backgroundColor: "#f3f4f6",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   addButtonText: {
     fontSize: 20,
-    fontWeight: "700",
-    color: "#111827",
+    fontWeight: '700',
+    color: '#111827',
   },
   tagChip: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: '#f3f4f6',
     marginRight: 8,
     marginBottom: 8,
   },
@@ -3124,20 +3122,20 @@ const styles = StyleSheet.create({
   },
   tagChipText: {
     fontSize: 13,
-    color: "#111827",
-    fontWeight: "600",
+    color: '#111827',
+    fontWeight: '600',
   },
   tagChipClose: {
     marginLeft: 8,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   tagChipCloseText: {
-    color: "#dc2626",
-    fontWeight: "700",
+    color: '#dc2626',
+    fontWeight: '700',
     fontSize: 14,
   },
 });

@@ -38,7 +38,7 @@ builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         // Serialize enum as number instead of string for better frontend compatibility
-        // options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
 
