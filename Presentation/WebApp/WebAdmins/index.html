@@ -7,6 +7,25 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Try to load runtime env-config if it exists (used in docker runtime). If not, continue.
+      (async function() {
+        try {
+          const r = await fetch('/env-config.js', { method: 'GET' });
+          if (r.ok) {
+            const s = document.createElement('script');
+            s.src = '/env-config.js';
+            document.head.appendChild(s);
+            console.log('[env-config] loaded');
+          } else {
+            // Not present in dev - ignore
+            console.log('[env-config] not found, continuing without runtime config');
+          }
+        } catch (e) {
+          console.log('[env-config] load error, continuing', e);
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

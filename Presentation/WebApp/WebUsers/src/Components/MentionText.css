@@ -1,0 +1,9 @@
+.mention-text-link {
+  color: #0095f6;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mention-text-link:hover {
+  text-decoration: underline;
+}

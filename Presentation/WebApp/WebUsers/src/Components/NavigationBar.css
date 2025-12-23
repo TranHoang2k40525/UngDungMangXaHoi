@@ -1,0 +1,65 @@
+/* NavigationBar.css - Left Navigation Bar */
+
+.left-nav-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 70px;
+  background-color: #FFFFFF;
+  border-right: 0.5px solid #DBDBDB;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  z-index: 1000;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05);
+}
+
+.nav-bar-item {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s;
+  border-radius: 12px;
+}
+
+.nav-bar-item:hover {
+  transform: scale(1.1);
+  background-color: #f3f4f6;
+}
+
+.nav-bar-item:active {
+  transform: scale(0.95);
+}
+
+.nav-bar-item.active {
+  background-color: #e5e7eb;
+}
+
+.nav-bar-icon {
+  font-size: 28px;
+}
+
+.nav-bar-create {
+  background-color: #000;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+}
+
+.nav-bar-create:hover {
+  background-color: #1f1f1f;
+  transform: scale(1.1);
+}
+
+.nav-bar-create .nav-bar-icon {
+  color: #fff;
+  font-size: 24px;
+}

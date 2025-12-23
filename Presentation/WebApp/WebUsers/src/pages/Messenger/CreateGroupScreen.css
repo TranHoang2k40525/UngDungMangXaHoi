@@ -1,0 +1,267 @@
+.create-group-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: #F9FAFB;
+}
+
+/* Header */
+.create-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background-color: #FFFFFF;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.create-group-back-button {
+  padding: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 24px;
+  color: #111827;
+}
+
+.create-group-header-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+}
+
+.create-group-create-button {
+  padding: 6px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  color: #3B82F6;
+}
+
+.create-group-create-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.create-group-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #3B82F6;
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Group Name Section */
+.create-group-name-section {
+  background-color: #FFFFFF;
+  padding: 12px 16px;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.create-group-input-container {
+  display: flex;
+  align-items: center;
+  background-color: #F3F4F6;
+  padding: 10px 12px;
+  border-radius: 8px;
+  gap: 8px;
+}
+
+.create-group-input {
+  flex: 1;
+  font-size: 15px;
+  color: #111827;
+  background: none;
+  border: none;
+  outline: none;
+}
+
+.create-group-input::placeholder {
+  color: #9CA3AF;
+}
+
+/* Selected Section */
+.create-group-selected-section {
+  background-color: #FFFFFF;
+  padding: 12px 16px;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.create-group-selected-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6B7280;
+  margin-bottom: 8px;
+}
+
+.create-group-selected-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.create-group-selected-chip {
+  display: flex;
+  align-items: center;
+  background-color: #EFF6FF;
+  padding: 6px 10px;
+  border-radius: 16px;
+  gap: 4px;
+}
+
+.create-group-selected-chip-text {
+  font-size: 13px;
+  color: #3B82F6;
+  font-weight: 500;
+}
+
+.create-group-remove-chip {
+  padding: 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: #6B7280;
+}
+
+/* Search Container */
+.create-group-search-container {
+  display: flex;
+  align-items: center;
+  background-color: #FFFFFF;
+  margin: 12px 16px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #E5E7EB;
+}
+
+.create-group-search-input {
+  flex: 1;
+  font-size: 15px;
+  color: #111827;
+  background: none;
+  border: none;
+  outline: none;
+  margin: 0 8px;
+}
+
+.create-group-search-input::placeholder {
+  color: #9CA3AF;
+}
+
+.create-group-clear-button {
+  padding: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 20px;
+  color: #9CA3AF;
+}
+
+/* Loading */
+.create-group-loading {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.create-group-spinner-large {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #E5E7EB;
+  border-top: 4px solid #3B82F6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* User List */
+.create-group-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.create-group-user-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #FFFFFF;
+  padding: 12px 16px;
+  border-bottom: 1px solid #F3F4F6;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.create-group-user-item:hover {
+  background-color: #F9FAFB;
+}
+
+.create-group-user-left {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.create-group-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
+  margin-right: 12px;
+  object-fit: cover;
+}
+
+.create-group-avatar-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
+  background-color: #9CA3AF;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-right: 12px;
+  font-size: 24px;
+}
+
+.create-group-user-info {
+  flex: 1;
+}
+
+.create-group-user-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 2px 0;
+}
+
+.create-group-user-username {
+  font-size: 13px;
+  color: #6B7280;
+  margin: 0;
+}
+
+.create-group-checkbox {
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  border: 2px solid #D1D5DB;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 18px;
+  color: #FFFFFF;
+}
+
+.create-group-checkbox.selected {
+  background-color: #3B82F6;
+  border-color: #3B82F6;
+}

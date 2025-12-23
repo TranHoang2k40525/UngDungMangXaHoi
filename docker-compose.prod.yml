@@ -89,8 +89,9 @@ services:
     volumes: []
 
     # Production ports (behind reverse proxy/load balancer)
+    # webapi will listen internally; proxy will be the external entrypoint
     ports:
-      - "5397:5297"  # Dev dùng 5297, Prod dùng 5397
+      - "5397:5297"  # Keep mapping for direct debug access if needed
 
     # Production restart policy
     restart: always
@@ -110,8 +111,9 @@ services:
     environment:
       - NODE_ENV=production
     volumes: []  # No volume mounts in production
+    # no direct host port required when using proxy (optional)
     ports:
-      - "5273:80"  # Dev dùng 5173, Prod dùng 5273
+      - "5273:80"
     networks:
       - app-network
     restart: always

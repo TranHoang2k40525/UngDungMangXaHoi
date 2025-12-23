@@ -37,7 +37,7 @@ catch (Exception)
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        // Serialize enum as number instead of string for better frontend compatibility
+        // Allow enums to be (de)serialized from/to strings so frontend can send 'Nam'/'Nữ'/'Khác'
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
@@ -294,6 +294,8 @@ builder.Services.AddScoped<CloudinaryService>(provider =>
 
     return new CloudinaryService(cloudName, apiKey, apiSecret);
 });
+
+// (No additional secret file reads here — use docker-compose secrets or env vars)
 
 // ✅ PhoBERT Moderation Service
 var mlApiUrl = builder.Configuration["MLService:ApiUrl"] ?? "http://127.0.0.1:8000";

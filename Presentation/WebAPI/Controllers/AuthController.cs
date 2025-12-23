@@ -482,9 +482,9 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 return BadRequest(new { message = "Tài khoản không hợp lệ hoặc chưa được kích hoạt." });
             }
 
-            // Kiểm tra OTP đã được verify chưa
-            var otp = await _otpRepository.GetByAccountIdAsync(account.account_id, "forgot_password");
-            if (otp == null || !otp.used || otp.expires_at < DateTimeOffset.UtcNow)
+            // Kiểm tra OTP đã được verify (used = true) và chưa hết hạn
+            var otp = await _otpRepository.GetVerifiedOtpAsync(account.account_id, "forgot_password");
+            if (otp == null || otp.expires_at < DateTimeOffset.UtcNow)
             {
                 return BadRequest(new { message = "Vui lòng xác thực OTP trước." });
             }

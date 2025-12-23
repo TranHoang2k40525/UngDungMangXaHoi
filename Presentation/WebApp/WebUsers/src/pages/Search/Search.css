@@ -1,0 +1,125 @@
+.search-container {
+  width: calc(100% - 100px);
+  margin-left: 500px;
+  margin-right: 0;
+  padding: 20px;
+  padding-bottom: 80px;
+  background-color: #FFFFFF;
+  min-height: 100vh;
+}
+
+.search-box {
+  margin-bottom: 66px;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  font-size: 14px;
+}
+
+.search-status,
+.search-error,
+.search-empty {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.search-error {
+  color: #b91c1c;
+}
+
+.search-results {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.search-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+}
+
+.search-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.search-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.search-username {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+/* Bottom Navigation Bar */
+.bottom-nav-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background-color: #FFFFFF;
+  border-top: 0.5px solid #DBDBDB;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  z-index: 1000;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.bottom-nav-item {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s;
+}
+
+.bottom-nav-item:hover {
+  transform: scale(1.1);
+}
+
+.bottom-nav-item.active .bottom-nav-icon {
+  transform: scale(1.2);
+  color: #000;
+}
+
+.bottom-nav-icon {
+  font-size: 28px;
+}
+
+.bottom-nav-create {
+  background-color: #000;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+}
+
+.bottom-nav-create .bottom-nav-icon {
+  color: #fff;
+  font-size: 24px;
+}

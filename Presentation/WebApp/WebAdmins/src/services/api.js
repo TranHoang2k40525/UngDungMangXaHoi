@@ -1,17 +1,26 @@
 import axios from 'axios';
 
 // Tự động detect backend URL
-// Development: Dùng window.location.hostname (tự động lấy IP máy đang chạy)
-// Production: Dùng /api (NGINX proxy)
+// Priority (runtime): window.__ENV.VITE_API_URL (injected at container start)
+// Build-time: import.meta.env.VITE_API_URL (baked by Vite)
+// Fallback (dev): use current hostname with default WebAPI port 5297
 const getApiBaseUrl = () => {
-  // Nếu có VITE_API_URL từ .env thì dùng (Production)
+  try {
+    // Runtime override injected into the page by the container (env-config)
+    // e.g. window.__ENV = { VITE_API_URL: 'http://webapi:5297' }
+    if (window && window.__ENV && window.__ENV.VITE_API_URL) {
+      return window.__ENV.VITE_API_URL;
+    }
+  } catch (e) {
+    // ignore when window not available
+  }
+
+  // Nếu có VITE_API_URL từ build-time env thì dùng (Production build)
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-  
+
   // Development: Tự động dùng hostname hiện tại
-  // VD: Nếu truy cập từ http://192.168.1.103:3000 → API sẽ là http://192.168.1.103:5297
-  // VD: Nếu truy cập từ http://localhost:3000 → API sẽ là http://localhost:5297
   const hostname = window.location.hostname;
   return `http://${hostname}:5297`;
 };
@@ -93,31 +102,44 @@ export const authAPI = {
 
   async verifyAdminOtp(data) {
     const result = await apiClient.post('/api/auth/verify-admin-otp', data);
-    if (result.accessToken && result.refreshToken) {
-      localStorage.setItem('accessToken', result.accessToken);
-      localStorage.setItem('refreshToken', result.refreshToken);
+    // Backend may return { AccessToken, RefreshToken } or { accessToken, refreshToken }
+    const access = result?.AccessToken || result?.accessToken || result?.access || null;
+    const refresh = result?.RefreshToken || result?.refreshToken || result?.refresh || null;
+    if (access && refresh) {
+      localStorage.setItem('accessToken', access);
+      localStorage.setItem('refreshToken', refresh);
     }
     return result;
   },
 
   async login(credentials) {
     const result = await apiClient.post('/api/auth/login', credentials);
-    
-    if (result.accessToken && result.refreshToken) {
-      localStorage.setItem('accessToken', result.accessToken);
-      localStorage.setItem('refreshToken', result.refreshToken);
-      
-      // Kiểm tra account type
-      const payload = JSON.parse(atob(result.accessToken.split('.')[1]));
-      const accountType = payload.account_type || payload.role;
-      
-      if (accountType !== 'Admin') {
+
+    // Accept various casing from backend
+    const access = result?.AccessToken || result?.accessToken || result?.access || null;
+    const refresh = result?.RefreshToken || result?.refreshToken || result?.refresh || null;
+
+    if (access && refresh) {
+      localStorage.setItem('accessToken', access);
+      localStorage.setItem('refreshToken', refresh);
+
+      // Kiểm tra account type inside token
+      try {
+        const payload = JSON.parse(atob(access.split('.')[1]));
+        const accountType = payload.account_type || payload.role;
+        if (accountType !== 'Admin') {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          throw new Error('Chỉ tài khoản Admin mới có thể đăng nhập');
+        }
+      } catch (e) {
+        // If token parsing fails, clear tokens to force re-login
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
-        throw new Error('Chỉ tài khoản Admin mới có thể đăng nhập');
+        throw new Error('Token không hợp lệ');
       }
     }
-    
+
     return result;
   },
 
@@ -136,6 +158,10 @@ export const authAPI = {
 
   async forgotPassword(email) {
     return apiClient.post('/api/auth/forgot-password', { Email: email });
+  },
+
+  async verifyForgotPasswordOtp(data) {
+    return apiClient.post('/api/auth/verify-forgot-password-otp', data);
   },
 
   async resetPassword(data) {

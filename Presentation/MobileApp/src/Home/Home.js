@@ -25,7 +25,7 @@ import { useUser } from "../Context/UserContext";
 import { useFollow } from "../Context/FollowContext";
 import * as ImagePicker from "expo-image-picker";
 import CommentsModal from "./CommentsModal";
-import ReactionPicker from "./ReactionPicker";
+import ReactionPicker, { getReactionEmoji } from "./ReactionPicker";
 import ReactionsListModal from "./ReactionsListModal";
 import SharePostModal from "./SharePostModal";
 import {
@@ -146,25 +146,6 @@ const PostImagesCarousel = ({ images = [] }) => {
       )}
         </View>
     );
-};
-
-const getReactionEmoji = (reactionType) => {
-  switch (reactionType) {
-    case 1:
-      return "❤️"; // Like
-    case 2:
-      return "😍"; // Love
-    case 3:
-      return "😂"; // Haha
-    case 4:
-      return "😮"; // Wow
-    case 5:
-      return "😢"; // Sad
-    case 6:
-      return "😠"; // Angry
-    default:
-      return "❤️";
-  }
 };
 
 export default function Home() {
