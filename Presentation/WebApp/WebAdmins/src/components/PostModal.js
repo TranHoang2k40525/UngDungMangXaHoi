@@ -104,11 +104,7 @@ export default function PostModal({ post, onClose }) {
               <span className="stat-label">Comments:</span>
               <span className="stat-value">{post.CommentCount || 0}</span>
             </div>
-            <div className="stat-item">
-              <span className="stat-icon"><FiRepeat aria-hidden="true"/></span>
-              <span className="stat-label">Shares:</span>
-              <span className="stat-value">{post.ShareCount || 0}</span>
-            </div>
+            {/* Shares removed per request */}
             <div className="stat-item total-stat">
               <span className="stat-icon"><FiBarChart2 aria-hidden="true"/></span>
               <span className="stat-label">Tổng tương tác:</span>

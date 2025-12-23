@@ -187,6 +187,8 @@ export default function Dashboard() {
           Raw: p
         };
       });
+      // Sort top posts descending by total interactions (includes reactions + comments)
+      normalizedPosts.sort((a, b) => (b.TotalInteractions || 0) - (a.TotalInteractions || 0));
       setTopPosts(normalizedPosts);
 
       // Load tất cả charts
