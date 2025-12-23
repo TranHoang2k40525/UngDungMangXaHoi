@@ -257,6 +257,8 @@ builder.Services.AddHttpClient<IMoMoPaymentService, MoMoPaymentService>();
 
 // Dịch vụ chạy nền để dọn Story hết hạn
 builder.Services.AddHostedService<ExpiredStoriesCleanupService>();
+// Dịch vụ chạy nền để hạ cấp tài khoản Business hết hạn
+builder.Services.AddHostedService<ExpiredBusinessAccountService>();
 builder.Services.AddScoped<VideoTranscodeService>();
 builder.Services.AddScoped<ReactionService>();
 builder.Services.AddScoped<ShareService>();
