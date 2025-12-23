@@ -121,8 +121,8 @@ export default function Dashboard() {
       ]);
 
       const activeUsersData = activeUsersRes.data || activeUsersRes;
-      const keywordsData = keywordsRes.data || keywordsRes;
-      const postsData = postsRes.data || postsRes;
+      const keywordsData = keywordsRes.data || keywordsRes || {};
+      const postsData = postsRes.data || postsRes || {};
       
       setStats(prev => ({
         ...prev,
@@ -130,7 +130,7 @@ export default function Dashboard() {
       }));
 
       // Normalize top keywords: backend may return different casing
-      const rawKeywords = keywordsData?.keywords || [];
+      const rawKeywords = Array.isArray(keywordsData) ? keywordsData : (keywordsData?.data || keywordsData?.keywords || keywordsData?.Keywords || []);
       const normalizedKeywords = rawKeywords.map(k => ({
         Keyword: k.Keyword ?? k.keyword ?? k.Key ?? '',
         SearchCount: Number(k.SearchCount ?? k.searchCount ?? k.search_count ?? 0) || 0,
@@ -139,7 +139,7 @@ export default function Dashboard() {
       setTopKeywords(normalizedKeywords);
 
       // Normalize top posts to the flat shape expected by the table
-      const rawPosts = Array.isArray(postsData) ? postsData : (postsData?.posts || postsData?.Posts || []);
+      const rawPosts = Array.isArray(postsData) ? postsData : (postsData?.data || postsData?.posts || postsData?.Posts || postsData?.Data || []);
       const normalizedPosts = rawPosts.map(p => ({
         PostId: p.PostId ?? p.postId ?? p.post_id ?? null,
         Content: p.Content ?? p.caption ?? p.Caption ?? p.content ?? '',
