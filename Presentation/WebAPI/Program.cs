@@ -261,6 +261,8 @@ builder.Services.AddHttpClient<IMoMoPaymentService, MoMoPaymentService>();
 builder.Services.AddHostedService<ExpiredStoriesCleanupService>();
 // Dịch vụ chạy nền để hạ cấp tài khoản Business hết hạn
 builder.Services.AddHostedService<ExpiredBusinessAccountService>();
+// Dịch vụ chạy nền để xóa tài khoản Pending quá hạn (24h chưa verify OTP)
+builder.Services.AddHostedService<ExpiredPendingAccountsCleanupService>();
 builder.Services.AddScoped<VideoTranscodeService>();
 builder.Services.AddScoped<ReactionService>();
 builder.Services.AddScoped<ShareService>();
