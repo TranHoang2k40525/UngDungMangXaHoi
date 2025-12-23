@@ -169,10 +169,27 @@ export default function Dashboard() {
         ) || 0;
 
         // collect media urls (normalize various property names)
-        const mediaList = Array.isArray(media) ? media.map(m => m?.MediaUrl ?? m?.mediaUrl ?? m?.Url ?? m?.url ?? '') .filter(Boolean) : [];
+        const rawMediaList = Array.isArray(media) ? media.map(m => m?.MediaUrl ?? m?.mediaUrl ?? m?.Url ?? m?.url ?? '') .filter(Boolean) : [];
+
+        // Build absolute URLs when backend returned filenames or relative paths
+        const ensureAbsolute = (u) => {
+          if (!u) return '';
+          // already absolute
+          if (u.startsWith('http://') || u.startsWith('https://')) return u;
+          // absolute path on same host
+          if (u.startsWith('/')) return window.location.origin + u;
+          // otherwise try to detect media type by extension
+          const lower = u.toLowerCase();
+          const isVideo = lower.endsWith('.mp4') || lower.endsWith('.mov') || lower.endsWith('.m4v') || lower.endsWith('.avi') || lower.endsWith('.wmv') || lower.endsWith('.mkv');
+          const folder = isVideo ? 'Videos' : 'Images';
+          return `${window.location.origin}/Assets/${folder}/${u}`;
+        };
+
+        const mediaList = rawMediaList.map(ensureAbsolute);
 
         // author avatar fallback
-        const avatar = author?.AvatarUrl ?? author?.avatarUrl ?? author?.Avatar ?? author?.avatar ?? '';
+        const rawAvatar = author?.AvatarUrl ?? author?.avatarUrl ?? author?.Avatar ?? author?.avatar ?? '';
+        const avatar = rawAvatar ? ensureAbsolute(rawAvatar) : '';
 
         return {
           PostId: postId,

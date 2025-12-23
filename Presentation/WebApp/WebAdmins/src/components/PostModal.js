@@ -5,6 +5,7 @@ export default function PostModal({ post, onClose }) {
   if (!post) return null;
 
   const formatDate = (dateString) => {
+    if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleString('vi-VN', {
       year: 'numeric',
@@ -35,18 +36,22 @@ export default function PostModal({ post, onClose }) {
           {/* Author Info */}
           <div className="post-author-section">
             <div className="author-avatar">
-              {post.AuthorAvatar ? (
-                <img src={post.AuthorAvatar} alt={post.AuthorName} />
-              ) : (
-                <div className="avatar-placeholder">
-                  {post.AuthorName?.charAt(0).toUpperCase()}
-                </div>
-              )}
+              {(() => {
+                // support multiple DTO shapes: post.user.avatarUrl or post.AuthorAvatar
+                const avatar = post.user?.avatarUrl || post.AuthorAvatar || post.user?.avatarUrl || post.author?.avatar || post.user?.avatarUrl;
+                const name = post.user?.fullName || post.user?.username || post.AuthorName || post.author?.fullName || '';
+                if (avatar) return <img src={avatar} alt={name} />;
+                return (
+                  <div className="avatar-placeholder">
+                    {(name || post.AuthorName || post.AuthorUsername || '').charAt(0)?.toUpperCase()}
+                  </div>
+                );
+              })()}
             </div>
             <div className="author-details">
-              <h3>{post.AuthorName}</h3>
-              <p className="author-username">@{post.AuthorUsername}</p>
-              <p className="post-date">{formatDate(post.CreatedAt)}</p>
+              <h3>{post.user?.fullName || post.AuthorName || post.user?.username}</h3>
+              <p className="author-username">@{post.user?.username || post.AuthorUsername}</p>
+              <p className="post-date">{formatDate(post.createdAt || post.CreatedAt)}</p>
             </div>
           </div>
 
@@ -54,43 +59,86 @@ export default function PostModal({ post, onClose }) {
           <div className="post-content-section">
             <h4>Nội dung bài đăng:</h4>
             <div className="post-text">
-              {post.Content}
+              {post.caption || post.Content || post.Caption || ''}
             </div>
           </div>
 
           {/* Post Images */}
-          {post.Images && post.Images.length > 0 && (
-            <div className="post-images-section">
-              <h4>Hình ảnh ({post.Images.length}):</h4>
-              <div className="post-images-grid">
-                {post.Images.map((image, index) => (
-                  <img
-                    key={index}
-                    src={image.ImageUrl || image}
-                    alt={`Image ${index + 1}`}
-                    className="post-image"
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+          {(() => {
+            // Support backend DTO: post.media = [{ type, url, altUrl }]
+            const mediaArr = post.media || post.Media || null;
+            if (Array.isArray(mediaArr) && mediaArr.length > 0) {
+              const images = mediaArr.filter(m => !m.type || !m.type.toLowerCase().startsWith('video'));
+              const videos = mediaArr.filter(m => m.type && m.type.toLowerCase().startsWith('video'));
+              return (
+                <>
+                  {images.length > 0 && (
+                    <div className="post-images-section">
+                      <h4>Hình ảnh ({images.length}):</h4>
+                      <div className="post-images-grid">
+                        {images.map((m, i) => (
+                          <img key={i} src={m.url || m} alt={`Image ${i + 1}`} className="post-image" />
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-          {/* Post Videos */}
-          {post.Videos && post.Videos.length > 0 && (
-            <div className="post-videos-section">
-              <h4>Video ({post.Videos.length}):</h4>
-              <div className="post-videos-grid">
-                {post.Videos.map((video, index) => (
-                  <video
-                    key={index}
-                    src={video.VideoUrl || video}
-                    controls
-                    className="post-video"
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+                  {videos.length > 0 && (
+                    <div className="post-videos-section">
+                      <h4>Video ({videos.length}):</h4>
+                      <div className="post-videos-grid">
+                        {videos.map((m, i) => (
+                          <video key={i} src={m.url || m} controls className="post-video" />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            }
+
+            // fallback to older fields: Images / Videos arrays or MediaUrls
+            if (post.Images && post.Images.length > 0) {
+              return (
+                <div className="post-images-section">
+                  <h4>Hình ảnh ({post.Images.length}):</h4>
+                  <div className="post-images-grid">
+                    {post.Images.map((image, index) => (
+                      <img key={index} src={image.ImageUrl || image} alt={`Image ${index + 1}`} className="post-image" />
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+
+            if (post.Videos && post.Videos.length > 0) {
+              return (
+                <div className="post-videos-section">
+                  <h4>Video ({post.Videos.length}):</h4>
+                  <div className="post-videos-grid">
+                    {post.Videos.map((video, index) => (
+                      <video key={index} src={video.VideoUrl || video} controls className="post-video" />
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+
+            if (post.MediaUrls && post.MediaUrls.length > 0) {
+              return (
+                <div className="post-images-section">
+                  <h4>Hình ảnh ({post.MediaUrls.length}):</h4>
+                  <div className="post-images-grid">
+                    {post.MediaUrls.map((u, i) => (
+                      <img key={i} src={u} alt={`Image ${i + 1}`} className="post-image" />
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+
+            return null;
+          })()}
 
           {/* Interaction Stats */}
           <div className="post-stats-section">
