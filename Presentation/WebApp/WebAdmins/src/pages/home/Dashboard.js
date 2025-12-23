@@ -13,6 +13,9 @@ import {
 import { Line, Bar } from 'react-chartjs-2';
 import { dashboardAPI } from '../../services/api.js';
 import PostModal from '../../components/PostModal.js';
+import { 
+  FiBarChart2, FiUsers, FiCheckCircle, FiBriefcase, FiDollarSign, FiFileText, FiTrendingUp, FiSearch, FiZap, FiHeart, FiMessageSquare
+} from 'react-icons/fi';
 import './Dashboard.css';
 
 ChartJS.register(
@@ -422,13 +425,13 @@ export default function Dashboard() {
   return (
     <div className="dashboard">
       <div className="dashboard-header">
-        <h1>📊 Dashboard Admin</h1>
+        <h1><FiBarChart2 className="header-icon" aria-hidden="true"/> Dashboard Admin</h1>
       </div>
 
       {/* Stats Cards */}
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-icon">👥</div>
+          <div className="stat-icon"><FiUsers aria-hidden="true"/></div>
           <div className="stat-info">
             <h3>Người dùng mới</h3>
             <p className="stat-value">{stats.newUsers.toLocaleString()}</p>
@@ -436,7 +439,7 @@ export default function Dashboard() {
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon">🟢</div>
+          <div className="stat-icon"><FiCheckCircle aria-hidden="true"/></div>
           <div className="stat-info">
             <h3>Người dùng hoạt động</h3>
             <p className="stat-value">{stats.activeUsers.toLocaleString()}</p>
@@ -444,7 +447,7 @@ export default function Dashboard() {
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon">🏢</div>
+          <div className="stat-icon"><FiBriefcase aria-hidden="true"/></div>
           <div className="stat-info">
             <h3>Tài khoản Business</h3>
             <p className="stat-value">{stats.businessAccounts.toLocaleString()}</p>
@@ -452,7 +455,7 @@ export default function Dashboard() {
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon">💰</div>
+          <div className="stat-icon"><FiDollarSign aria-hidden="true"/></div>
           <div className="stat-info">
             <h3>Doanh thu</h3>
             <p className="stat-value">{formatCurrency(stats.totalRevenue)}</p>
@@ -460,7 +463,7 @@ export default function Dashboard() {
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon">📝</div>
+          <div className="stat-icon"><FiFileText aria-hidden="true"/></div>
           <div className="stat-info">
             <h3>Bài đăng mới</h3>
             <p className="stat-value">{stats.totalPosts.toLocaleString()}</p>
@@ -473,7 +476,7 @@ export default function Dashboard() {
         {/* New Users Chart */}
         <div className="chart-container">
           <div className="chart-header">
-            <h3>📈 Tăng trưởng người dùng mới</h3>
+            <h3><FiTrendingUp className="chart-h-icon" aria-hidden="true"/> Tăng trưởng người dùng mới</h3>
             <div className="chart-controls">
               <div className="date-inputs">
                 <label>
@@ -520,7 +523,7 @@ export default function Dashboard() {
         {/* Business Growth Chart */}
         <div className="chart-container">
           <div className="chart-header">
-            <h3>🏢 Tăng trưởng tài khoản Business</h3>
+            <h3><FiBriefcase className="chart-h-icon" aria-hidden="true"/> Tăng trưởng tài khoản Business</h3>
             <div className="chart-controls">
               <div className="date-inputs">
                 <label>
@@ -568,7 +571,7 @@ export default function Dashboard() {
         {/* Revenue Chart */}
         <div className="chart-container">
           <div className="chart-header">
-            <h3>💰 Doanh thu từ Business</h3>
+            <h3><FiDollarSign className="chart-h-icon" aria-hidden="true"/> Doanh thu từ Business</h3>
             <div className="chart-controls">
               <div className="date-inputs">
                 <label>
@@ -616,7 +619,7 @@ export default function Dashboard() {
         {/* Post Growth Chart */}
         <div className="chart-container">
           <div className="chart-header">
-            <h3>📝 Tăng trưởng bài đăng</h3>
+            <h3><FiFileText className="chart-h-icon" aria-hidden="true"/> Tăng trưởng bài đăng</h3>
             <div className="chart-controls">
               <div className="date-inputs">
                 <label>
@@ -666,7 +669,7 @@ export default function Dashboard() {
       <div className="tables-grid">
         {/* Top Keywords Table */}
         <div className="table-container">
-          <h3>🔍 Top 10 từ khóa tìm kiếm nhiều nhất</h3>
+          <h3><FiSearch className="table-h-icon" aria-hidden="true"/> Top 10 từ khóa tìm kiếm nhiều nhất</h3>
           <div className="table-wrapper">
             <table>
               <thead>
@@ -701,7 +704,7 @@ export default function Dashboard() {
 
         {/* Top Posts Table */}
         <div className="table-container">
-          <h3>🔥 Top 10 bài đăng tương tác nhiều nhất</h3>
+          <h3><FiZap className="table-h-icon" aria-hidden="true"/> Top 10 bài đăng tương tác nhiều nhất</h3>
           <div className="table-wrapper">
             <table>
               <thead>
@@ -732,8 +735,8 @@ export default function Dashboard() {
                       </td>
                       <td>
                         <div className="interaction-stats">
-                          <span className="reaction-count">❤️ {post.ReactionCount || 0}</span>
-                          <span className="comment-count">💬 {post.CommentCount || 0}</span>
+                          <span className="reaction-count"><FiHeart aria-hidden="true"/> {post.ReactionCount || 0}</span>
+                          <span className="comment-count"><FiMessageSquare aria-hidden="true"/> {post.CommentCount || 0}</span>
                           <span className="total-count">
                             <strong>{post.TotalInteractions || 0}</strong> tổng
                           </span>

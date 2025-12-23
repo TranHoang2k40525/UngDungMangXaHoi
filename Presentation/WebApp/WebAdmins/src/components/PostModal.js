@@ -1,4 +1,5 @@
 import './PostModal.css';
+import { FiHeart, FiMessageSquare, FiRepeat, FiBarChart2, FiX } from 'react-icons/fi';
 
 export default function PostModal({ post, onClose }) {
   if (!post) return null;
@@ -25,8 +26,8 @@ export default function PostModal({ post, onClose }) {
       <div className="post-modal">
         <div className="post-modal-header">
           <h2>Chi tiết bài đăng</h2>
-          <button className="btn-close" onClick={onClose}>
-            ✕
+          <button className="btn-close" onClick={onClose} aria-label="Đóng">
+            <FiX aria-hidden="true" />
           </button>
         </div>
 
@@ -94,22 +95,22 @@ export default function PostModal({ post, onClose }) {
           {/* Interaction Stats */}
           <div className="post-stats-section">
             <div className="stat-item">
-              <span className="stat-icon">❤️</span>
+              <span className="stat-icon"><FiHeart aria-hidden="true"/></span>
               <span className="stat-label">Reactions:</span>
               <span className="stat-value">{post.ReactionCount || 0}</span>
             </div>
             <div className="stat-item">
-              <span className="stat-icon">💬</span>
+              <span className="stat-icon"><FiMessageSquare aria-hidden="true"/></span>
               <span className="stat-label">Comments:</span>
               <span className="stat-value">{post.CommentCount || 0}</span>
             </div>
             <div className="stat-item">
-              <span className="stat-icon">🔄</span>
+              <span className="stat-icon"><FiRepeat aria-hidden="true"/></span>
               <span className="stat-label">Shares:</span>
               <span className="stat-value">{post.ShareCount || 0}</span>
             </div>
             <div className="stat-item total-stat">
-              <span className="stat-icon">📊</span>
+              <span className="stat-icon"><FiBarChart2 aria-hidden="true"/></span>
               <span className="stat-label">Tổng tương tác:</span>
               <span className="stat-value">{post.TotalInteractions || 0}</span>
             </div>
