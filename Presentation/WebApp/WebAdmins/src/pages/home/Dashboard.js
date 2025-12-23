@@ -139,7 +139,7 @@ export default function Dashboard() {
       setTopKeywords(normalizedKeywords);
 
       // Normalize top posts to the flat shape expected by the table
-      const rawPosts = postsData?.posts || [];
+      const rawPosts = Array.isArray(postsData) ? postsData : (postsData?.posts || postsData?.Posts || []);
       const normalizedPosts = rawPosts.map(p => ({
         PostId: p.PostId ?? p.postId ?? p.post_id ?? null,
         Content: p.Content ?? p.caption ?? p.Caption ?? p.content ?? '',
@@ -168,6 +168,40 @@ export default function Dashboard() {
     }
   };
 
+  // Try to produce label variants (with/without year, remove "Tuần " prefix) so frontend
+  // can match backend labels produced in different formats (dd/MM or dd/MM/yyyy)
+  const buildLabelVariants = (label, toDate) => {
+    if (!label) return [label];
+    let base = label;
+    if (base.startsWith('Tuần ')) base = base.replace(/^Tuần\s*/, '');
+
+    const variants = new Set();
+    variants.add(label);
+    // If looks like dd/MM/yyyy
+    const parts = base.split('/');
+    if (parts.length === 3) {
+      const [d, m, y] = parts;
+      variants.add(`${d}/${m}`);
+    } else if (parts.length === 2) {
+      // dd/MM -> add dd/MM/yyyy using toDate year
+      const [d, m] = parts;
+      const year = toDate ? toDate.getFullYear() : new Date().getFullYear();
+      variants.add(`${d}/${m}/${year}`);
+    }
+    return Array.from(variants);
+  };
+
+  // Shared formatter for period labels shown in charts
+  const formatPeriodLabel = (dateObj, type) => {
+    const dd = String(dateObj.getDate()).padStart(2, '0');
+    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const yyyy = dateObj.getFullYear();
+    if (type === 'Month') return `${mm}/${yyyy}`; // MM/yyyy
+    if (type === 'Year') return `${yyyy}`;
+    if (type === 'Week') return `Tuần ${dd}/${mm}`;
+    return `${dd}/${mm}/${yyyy}`; // Day default
+  };
+
   const loadUserChartData = async () => {
     try {
       setChartLoading(prev => ({ ...prev, user: true }));
@@ -188,15 +222,8 @@ export default function Dashboard() {
         });
       }
 
-      // Helper to format labels the same way backend does
-      const formatLabel = (dateObj, type) => {
-        const dd = String(dateObj.getDate()).padStart(2, '0');
-        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const yyyy = dateObj.getFullYear();
-        if (type === 'Month') return `${mm}/${yyyy}`; // MM/yyyy
-        // Day and Week use dd/MM/yyyy as backend's GetUserNewDate uses
-        return `${dd}/${mm}/${yyyy}`;
-      };
+      // Use shared formatPeriodLabel
+      const formatLabel = (dateObj, type) => formatPeriodLabel(dateObj, type);
 
       // Build expected labels for the selected grouping and fill missing periods with 0
       const expectedLabels = [];
@@ -261,25 +288,66 @@ export default function Dashboard() {
       
       const businessRes = await dashboardAPI.getBusinessGrowth(fromDate, toDate, businessChartFilter.type);
       const businessData = businessRes.data || businessRes;
-      const businessCounts = businessData.counts || [];
-      
+      const rawLabels = businessData?.labels || businessData?.lables || businessData?.Labels || [];
+      const rawCounts = businessData?.counts || businessData?.Counts || [];
+
+      // Build a tolerant count map that accepts several label variants (with/without year)
+      const countMap = {};
+      rawLabels.forEach((lbl, idx) => {
+        const val = Number(rawCounts[idx] ?? 0) || 0;
+        const variants = buildLabelVariants(lbl, toDate);
+        variants.forEach(v => {
+          if (!v) return;
+          countMap[v] = (countMap[v] || 0) + val;
+        });
+        // also register the raw label itself
+        if (lbl) countMap[lbl] = (countMap[lbl] || 0) + val;
+      });
+
+      const grouping = businessChartFilter.type || 'Day';
+      const expectedLabels = [];
+      const counts = [];
+      const cur = new Date(fromDate);
+
+      if (grouping === 'Month') {
+        cur.setDate(1);
+        while (cur <= toDate) {
+          const lbl = formatPeriodLabel(cur, 'Month');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+          cur.setMonth(cur.getMonth() + 1);
+        }
+      } else if (grouping === 'Week') {
+        while (cur <= toDate) {
+          const lbl = formatPeriodLabel(cur, 'Week');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+          cur.setDate(cur.getDate() + 7);
+        }
+      } else {
+        while (cur <= toDate) {
+          const lbl = formatPeriodLabel(cur, 'Day');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+          cur.setDate(cur.getDate() + 1);
+        }
+      }
+
       setStats(prev => ({
         ...prev,
-        businessAccounts: businessData.totalBusinessAccounts || businessCounts.reduce((sum, val) => sum + val, 0),
+        businessAccounts: businessData.totalBusinessAccounts || counts.reduce((sum, val) => sum + val, 0),
       }));
 
-      if (businessData.labels && businessData.labels.length > 0) {
-        setBusinessGrowthData({
-          labels: businessData.labels,
-          datasets: [{
-            label: 'Tài khoản Business mới',
-            data: businessData.counts,
-            borderColor: 'rgb(255, 159, 64)',
-            backgroundColor: 'rgba(255, 159, 64, 0.2)',
-            tension: 0.3,
-          }],
-        });
-      }
+      setBusinessGrowthData({
+        labels: expectedLabels,
+        datasets: [{
+          label: 'Tài khoản Business mới',
+          data: counts,
+          borderColor: 'rgb(255, 159, 64)',
+          backgroundColor: 'rgba(255, 159, 64, 0.2)',
+          tension: 0.3,
+        }],
+      });
     } catch (error) {
       console.error('Error loading business chart:', error);
     } finally {
@@ -295,25 +363,64 @@ export default function Dashboard() {
       
       const revenueRes = await dashboardAPI.getRevenue(fromDate, toDate, revenueChartFilter.type);
       const revenueDataRes = revenueRes.data || revenueRes;
-      const revenues = revenueDataRes.revenues || [];
-      
+      const rawLabels = revenueDataRes?.labels || revenueDataRes?.lables || revenueDataRes?.Labels || [];
+      const rawRevenues = revenueDataRes?.revenues || revenueDataRes?.Revenues || [];
+
+      const countMap = {};
+      rawLabels.forEach((lbl, idx) => {
+        const val = Number(rawRevenues[idx] ?? 0) || 0;
+        const variants = buildLabelVariants(lbl, toDate);
+        variants.forEach(v => {
+          if (!v) return;
+          countMap[v] = (countMap[v] || 0) + val;
+        });
+        if (lbl) countMap[lbl] = (countMap[lbl] || 0) + val;
+      });
+
+      const grouping = revenueChartFilter.type || 'Day';
+      const expectedLabels = [];
+      const values = [];
+      const cur = new Date(fromDate);
+
+      if (grouping === 'Month') {
+        cur.setDate(1);
+        while (cur <= toDate) {
+          const lbl = formatPeriodLabel(cur, 'Month');
+          expectedLabels.push(lbl);
+          values.push(countMap[lbl] || 0);
+          cur.setMonth(cur.getMonth() + 1);
+        }
+      } else if (grouping === 'Week') {
+        while (cur <= toDate) {
+          const lbl = formatPeriodLabel(cur, 'Week');
+          expectedLabels.push(lbl);
+          values.push(countMap[lbl] || 0);
+          cur.setDate(cur.getDate() + 7);
+        }
+      } else {
+        while (cur <= toDate) {
+          const lbl = formatPeriodLabel(cur, 'Day');
+          expectedLabels.push(lbl);
+          values.push(countMap[lbl] || 0);
+          cur.setDate(cur.getDate() + 1);
+        }
+      }
+
       setStats(prev => ({
         ...prev,
-        totalRevenue: revenueDataRes.totalRevenue || revenues.reduce((sum, val) => sum + val, 0),
+        totalRevenue: revenueDataRes.totalRevenue || values.reduce((sum, val) => sum + val, 0),
       }));
 
-      if (revenueDataRes.labels && revenueDataRes.labels.length > 0) {
-        setRevenueData({
-          labels: revenueDataRes.labels,
-          datasets: [{
-            label: 'Doanh thu (VNĐ)',
-            data: revenueDataRes.revenues,
-            backgroundColor: 'rgba(54, 162, 235, 0.6)',
-            borderColor: 'rgb(54, 162, 235)',
-            borderWidth: 1,
-          }],
-        });
-      }
+      setRevenueData({
+        labels: expectedLabels,
+        datasets: [{
+          label: 'Doanh thu (VNĐ)',
+          data: values,
+          backgroundColor: 'rgba(54, 162, 235, 0.6)',
+          borderColor: 'rgb(54, 162, 235)',
+          borderWidth: 1,
+        }],
+      });
     } catch (error) {
       console.error('Error loading revenue chart:', error);
     } finally {
@@ -329,25 +436,64 @@ export default function Dashboard() {
       
       const postRes = await dashboardAPI.getPostGrowth(fromDate, toDate, postChartFilter.type);
       const postData = postRes.data || postRes;
-      const postCounts = postData.counts || [];
-      
+      const rawLabels = postData?.labels || postData?.lables || postData?.Labels || [];
+      const rawCounts = postData?.counts || postData?.Counts || [];
+
+      const countMap = {};
+      rawLabels.forEach((lbl, idx) => {
+        const val = Number(rawCounts[idx] ?? 0) || 0;
+        const variants = buildLabelVariants(lbl, toDate);
+        variants.forEach(v => {
+          if (!v) return;
+          countMap[v] = (countMap[v] || 0) + val;
+        });
+        if (lbl) countMap[lbl] = (countMap[lbl] || 0) + val;
+      });
+
+      const grouping = postChartFilter.type || 'Day';
+      const expectedLabels = [];
+      const counts = [];
+      const cur = new Date(fromDate);
+
+      if (grouping === 'Month') {
+        cur.setDate(1);
+        while (cur <= toDate) {
+          const lbl = formatPeriodLabel(cur, 'Month');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+          cur.setMonth(cur.getMonth() + 1);
+        }
+      } else if (grouping === 'Week') {
+        while (cur <= toDate) {
+          const lbl = formatPeriodLabel(cur, 'Week');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+          cur.setDate(cur.getDate() + 7);
+        }
+      } else {
+        while (cur <= toDate) {
+          const lbl = formatPeriodLabel(cur, 'Day');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+          cur.setDate(cur.getDate() + 1);
+        }
+      }
+
       setStats(prev => ({
         ...prev,
-        totalPosts: postData.totalPosts || postCounts.reduce((sum, val) => sum + val, 0),
+        totalPosts: postData.totalPosts || counts.reduce((sum, val) => sum + val, 0),
       }));
 
-      if (postData.labels && postData.labels.length > 0) {
-        setPostGrowthData({
-          labels: postData.labels,
-          datasets: [{
-            label: 'Bài đăng mới',
-            data: postData.counts,
-            borderColor: 'rgb(153, 102, 255)',
-            backgroundColor: 'rgba(153, 102, 255, 0.2)',
-            tension: 0.3,
-          }],
-        });
-      }
+      setPostGrowthData({
+        labels: expectedLabels,
+        datasets: [{
+          label: 'Bài đăng mới',
+          data: counts,
+          borderColor: 'rgb(153, 102, 255)',
+          backgroundColor: 'rgba(153, 102, 255, 0.2)',
+          tension: 0.3,
+        }],
+      });
     } catch (error) {
       console.error('Error loading post chart:', error);
     } finally {
