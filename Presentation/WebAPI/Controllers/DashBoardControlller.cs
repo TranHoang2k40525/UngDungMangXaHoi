@@ -161,6 +161,37 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
                 var posts = await _dashBoardService.GetTopEngagedPostsAsync(topN, startDate, endDate);
 
+                // Build absolute URLs for avatars and media so frontend can render thumbnails directly
+                try
+                {
+                    var baseUrl = $"{Request.Scheme}://{Request.Host.Value}";
+                    if (posts?.Posts != null)
+                    {
+                        foreach (var p in posts.Posts)
+                        {
+                            // Normalize avatar URL
+                            if (!string.IsNullOrEmpty(p.Author?.AvatarUrl) && !p.Author.AvatarUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                            {
+                                p.Author.AvatarUrl = $"{baseUrl}/Assets/Images/{p.Author.AvatarUrl}";
+                            }
+
+                            // Normalize media URLs
+                            if (p.Media != null)
+                            {
+                                foreach (var m in p.Media)
+                                {
+                                    if (!string.IsNullOrEmpty(m.MediaUrl) && !m.MediaUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        var folder = (m.MediaType ?? "").ToLower().StartsWith("video") ? "Videos" : "Images";
+                                        m.MediaUrl = $"{baseUrl}/Assets/{folder}/{m.MediaUrl}";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { /* best-effort; don't fail the request if URL build fails */ }
+
                 return Ok(new
                 {
                     success = true,
