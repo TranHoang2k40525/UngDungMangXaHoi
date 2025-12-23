@@ -140,16 +140,45 @@ export default function Dashboard() {
 
       // Normalize top posts to the flat shape expected by the table
       const rawPosts = Array.isArray(postsData) ? postsData : (postsData?.data || postsData?.posts || postsData?.Posts || postsData?.Data || []);
-      const normalizedPosts = rawPosts.map(p => ({
-        PostId: p.PostId ?? p.postId ?? p.post_id ?? null,
-        Content: p.Content ?? p.caption ?? p.Caption ?? p.content ?? '',
-        AuthorName: p.Author?.FullName ?? p.Author?.fullName ?? p.FullName ?? p.authorName ?? '',
-        AuthorUsername: p.Author?.UserName ?? p.Author?.Username ?? p.Author?.username ?? p.AuthorUsername ?? '',
-        ReactionCount: Number(p.ReactionCount ?? p.reactionCount ?? p.Engagement?.ReactionCount ?? p.engagement?.reactionCount ?? 0) || 0,
-        CommentCount: Number(p.CommentCount ?? p.commentCount ?? p.Engagement?.CommentCount ?? p.engagement?.commentCount ?? 0) || 0,
-        TotalInteractions: Number(p.TotalInteractions ?? p.totalInteractions ?? p.Engagement?.TotalEngagement ?? p.engagement?.totalEngagement ?? 0) || 0,
-        Raw: p
-      }));
+      const normalizedPosts = rawPosts.map(p => {
+        const postId = p.PostId ?? p.postId ?? p.post_id ?? p.Id ?? p.id ?? null;
+        let content = p.Content ?? p.caption ?? p.Caption ?? p.content ?? '';
+
+        // If caption/content is empty, try to build a hint from media
+        const media = p.Media || p.media || p.MediaItems || p.mediaItems || [];
+        if ((!content || content.trim() === '') && Array.isArray(media) && media.length > 0) {
+          const first = media[0];
+          const mtype = first?.MediaType ?? first?.mediaType ?? '';
+          content = mtype ? `[${mtype}]` : '[Hình ảnh]';
+          if (media.length > 1) content += ` +${media.length - 1}`;
+        }
+
+        const author = p.Author || p.author || p.PostAuthor || {};
+        const authorName = author?.FullName ?? author?.fullName ?? author?.full_name ?? author?.UserName ?? author?.userName ?? 'N/A';
+        const authorUsername = author?.UserName ?? author?.Username ?? author?.username ?? author?.userName ?? author?.User ?? 'unknown';
+
+        const engagement = p.Engagement || p.engagement || p.EngagementStats || {};
+        const reaction = Number(p.ReactionCount ?? p.reactionCount ?? engagement?.ReactionCount ?? engagement?.reactionCount ?? engagement?.LikeCount ?? 0) || 0;
+        const comment = Number(p.CommentCount ?? p.commentCount ?? engagement?.CommentCount ?? engagement?.commentCount ?? 0) || 0;
+        const total = Number(
+          p.TotalInteractions ??
+          p.totalInteractions ??
+          engagement?.TotalEngagement ??
+          engagement?.totalEngagement ??
+          (reaction + comment + (engagement?.ShareCount ?? 0))
+        ) || 0;
+
+        return {
+          PostId: postId,
+          Content: content,
+          AuthorName: authorName,
+          AuthorUsername: authorUsername,
+          ReactionCount: reaction,
+          CommentCount: comment,
+          TotalInteractions: total,
+          Raw: p
+        };
+      });
       setTopPosts(normalizedPosts);
 
       // Load tất cả charts
