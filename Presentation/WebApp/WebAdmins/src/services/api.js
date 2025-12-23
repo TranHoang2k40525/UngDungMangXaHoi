@@ -327,6 +327,16 @@ export const moderationAPI = {
   },
 };
 
+// ============= REACTIONS API =============
+export const reactionsAPI = {
+  async getSummary(postId) {
+    return apiClient.get(`/api/reactions/post/${postId}/summary`);
+  },
+  async getByPost(postId) {
+    return apiClient.get(`/api/reactions/post/${postId}`);
+  }
+};
+
 // ============= REPORTS API (Mock) =============
 export const reportsAPI = {
   async getReports(page = 1, pageSize = 20, status = 'pending') {

@@ -1,8 +1,24 @@
 import './PostModal.css';
+import { useEffect, useState } from 'react';
 import { FiHeart, FiMessageSquare, FiRepeat, FiBarChart2, FiX } from 'react-icons/fi';
+import { reactionsAPI } from '../services/api.js';
 
 export default function PostModal({ post, onClose }) {
   if (!post) return null;
+
+  const [reactionSummary, setReactionSummary] = useState(null);
+
+  useEffect(() => {
+    // Determine post id from possible shapes
+    const pid = post?.id ?? post?.PostId ?? post?.postId ?? post?.ID ?? post?.Id;
+    if (!pid) return;
+    let mounted = true;
+    reactionsAPI.getSummary(pid).then(res => {
+      const payload = res?.data || res;
+      if (mounted) setReactionSummary(payload);
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, [post]);
 
   const formatDate = (dateString) => {
     if (!dateString) return '';
@@ -145,18 +161,18 @@ export default function PostModal({ post, onClose }) {
             <div className="stat-item">
               <span className="stat-icon"><FiHeart aria-hidden="true"/></span>
               <span className="stat-label">Reactions:</span>
-              <span className="stat-value">{post.ReactionCount || 0}</span>
+              <span className="stat-value">{(reactionSummary?.totalReactions ?? reactionSummary?.total ?? post.ReactionCount ?? post.reactionCount ?? 0)}</span>
             </div>
             <div className="stat-item">
               <span className="stat-icon"><FiMessageSquare aria-hidden="true"/></span>
               <span className="stat-label">Comments:</span>
-              <span className="stat-value">{post.CommentCount || 0}</span>
+              <span className="stat-value">{post.commentsCount ?? post.CommentCount ?? post.comments ?? 0}</span>
             </div>
             {/* Shares removed per request */}
             <div className="stat-item total-stat">
               <span className="stat-icon"><FiBarChart2 aria-hidden="true"/></span>
               <span className="stat-label">Tổng tương tác:</span>
-              <span className="stat-value">{post.TotalInteractions || 0}</span>
+              <span className="stat-value">{(reactionSummary?.totalReactions ?? reactionSummary?.total ?? post.TotalInteractions ?? post.totalInteractions ?? ((reactionSummary?.totalReactions ?? 0) + (post.commentsCount ?? post.CommentCount ?? 0)))}</span>
             </div>
           </div>
 
