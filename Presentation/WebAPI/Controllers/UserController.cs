@@ -57,6 +57,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             public int FollowersCount { get; set; }
             public int FollowingCount { get; set; }
             public bool IsFollowing { get; set; }
+            public bool IsFollowingMe { get; set; }
 
         }
 

@@ -282,13 +282,6 @@ const Profile = () => {
     }
   };
 
-  const stories = [
-    { id: 1, name: 'New', icon: 'add', image: null },
-    { id: 2, name: 'Friends', image: 'https://picsum.photos/100/100?random=10' },
-    { id: 3, name: 'Sport', image: 'https://picsum.photos/100/100?random=11' },
-    { id: 4, name: 'Design', image: 'https://picsum.photos/100/100?random=12' },
-  ];
-
   return (
     <SafeAreaView edges={['top']} style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
@@ -306,9 +299,6 @@ const Profile = () => {
           <Ionicons name="chevron-down" size={16} color="#000" style={styles.chevron} />
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.headerIcon}>
-            <Ionicons name="add-circle-outline" size={24} color="#000" />
-          </TouchableOpacity>
           <TouchableOpacity style={styles.headerIcon} onPress={() => setMenuOpen(v => !v)}>
             <Feather name="menu" size={24} color="#000" />
           </TouchableOpacity>
@@ -500,34 +490,7 @@ const Profile = () => {
             >
               <Text style={styles.editButtonText}>Edit Profile</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.shareButton}>
-              <Text style={styles.shareButtonText}>Share Profile</Text>
-            </TouchableOpacity>
           </View>
-        </View>
-
-        {/* Story Highlights */}
-        <View style={styles.storiesSection}>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.storiesContent}
-          >
-            {stories.map((story) => (
-              <TouchableOpacity key={story.id} style={styles.storyItem}>
-                {story.icon ? (
-                  <View style={styles.addStoryCircle}>
-                    <Ionicons name={story.icon} size={32} color="#000" />
-                  </View>
-                ) : (
-                  <View style={styles.storyImageContainer}>
-                    <Image source={{ uri: story.image }} style={styles.storyImage} />
-                  </View>
-                )}
-                <Text style={styles.storyName}>{story.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
         </View>
 
         {/* Tab Bar */}

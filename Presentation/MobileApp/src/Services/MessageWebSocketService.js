@@ -20,7 +20,7 @@ class MessageWebSocketService {
         return false;
       }
 
-        const baseURL = 'http://10.10.2.115:5297'; // Backend IP từ Api.js
+        const baseURL = 'http://10.62.27.105:5297'; // Backend IP từ Api.js
       // const baseURL = 'http://10.0.2.2:5297'; // Android emulator
       // const baseURL = 'http://localhost:5297'; // iOS simulator
 
@@ -251,8 +251,13 @@ class MessageWebSocketService {
 
   // Lấy danh sách users online
   async getOnlineUsers() {
-    if (!this.isConnected) {
-      return;
+    // Check actual connection state, not just flag
+    if (
+      !this.connection ||
+      this.connection.state !== SignalR.HubConnectionState.Connected
+    ) {
+      console.warn("[MessageWebSocket] Cannot get online users - not connected");
+      return; // Silently fail
     }
 
     try {
@@ -264,7 +269,12 @@ class MessageWebSocketService {
 
   // Xóa tin nhắn
   async deleteMessage(messageId) {
-    if (!this.isConnected) {
+    // Check actual connection state
+    if (
+      !this.connection ||
+      this.connection.state !== SignalR.HubConnectionState.Connected
+    ) {
+      console.warn("[MessageWebSocket] Cannot delete - not connected");
       throw new Error("WebSocket not connected");
     }
 
