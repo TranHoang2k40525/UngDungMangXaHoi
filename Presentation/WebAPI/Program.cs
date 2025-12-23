@@ -43,7 +43,7 @@ builder.Services.AddControllers()
         // Use camelCase naming so frontend JS can access properties with conventional camelCase keys
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
     });
-
+//
 builder.Services.AddEndpointsApiExplorer();
 
 // 2. Add Swagger Gen (Đã gộp code của bạn và code bảo mật)
