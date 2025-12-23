@@ -1,0 +1,501 @@
+.doanchat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-width: 935px;
+  margin: 0 auto;
+  background-color: #FFFFFF;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+}
+
+/* Header */
+.doanchat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 8px;
+  background-color: #FFFFFF;
+  border-bottom: 1px solid #F3F4F6;
+  min-height: 60px;
+}
+
+.doanchat-back-button {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 24px;
+  color: #111827;
+}
+
+.doanchat-header-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+}
+
+.doanchat-header-avatar-container {
+  position: relative;
+  margin-right: 8px;
+}
+
+.doanchat-header-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  object-fit: cover;
+}
+
+.doanchat-header-online-indicator {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  background-color: #10B981;
+  border: 2px solid #FFFFFF;
+}
+
+.doanchat-default-avatar {
+  background-color: #3B82F6;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.doanchat-header-text-container {
+  flex: 1;
+}
+
+.doanchat-header-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+}
+
+.doanchat-header-status {
+  font-size: 12px;
+  color: #6B7280;
+  margin: 0;
+}
+
+.doanchat-header-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 24px;
+}
+
+/* Chat Content */
+.doanchat-chat-content {
+  flex: 1;
+  overflow-y: auto;
+  background-color: #F9FAFB;
+  padding: 16px;
+}
+
+.doanchat-loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: 100px;
+}
+
+.doanchat-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #E5E7EB;
+  border-top: 4px solid #3B82F6;
+  border-radius: 50%;
+  animation: doanchat-spin 1s linear infinite;
+}
+
+@keyframes doanchat-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.doanchat-load-more-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 0;
+  gap: 8px;
+  font-size: 13px;
+  color: #6B7280;
+}
+
+.doanchat-messages-container {
+  padding-bottom: 65px;
+}
+
+.doanchat-message-wrapper {
+  display: flex;
+  margin-bottom: 12px;
+  align-items: flex-end;
+}
+
+.doanchat-message-wrapper.own {
+  justify-content: flex-end;
+}
+
+.doanchat-message-wrapper.other {
+  justify-content: flex-start;
+}
+
+.doanchat-message-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  margin-right: 8px;
+  object-fit: cover;
+}
+
+.doanchat-message-bubble {
+  max-width: 70%;
+  padding: 10px 16px;
+  border-radius: 20px;
+  position: relative;
+}
+
+.doanchat-message-bubble.own {
+  background-color: #3B82F6;
+  border-bottom-right-radius: 4px;
+}
+
+.doanchat-message-bubble.other {
+  background-color: #FFFFFF;
+  border-bottom-left-radius: 4px;
+  border: 1px solid #E5E7EB;
+}
+
+.doanchat-message-bubble.highlighted {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.doanchat-message-text {
+  font-size: 15px;
+  line-height: 20px;
+  margin: 0;
+  word-wrap: break-word;
+}
+
+.doanchat-message-text.own {
+  color: #FFFFFF;
+}
+
+.doanchat-message-text.other {
+  color: #111827;
+}
+
+.doanchat-message-time {
+  font-size: 11px;
+  display: block;
+  margin-top: 4px;
+}
+
+.doanchat-message-time.own {
+  color: #DBEAFE;
+  text-align: right;
+}
+
+.doanchat-message-time.other {
+  color: #9CA3AF;
+}
+
+.doanchat-recalled-message-container {
+  display: flex;
+  align-items: center;
+}
+
+.doanchat-recalled-message {
+  font-size: 14px;
+  color: #9CA3AF;
+  font-style: italic;
+}
+
+.doanchat-message-image {
+  width: 200px;
+  height: 200px;
+  border-radius: 12px;
+  object-fit: cover;
+  cursor: pointer;
+}
+
+/* Typing Indicator */
+.doanchat-typing-indicator-container {
+  display: flex;
+  align-items: flex-end;
+  margin-bottom: 32px;
+}
+
+.doanchat-typing-bubble {
+  background-color: #FFFFFF;
+  border-radius: 20px;
+  border-bottom-left-radius: 4px;
+  padding: 12px 16px;
+  border: 1px solid #E5E7EB;
+}
+
+.doanchat-typing-dots {
+  display: flex;
+  align-items: center;
+}
+
+.typing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: #9CA3AF;
+  margin: 0 2px;
+  animation: typing-bounce 1.4s infinite ease-in-out;
+}
+
+@keyframes typing-bounce {
+  0%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-6px);
+  }
+}
+
+/* Profile Section */
+.doanchat-profile-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 24px 0;
+}
+
+.doanchat-profile-avatar {
+  width: 88px;
+  height: 88px;
+  border-radius: 44px;
+  margin-bottom: 16px;
+  object-fit: cover;
+}
+
+.doanchat-profile-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.doanchat-profile-username {
+  font-size: 14px;
+  color: #6B7280;
+  margin-bottom: 8px;
+}
+
+.doanchat-profile-info {
+  font-size: 13px;
+  color: #6B7280;
+  margin-bottom: 8px;
+}
+
+.doanchat-profile-bio {
+  font-size: 13px;
+  color: #6B7280;
+  text-align: center;
+  line-height: 18px;
+  margin-bottom: 4px;
+}
+
+/* Message Input */
+.doanchat-message-input-container {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px 12px;
+  background-color: #FFFFFF;
+  border-top: 1px solid #F3F4F6;
+}
+
+.doanchat-camera-button,
+.doanchat-mic-button,
+.doanchat-image-button,
+.doanchat-like-button {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 24px;
+  color: #111827;
+  margin-right: 4px;
+}
+
+.doanchat-input-wrapper {
+  flex: 1;
+  background-color: #F3F4F6;
+  border-radius: 20px;
+  padding: 8px 16px;
+  margin: 0 8px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+}
+
+.doanchat-message-input {
+  width: 100%;
+  font-size: 14px;
+  color: #111827;
+  background: none;
+  border: none;
+  outline: none;
+  resize: none;
+  max-height: 100px;
+  font-family: inherit;
+}
+
+.doanchat-message-input::placeholder {
+  color: #9CA3AF;
+}
+
+.doanchat-send-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  background-color: #3B82F6;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  margin-left: 4px;
+  color: #FFFFFF;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.doanchat-send-button.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.doanchat-spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #FFFFFF;
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  animation: doanchat-spin 1s linear infinite;
+}
+
+/* Action Modal */
+.doanchat-action-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+}
+
+.doanchat-action-modal-content {
+  position: absolute;
+  background-color: #FFFFFF;
+  border-radius: 12px;
+  padding: 6px 4px;
+  min-width: 90px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  z-index: 1001;
+}
+
+.doanchat-action-button {
+  padding: 10px 16px;
+  text-align: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: #EF4444;
+  font-weight: 600;
+  width: 100%;
+}
+
+/* Confirm Modal */
+.doanchat-confirm-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.doanchat-confirm-modal-content {
+  background-color: #FFFFFF;
+  border-radius: 16px;
+  padding: 24px;
+  width: 100%;
+  max-width: 340px;
+  box-shadow: 0 6px 10px rgba(0, 0, 0, 0.4);
+}
+
+.doanchat-confirm-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.doanchat-confirm-message {
+  font-size: 14px;
+  color: #6B7280;
+  margin-bottom: 24px;
+  text-align: center;
+  line-height: 20px;
+}
+
+.doanchat-confirm-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.doanchat-confirm-button {
+  flex: 1;
+  padding: 12px;
+  border-radius: 12px;
+  text-align: center;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.doanchat-confirm-button.cancel {
+  background-color: #F3F4F6;
+  color: #6B7280;
+}
+
+.doanchat-confirm-button.recall {
+  background-color: #EF4444;
+  color: #FFFFFF;
+}
