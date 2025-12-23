@@ -28,6 +28,11 @@ export default function PostModal({ post, onClose }) {
     return () => { mounted = false; };
   }, [post]);
 
+  // compute reactions/comments/total consistently
+  const reactionsCount = (reactionSummary?.totalReactions ?? reactionSummary?.total ?? post.ReactionCount ?? post.reactionCount ?? 0) || 0;
+  const commentsCount = (post.commentsCount ?? post.CommentCount ?? post.comments ?? 0) || 0;
+  const totalInteractions = Number(reactionsCount) + Number(commentsCount);
+
   const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -169,18 +174,18 @@ export default function PostModal({ post, onClose }) {
             <div className="stat-item">
               <span className="stat-icon"><FiHeart aria-hidden="true"/></span>
               <span className="stat-label">Reactions:</span>
-              <span className="stat-value">{(reactionSummary?.totalReactions ?? reactionSummary?.total ?? post.ReactionCount ?? post.reactionCount ?? 0)}</span>
+              <span className="stat-value">{reactionsCount}</span>
             </div>
             <div className="stat-item">
               <span className="stat-icon"><FiMessageSquare aria-hidden="true"/></span>
               <span className="stat-label">Comments:</span>
-              <span className="stat-value">{post.commentsCount ?? post.CommentCount ?? post.comments ?? 0}</span>
+              <span className="stat-value">{commentsCount}</span>
             </div>
             {/* Shares removed per request */}
             <div className="stat-item total-stat">
               <span className="stat-icon"><FiBarChart2 aria-hidden="true"/></span>
               <span className="stat-label">Tổng tương tác:</span>
-              <span className="stat-value">{(reactionSummary?.totalReactions ?? reactionSummary?.total ?? post.TotalInteractions ?? post.totalInteractions ?? ((reactionSummary?.totalReactions ?? 0) + (post.commentsCount ?? post.CommentCount ?? 0)))}</span>
+              <span className="stat-value">{totalInteractions}</span>
             </div>
           </div>
 

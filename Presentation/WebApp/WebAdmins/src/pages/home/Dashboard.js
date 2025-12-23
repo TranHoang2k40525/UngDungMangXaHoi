@@ -29,6 +29,16 @@ ChartJS.register(
   Legend
 );
 
+// Helper: convert filename/relative path to absolute URL on this host
+function ensureAbsolute(u) {
+  if (!u) return '';
+  if (typeof u !== 'string') return '';
+  if (u.startsWith('http://') || u.startsWith('https://')) return u;
+  if (u.startsWith('/')) return window.location.origin + u;
+  if (/^assets\//i.test(u)) return window.location.origin + '/' + u.replace(/^\/+/, '');
+  return window.location.origin + '/Assets/Images/' + u;
+}
+
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState(30); // 7, 30, 90 days
@@ -1018,60 +1028,69 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {topPosts.length > 0 ? (
-                  topPosts.map((post, index) => (
-                    <tr key={post.PostId || index}>
-                      <td>{index + 1}</td>
-                      <td className="post-content-cell">
-                        <div className="post-preview">
-                          <div className="post-preview-inner">
-                            {post.Thumbnail ? (
-                              post.ThumbnailIsVideo ? (
-                                <video className="post-thumb" src={post.Thumbnail} muted loop playsInline />
+                  topPosts.map((post, index) => {
+                    // compute avatar the same way PostModal does (support multiple DTO shapes)
+                    const avatarRaw = post.AuthorAvatar || post.Raw?.user?.avatarUrl || post.Raw?.user?.avatar || post.Raw?.author?.avatar || post.Raw?.AuthorAvatar || post.Raw?.author?.AvatarUrl || '';
+                    const avatar = avatarRaw ? ensureAbsolute(avatarRaw) : '';
+                    const reactions = Number(post.ReactionCount ?? post.reactionCount ?? post.Raw?.ReactionCount ?? post.Raw?.reactionCount ?? 0) || 0;
+                    const comments = Number(post.CommentCount ?? post.commentsCount ?? post.Comment ?? post.comments ?? post.Raw?.CommentCount ?? post.Raw?.comments ?? 0) || 0;
+                    const total = reactions + comments;
+
+                    return (
+                      <tr key={post.PostId || index}>
+                        <td>{index + 1}</td>
+                        <td className="post-content-cell">
+                          <div className="post-preview">
+                            <div className="post-preview-inner">
+                              {post.Thumbnail ? (
+                                post.ThumbnailIsVideo ? (
+                                  <video className="post-thumb" src={post.Thumbnail} muted loop playsInline />
+                                ) : (
+                                  <img src={post.Thumbnail} alt="thumb" className="post-thumb" />
+                                )
+                              ) : null}
+                              <div className="post-preview-text">
+                                {post.Content ? post.Content.substring(0, 60) : 'Không có nội dung'}
+                                {post.Content && post.Content.length > 60 && '...'}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="author-info">
+                            <div className="author-meta">
+                              {avatar ? (
+                                <img src={avatar} alt="avatar" className="author-avatar" />
                               ) : (
-                                <img src={post.Thumbnail} alt="thumb" className="post-thumb" />
-                              )
-                            ) : null}
-                            <div className="post-preview-text">
-                              {post.Content ? post.Content.substring(0, 60) : 'Không có nội dung'}
-                              {post.Content && post.Content.length > 60 && '...'}
+                                <div className="author-avatar placeholder"></div>
+                              )}
+                              <div className="author-text">
+                                <strong>{post.AuthorName || 'N/A'}</strong>
+                                <small>@{post.AuthorUsername || 'unknown'}</small>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="author-info">
-                          <div className="author-meta">
-                            {post.AuthorAvatar ? (
-                              <img src={post.AuthorAvatar} alt="avatar" className="author-avatar" />
-                            ) : (
-                              <div className="author-avatar placeholder"></div>
-                            )}
-                            <div className="author-text">
-                              <strong>{post.AuthorName || 'N/A'}</strong>
-                              <small>@{post.AuthorUsername || 'unknown'}</small>
-                            </div>
+                        </td>
+                        <td>
+                          <div className="interaction-stats">
+                            <span className="reaction-count"><FiHeart aria-hidden="true"/> {reactions}</span>
+                            <span className="comment-count"><FiMessageSquare aria-hidden="true"/> {comments}</span>
+                            <span className="total-count">
+                              <strong>{total}</strong> tổng
+                            </span>
                           </div>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="interaction-stats">
-                          <span className="reaction-count"><FiHeart aria-hidden="true"/> {post.ReactionCount || 0}</span>
-                          <span className="comment-count"><FiMessageSquare aria-hidden="true"/> {post.CommentCount || 0}</span>
-                          <span className="total-count">
-                            <strong>{post.TotalInteractions || 0}</strong> tổng
-                          </span>
-                        </div>
-                      </td>
-                      <td>
-                        <button
-                          className="btn-view-post"
-                          onClick={() => handleViewPost(post.PostId)}
-                        >
-                          Xem chi tiết
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td>
+                          <button
+                            className="btn-view-post"
+                            onClick={() => handleViewPost(post.PostId)}
+                          >
+                            Xem chi tiết
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
                     <td colSpan="5" className="no-data">Chưa có dữ liệu</td>
