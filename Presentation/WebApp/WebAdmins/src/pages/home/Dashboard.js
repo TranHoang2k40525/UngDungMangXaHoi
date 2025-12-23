@@ -168,11 +168,19 @@ export default function Dashboard() {
           (reaction + comment + (engagement?.ShareCount ?? 0))
         ) || 0;
 
+        // collect media urls (normalize various property names)
+        const mediaList = Array.isArray(media) ? media.map(m => m?.MediaUrl ?? m?.mediaUrl ?? m?.Url ?? m?.url ?? '') .filter(Boolean) : [];
+
+        // author avatar fallback
+        const avatar = author?.AvatarUrl ?? author?.avatarUrl ?? author?.Avatar ?? author?.avatar ?? '';
+
         return {
           PostId: postId,
           Content: content,
           AuthorName: authorName,
           AuthorUsername: authorUsername,
+          AuthorAvatar: avatar,
+          MediaUrls: mediaList,
           ReactionCount: reaction,
           CommentCount: comment,
           TotalInteractions: total,
@@ -898,14 +906,30 @@ export default function Dashboard() {
                       <td>{index + 1}</td>
                       <td className="post-content-cell">
                         <div className="post-preview">
-                          {post.Content ? post.Content.substring(0, 60) : 'Không có nội dung'}
-                          {post.Content && post.Content.length > 60 && '...'}
+                          <div className="post-preview-inner">
+                            {post.MediaUrls && post.MediaUrls.length > 0 ? (
+                              <img src={post.MediaUrls[0]} alt="thumb" className="post-thumb" />
+                            ) : null}
+                            <div className="post-preview-text">
+                              {post.Content ? post.Content.substring(0, 60) : 'Không có nội dung'}
+                              {post.Content && post.Content.length > 60 && '...'}
+                            </div>
+                          </div>
                         </div>
                       </td>
                       <td>
                         <div className="author-info">
-                          <strong>{post.AuthorName || 'N/A'}</strong>
-                          <small>@{post.AuthorUsername || 'unknown'}</small>
+                          <div className="author-meta">
+                            {post.AuthorAvatar ? (
+                              <img src={post.AuthorAvatar} alt="avatar" className="author-avatar" />
+                            ) : (
+                              <div className="author-avatar placeholder"></div>
+                            )}
+                            <div className="author-text">
+                              <strong>{post.AuthorName || 'N/A'}</strong>
+                              <small>@{post.AuthorUsername || 'unknown'}</small>
+                            </div>
+                          </div>
                         </div>
                       </td>
                       <td>
