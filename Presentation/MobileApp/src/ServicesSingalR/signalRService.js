@@ -624,6 +624,13 @@ class SignalRService {
   }
 
   /**
+   * Đăng ký lắng nghe comment reaction changed
+   */
+  onCommentReactionChanged(callback) {
+    this._addHandler('CommentReactionChanged', callback);
+  }
+
+  /**
    * Disconnect comment
    */
   async disconnectComments() {

@@ -48,7 +48,7 @@ public class CommentService
         // Extract hashtags from content
         var hashtags = ExtractHashtags(dto.Content);
 
-        // ✅ TẠO COMMENT TRƯỚC (như Instagram/Facebook - UX mượt mà)
+        // TẠO COMMENT TRƯỚC (như Instagram/Facebook - UX mượt mà)
         var comment = new Comment
         {
             PostId = dto.PostId,
@@ -67,7 +67,7 @@ public class CommentService
         // Gửi thông báo ngay
         await SendCommentNotificationAsync(createdComment, user);
 
-        // ✅ KIỂM TRA TOXIC TRONG BACKGROUND (với scope riêng)
+        // KIỂM TRA TOXIC TRONG BACKGROUND (với scope riêng)
         _= Task.Run(async () => await CheckAndDeleteToxicCommentAsync(createdComment.CommentId, dto.Content, currentAccountId, user.user_id));
 
         // Fetch complete comment with all includes
@@ -121,7 +121,7 @@ public class CommentService
             {
                 Console.WriteLine($"[MODERATION] Comment {commentId} is toxic ({moderationResult.Label}). Waiting 6 seconds before deletion...");
                 
-                // ⏱️ Đợi 6 giây (như Instagram/Facebook)
+                // Đợi 6 giây (như Instagram/Facebook)
                 await Task.Delay(6000);
                 
                 Console.WriteLine($"[MODERATION] DELETING toxic comment {commentId}: {moderationResult.Label}");
@@ -175,7 +175,7 @@ public class CommentService
         if (user == null || comment.UserId != user.user_id)
             throw new UnauthorizedAccessException("You can only edit your own comments");
 
-        // ✅ KIỂM TRA TOXIC KHI SỬA COMMENT
+        // KIỂM TRA TOXIC KHI SỬA COMMENT
         var moderationResult = await _moderationService.AnalyzeTextAsync(newContent);
         
         if (moderationResult.RiskLevel == "high_risk")
@@ -192,7 +192,7 @@ public class CommentService
         
         var updatedComment = await _commentRepository.UpdateAsync(comment);
 
-        // ✅ LƯU KẾT QUẢ MODERATION
+        // LƯU KẾT QUẢ MODERATION
         await SaveModerationResultAsync(moderationResult, "Comment", commentId, currentAccountId, null, commentId);
 
         return MapToDto(updatedComment);
@@ -227,11 +227,11 @@ public class CommentService
         return comments.Select(MapToDto);
     }
 
-    // Get Replies
-    public async Task<IEnumerable<CommentDto>> GetRepliesAsync(int commentId)
+    // Get Comment by ID
+    public async Task<CommentDto?> GetCommentByIdAsync(int commentId)
     {
-        var replies = await _commentRepository.GetRepliesByCommentIdAsync(commentId);
-        return replies.Select(MapToDto);
+        var comment = await _commentRepository.GetByIdAsync(commentId);
+        return comment != null ? MapToDto(comment) : null;
     }
 
     // Get Comment Count
@@ -266,12 +266,6 @@ public class CommentService
     public async Task<bool> RemoveReactionAsync(int commentId, int accountId)
     {
         return await _commentRepository.RemoveReactionAsync(commentId, accountId);
-    }
-
-    // Get Reaction Counts
-    public async Task<Dictionary<string, int>> GetReactionCountsAsync(int commentId)
-    {
-        return await _commentRepository.GetReactionCountsAsync(commentId);
     }
 
     // Gửi thông báo khi có comment mới
@@ -440,7 +434,7 @@ public class CommentService
         return matches.Select(m => m.Groups[1].Value).Distinct().ToList();
     }
 
-    // ✅ LƯU KẾT QUẢ MODERATION VÀO DATABASE
+    // LƯU KẾT QUẢ MODERATION VÀO DATABASE
     private async Task SaveModerationResultAsync(ModerationResult result, string contentType, int contentId, int accountId, int? postId, int? commentId)
     {
         var moderation = new ContentModeration
@@ -493,7 +487,7 @@ public class CommentService
                 Length = m.Length
             }).ToList() ?? new List<MentionDto>(),
             ReactionCounts = comment.Reactions?
-                .GroupBy(r => r.ReactionType)
+                .GroupBy(r => $"{r.ReactionType}_{r.AccountId}")
                 .ToDictionary(g => g.Key, g => g.Count()) ?? new Dictionary<string, int>(),
             ReplyCount = comment.Replies?.Count ?? 0,
             Replies = new List<CommentDto>() // Load separately to avoid circular reference

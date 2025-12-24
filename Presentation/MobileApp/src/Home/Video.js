@@ -58,6 +58,8 @@ import Slider from "@react-native-community/slider";
 import CommentsModal from "./CommentsModal";
 import ReactionPicker from "./ReactionPicker";
 import ReactionsListModal from "./ReactionsListModal";
+import SharePostModal from "./SharePostModal";
+import notificationSignalRService from "../ServicesSingalR/notificationService";
 
 // Component wrapper cho mỗi video item để dùng useVideoPlayer hook
 const ReelVideoPlayer = React.memo(
@@ -364,6 +366,10 @@ export default function Reels() {
   const [showComments, setShowComments] = useState(false);
   const [selectedPostIdForComments, setSelectedPostIdForComments] =
     useState(null);
+  
+  // Share modal state
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [sharePost, setSharePost] = useState(null);
 
   // Reaction states
   const [videoStates, setVideoStates] = useState({}); // { [postId]: { liked, likes, reactionType, topReactions } }
@@ -882,6 +888,7 @@ export default function Reels() {
             reactionType: reactionData?.userReaction,
             topReactions: topReactions,
             reactionCounts: reactionData?.reactionCounts || [],
+            shares: Number(reel?.sharesCount ?? 0),
           };
         } catch (err) {
           console.error(`[VIDEO] Error loading reactions for ${reel.id}:`, err);
@@ -891,6 +898,7 @@ export default function Reels() {
             reactionType: null,
             topReactions: [],
             reactionCounts: [],
+            shares: Number(reel?.sharesCount ?? 0),
           };
         }
       }
@@ -900,6 +908,37 @@ export default function Reels() {
 
     loadReactionData();
   }, [reels]);
+
+  // SignalR listener for real-time share updates
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const handleShareUpdate = (data) => {
+      console.log("[VIDEO] 🔔 Received share update:", data);
+      const { PostId, ShareCount } = data;
+      
+      if (PostId) {
+        setVideoStates((prev) => {
+          if (prev[PostId]) {
+            return {
+              ...prev,
+              [PostId]: {
+                ...prev[PostId],
+                shares: Number(ShareCount ?? 0),
+              },
+            };
+          }
+          return prev;
+        });
+      }
+    };
+
+    notificationSignalRService.onReceiveShareUpdate(handleShareUpdate);
+
+    return () => {
+      notificationSignalRService.off("ReceiveShareUpdate", handleShareUpdate);
+    };
+  }, [currentUserId]);
 
   // Load more reels when scroll to end
   const loadMoreReels = useCallback(async () => {
@@ -1357,9 +1396,15 @@ export default function Reels() {
             <Ionicons name="chatbubble-outline" size={28} color="#fff" />
             <Text style={styles.sideCount}>{item?.commentsCount || 0}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.sideBtn}>
+          <TouchableOpacity 
+            style={styles.sideBtn}
+            onPress={() => {
+              setSharePost(item);
+              setShowShareModal(true);
+            }}
+          >
             <Ionicons name="paper-plane-outline" size={28} color="#fff" />
-            <Text style={styles.sideCount}>0</Text>
+            <Text style={styles.sideCount}>{videoStates[item?.id]?.shares || 0}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.sideBtn, { marginTop: 6 }]}
@@ -2272,6 +2317,15 @@ export default function Reels() {
       )}
 
       {/* Reactions List Modal */}
+      <SharePostModal
+        visible={showShareModal}
+        onClose={() => {
+          setShowShareModal(false);
+          setSharePost(null);
+        }}
+        post={sharePost}
+      />
+
       <ReactionsListModal
         visible={showReactionsList}
         onClose={() => setShowReactionsList(false)}
