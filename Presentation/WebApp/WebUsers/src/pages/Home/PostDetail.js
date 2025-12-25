@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { getPostById, deletePost, updatePostCaption, updatePostPrivacy, addReaction, getReactionSummary } from '../../Api/Api';
+import { getPostById, deletePost, updatePostCaption, updatePostPrivacy, addReaction, getReactionSummary } from '../../api/Api';
 import { useUser } from '../../context/UserContext';
 import { getRelativeTime } from '../../Utils/timeUtils';
 import MentionText from '../../Components/MentionText';

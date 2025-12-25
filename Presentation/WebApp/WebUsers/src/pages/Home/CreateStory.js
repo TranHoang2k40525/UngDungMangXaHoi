@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { createStory, API_BASE_URL } from '../../Api/Api';
+import { createStory, API_BASE_URL } from '../../api/Api';
 import './CreateStory.css';
 
 const CreateStory = () => {

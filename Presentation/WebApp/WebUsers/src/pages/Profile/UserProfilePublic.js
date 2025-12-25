@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getUserPostsById, getUserProfile, followUser, unfollowUser, API_BASE_URL, blockUser, unblockUser, getBlockedUsers } from '../../Api/Api';
+import { getUserPostsById, getUserProfile, followUser, unfollowUser, API_BASE_URL, blockUser, unblockUser, getBlockedUsers } from '../../api/Api';
 import { useFollow } from '../../context/FollowContext';
 import './UserProfilePublic.css';
 

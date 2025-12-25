@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { searchUsers } from '../../Api/AppApi';
+import { searchUsers } from '../../api/AppApi';
 import NavigationBar from '../../Components/NavigationBar';
 import './Search.css';
 
