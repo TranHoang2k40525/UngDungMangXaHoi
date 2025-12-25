@@ -22,6 +22,7 @@ export default function UserProfilePublic() {
   const [refreshing, setRefreshing] = useState(false);
   const [videoThumbs, setVideoThumbs] = useState({});
   const [isFollowing, setIsFollowing] = useState(false);
+  const [isFollowingMe, setIsFollowingMe] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [userInfoModalVisible, setUserInfoModalVisible] = useState(false);
@@ -70,10 +71,12 @@ export default function UserProfilePublic() {
           setPosts(Array.isArray(postsData) ? postsData : []);
           // Đồng bộ với global context
           const isFollowingFromAPI = profileData?.isFollowing || false;
+          const isFollowingMeFromAPI = profileData?.isFollowingMe || false;
           const isFollowingFromGlobal = isFollowedGlobal(userId);
           // Ưu tiên global context nếu khác với API (vì user có thể đã follow/unfollow ở trang khác)
           const finalFollowStatus = isFollowingFromGlobal !== undefined ? isFollowingFromGlobal : isFollowingFromAPI;
           setIsFollowing(finalFollowStatus);
+          setIsFollowingMe(isFollowingMeFromAPI);
           
           // Đồng bộ ngược lại vào global context nếu API trả về isFollowing
           if (isFollowingFromAPI && !isFollowingFromGlobal) {
@@ -150,9 +153,10 @@ export default function UserProfilePublic() {
                 setIsFollowing(false);
                 // Update global follow context (đồng bộ với Home và Video)
                 markAsUnfollowed(userId);
-                // Refresh profile to update follower count
+                // Refresh profile to update follower count and isFollowingMe
                 const updatedProfile = await getUserProfile(userId);
                 setProfile(updatedProfile);
+                setIsFollowingMe(updatedProfile?.isFollowingMe || false);
               },
             },
           ]
@@ -162,9 +166,10 @@ export default function UserProfilePublic() {
         setIsFollowing(true);
         // Update global follow context (đồng bộ với Home và Video)
         markAsFollowed(userId);
-        // Refresh profile to update follower count
+        // Refresh profile to update follower count and isFollowingMe
         const updatedProfile = await getUserProfile(userId);
         setProfile(updatedProfile);
+        setIsFollowingMe(updatedProfile?.isFollowingMe || false);
       }
     } catch (e) {
       Alert.alert('Lỗi', e.message || 'Không thể thực hiện thao tác');
@@ -172,8 +177,19 @@ export default function UserProfilePublic() {
   };
 
   const handleMessage = () => {
-    navigation.navigate('Messenger');
-    // TODO: Navigate to specific chat with this user
+    // Navigate to chat screen with this user
+    // Doanchat expects: userId, userName, userAvatar
+    const fullAvatarUrl = profile?.avatarUrl 
+      ? (profile.avatarUrl.startsWith('http') 
+          ? profile.avatarUrl 
+          : `${API_BASE_URL}${profile.avatarUrl}`)
+      : null;
+      
+    navigation.navigate('Doanchat', { 
+      userId: userId,
+      userName: profile?.username || 'user',  // userName (not username)
+      userAvatar: fullAvatarUrl  // userAvatar (not avatarUrl) with full URL
+    });
   };
 
   const handleMenuPress = () => {
@@ -295,6 +311,7 @@ export default function UserProfilePublic() {
                 setProfile(profileData || null);
                 setPosts(Array.isArray(postsData)?postsData:[]);
                 setIsFollowing(profileData?.isFollowing || false);
+                setIsFollowingMe(profileData?.isFollowingMe || false);
               } finally { 
                 setRefreshing(false);
               } 
@@ -380,12 +397,15 @@ export default function UserProfilePublic() {
                 </Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.messageButton]} 
-              onPress={handleMessage}
-            >
-              <Text style={styles.actionButtonText}>Nhắn tin</Text>
-            </TouchableOpacity>
+            {/* Chỉ hiện nút Nhắn tin khi 2 người follow lẫn nhau (mutual follow) */}
+            {isFollowing && isFollowingMe && (
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.messageButton]} 
+                onPress={handleMessage}
+              >
+                <Text style={styles.actionButtonText}>Nhắn tin</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.shareButton}>
               <Ionicons name="person-add-outline" size={18} color="#111827" />
             </TouchableOpacity>

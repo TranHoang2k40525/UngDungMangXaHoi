@@ -38,10 +38,12 @@ builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         // Allow enums to be (de)serialized from/to strings so frontend can send 'Nam'/'Nữ'/'Khác'
-        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        //options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+        // Use camelCase naming so frontend JS can access properties with conventional camelCase keys
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
     });
-
+//
 builder.Services.AddEndpointsApiExplorer();
 
 // 2. Add Swagger Gen (Đã gộp code của bạn và code bảo mật)
@@ -257,6 +259,10 @@ builder.Services.AddHttpClient<IMoMoPaymentService, MoMoPaymentService>();
 
 // Dịch vụ chạy nền để dọn Story hết hạn
 builder.Services.AddHostedService<ExpiredStoriesCleanupService>();
+// Dịch vụ chạy nền để hạ cấp tài khoản Business hết hạn
+builder.Services.AddHostedService<ExpiredBusinessAccountService>();
+// Dịch vụ chạy nền để xóa tài khoản Pending quá hạn (24h chưa verify OTP)
+builder.Services.AddHostedService<ExpiredPendingAccountsCleanupService>();
 builder.Services.AddScoped<VideoTranscodeService>();
 builder.Services.AddScoped<ReactionService>();
 builder.Services.AddScoped<ShareService>();

@@ -118,8 +118,28 @@ namespace UngDungMangXaHoi.Application.Services
 
             // Cập nhật các field được cung cấp
             if (request.FullName != null) user.full_name = request.FullName;
-            if (request.Gender != null && Enum.TryParse<Gender>(request.Gender, out var gender))
-                user.gender = gender;
+            if (request.Gender != null)
+            {
+                // Normalize gender string to handle Vietnamese characters
+                var normalizedGender = request.Gender.Trim();
+                
+                // Try direct enum parse first (case-insensitive)
+                if (Enum.TryParse<Gender>(normalizedGender, true, out var gender))
+                {
+                    user.gender = gender;
+                }
+                else
+                {
+                    // Fallback: map common variations
+                    var lowerGender = normalizedGender.ToLower();
+                    if (lowerGender.Contains("nam") || lowerGender == "male")
+                        user.gender = Gender.Nam;
+                    else if (lowerGender.Contains("nữ") || lowerGender.Contains("nu") || lowerGender == "female")
+                        user.gender = Gender.Nữ;
+                    else
+                        user.gender = Gender.Khác;
+                }
+            }
             if (request.Bio != null) user.bio = request.Bio;
             if (request.IsPrivate.HasValue) user.is_private = request.IsPrivate.Value;
             if (request.DateOfBirth.HasValue) user.date_of_birth = request.DateOfBirth.Value;

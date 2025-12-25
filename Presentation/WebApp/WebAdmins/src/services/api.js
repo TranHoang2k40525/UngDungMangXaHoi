@@ -251,6 +251,11 @@ export const dashboardAPI = {
     return apiClient.get(`/api/DashBoard/posts-top?topN=${topN}&startDate=${from}&endDate=${to}`);
   },
 
+  // Lấy chi tiết bài đăng (dùng khi Admin click xem chi tiết trong dashboard)
+  async getPostDetail(postId) {
+    return apiClient.get(`/api/posts/${postId}`);
+  },
+
   // ✅ API thật từ backend - Dashboard summary endpoint
   async getDashboardSummary(fromDate, toDate, chartGroupBy = 'Day') {
     const from = fromDate.toISOString().split('T')[0];
@@ -320,6 +325,16 @@ export const moderationAPI = {
   async deletePost(postId) {
     return new Promise((resolve) => setTimeout(() => resolve({ success: true }), 300));
   },
+};
+
+// ============= REACTIONS API =============
+export const reactionsAPI = {
+  async getSummary(postId) {
+    return apiClient.get(`/api/reactions/post/${postId}/summary`);
+  },
+  async getByPost(postId) {
+    return apiClient.get(`/api/reactions/post/${postId}`);
+  }
 };
 
 // ============= REPORTS API (Mock) =============

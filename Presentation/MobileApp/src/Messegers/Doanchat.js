@@ -17,6 +17,7 @@ import {
   Animated,
   Modal,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -62,6 +63,12 @@ export default function Doanchat() {
   const [conversationDetail, setConversationDetail] = useState(null);
   const [loading, setLoading] = useState(false); // Start with false to avoid flickering
   const [sending, setSending] = useState(false);
+  // Phân trang đơn giản: khi mở chat chỉ load page 1 (10 tin mới nhất),
+  // khi người dùng kéo lên trên mới load thêm page 2, 3... (tin cũ hơn)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const hasScrolledToBottom = useRef(false); // Track scroll lần đầu
   const [isTyping, setIsTyping] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
   const [isOtherUserOnline, setIsOtherUserOnline] = useState(false); // Track online status
@@ -109,15 +116,43 @@ export default function Doanchat() {
     loadCurrentUser();
   }, []);
 
-  // Load conversation và messages
+  // Load conversation và messages (Page 1 = tin mới nhất, giống Facebook)
   const loadConversation = async () => {
     try {
       setLoading(true);
-      const response = await MessageAPI.getConversationDetail(userId);
+      const pageSize = 10;
+
+      // Load Page 1 = tin MỚI nhất
+      console.log(`[Doanchat] REQUEST: page=1, pageSize=${pageSize}`);
+      const response = await MessageAPI.getConversationDetail(
+        userId,
+        1,
+        pageSize
+      );
 
       if (response.success && response.data) {
         setConversationDetail(response.data);
-        setMessages(response.data.messages.reverse()); // Reverse để tin nhắn cũ nhất ở trên
+        const totalMessages = response.data.total_messages || 0;
+        const totalPages = Math.max(1, Math.ceil(totalMessages / pageSize));
+
+        console.log(
+          `[Doanchat] RESPONSE: Got ${response.data.messages.length} messages (expected: ${pageSize}), total: ${totalMessages}, pages: ${totalPages}`
+        );
+
+        // Backend OrderByDescending → MỚI nhất trước
+        // Reverse để CŨ nhất lên trên, MỚI nhất xuống dưới (chuẩn chat UI)
+        const reversedMessages = [...response.data.messages].reverse();
+        setMessages(reversedMessages);
+        setCurrentPage(1);
+        setHasMoreMessages(totalPages > 1); // Chỉ bật load thêm nếu còn trang cũ hơn
+
+        // Scroll to bottom CHỈ 1 LẦN sau khi load xong
+        if (!hasScrolledToBottom.current) {
+          setTimeout(() => {
+            scrollToBottom();
+            hasScrolledToBottom.current = true;
+          }, 150);
+        }
       }
     } catch (error) {
       console.error("Error loading conversation:", error);
@@ -129,11 +164,53 @@ export default function Doanchat() {
         );
         setMessages([]); // Empty messages cho conversation mới
         setConversationDetail(null);
+        setHasMoreMessages(false);
       } else {
         Alert.alert("Lỗi", "Không thể tải tin nhắn");
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Load thêm tin nhắn cũ hơn khi scroll lên
+  const loadMoreMessages = async () => {
+    if (loadingMore || !hasMoreMessages || !conversationDetail) return;
+
+    try {
+      setLoadingMore(true);
+      const nextPage = currentPage + 1; // Page 2, 3, 4... = tin cũ hơn
+      const pageSize = 10;
+
+      console.log(`[Doanchat] Loading more messages, page: ${nextPage}`);
+
+      const response = await MessageAPI.getConversationDetail(
+        userId,
+        nextPage,
+        pageSize
+      );
+
+      if (
+        response.success &&
+        response.data &&
+        response.data.messages.length > 0
+      ) {
+        const totalMessages = response.data.total_messages || 0;
+        const totalPages = Math.max(1, Math.ceil(totalMessages / pageSize));
+
+        // Backend OrderByDescending → reverse để cũ nhất trước
+        const olderMessages = [...response.data.messages].reverse();
+        setMessages((prev) => [...olderMessages, ...prev]);
+        setCurrentPage(nextPage);
+        setHasMoreMessages(nextPage < totalPages); // Còn page tiếp theo
+      } else {
+        setHasMoreMessages(false);
+      }
+    } catch (error) {
+      console.error("Error loading more messages:", error);
+      setHasMoreMessages(false);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -259,12 +336,30 @@ export default function Doanchat() {
     }
   }, [conversationDetail?.conversation_id]); // Only trigger when conversation_id changes, not entire object
 
-  // Scroll to bottom - use useCallback to prevent re-creating function
+  // Scroll to bottom - dùng requestAnimationFrame để chắc chắn layout đã xong
   const scrollToBottom = useCallback(() => {
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+    const doScroll = () => {
+      if (scrollViewRef.current) {
+        scrollViewRef.current.scrollToEnd({ animated: false });
+      }
+    };
+
+    // Gọi vài frame liên tiếp để tránh trường hợp layout chưa cập nhật kịp
+    requestAnimationFrame(() => {
+      doScroll();
+      requestAnimationFrame(doScroll);
+    });
   }, []);
+
+  // Khi người dùng kéo lên gần đỉnh, mới load thêm tin cũ
+  const handleScroll = (event) => {
+    const { contentOffset } = event.nativeEvent;
+
+    // Nếu scroll gần đến đầu (50px từ trên cùng) thì load thêm
+    if (contentOffset.y < 50 && hasMoreMessages && !loadingMore) {
+      loadMoreMessages();
+    }
+  };
 
   // Format offline time
   const formatOfflineTime = (lastSeen) => {
@@ -408,12 +503,32 @@ export default function Doanchat() {
       setUploadingImage(true);
       console.log("[Doanchat] Uploading image:", imageAsset.uri);
 
+      // Lấy tên file thật từ URI hoặc từ imageAsset
+      let fileName = "photo.jpg";
+      try {
+        if (imageAsset.fileName) {
+          fileName = imageAsset.fileName;
+        } else if (imageAsset.uri) {
+          const uriPath = imageAsset.uri.split("?")[0];
+          const extractedName = uriPath.split("/").pop();
+          if (extractedName && /\.[a-zA-Z0-9]{2,4}$/.test(extractedName)) {
+            fileName = extractedName;
+          }
+        }
+        // Đảm bảo có đuôi file
+        if (!/\.[a-zA-Z0-9]{2,4}$/.test(fileName)) {
+          fileName = fileName + ".jpg";
+        }
+      } catch (e) {
+        console.warn("[Doanchat] Không thể lấy tên file từ URI:", e);
+      }
+
       // Create FormData
       const formData = new FormData();
       formData.append("file", {
         uri: imageAsset.uri,
-        type: "image/jpeg",
-        name: "photo.jpg",
+        type: imageAsset.type || "image/jpeg",
+        name: fileName,
       });
 
       // Get token
@@ -552,546 +667,413 @@ export default function Doanchat() {
   // currentUserId is now loaded from AsyncStorage in useEffect above
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-    >
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#FFFFFF"
-        translucent={false}
-      />
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={0}
+      >
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="#FFFFFF"
+          translucent={false}
+        />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="chevron-back" size={24} color="#111827" />
-        </TouchableOpacity>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="chevron-back" size={24} color="#111827" />
+          </TouchableOpacity>
 
-        <View style={styles.headerCenter}>
-          <View style={styles.headerAvatarContainer}>
-            {userAvatar ? (
-              <Image source={{ uri: userAvatar }} style={styles.headerAvatar} />
-            ) : (
-              <View style={[styles.headerAvatar, styles.defaultAvatar]}>
-                <Text style={styles.defaultAvatarText}>
-                  {userName ? userName.charAt(0).toUpperCase() : "U"}
-                </Text>
-              </View>
-            )}
-            {/* Online indicator */}
-            {isOtherUserOnline && <View style={styles.headerOnlineIndicator} />}
-          </View>
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.headerName}>{userName || "User"}</Text>
-            {!isOtherUserOnline && otherUserLastSeen && (
-              <Text style={styles.headerStatus}>
-                {formatOfflineTime(otherUserLastSeen)}
-              </Text>
-            )}
-          </View>
-        </View>
-
-        <TouchableOpacity style={styles.headerIcon}>
-          <Ionicons
-            name="information-circle-outline"
-            size={24}
-            color="#111827"
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* Chat Content */}
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.chatContent}
-          contentContainerStyle={styles.chatContentContainer}
-          keyboardShouldPersistTaps="handled"
-          onContentSizeChange={scrollToBottom}
-        >
-          {loading || !currentUserId ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#3B82F6" />
-            </View>
-          ) : messages.length === 0 ? (
-            <View style={styles.profileSection}>
+          <View style={styles.headerCenter}>
+            <View style={styles.headerAvatarContainer}>
               {userAvatar ? (
                 <Image
                   source={{ uri: userAvatar }}
-                  style={styles.profileAvatar}
+                  style={styles.headerAvatar}
                 />
               ) : (
-                <View style={[styles.profileAvatar, styles.defaultAvatar]}>
-                  <Text style={[styles.defaultAvatarText, { fontSize: 40 }]}>
+                <View style={[styles.headerAvatar, styles.defaultAvatar]}>
+                  <Text style={styles.defaultAvatarText}>
                     {userName ? userName.charAt(0).toUpperCase() : "U"}
                   </Text>
                 </View>
               )}
-              <Text style={styles.profileName}>{userName || "User"}</Text>
-              <Text style={styles.profileUsername}>{username || "@user"}</Text>
-              <Text style={styles.profileInfo}>
-                {conversationDetail?.other_user_bio ||
-                  "Các bạn đang theo dõi nhau"}
-              </Text>
-              <Text style={styles.profileBio}>Bắt đầu trò chuyện ngay!</Text>
-            </View>
-          ) : (
-            <View style={styles.messagesContainer}>
-              {messages.map((msg, index) => {
-                const isOwnMessage = msg.sender_id === currentUserId;
-                const isHighlighted = highlightedMessageId === msg.message_id;
-
-                // Debug logging
-                if (index === 0) {
-                  console.log(
-                    `[Doanchat] Rendering messages - currentUserId: ${currentUserId}`
-                  );
-                }
-                console.log(
-                  `[Doanchat] Message #${index}: sender_id=${
-                    msg.sender_id
-                  }, isOwnMessage=${isOwnMessage}, content="${msg.content.substring(
-                    0,
-                    20
-                  )}"`
-                );
-
-                return (
-                  <View
-                    key={msg.message_id || index}
-                    style={[
-                      styles.messageWrapper,
-                      isOwnMessage
-                        ? styles.ownMessageWrapper
-                        : styles.otherMessageWrapper,
-                    ]}
-                  >
-                    {/* Always show avatar for other user's messages */}
-                    {!isOwnMessage &&
-                      (userAvatar ? (
-                        <Image
-                          source={{ uri: userAvatar }}
-                          style={styles.messageAvatar}
-                        />
-                      ) : (
-                        <View
-                          style={[styles.messageAvatar, styles.defaultAvatar]}
-                        >
-                          <Text
-                            style={[styles.defaultAvatarText, { fontSize: 12 }]}
-                          >
-                            {userName ? userName.charAt(0).toUpperCase() : "U"}
-                          </Text>
-                        </View>
-                      ))}
-                    {/* No placeholder needed - avatar always shows for other user */}
-
-                    <TouchableOpacity
-                      style={[
-                        styles.messageBubble,
-                        isOwnMessage
-                          ? styles.ownMessageBubble
-                          : styles.otherMessageBubble,
-                        isHighlighted && styles.highlightedMessage,
-                      ]}
-                      onLongPress={(event) => handleLongPress(msg, event)}
-                      delayLongPress={500}
-                      activeOpacity={0.7}
-                    >
-                      {msg.is_recalled ? (
-                        <View style={styles.recalledMessageContainer}>
-                          <Ionicons
-                            name="ban-outline"
-                            size={14}
-                            color="#9CA3AF"
-                          />
-                          <Text style={styles.recalledMessage}>
-                            {" Tin nhắn đã bị thu hồi"}
-                          </Text>
-                        </View>
-                      ) : msg.content &&
-                        msg.content.startsWith("SHARED_POST:") ? (
-                        // Hiển thị card preview cho bài viết được chia sẻ
-                        <TouchableOpacity
-                          style={styles.sharedPostCard}
-                          onPress={() => {
-                            try {
-                              const jsonContent = msg.content.substring(
-                                "SHARED_POST:".length
-                              );
-                              const postData = JSON.parse(jsonContent);
-
-                              // Navigate đến PostDetail với postId
-                              navigation.navigate("PostDetail", {
-                                singlePost: {
-                                  id: postData.postId,
-                                  content: postData.content,
-                                  user: {
-                                    username: postData.authorName,
-                                    avatarUrl: postData.authorAvatar,
-                                  },
-                                  media: postData.mediaUrl
-                                    ? [
-                                        {
-                                          url: postData.mediaUrl,
-                                          type: postData.mediaType || "Image",
-                                        },
-                                      ]
-                                    : [],
-                                  createdAt: postData.createdAt,
-                                },
-                              });
-                            } catch (e) {
-                              console.error("Navigate to post error:", e);
-                              Alert.alert("Lỗi", "Không thể mở bài viết");
-                            }
-                          }}
-                          activeOpacity={0.7}
-                        >
-                          {(() => {
-                            try {
-                              const jsonContent = msg.content.substring(
-                                "SHARED_POST:".length
-                              );
-                              const postData = JSON.parse(jsonContent);
-                              console.log(
-                                "[Doanchat] Rendering shared post:",
-                                postData
-                              );
-                              console.log(
-                                "[Doanchat] Media URL:",
-                                postData.mediaUrl
-                              );
-                              return (
-                                <>
-                                  <View style={styles.sharedPostHeader}>
-                                    <Ionicons
-                                      name="arrow-redo"
-                                      size={16}
-                                      color="#6B7280"
-                                    />
-                                    <Text style={styles.sharedPostLabel}>
-                                      Bài viết được chia sẻ
-                                    </Text>
-                                  </View>
-
-                                  <View style={styles.sharedPostContent}>
-                                    <View style={styles.sharedPostAuthor}>
-                                      {postData.authorAvatar ? (
-                                        <Image
-                                          source={{
-                                            uri: postData.authorAvatar,
-                                          }}
-                                          style={styles.sharedPostAvatar}
-                                        />
-                                      ) : (
-                                        <View
-                                          style={[
-                                            styles.sharedPostAvatar,
-                                            styles.defaultAvatar,
-                                          ]}
-                                        >
-                                          <Text
-                                            style={styles.defaultAvatarText}
-                                          >
-                                            {postData.authorName
-                                              .charAt(0)
-                                              .toUpperCase()}
-                                          </Text>
-                                        </View>
-                                      )}
-                                      <Text style={styles.sharedPostAuthorName}>
-                                        {postData.authorName}
-                                      </Text>
-                                    </View>
-
-                                    {postData.content && (
-                                      <Text
-                                        style={styles.sharedPostText}
-                                        numberOfLines={3}
-                                      >
-                                        {postData.content}
-                                      </Text>
-                                    )}
-
-                                    {postData.mediaUrl &&
-                                      postData.mediaUrl.trim() !== "" &&
-                                      (postData.mediaType === "Video" ? (
-                                        // Hiển thị placeholder cho video
-                                        <View
-                                          style={[
-                                            styles.sharedPostImage,
-                                            styles.videoPlaceholder,
-                                          ]}
-                                        >
-                                          <Ionicons
-                                            name="play-circle"
-                                            size={48}
-                                            color="#FFFFFF"
-                                          />
-                                          <Text style={styles.videoLabel}>
-                                            Video
-                                          </Text>
-                                        </View>
-                                      ) : (
-                                        // Hiển thị ảnh
-                                        <Image
-                                          source={{ uri: postData.mediaUrl }}
-                                          style={styles.sharedPostImage}
-                                          resizeMode="cover"
-                                          onError={(error) => {
-                                            console.error(
-                                              "[Doanchat] Image load error:",
-                                              error.nativeEvent.error
-                                            );
-                                            console.error(
-                                              "[Doanchat] Failed URL:",
-                                              postData.mediaUrl
-                                            );
-                                          }}
-                                          onLoad={() => {
-                                            console.log(
-                                              "[Doanchat] Image loaded successfully:",
-                                              postData.mediaUrl
-                                            );
-                                          }}
-                                        />
-                                      ))}
-                                  </View>
-                                </>
-                              );
-                            } catch (e) {
-                              return (
-                                <Text style={styles.messageText}>
-                                  Bài viết được chia sẻ
-                                </Text>
-                              );
-                            }
-                          })()}
-                        </TouchableOpacity>
-                      ) : msg.message_type === "Image" && msg.media_url ? (
-                        <TouchableOpacity
-                          onPress={() => {
-                            // TODO: Open image in fullscreen
-                            Alert.alert("Xem ảnh", msg.media_url);
-                          }}
-                        >
-                          <Image
-                            source={{ uri: msg.media_url }}
-                            style={styles.messageImage}
-                            resizeMode="cover"
-                          />
-                          {msg.content && (
-                            <Text
-                              style={[
-                                styles.messageText,
-                                isOwnMessage
-                                  ? styles.ownMessageText
-                                  : styles.otherMessageText,
-                                { marginTop: 8 },
-                              ]}
-                            >
-                              {msg.content}
-                            </Text>
-                          )}
-                        </TouchableOpacity>
-                      ) : (
-                        <Text
-                          style={[
-                            styles.messageText,
-                            isOwnMessage
-                              ? styles.ownMessageText
-                              : styles.otherMessageText,
-                          ]}
-                        >
-                          {msg.content}
-                        </Text>
-                      )}
-                      <Text
-                        style={[
-                          styles.messageTime,
-                          isOwnMessage
-                            ? styles.ownMessageTime
-                            : styles.otherMessageTime,
-                        ]}
-                      >
-                        {formatTime(msg.created_at)}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                );
-              })}
-
-              {otherUserTyping && (
-                <View style={styles.typingIndicatorContainer}>
-                  {userAvatar ? (
-                    <Image
-                      source={{ uri: userAvatar }}
-                      style={styles.messageAvatar}
-                    />
-                  ) : (
-                    <View style={[styles.messageAvatar, styles.defaultAvatar]}>
-                      <Text
-                        style={[styles.defaultAvatarText, { fontSize: 12 }]}
-                      >
-                        {userName ? userName.charAt(0).toUpperCase() : "U"}
-                      </Text>
-                    </View>
-                  )}
-                  <View style={styles.typingBubble}>
-                    <View style={styles.typingDots}>
-                      <TypingDot delay={0} />
-                      <TypingDot delay={200} />
-                      <TypingDot delay={400} />
-                    </View>
-                  </View>
-                </View>
+              {/* Online indicator */}
+              {isOtherUserOnline && (
+                <View style={styles.headerOnlineIndicator} />
               )}
             </View>
-          )}
-        </ScrollView>
-      </TouchableWithoutFeedback>
-
-      {/* Message Input */}
-      <View style={styles.messageInputContainer}>
-        <TouchableOpacity style={styles.cameraButton}>
-          <Ionicons name="camera-outline" size={24} color="#111827" />
-        </TouchableOpacity>
-
-        <View style={styles.inputWrapper}>
-          <TextInput
-            style={styles.messageInput}
-            value={message}
-            onChangeText={handleTextChange}
-            placeholder="Nhắn tin..."
-            placeholderTextColor="#9CA3AF"
-            multiline
-            editable={!sending}
-          />
-        </View>
-
-        {message.trim() ? (
-          <TouchableOpacity
-            style={[styles.sendButton, sending && styles.sendButtonDisabled]}
-            onPress={handleSend}
-            disabled={sending}
-          >
-            {sending ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
-            )}
-          </TouchableOpacity>
-        ) : (
-          <>
-            <TouchableOpacity style={styles.micButton}>
-              <Ionicons name="mic-outline" size={24} color="#111827" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.imageButton}
-              onPress={pickImage}
-              disabled={uploadingImage}
-            >
-              {uploadingImage ? (
-                <ActivityIndicator size="small" color="#3B82F6" />
-              ) : (
-                <Ionicons name="image-outline" size={24} color="#111827" />
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.headerName}>{userName || "User"}</Text>
+              {!isOtherUserOnline && otherUserLastSeen && (
+                <Text style={styles.headerStatus}>
+                  {formatOfflineTime(otherUserLastSeen)}
+                </Text>
               )}
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.likeButton}>
-              <Ionicons name="add-circle-outline" size={24} color="#111827" />
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
-
-      {/* Action Modal - Hiện action khi long press */}
-      <Modal
-        visible={showActionModal}
-        transparent={true}
-        animationType="none"
-        onRequestClose={closeActionModal}
-      >
-        <TouchableOpacity
-          style={styles.actionModalOverlay}
-          activeOpacity={1}
-          onPress={closeActionModal}
-        >
-          <Animated.View
-            style={[
-              styles.actionModalContent,
-              {
-                position: "absolute",
-                top: actionMenuPosition.y - 50,
-                left: actionMenuPosition.x - 50,
-                opacity: modalAnim,
-                transform: [
-                  {
-                    scale: modalAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.8, 1],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={openConfirmModal}
-            >
-              <Text style={styles.actionButtonText}>Thu hồi</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Confirm Modal - Xác nhận thu hồi */}
-      <Modal
-        visible={showConfirmModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={closeConfirmModal}
-      >
-        <View style={styles.confirmModalOverlay}>
-          <View style={styles.confirmModalContent}>
-            <Text style={styles.confirmTitle}>Thu hồi tin nhắn?</Text>
-            <Text style={styles.confirmMessage}>
-              Tin nhắn này sẽ bị xóa với mọi người trong đoạn chat
-            </Text>
-
-            <View style={styles.confirmButtons}>
-              <TouchableOpacity
-                style={[styles.confirmButton, styles.cancelButton]}
-                onPress={closeConfirmModal}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.cancelButtonText}>Hủy</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.confirmButton, styles.recallButton]}
-                onPress={handleRecallMessage}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.recallButtonText}>Thu hồi</Text>
-              </TouchableOpacity>
             </View>
           </View>
+
+          <TouchableOpacity style={styles.headerIcon}>
+            <Ionicons
+              name="information-circle-outline"
+              size={24}
+              color="#111827"
+            />
+          </TouchableOpacity>
         </View>
-      </Modal>
-    </KeyboardAvoidingView>
+
+        {/* Chat Content */}
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.chatContent}
+            contentContainerStyle={styles.chatContentContainer}
+            keyboardShouldPersistTaps="handled"
+            onScroll={handleScroll}
+            scrollEventThrottle={400}
+          >
+            {loadingMore && (
+              <View style={styles.loadMoreIndicator}>
+                <ActivityIndicator size="small" color="#3B82F6" />
+                <Text style={styles.loadMoreText}>Đang tải thêm...</Text>
+              </View>
+            )}
+            {loading || !currentUserId ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#3B82F6" />
+              </View>
+            ) : messages.length === 0 ? (
+              <View style={styles.profileSection}>
+                {userAvatar ? (
+                  <Image
+                    source={{ uri: userAvatar }}
+                    style={styles.profileAvatar}
+                  />
+                ) : (
+                  <View style={[styles.profileAvatar, styles.defaultAvatar]}>
+                    <Text style={[styles.defaultAvatarText, { fontSize: 40 }]}>
+                      {userName ? userName.charAt(0).toUpperCase() : "U"}
+                    </Text>
+                  </View>
+                )}
+                <Text style={styles.profileName}>{userName || "User"}</Text>
+                <Text style={styles.profileUsername}>
+                  {username || "@user"}
+                </Text>
+                <Text style={styles.profileInfo}>
+                  {conversationDetail?.other_user_bio ||
+                    "Các bạn đang theo dõi nhau"}
+                </Text>
+                <Text style={styles.profileBio}>Bắt đầu trò chuyện ngay!</Text>
+              </View>
+            ) : (
+              <View style={styles.messagesContainer}>
+                {messages.map((msg, index) => {
+                  const isOwnMessage = msg.sender_id === currentUserId;
+                  const isHighlighted = highlightedMessageId === msg.message_id;
+
+                  // Debug logging
+                  if (index === 0) {
+                    console.log(
+                      `[Doanchat] Rendering messages - currentUserId: ${currentUserId}`
+                    );
+                  }
+                  console.log(
+                    `[Doanchat] Message #${index}: sender_id=${
+                      msg.sender_id
+                    }, isOwnMessage=${isOwnMessage}, content="${msg.content.substring(
+                      0,
+                      20
+                    )}"`
+                  );
+
+                  return (
+                    <View
+                      key={msg.message_id || index}
+                      style={[
+                        styles.messageWrapper,
+                        isOwnMessage
+                          ? styles.ownMessageWrapper
+                          : styles.otherMessageWrapper,
+                      ]}
+                    >
+                      {/* Always show avatar for other user's messages */}
+                      {!isOwnMessage &&
+                        (userAvatar ? (
+                          <Image
+                            source={{ uri: userAvatar }}
+                            style={styles.messageAvatar}
+                          />
+                        ) : (
+                          <View
+                            style={[styles.messageAvatar, styles.defaultAvatar]}
+                          >
+                            <Text
+                              style={[
+                                styles.defaultAvatarText,
+                                { fontSize: 12 },
+                              ]}
+                            >
+                              {userName
+                                ? userName.charAt(0).toUpperCase()
+                                : "U"}
+                            </Text>
+                          </View>
+                        ))}
+                      {/* No placeholder needed - avatar always shows for other user */}
+
+                      <TouchableOpacity
+                        style={[
+                          styles.messageBubble,
+                          isOwnMessage
+                            ? styles.ownMessageBubble
+                            : styles.otherMessageBubble,
+                          isHighlighted && styles.highlightedMessage,
+                        ]}
+                        onLongPress={(event) => handleLongPress(msg, event)}
+                        delayLongPress={500}
+                        activeOpacity={0.7}
+                      >
+                        {msg.is_recalled ? (
+                          <View style={styles.recalledMessageContainer}>
+                            <Ionicons
+                              name="ban-outline"
+                              size={14}
+                              color="#9CA3AF"
+                            />
+                            <Text style={styles.recalledMessage}>
+                              {" Tin nhắn đã bị thu hồi"}
+                            </Text>
+                          </View>
+                        ) : msg.message_type === "Image" && msg.media_url ? (
+                          <TouchableOpacity
+                            onPress={() => {
+                              // TODO: Open image in fullscreen
+                              Alert.alert("Xem ảnh", msg.media_url);
+                            }}
+                          >
+                            <Image
+                              source={{ uri: msg.media_url }}
+                              style={styles.messageImage}
+                              resizeMode="cover"
+                            />
+                            {msg.content && (
+                              <Text
+                                style={[
+                                  styles.messageText,
+                                  isOwnMessage
+                                    ? styles.ownMessageText
+                                    : styles.otherMessageText,
+                                  { marginTop: 8 },
+                                ]}
+                              >
+                                {msg.content}
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        ) : (
+                          <Text
+                            style={[
+                              styles.messageText,
+                              isOwnMessage
+                                ? styles.ownMessageText
+                                : styles.otherMessageText,
+                            ]}
+                          >
+                            {msg.content}
+                          </Text>
+                        )}
+                        <Text
+                          style={[
+                            styles.messageTime,
+                            isOwnMessage
+                              ? styles.ownMessageTime
+                              : styles.otherMessageTime,
+                          ]}
+                        >
+                          {formatTime(msg.created_at)}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+
+                {otherUserTyping && (
+                  <View style={styles.typingIndicatorContainer}>
+                    {userAvatar ? (
+                      <Image
+                        source={{ uri: userAvatar }}
+                        style={styles.messageAvatar}
+                      />
+                    ) : (
+                      <View
+                        style={[styles.messageAvatar, styles.defaultAvatar]}
+                      >
+                        <Text
+                          style={[styles.defaultAvatarText, { fontSize: 12 }]}
+                        >
+                          {userName ? userName.charAt(0).toUpperCase() : "U"}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.typingBubble}>
+                      <View style={styles.typingDots}>
+                        <TypingDot delay={0} />
+                        <TypingDot delay={200} />
+                        <TypingDot delay={400} />
+                      </View>
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+          </ScrollView>
+        </TouchableWithoutFeedback>
+
+        {/* Message Input */}
+        <View style={styles.messageInputContainer}>
+          <TouchableOpacity style={styles.cameraButton}>
+            <Ionicons name="camera-outline" size={24} color="#111827" />
+          </TouchableOpacity>
+
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.messageInput}
+              value={message}
+              onChangeText={handleTextChange}
+              placeholder="Nhắn tin..."
+              placeholderTextColor="#9CA3AF"
+              multiline
+              editable={!sending}
+            />
+          </View>
+
+          {message.trim() ? (
+            <TouchableOpacity
+              style={[styles.sendButton, sending && styles.sendButtonDisabled]}
+              onPress={handleSend}
+              disabled={sending}
+            >
+              {sending ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
+              )}
+            </TouchableOpacity>
+          ) : (
+            <>
+              <TouchableOpacity style={styles.micButton}>
+                <Ionicons name="mic-outline" size={24} color="#111827" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.imageButton}
+                onPress={pickImage}
+                disabled={uploadingImage}
+              >
+                {uploadingImage ? (
+                  <ActivityIndicator size="small" color="#3B82F6" />
+                ) : (
+                  <Ionicons name="image-outline" size={24} color="#111827" />
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.likeButton}>
+                <Ionicons name="add-circle-outline" size={24} color="#111827" />
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+
+        {/* Action Modal - Hiện action khi long press */}
+        <Modal
+          visible={showActionModal}
+          transparent={true}
+          animationType="none"
+          onRequestClose={closeActionModal}
+        >
+          <TouchableOpacity
+            style={styles.actionModalOverlay}
+            activeOpacity={1}
+            onPress={closeActionModal}
+          >
+            <Animated.View
+              style={[
+                styles.actionModalContent,
+                {
+                  position: "absolute",
+                  top: actionMenuPosition.y - 50,
+                  left: actionMenuPosition.x - 50,
+                  opacity: modalAnim,
+                  transform: [
+                    {
+                      scale: modalAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.8, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={openConfirmModal}
+              >
+                <Text style={styles.actionButtonText}>Thu hồi</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </TouchableOpacity>
+        </Modal>
+
+        {/* Confirm Modal - Xác nhận thu hồi */}
+        <Modal
+          visible={showConfirmModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={closeConfirmModal}
+        >
+          <View style={styles.confirmModalOverlay}>
+            <View style={styles.confirmModalContent}>
+              <Text style={styles.confirmTitle}>Thu hồi tin nhắn?</Text>
+              <Text style={styles.confirmMessage}>
+                Tin nhắn này sẽ bị xóa với mọi người trong đoạn chat
+              </Text>
+
+              <View style={styles.confirmButtons}>
+                <TouchableOpacity
+                  style={[styles.confirmButton, styles.cancelButton]}
+                  onPress={closeConfirmModal}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.cancelButtonText}>Hủy</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.confirmButton, styles.recallButton]}
+                  onPress={handleRecallMessage}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.recallButtonText}>Thu hồi</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
@@ -1101,7 +1083,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 8,
-    paddingTop: Platform.OS === "ios" ? 60 : 20,
+    paddingTop: 12,
     paddingBottom: 12,
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
@@ -1181,7 +1163,9 @@ const styles = StyleSheet.create({
     paddingTop: 100,
   },
   messagesContainer: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 65, // thêm khoảng trống để tin cuối không dính sát ô nhập
   },
   messageWrapper: {
     flexDirection: "row",
@@ -1244,7 +1228,7 @@ const styles = StyleSheet.create({
   typingIndicatorContainer: {
     flexDirection: "row",
     alignItems: "flex-end",
-    marginBottom: 12,
+    marginBottom: Platform.OS === "ios" ? 40 : 32,
   },
   typingBubble: {
     backgroundColor: "#FFFFFF",
@@ -1317,7 +1301,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 8,
-    paddingBottom: Platform.OS === "ios" ? 34 : 8,
+    paddingBottom: Platform.OS === "ios" ? 20 : 12,
     backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
     borderTopColor: "#F3F4F6",
@@ -1379,6 +1363,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  // Load more indicator
+  loadMoreIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    gap: 8,
+  },
+  loadMoreText: {
+    fontSize: 13,
+    color: "#6B7280",
   },
   // Action Modal styles (menu nhỏ khi long press)
   actionModalOverlay: {
@@ -1483,68 +1479,5 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     borderRadius: 12,
-  },
-  sharedPostCard: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    overflow: "hidden",
-    maxWidth: 280,
-  },
-  sharedPostHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 10,
-    backgroundColor: "#F3F4F6",
-    gap: 6,
-  },
-  sharedPostLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
-  sharedPostContent: {
-    padding: 12,
-  },
-  sharedPostAuthor: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-    gap: 8,
-  },
-  sharedPostAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#E5E7EB",
-  },
-  sharedPostAuthorName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  sharedPostText: {
-    fontSize: 14,
-    color: "#374151",
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  sharedPostImage: {
-    width: "100%",
-    height: 180,
-    borderRadius: 8,
-    backgroundColor: "#F3F4F6",
-  },
-  videoPlaceholder: {
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#1F2937",
-  },
-  videoLabel: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
-    marginTop: 8,
   },
 });

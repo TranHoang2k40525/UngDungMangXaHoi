@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.js';
 import { useAdmin } from '../contexts/AdminContext.js';
 import './Sidebar.css';
+import { FiBarChart2, FiUsers, FiSearch, FiAlertTriangle, FiHome, FiBriefcase, FiFileText, FiTrendingUp, FiSettings, FiLogOut } from 'react-icons/fi';
 
 export default function Sidebar() {
   const { logout } = useAuth();
@@ -23,28 +24,28 @@ export default function Sidebar() {
 
       <nav className="sidebar-nav">
         <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-          <span>📊</span> Trang chủ
+          <span className="nav-icon"><FiBarChart2 aria-hidden="true"/></span> Trang chủ
         </NavLink>
         <NavLink to="/users" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-          <span>👥</span> Quản lý người dùng
+          <span className="nav-icon"><FiUsers aria-hidden="true"/></span> Quản lý người dùng
         </NavLink>
         <NavLink to="/moderation" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-          <span>🔍</span> Kiểm duyệt nội dung
+          <span className="nav-icon"><FiSearch aria-hidden="true"/></span> Kiểm duyệt nội dung
         </NavLink>
         <NavLink to="/reports" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-          <span>⚠️</span> Báo cáo vi phạm
+          <span className="nav-icon"><FiAlertTriangle aria-hidden="true"/></span> Báo cáo vi phạm
         </NavLink>
         <NavLink to="/business-requests" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-          <span>🏢</span> Xác thực Doanh nghiệp
+          <span className="nav-icon"><FiBriefcase aria-hidden="true"/></span> Xác thực Doanh nghiệp
         </NavLink>
         <NavLink to="/admin-logs" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-          <span>📜</span> Nhật ký Admin
+          <span className="nav-icon"><FiFileText aria-hidden="true"/></span> Nhật ký Admin
         </NavLink>
         <NavLink to="/analytics" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-          <span>📈</span> Thống kê & Phân tích
+          <span className="nav-icon"><FiTrendingUp aria-hidden="true"/></span> Thống kê & Phân tích
         </NavLink>
         <NavLink to="/settings" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-          <span>⚙️</span> Cài đặt
+          <span className="nav-icon"><FiSettings aria-hidden="true"/></span> Cài đặt
         </NavLink>
       </nav>
 
@@ -61,7 +62,7 @@ export default function Sidebar() {
           </div>
         </div>
         <button onClick={handleLogout} className="logout-btn">
-          🚪 Đăng xuất
+          <FiLogOut className="logout-icon" aria-hidden="true"/> Đăng xuất
         </button>
       </div>
     </aside>

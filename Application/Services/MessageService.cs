@@ -16,23 +16,17 @@ namespace UngDungMangXaHoi.Application.Services
         private readonly IConversationRepository _conversationRepository;
         private readonly IUserRepository _userRepository;
         private readonly AppDbContext _context;
-        private readonly INotificationRepository _notificationRepository;
-        private readonly IRealTimeNotificationService _realTimeNotificationService;
 
         public MessageService(
             IMessageRepository messageRepository,
             IConversationRepository conversationRepository,
             IUserRepository userRepository,
-            AppDbContext context,
-            INotificationRepository notificationRepository,
-            IRealTimeNotificationService realTimeNotificationService)
+            AppDbContext context)
         {
             _messageRepository = messageRepository;
             _conversationRepository = conversationRepository;
             _userRepository = userRepository;
             _context = context;
-            _notificationRepository = notificationRepository;
-            _realTimeNotificationService = realTimeNotificationService;
         }
 
         // Lấy danh sách conversations của user (chỉ những người theo dõi lẫn nhau)
@@ -92,7 +86,13 @@ namespace UngDungMangXaHoi.Application.Services
                 });
             }
 
+            // Page 1 = tin mới nhất (OrderByDescending)
             var messages = await _messageRepository.GetConversationMessagesAsync(conversation.conversation_id, page, pageSize);
+            
+            // Đếm tổng số tin nhắn
+            var totalMessages = await _context.MessagesNew
+                .Where(m => m.conversation_id == conversation.conversation_id && !m.is_deleted)
+                .CountAsync();
             var otherUser = await _userRepository.GetByIdAsync(otherUserId);
 
             if (otherUser == null)
@@ -110,7 +110,7 @@ namespace UngDungMangXaHoi.Application.Services
                 other_user_avatar_url = otherUser.avatar_url?.Value,
                 other_user_bio = otherUser.bio,
                 messages = messages.Select(MapToMessageDto).ToList(),
-                total_messages = messages.Count,
+                total_messages = totalMessages,
                 page = page,
                 page_size = pageSize
             };
@@ -151,9 +151,6 @@ namespace UngDungMangXaHoi.Application.Services
             
             // Cập nhật updated_at của conversation
             await _conversationRepository.UpdateAsync(conversation);
-
-            // Gửi thông báo cho người nhận
-            await SendMessageNotificationAsync(senderId, dto.receiver_id, dto.content);
 
             return MapToMessageDto(createdMessage);
         }
@@ -206,6 +203,13 @@ namespace UngDungMangXaHoi.Application.Services
             var conversations = new List<ConversationDto>();
             foreach (var otherId in followingIds)
             {
+                // Bỏ qua chính mình
+                if (otherId == userId)
+                {
+                    Console.WriteLine($"[MessageService] Skipping self (userId {userId})");
+                    continue;
+                }
+
                 var isFollowBack = await _context.Follows
                     .AnyAsync(f => f.follower_id == otherId && f.following_id == userId);
 
@@ -339,55 +343,6 @@ namespace UngDungMangXaHoi.Application.Services
                 sender_full_name = message.Sender.full_name,
                 sender_avatar_url = message.Sender.avatar_url?.Value
             };
-        }
-
-        // Gửi thông báo tin nhắn mới
-        private async Task SendMessageNotificationAsync(int senderId, int receiverId, string content)
-        {
-            try
-            {
-                var sender = await _userRepository.GetByIdAsync(senderId);
-                if (sender == null) return;
-
-                // Tạo preview content (giới hạn 50 ký tự)
-                var previewContent = content.Length > 50 
-                    ? content.Substring(0, 50) + "..." 
-                    : content;
-
-                var notification = new Notification
-                {
-                    user_id = receiverId,
-                    sender_id = senderId,
-                    type = NotificationType.Message,
-                    post_id = null,
-                    content = $"{sender.username.Value} đã gửi tin nhắn: {previewContent}",
-                    is_read = false,
-                    created_at = DateTimeOffset.UtcNow
-                };
-
-                await _notificationRepository.AddAsync(notification);
-
-                // Gửi real-time notification
-                var notificationDto = new NotificationDto
-                {
-                    NotificationId = notification.notification_id,
-                    UserId = notification.user_id,
-                    SenderId = notification.sender_id,
-                    SenderUsername = sender.username.Value,
-                    SenderAvatar = sender.avatar_url?.Value,
-                    Type = notification.type,
-                    PostId = null,
-                    Content = notification.content,
-                    IsRead = notification.is_read,
-                    CreatedAt = notification.created_at
-                };
-
-                await _realTimeNotificationService.SendNotificationToUserAsync(receiverId, notificationDto);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[MessageService] Error sending message notification: {ex.Message}");
-            }
         }
     }
 }

@@ -220,7 +220,7 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
             }
             if (toDate.HasValue)
             {
-                data = data.Where(sh => sh.searched_at >= toDate);
+                data = data.Where(sh => sh.searched_at <= toDate.Value);
             }
             return await data.CountAsync();
         }
@@ -245,8 +245,12 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 PostId = g.Key,
                 Count = g.Count()
             }).ToDictionaryAsync(x => x.PostId, x => x.Count);
-            //Dem comment
-            var commentCounts = await _context.Comments.Where(c => postIds.Contains(c.PostId) && !c.IsVisible).GroupBy(c => c.PostId).Select(c => new { PostId = c.Key, Count = c.Count() }).ToDictionaryAsync(c => c.PostId, c => c.Count);
+            // Dem comment: chỉ tính các comment visible
+            var commentCounts = await _context.Comments
+                .Where(c => postIds.Contains(c.PostId) && c.IsVisible)
+                .GroupBy(c => c.PostId)
+                .Select(g => new { PostId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.PostId, x => x.Count);
             var topPostIds = postIds
         .Select(id => new
         {

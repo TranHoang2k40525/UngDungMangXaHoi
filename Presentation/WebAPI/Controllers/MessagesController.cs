@@ -69,9 +69,14 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
             try
             {
                 var userId = GetCurrentUserId();
-                Console.WriteLine($"[MessagesController] GetConversationDetail - userId: {userId}, otherUserId: {otherUserId}");
+                Console.WriteLine($"[MessagesController] GetConversationDetail - userId: {userId}, otherUserId: {otherUserId}, page: {page}, pageSize: {pageSize}");
                 
                 var conversation = await _messageService.GetConversationDetailAsync(userId, otherUserId, page, pageSize);
+                
+                if (conversation != null)
+                {
+                    Console.WriteLine($"[MessagesController] Returning {conversation.messages.Count} messages (requested pageSize: {pageSize})");
+                }
 
                 if (conversation == null)
                 {

@@ -13,6 +13,9 @@ import {
 import { Line, Bar } from 'react-chartjs-2';
 import { dashboardAPI } from '../../services/api.js';
 import PostModal from '../../components/PostModal.js';
+import { 
+  FiBarChart2, FiUsers, FiCheckCircle, FiBriefcase, FiDollarSign, FiFileText, FiTrendingUp, FiSearch, FiZap, FiHeart, FiMessageSquare
+} from 'react-icons/fi';
 import './Dashboard.css';
 
 ChartJS.register(
@@ -25,6 +28,16 @@ ChartJS.register(
   Tooltip,
   Legend
 );
+
+// Helper: convert filename/relative path to absolute URL on this host
+function ensureAbsolute(u) {
+  if (!u) return '';
+  if (typeof u !== 'string') return '';
+  if (u.startsWith('http://') || u.startsWith('https://')) return u;
+  if (u.startsWith('/')) return window.location.origin + u;
+  if (/^assets\//i.test(u)) return window.location.origin + '/' + u.replace(/^\/+/, '');
+  return window.location.origin + '/Assets/Images/' + u;
+}
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -118,16 +131,125 @@ export default function Dashboard() {
       ]);
 
       const activeUsersData = activeUsersRes.data || activeUsersRes;
-      const keywordsData = keywordsRes.data || keywordsRes;
-      const postsData = postsRes.data || postsRes;
+      const keywordsData = keywordsRes.data || keywordsRes || {};
+      const postsData = postsRes.data || postsRes || {};
       
       setStats(prev => ({
         ...prev,
         activeUsers: activeUsersData.Count || activeUsersData.count || 0,
       }));
 
-      setTopKeywords(keywordsData.keywords || []);
-      setTopPosts(postsData.posts || []);
+      // Normalize top keywords: backend may return different casing
+      const rawKeywords = Array.isArray(keywordsData) ? keywordsData : (keywordsData?.data || keywordsData?.keywords || keywordsData?.Keywords || []);
+      const normalizedKeywords = rawKeywords.map(k => ({
+        Keyword: k.Keyword ?? k.keyword ?? k.Key ?? '',
+        SearchCount: Number(k.SearchCount ?? k.searchCount ?? k.search_count ?? 0) || 0,
+        Tyle: Number(k.Tyle ?? k.tyle ?? k.tly ?? 0) || 0
+      }));
+      setTopKeywords(normalizedKeywords);
+
+      // Normalize top posts to the flat shape expected by the table
+      const rawPosts = Array.isArray(postsData) ? postsData : (postsData?.data || postsData?.posts || postsData?.Posts || postsData?.Data || []);
+      const normalizedPosts = rawPosts.map(p => {
+        const postId = p.PostId ?? p.postId ?? p.post_id ?? p.Id ?? p.id ?? null;
+        let content = p.Content ?? p.caption ?? p.Caption ?? p.content ?? '';
+
+        // If caption/content is empty, try to build a hint from media
+        const media = p.Media || p.media || p.MediaItems || p.mediaItems || [];
+        if ((!content || content.trim() === '') && Array.isArray(media) && media.length > 0) {
+          const first = media[0];
+          const mtype = first?.MediaType ?? first?.mediaType ?? '';
+          content = mtype ? `[${mtype}]` : '[Hình ảnh]';
+          if (media.length > 1) content += ` +${media.length - 1}`;
+        }
+
+        const author = p.Author || p.author || p.PostAuthor || {};
+        const authorName = author?.FullName ?? author?.fullName ?? author?.full_name ?? author?.UserName ?? author?.userName ?? 'N/A';
+        const authorUsername = author?.UserName ?? author?.Username ?? author?.username ?? author?.userName ?? author?.User ?? 'unknown';
+
+        const engagement = p.Engagement || p.engagement || p.EngagementStats || {};
+        const reaction = Number(p.ReactionCount ?? p.reactionCount ?? engagement?.ReactionCount ?? engagement?.reactionCount ?? engagement?.LikeCount ?? 0) || 0;
+        const comment = Number(p.CommentCount ?? p.commentCount ?? engagement?.CommentCount ?? engagement?.commentCount ?? 0) || 0;
+        const total = Number(
+          p.TotalInteractions ??
+          p.totalInteractions ??
+          engagement?.TotalEngagement ??
+          engagement?.totalEngagement ??
+          (reaction + comment + (engagement?.ShareCount ?? 0))
+        ) || 0;
+
+        // collect media items (support multiple shapes) and normalize
+        const ensureAbsolute = (u) => {
+          if (!u) return '';
+          if (typeof u !== 'string') return '';
+          // already absolute
+          if (u.startsWith('http://') || u.startsWith('https://')) return u;
+          // absolute path on same host
+          if (u.startsWith('/')) return window.location.origin + u;
+          // fallback: if starts with 'Assets' or 'assets' assume relative
+          if (/^assets\//i.test(u)) return window.location.origin + '/' + u.replace(/^\/+/, '');
+          // fallback: treat as filename inside Assets/Images
+          return window.location.origin + '/Assets/Images/' + u;
+        };
+
+        const mediaSource = media || p.MediaItems || p.mediaItems || p.MediaUrls || p.mediaUrls || p.Videos || p.Images || [];
+        const mediaList = Array.isArray(mediaSource) ? mediaSource.map(m => {
+          if (!m) return null;
+          if (typeof m === 'string') {
+            const url = ensureAbsolute(m);
+            const type = url.toLowerCase().endsWith('.mp4') ? 'video' : 'image';
+            return { type, url, poster: null };
+          }
+          const url = ensureAbsolute(m.MediaUrl ?? m.mediaUrl ?? m.Url ?? m.url ?? m.file ?? m.Path ?? '');
+          const type = (m.MediaType ?? m.type ?? (url && url.toLowerCase().endsWith('.mp4') ? 'video' : 'image')) || 'image';
+          const poster = ensureAbsolute(m.Poster ?? m.poster ?? m.Thumbnail ?? m.thumbnail ?? m.thumb ?? m.Preview ?? m.preview ?? null) || null;
+          return { type, url, poster };
+        }).filter(x => x && x.url) : [];
+
+        // Choose thumbnail: prefer image; if only videos, prefer poster, otherwise fallback to video URL and mark as video
+        let thumbnailUrl = '';
+        let thumbnailIsVideo = false;
+        if (mediaList.length > 0) {
+          const firstImage = mediaList.find(m => m.type && m.type.toLowerCase() === 'image');
+          if (firstImage) {
+            thumbnailUrl = firstImage.url;
+            thumbnailIsVideo = false;
+          } else {
+            const firstVideo = mediaList.find(m => m.type && m.type.toLowerCase() === 'video');
+            if (firstVideo) {
+              if (firstVideo.poster) {
+                thumbnailUrl = firstVideo.poster;
+                thumbnailIsVideo = false;
+              } else {
+                thumbnailUrl = firstVideo.url;
+                thumbnailIsVideo = true;
+              }
+            }
+          }
+        }
+
+        // author avatar fallback - accept many property names
+        const rawAvatar = author?.AvatarUrl ?? author?.avatarUrl ?? author?.Avatar ?? author?.avatar ?? author?.avatar_path ?? author?.avatarUrlPath ?? '';
+        const avatar = rawAvatar ? ensureAbsolute(rawAvatar) : '';
+
+        return {
+          PostId: postId,
+          Content: content,
+          AuthorName: authorName,
+          AuthorUsername: authorUsername,
+          AuthorAvatar: avatar,
+          MediaUrls: mediaList.map(m => m.url),
+          Thumbnail: thumbnailUrl,
+          ThumbnailIsVideo: thumbnailIsVideo,
+          ReactionCount: reaction,
+          CommentCount: comment,
+          TotalInteractions: (reaction || 0) + (comment || 0),
+          Raw: p
+        };
+      });
+      // Sort top posts descending by total interactions (includes reactions + comments)
+      normalizedPosts.sort((a, b) => (b.TotalInteractions || 0) - (a.TotalInteractions || 0));
+      setTopPosts(normalizedPosts);
 
       // Load tất cả charts
       await Promise.all([
@@ -145,6 +267,40 @@ export default function Dashboard() {
     }
   };
 
+  // Try to produce label variants (with/without year, remove "Tuần " prefix) so frontend
+  // can match backend labels produced in different formats (dd/MM or dd/MM/yyyy)
+  const buildLabelVariants = (label, toDate) => {
+    if (!label) return [label];
+    let base = label;
+    if (base.startsWith('Tuần ')) base = base.replace(/^Tuần\s*/, '');
+
+    const variants = new Set();
+    variants.add(label);
+    // If looks like dd/MM/yyyy
+    const parts = base.split('/');
+    if (parts.length === 3) {
+      const [d, m, y] = parts;
+      variants.add(`${d}/${m}`);
+    } else if (parts.length === 2) {
+      // dd/MM -> add dd/MM/yyyy using toDate year
+      const [d, m] = parts;
+      const year = toDate ? toDate.getFullYear() : new Date().getFullYear();
+      variants.add(`${d}/${m}/${year}`);
+    }
+    return Array.from(variants);
+  };
+
+  // Shared formatter for period labels shown in charts
+  const formatPeriodLabel = (dateObj, type) => {
+    const dd = String(dateObj.getDate()).padStart(2, '0');
+    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const yyyy = dateObj.getFullYear();
+    if (type === 'Month') return `${mm}/${yyyy}`; // MM/yyyy
+    if (type === 'Year') return `${yyyy}`;
+    if (type === 'Week') return `Tuần ${dd}/${mm}`;
+    return `${dd}/${mm}/${yyyy}`; // Day default
+  };
+
   const loadUserChartData = async () => {
     try {
       setChartLoading(prev => ({ ...prev, user: true }));
@@ -153,24 +309,79 @@ export default function Dashboard() {
       
       const newUsersRes = await dashboardAPI.getNewUserStats(fromDate, toDate, userChartFilter.type);
       const newUsersData = Array.isArray(newUsersRes) ? newUsersRes : (newUsersRes.data || newUsersRes);
-      
-      setStats(prev => ({
-        ...prev,
-        newUsers: Array.isArray(newUsersData) ? newUsersData.reduce((sum, item) => sum + (item.Count || item.count || 0), 0) : 0,
-      }));
 
-      if (Array.isArray(newUsersData) && newUsersData.length > 0) {
-        setNewUserData({
-          labels: newUsersData.map(item => item.DisplayTime),
-          datasets: [{
-            label: 'Người dùng mới',
-            data: newUsersData.map(item => item.Count || item.count),
-            borderColor: 'rgb(75, 192, 192)',
-            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-            tension: 0.3,
-          }],
+      // Normalize returned items into a map: DisplayTime -> Count
+      const countMap = {};
+      if (Array.isArray(newUsersData)) {
+        newUsersData.forEach(item => {
+          const key = item.DisplayTime || item.displayTime || '';
+          const val = Number(item.Count ?? item.count ?? 0) || 0;
+          if (!key) return;
+          countMap[key] = (countMap[key] || 0) + val;
         });
       }
+
+      // Use shared formatPeriodLabel
+      const formatLabel = (dateObj, type) => formatPeriodLabel(dateObj, type);
+
+      // Build expected labels for the selected grouping and fill missing periods with 0
+      const expectedLabels = [];
+      const counts = [];
+      const grouping = userChartFilter.type || 'Day';
+      const cur = new Date(fromDate);
+
+      if (grouping === 'Month') {
+        cur.setDate(1);
+        while (cur <= toDate) {
+          const lbl = formatLabel(cur, 'Month');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+          cur.setMonth(cur.getMonth() + 1);
+        }
+      } else if (grouping === 'Week') {
+        // Step by 7 days, label as Week
+        while (cur <= toDate) {
+          const lbl = formatLabel(cur, 'Week');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+          cur.setDate(cur.getDate() + 7);
+        }
+      } else if (grouping === 'Year') {
+        // Step by year
+        const startYear = cur.getFullYear();
+        const endYear = toDate.getFullYear();
+        for (let y = startYear; y <= endYear; y++) {
+          const yearDate = new Date(y, 0, 1);
+          const lbl = formatLabel(yearDate, 'Year');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+        }
+      } else {
+        // Day grouping: every day
+        while (cur <= toDate) {
+          const lbl = formatLabel(cur, 'Day');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+          cur.setDate(cur.getDate() + 1);
+        }
+      }
+
+      setStats(prev => ({
+        ...prev,
+        newUsers: counts.reduce((sum, v) => sum + v, 0),
+      }));
+
+      // Always set chart data (even if all zeros) so chart shows full period
+      setNewUserData({
+        labels: expectedLabels,
+        datasets: [{
+          label: 'Người dùng mới',
+          data: counts,
+          borderColor: 'rgb(75, 192, 192)',
+          backgroundColor: 'rgba(75, 192, 192, 0.2)',
+          tension: 0.3,
+        }],
+      });
     } catch (error) {
       console.error('Error loading user chart:', error);
     } finally {
@@ -186,25 +397,73 @@ export default function Dashboard() {
       
       const businessRes = await dashboardAPI.getBusinessGrowth(fromDate, toDate, businessChartFilter.type);
       const businessData = businessRes.data || businessRes;
-      const businessCounts = businessData.counts || [];
-      
+      const rawLabels = businessData?.labels || businessData?.lables || businessData?.Labels || [];
+      const rawCounts = businessData?.counts || businessData?.Counts || [];
+
+      // Build a tolerant count map that accepts several label variants (with/without year)
+      const countMap = {};
+      rawLabels.forEach((lbl, idx) => {
+        const val = Number(rawCounts[idx] ?? 0) || 0;
+        const variants = buildLabelVariants(lbl, toDate);
+        variants.forEach(v => {
+          if (!v) return;
+          countMap[v] = (countMap[v] || 0) + val;
+        });
+      });
+
+      const grouping = businessChartFilter.type || 'Day';
+      const expectedLabels = [];
+      const counts = [];
+      const cur = new Date(fromDate);
+
+      if (grouping === 'Month') {
+        cur.setDate(1);
+        while (cur <= toDate) {
+          const lbl = formatPeriodLabel(cur, 'Month');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+          cur.setMonth(cur.getMonth() + 1);
+        }
+      } else if (grouping === 'Week') {
+        while (cur <= toDate) {
+          const lbl = formatPeriodLabel(cur, 'Week');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+          cur.setDate(cur.getDate() + 7);
+        }
+      } else if (grouping === 'Year') {
+        const startYear = cur.getFullYear();
+        const endYear = toDate.getFullYear();
+        for (let y = startYear; y <= endYear; y++) {
+          const yearDate = new Date(y, 0, 1);
+          const lbl = formatPeriodLabel(yearDate, 'Year');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+        }
+      } else {
+        while (cur <= toDate) {
+          const lbl = formatPeriodLabel(cur, 'Day');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+          cur.setDate(cur.getDate() + 1);
+        }
+      }
+
       setStats(prev => ({
         ...prev,
-        businessAccounts: businessData.totalBusinessAccounts || businessCounts.reduce((sum, val) => sum + val, 0),
+        businessAccounts: businessData.totalBusinessAccounts || counts.reduce((sum, val) => sum + val, 0),
       }));
 
-      if (businessData.labels && businessData.labels.length > 0) {
-        setBusinessGrowthData({
-          labels: businessData.labels,
-          datasets: [{
-            label: 'Tài khoản Business mới',
-            data: businessData.counts,
-            borderColor: 'rgb(255, 159, 64)',
-            backgroundColor: 'rgba(255, 159, 64, 0.2)',
-            tension: 0.3,
-          }],
-        });
-      }
+      setBusinessGrowthData({
+        labels: expectedLabels,
+        datasets: [{
+          label: 'Tài khoản Business mới',
+          data: counts,
+          borderColor: 'rgb(255, 159, 64)',
+          backgroundColor: 'rgba(255, 159, 64, 0.2)',
+          tension: 0.3,
+        }],
+      });
     } catch (error) {
       console.error('Error loading business chart:', error);
     } finally {
@@ -220,25 +479,72 @@ export default function Dashboard() {
       
       const revenueRes = await dashboardAPI.getRevenue(fromDate, toDate, revenueChartFilter.type);
       const revenueDataRes = revenueRes.data || revenueRes;
-      const revenues = revenueDataRes.revenues || [];
-      
+      const rawLabels = revenueDataRes?.labels || revenueDataRes?.lables || revenueDataRes?.Labels || [];
+      const rawRevenues = revenueDataRes?.revenues || revenueDataRes?.Revenues || [];
+
+      const countMap = {};
+      rawLabels.forEach((lbl, idx) => {
+        const val = Number(rawRevenues[idx] ?? 0) || 0;
+        const variants = buildLabelVariants(lbl, toDate);
+        variants.forEach(v => {
+          if (!v) return;
+          countMap[v] = (countMap[v] || 0) + val;
+        });
+      });
+
+      const grouping = revenueChartFilter.type || 'Day';
+      const expectedLabels = [];
+      const values = [];
+      const cur = new Date(fromDate);
+
+      if (grouping === 'Month') {
+        cur.setDate(1);
+        while (cur <= toDate) {
+          const lbl = formatPeriodLabel(cur, 'Month');
+          expectedLabels.push(lbl);
+          values.push(countMap[lbl] || 0);
+          cur.setMonth(cur.getMonth() + 1);
+        }
+      } else if (grouping === 'Week') {
+        while (cur <= toDate) {
+          const lbl = formatPeriodLabel(cur, 'Week');
+          expectedLabels.push(lbl);
+          values.push(countMap[lbl] || 0);
+          cur.setDate(cur.getDate() + 7);
+        }
+      } else if (grouping === 'Year') {
+        const startYear = cur.getFullYear();
+        const endYear = toDate.getFullYear();
+        for (let y = startYear; y <= endYear; y++) {
+          const yearDate = new Date(y, 0, 1);
+          const lbl = formatPeriodLabel(yearDate, 'Year');
+          expectedLabels.push(lbl);
+          values.push(countMap[lbl] || 0);
+        }
+      } else {
+        while (cur <= toDate) {
+          const lbl = formatPeriodLabel(cur, 'Day');
+          expectedLabels.push(lbl);
+          values.push(countMap[lbl] || 0);
+          cur.setDate(cur.getDate() + 1);
+        }
+      }
+
       setStats(prev => ({
         ...prev,
-        totalRevenue: revenueDataRes.totalRevenue || revenues.reduce((sum, val) => sum + val, 0),
+        totalRevenue: revenueDataRes.totalRevenue || values.reduce((sum, val) => sum + val, 0),
       }));
 
-      if (revenueDataRes.labels && revenueDataRes.labels.length > 0) {
-        setRevenueData({
-          labels: revenueDataRes.labels,
-          datasets: [{
-            label: 'Doanh thu (VNĐ)',
-            data: revenueDataRes.revenues,
-            backgroundColor: 'rgba(54, 162, 235, 0.6)',
-            borderColor: 'rgb(54, 162, 235)',
-            borderWidth: 1,
-          }],
-        });
-      }
+      setRevenueData({
+        labels: expectedLabels,
+        datasets: [{
+          label: 'Doanh thu (VNĐ)',
+          data: values,
+          backgroundColor: 'rgba(54, 162, 235, 0.6)',
+          borderColor: 'rgb(54, 162, 235)',
+          borderWidth: 1,
+        }],
+      });
     } catch (error) {
       console.error('Error loading revenue chart:', error);
     } finally {
@@ -254,25 +560,72 @@ export default function Dashboard() {
       
       const postRes = await dashboardAPI.getPostGrowth(fromDate, toDate, postChartFilter.type);
       const postData = postRes.data || postRes;
-      const postCounts = postData.counts || [];
-      
+      const rawLabels = postData?.labels || postData?.lables || postData?.Labels || [];
+      const rawCounts = postData?.counts || postData?.Counts || [];
+
+      const countMap = {};
+      rawLabels.forEach((lbl, idx) => {
+        const val = Number(rawCounts[idx] ?? 0) || 0;
+        const variants = buildLabelVariants(lbl, toDate);
+        variants.forEach(v => {
+          if (!v) return;
+          countMap[v] = (countMap[v] || 0) + val;
+        });
+      });
+
+      const grouping = postChartFilter.type || 'Day';
+      const expectedLabels = [];
+      const counts = [];
+      const cur = new Date(fromDate);
+
+      if (grouping === 'Month') {
+        cur.setDate(1);
+        while (cur <= toDate) {
+          const lbl = formatPeriodLabel(cur, 'Month');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+          cur.setMonth(cur.getMonth() + 1);
+        }
+      } else if (grouping === 'Week') {
+        while (cur <= toDate) {
+          const lbl = formatPeriodLabel(cur, 'Week');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+          cur.setDate(cur.getDate() + 7);
+        }
+      } else if (grouping === 'Year') {
+        const startYear = cur.getFullYear();
+        const endYear = toDate.getFullYear();
+        for (let y = startYear; y <= endYear; y++) {
+          const yearDate = new Date(y, 0, 1);
+          const lbl = formatPeriodLabel(yearDate, 'Year');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+        }
+      } else {
+        while (cur <= toDate) {
+          const lbl = formatPeriodLabel(cur, 'Day');
+          expectedLabels.push(lbl);
+          counts.push(countMap[lbl] || 0);
+          cur.setDate(cur.getDate() + 1);
+        }
+      }
+
       setStats(prev => ({
         ...prev,
-        totalPosts: postData.totalPosts || postCounts.reduce((sum, val) => sum + val, 0),
+        totalPosts: postData.totalPosts || counts.reduce((sum, val) => sum + val, 0),
       }));
 
-      if (postData.labels && postData.labels.length > 0) {
-        setPostGrowthData({
-          labels: postData.labels,
-          datasets: [{
-            label: 'Bài đăng mới',
-            data: postData.counts,
-            borderColor: 'rgb(153, 102, 255)',
-            backgroundColor: 'rgba(153, 102, 255, 0.2)',
-            tension: 0.3,
-          }],
-        });
-      }
+      setPostGrowthData({
+        labels: expectedLabels,
+        datasets: [{
+          label: 'Bài đăng mới',
+          data: counts,
+          borderColor: 'rgb(153, 102, 255)',
+          backgroundColor: 'rgba(153, 102, 255, 0.2)',
+          tension: 0.3,
+        }],
+      });
     } catch (error) {
       console.error('Error loading post chart:', error);
     } finally {
@@ -295,7 +648,10 @@ export default function Dashboard() {
   const handleViewPost = async (postId) => {
     try {
       const postDetail = await dashboardAPI.getPostDetail(postId);
-      setSelectedPost(postDetail.data);
+      // apiClient interceptor returns response.data directly in many places,
+      // frontend code sometimes expects { data: ... } shape. Accept both.
+      const payload = postDetail?.data || postDetail;
+      setSelectedPost(payload);
       setIsModalOpen(true);
     } catch (error) {
       console.error('Error loading post detail:', error);
@@ -335,6 +691,38 @@ export default function Dashboard() {
     }
   };
 
+  // Shared helper to convert filenames or relative paths to absolute URLs
+  const ensureAbsolute = (u) => {
+    if (!u) return '';
+    if (typeof u !== 'string') return '';
+    if (u.startsWith('http://') || u.startsWith('https://')) return u;
+    if (u.startsWith('/')) return window.location.origin + u;
+    if (/^assets\//i.test(u)) return window.location.origin + '/' + u.replace(/^\/+/, '');
+    return window.location.origin + '/Assets/Images/' + u;
+  };
+
+  function normalizeTopPost(p) {
+    const avatarCandidates = [
+      p.AuthorAvatar, p.author?.avatarUrl, p.author?.AvatarUrl, p.user?.avatar, p.avatar, p.author?.avatar?.url
+    ];
+    const avatarRaw = avatarCandidates.find(x=>x);
+    const _avatar = ensureAbsolute(avatarRaw);
+
+    const mediaSource = p.Media || p.media || p.Images || p.Videos || p.mediaUrls || p.MediaUrls || [];
+    const mediaList = (Array.isArray(mediaSource) ? mediaSource : []).map(m=>{
+      const url = m.url || m.MediaUrl || m.mediaUrl || m; 
+      const type = m.type || (url && url.toLowerCase().endsWith('.mp4') ? 'video' : 'image');
+      const poster = m.poster || m.thumb || null;
+      return { type, url: ensureAbsolute(url), poster: poster ? ensureAbsolute(poster) : null };
+    });
+
+    const comments = p.commentsCount ?? p.comments ?? p.CommentCount ?? 0;
+    const reactions = p.reactionsCount ?? p.reactionCount ?? p.likes ?? 0;
+    const total = (reactions||0) + (comments||0);
+
+    return { ...p, _avatar, _media: mediaList, _comments: comments, _reactions: reactions, _total: total };
+  }
+
   if (loading) {
     return (
       <div className="dashboard-loading">
@@ -347,13 +735,13 @@ export default function Dashboard() {
   return (
     <div className="dashboard">
       <div className="dashboard-header">
-        <h1>📊 Dashboard Admin</h1>
+        <h1><FiBarChart2 className="header-icon" aria-hidden="true"/> Dashboard Admin</h1>
       </div>
 
       {/* Stats Cards */}
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-icon">👥</div>
+          <div className="stat-icon"><FiUsers aria-hidden="true"/></div>
           <div className="stat-info">
             <h3>Người dùng mới</h3>
             <p className="stat-value">{stats.newUsers.toLocaleString()}</p>
@@ -361,7 +749,7 @@ export default function Dashboard() {
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon">🟢</div>
+          <div className="stat-icon"><FiCheckCircle aria-hidden="true"/></div>
           <div className="stat-info">
             <h3>Người dùng hoạt động</h3>
             <p className="stat-value">{stats.activeUsers.toLocaleString()}</p>
@@ -369,7 +757,7 @@ export default function Dashboard() {
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon">🏢</div>
+          <div className="stat-icon"><FiBriefcase aria-hidden="true"/></div>
           <div className="stat-info">
             <h3>Tài khoản Business</h3>
             <p className="stat-value">{stats.businessAccounts.toLocaleString()}</p>
@@ -377,7 +765,7 @@ export default function Dashboard() {
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon">💰</div>
+          <div className="stat-icon"><FiDollarSign aria-hidden="true"/></div>
           <div className="stat-info">
             <h3>Doanh thu</h3>
             <p className="stat-value">{formatCurrency(stats.totalRevenue)}</p>
@@ -385,7 +773,7 @@ export default function Dashboard() {
         </div>
 
         <div className="stat-card">
-          <div className="stat-icon">📝</div>
+          <div className="stat-icon"><FiFileText aria-hidden="true"/></div>
           <div className="stat-info">
             <h3>Bài đăng mới</h3>
             <p className="stat-value">{stats.totalPosts.toLocaleString()}</p>
@@ -398,7 +786,7 @@ export default function Dashboard() {
         {/* New Users Chart */}
         <div className="chart-container">
           <div className="chart-header">
-            <h3>📈 Tăng trưởng người dùng mới</h3>
+            <h3><FiTrendingUp className="chart-h-icon" aria-hidden="true"/> Tăng trưởng người dùng mới</h3>
             <div className="chart-controls">
               <div className="date-inputs">
                 <label>
@@ -445,7 +833,7 @@ export default function Dashboard() {
         {/* Business Growth Chart */}
         <div className="chart-container">
           <div className="chart-header">
-            <h3>🏢 Tăng trưởng tài khoản Business</h3>
+            <h3><FiBriefcase className="chart-h-icon" aria-hidden="true"/> Tăng trưởng tài khoản Business</h3>
             <div className="chart-controls">
               <div className="date-inputs">
                 <label>
@@ -493,7 +881,7 @@ export default function Dashboard() {
         {/* Revenue Chart */}
         <div className="chart-container">
           <div className="chart-header">
-            <h3>💰 Doanh thu từ Business</h3>
+            <h3><FiDollarSign className="chart-h-icon" aria-hidden="true"/> Doanh thu từ Business</h3>
             <div className="chart-controls">
               <div className="date-inputs">
                 <label>
@@ -541,7 +929,7 @@ export default function Dashboard() {
         {/* Post Growth Chart */}
         <div className="chart-container">
           <div className="chart-header">
-            <h3>📝 Tăng trưởng bài đăng</h3>
+            <h3><FiFileText className="chart-h-icon" aria-hidden="true"/> Tăng trưởng bài đăng</h3>
             <div className="chart-controls">
               <div className="date-inputs">
                 <label>
@@ -591,7 +979,7 @@ export default function Dashboard() {
       <div className="tables-grid">
         {/* Top Keywords Table */}
         <div className="table-container">
-          <h3>🔍 Top 10 từ khóa tìm kiếm nhiều nhất</h3>
+          <h3><FiSearch className="table-h-icon" aria-hidden="true"/> Top 10 từ khóa tìm kiếm nhiều nhất</h3>
           <div className="table-wrapper">
             <table>
               <thead>
@@ -626,7 +1014,7 @@ export default function Dashboard() {
 
         {/* Top Posts Table */}
         <div className="table-container">
-          <h3>🔥 Top 10 bài đăng tương tác nhiều nhất</h3>
+          <h3><FiZap className="table-h-icon" aria-hidden="true"/> Top 10 bài đăng tương tác nhiều nhất</h3>
           <div className="table-wrapper">
             <table>
               <thead>
@@ -640,40 +1028,69 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {topPosts.length > 0 ? (
-                  topPosts.map((post, index) => (
-                    <tr key={post.PostId || index}>
-                      <td>{index + 1}</td>
-                      <td className="post-content-cell">
-                        <div className="post-preview">
-                          {post.Content ? post.Content.substring(0, 60) : 'Không có nội dung'}
-                          {post.Content && post.Content.length > 60 && '...'}
-                        </div>
-                      </td>
-                      <td>
-                        <div className="author-info">
-                          <strong>{post.AuthorName || 'N/A'}</strong>
-                          <small>@{post.AuthorUsername || 'unknown'}</small>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="interaction-stats">
-                          <span className="reaction-count">❤️ {post.ReactionCount || 0}</span>
-                          <span className="comment-count">💬 {post.CommentCount || 0}</span>
-                          <span className="total-count">
-                            <strong>{post.TotalInteractions || 0}</strong> tổng
-                          </span>
-                        </div>
-                      </td>
-                      <td>
-                        <button
-                          className="btn-view-post"
-                          onClick={() => handleViewPost(post.PostId)}
-                        >
-                          Xem chi tiết
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  topPosts.map((post, index) => {
+                    // compute avatar the same way PostModal does (support multiple DTO shapes)
+                    const avatarRaw = post.AuthorAvatar || post.Raw?.user?.avatarUrl || post.Raw?.user?.avatar || post.Raw?.author?.avatar || post.Raw?.AuthorAvatar || post.Raw?.author?.AvatarUrl || '';
+                    const avatar = avatarRaw ? ensureAbsolute(avatarRaw) : '';
+                    const reactions = Number(post.ReactionCount ?? post.reactionCount ?? post.Raw?.ReactionCount ?? post.Raw?.reactionCount ?? 0) || 0;
+                    const comments = Number(post.CommentCount ?? post.commentsCount ?? post.Comment ?? post.comments ?? post.Raw?.CommentCount ?? post.Raw?.comments ?? 0) || 0;
+                    const total = reactions + comments;
+
+                    return (
+                      <tr key={post.PostId || index}>
+                        <td>{index + 1}</td>
+                        <td className="post-content-cell">
+                          <div className="post-preview">
+                            <div className="post-preview-inner">
+                              {post.Thumbnail ? (
+                                post.ThumbnailIsVideo ? (
+                                  <video className="post-thumb" src={post.Thumbnail} muted loop playsInline />
+                                ) : (
+                                  <img src={post.Thumbnail} alt="thumb" className="post-thumb" />
+                                )
+                              ) : null}
+                              <div className="post-preview-text">
+                                {post.Content ? post.Content.substring(0, 60) : 'Không có nội dung'}
+                                {post.Content && post.Content.length > 60 && '...'}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="author-info">
+                            <div className="author-meta">
+                              {avatar ? (
+                                <img src={avatar} alt="avatar" className="author-avatar" />
+                              ) : (
+                                <div className="author-avatar placeholder"></div>
+                              )}
+                              <div className="author-text">
+                                <strong>{post.AuthorName || 'N/A'}</strong>
+                                <small>@{post.AuthorUsername || 'unknown'}</small>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="interaction-stats">
+                            <span className="reaction-count"><FiHeart aria-hidden="true"/> {reactions}</span>
+                            <span className="comment-count"><FiMessageSquare aria-hidden="true"/> {comments}</span>
+                            <span className="total-count">
+                              <strong>{total}</strong> tổng
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <button
+                            className="btn-view-post"
+                            onClick={() => handleViewPost(post.PostId)}
+                          >
+                            Xem chi tiết
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
                     <td colSpan="5" className="no-data">Chưa có dữ liệu</td>

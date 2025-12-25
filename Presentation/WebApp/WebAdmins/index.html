@@ -9,21 +9,30 @@
     <div id="root"></div>
     <script>
       // Try to load runtime env-config if it exists (used in docker runtime). If not, continue.
-      (async function() {
-        try {
-          const r = await fetch('/env-config.js', { method: 'GET' });
-          if (r.ok) {
-            const s = document.createElement('script');
-            s.src = '/env-config.js';
-            document.head.appendChild(s);
-            console.log('[env-config] loaded');
-          } else {
-            // Not present in dev - ignore
-            console.log('[env-config] not found, continuing without runtime config');
-          }
-        } catch (e) {
-          console.log('[env-config] load error, continuing', e);
+      (function() {
+        // Only attempt to load runtime env-config in non-localhost environments
+        // This avoids noisy 404s during local dev where the file is not present.
+        const hostname = window.location.hostname;
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          console.log('[env-config] skipped in localhost');
+          return;
         }
+
+        (async function() {
+          try {
+            const r = await fetch('/env-config.js', { method: 'GET' });
+            if (r.ok) {
+              const s = document.createElement('script');
+              s.src = '/env-config.js';
+              document.head.appendChild(s);
+              console.log('[env-config] loaded');
+            } else {
+              console.log('[env-config] not found, continuing without runtime config');
+            }
+          } catch (e) {
+            console.log('[env-config] load error, continuing', e);
+          }
+        })();
       })();
     </script>
     <script type="module" src="/src/main.js"></script>

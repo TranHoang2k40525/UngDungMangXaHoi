@@ -81,21 +81,8 @@ export default function SignUp() {
     const fullNameCombined = `${lastName} ${fullName}`; // Họ + Tên
     const dateOfBirth = parseDateOfBirth(birthDate);
 
-    // Convert gender to match backend enum (backend expects 0, 1, 2)
-    let genderValue;
-    switch (gender) {
-      case 'Nam':
-        genderValue = 0;
-        break;
-      case 'Nữ':
-        genderValue = 1;
-        break;
-      case 'Khác':
-        genderValue = 2;
-        break;
-      default:
-        genderValue = 0;
-    }
+    // Gender is already in correct format: "Nam", "Nữ", "Khác"
+    // No need to convert to number - backend expects string matching enum names
 
     const userData = {
       Username: username,
@@ -104,7 +91,7 @@ export default function SignUp() {
       Email: email,
       Phone: phoneNumber,
       Password: password,
-      Gender: genderValue, // Send as 0/1/2 (backend enum)
+      Gender: gender, // Send as string: "Nam", "Nữ", or "Khác"
     };
 
     try {

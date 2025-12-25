@@ -27,13 +27,17 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
 
         public async Task<List<Message>> GetConversationMessagesAsync(int conversationId, int pageNumber = 1, int pageSize = 50)
         {
-            return await _context.MessagesNew
+            // OrderByDescending: Page 1 = tin MỚI nhất (giống Facebook Messenger)
+            // Trả về theo thứ tự: MỚI nhất → CŨ nhất
+            var messages = await _context.MessagesNew
                 .Include(m => m.Sender)
                 .Where(m => m.conversation_id == conversationId && !m.is_deleted)
                 .OrderByDescending(m => m.created_at)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
+            
+            return messages;
         }
 
         public async Task<Message?> GetLastMessageAsync(int conversationId)
