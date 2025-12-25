@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import MessageAPI from '../../API/MessageAPI';
 import { getProfile, getMyGroups, API_BASE_URL } from '../../API/Api';
 import signalRService from '../../Services/signalRService';
-import NavigationBar from '../../components/NavigationBar';
+import NavigationBar from '../../Components/NavigationBar';
 import './Messenger.css';
 
 export default function Messenger() {

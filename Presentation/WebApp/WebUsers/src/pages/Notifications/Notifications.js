@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as NotificationAPI from '../../API/Api';
 import signalRService from '../../Services/signalRService';
-import NavigationBar from '../../components/NavigationBar';
+import NavigationBar from '../../Components/NavigationBar';
 import './Notifications.css';
 
 const NotificationItem = ({ notification, onPress, onMarkAsRead, onDelete }) => {

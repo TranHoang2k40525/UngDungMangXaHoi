@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { searchUsers } from '../../api/AppApi';
-import NavigationBar from '../../components/NavigationBar';
+import NavigationBar from '../../Components/NavigationBar';
 import './Search.css';
 
 export default function Search() {
