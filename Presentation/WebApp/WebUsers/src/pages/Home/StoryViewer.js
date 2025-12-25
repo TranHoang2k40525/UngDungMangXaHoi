@@ -246,8 +246,14 @@ const StoryViewer = () => {
   if (stories.length === 0) {
     return (
       <div className="story-viewer-container">
-        <button className="story-close-button" onClick={() => navigate(-1)}>
-          <i className="fas fa-times"></i>
+        <button 
+          className="story-close-button" 
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate('/');
+          }}
+        >
+          ✕
         </button>
         <div className="story-empty">
           <p>Không có story</p>
@@ -329,8 +335,14 @@ const StoryViewer = () => {
       </div>
 
       {/* Close Button */}
-      <button className="story-close-button" onClick={() => navigate(-1)}>
-        <i className="fas fa-times"></i>
+      <button 
+        className="story-close-button" 
+        onClick={(e) => {
+          e.stopPropagation();
+          navigate('/');
+        }}
+      >
+        ✕
       </button>
 
       {/* Pause Indicator */}

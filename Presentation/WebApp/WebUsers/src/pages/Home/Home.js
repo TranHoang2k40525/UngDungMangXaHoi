@@ -29,11 +29,9 @@ import './Home.css';
 // Story Components
 const StoryAddItem = ({ onPress }) => (
   <div className="story-item" onClick={onPress}>
-    <div className="story-avatar-container">
+    <div className="story-avatar-container add-story-container">
       <div className="story-avatar add-story-avatar">
-        <div className="plus-circle">
-          <span className="plus-text">+</span>
-        </div>
+        <span className="plus-text">+</span>
       </div>
     </div>
     <span className="story-name">Thêm</span>
@@ -181,7 +179,7 @@ const getReactionEmoji = (reactionType) => {
 export default function Home() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user: ctxUser } = useUser();
+  const { user: ctxUser, logout } = useUser();
   const { markAsFollowed, markAsUnfollowed, isFollowed } = useFollow();
 
   // State
@@ -862,18 +860,7 @@ export default function Home() {
 
   return (
     <div className="home-container">
-      <header className="home-header">
-        <button className="nav-item" onClick={handleCameraPress}>
-          <span className="icon camera-icon">📷</span>
-        </button>
-        <div className="home-logo">MediaLite</div>
-        <div className="header-right">
-          <button className="nav-item" onClick={() => navigate('/notifications')}>
-            <span className="icon">🔔</span>
-          </button>
-        </div>
-      </header>
-
+      {/* Main Feed Content */}
       <div className="home-content" onScroll={handleScroll}>
         <div className="stories-container">
           <div className="stories-scroll">
@@ -1400,6 +1387,7 @@ export default function Home() {
         />
       )}
 
-      <NavigationBar />    </div>
+      <NavigationBar />
+    </div>
   );
 }

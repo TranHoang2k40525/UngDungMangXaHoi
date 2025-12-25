@@ -147,10 +147,6 @@ export default function Profile() {
           {profile?.accountType === 'Business' && <span className="verified-badge">✓</span>}
           <span className="chevron-down">▼</span>
         </div>
-        <div className="profile-header-right">
-          <button className="header-icon-btn">➕</button>
-          <button className="header-icon-btn" onClick={() => setMenuOpen(!menuOpen)}>☰</button>
-        </div>
       </div>
 
       {/* Menu Modal */}
