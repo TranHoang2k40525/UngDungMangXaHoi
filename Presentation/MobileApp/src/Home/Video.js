@@ -366,7 +366,7 @@ export default function Reels() {
   const [showComments, setShowComments] = useState(false);
   const [selectedPostIdForComments, setSelectedPostIdForComments] =
     useState(null);
-  
+
   // Share modal state
   const [showShareModal, setShowShareModal] = useState(false);
   const [sharePost, setSharePost] = useState(null);
@@ -574,10 +574,10 @@ export default function Reels() {
       const selected =
         selectedId != null ? uniq.find((p) => p.id === selectedId) : null;
       const rest = uniq.filter((p) => !selected || p.id !== selected.id);
-      
+
       // KHÔNG SORT NỮA - giữ nguyên thứ tự backend trả về
       // Backend đã xử lý: follower > search > newest, cho phép lặp lại
-      
+
       return selected ? [selected, ...rest] : rest;
     },
     [] // Xóa dependency getWatchedSet
@@ -916,7 +916,7 @@ export default function Reels() {
     const handleShareUpdate = (data) => {
       console.log("[VIDEO] 🔔 Received share update:", data);
       const { PostId, ShareCount } = data;
-      
+
       if (PostId) {
         setVideoStates((prev) => {
           if (prev[PostId]) {
@@ -939,6 +939,17 @@ export default function Reels() {
       notificationSignalRService.off("ReceiveShareUpdate", handleShareUpdate);
     };
   }, [currentUserId]);
+
+  // Handle share success - Optimistic UI update
+  const handleShareSuccess = (postId) => {
+    setVideoStates((prev) => ({
+      ...prev,
+      [postId]: {
+        ...prev[postId],
+        shares: (prev[postId]?.shares ?? 0) + 1,
+      },
+    }));
+  };
 
   // Load more reels when scroll to end
   const loadMoreReels = useCallback(async () => {
@@ -1396,7 +1407,7 @@ export default function Reels() {
             <Ionicons name="chatbubble-outline" size={28} color="#fff" />
             <Text style={styles.sideCount}>{item?.commentsCount || 0}</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.sideBtn}
             onPress={() => {
               setSharePost(item);
@@ -1404,7 +1415,9 @@ export default function Reels() {
             }}
           >
             <Ionicons name="paper-plane-outline" size={28} color="#fff" />
-            <Text style={styles.sideCount}>{videoStates[item?.id]?.shares || 0}</Text>
+            <Text style={styles.sideCount}>
+              {videoStates[item?.id]?.shares || 0}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.sideBtn, { marginTop: 6 }]}
@@ -2324,6 +2337,7 @@ export default function Reels() {
           setSharePost(null);
         }}
         post={sharePost}
+        onShareSuccess={handleShareSuccess}
       />
 
       <ReactionsListModal

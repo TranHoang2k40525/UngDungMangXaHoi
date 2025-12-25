@@ -559,7 +559,7 @@ export default function PostDetail() {
     const handleShareUpdate = (data) => {
       console.log("[PostDetail] 🔔 Received share update:", data);
       const { PostId, ShareCount } = data;
-      
+
       if (PostId) {
         setPostStates((prev) => {
           if (prev[PostId]) {
@@ -745,6 +745,17 @@ export default function PostDetail() {
   const onShare = (post) => {
     setSharePost(post);
     setShowShareModal(true);
+  };
+
+  // Handle share success - Optimistic UI update
+  const handleShareSuccess = (postId) => {
+    setPostStates((prev) => ({
+      ...prev,
+      [postId]: {
+        ...prev[postId],
+        shares: (prev[postId]?.shares ?? 0) + 1,
+      },
+    }));
   };
 
   // Handle follow toggle
@@ -1782,6 +1793,7 @@ export default function PostDetail() {
           setSharePost(null);
         }}
         post={sharePost}
+        onShareSuccess={handleShareSuccess}
       />
 
       <ReactionsListModal
