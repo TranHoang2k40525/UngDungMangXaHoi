@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE_URL } from "../../API/Api";
+import { API_BASE_URL } from "../../Api/Api";
 import "./SearchPostItem.css";
 
 export default function SearchPostItem({ post, onPress }) {

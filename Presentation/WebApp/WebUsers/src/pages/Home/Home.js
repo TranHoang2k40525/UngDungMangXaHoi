@@ -1,8 +1,8 @@
 // Home.js - Complete web version converted from MobileApp
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useUser } from '../../Context/UserContext';
-import { useFollow } from '../../Context/FollowContext';
+import { useUser } from '../../context/UserContext';
+import { useFollow } from '../../context/FollowContext';
 import CommentsModal from './CommentsModal';
 import {
   getFeed,
@@ -21,9 +21,9 @@ import {
   API_BASE_URL,
   getFeedStories,
   getMyStories,
-} from '../../API/Api';
+} from '../../Api/Api';
 import { getRelativeTime } from '../../Utils/timeUtils';
-import NavigationBar from '../../components/NavigationBar';
+import NavigationBar from '../../Components/NavigationBar';
 import './Home.css';
 
 // Story Components

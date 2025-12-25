@@ -5,7 +5,7 @@ import {
   getGroupInfo,
   getGroupMembers,
   API_BASE_URL,
-} from '../../API/Api';
+} from '../../Api/Api';
 import ImageViewer from '../../Components/ImageViewer';
 import './GroupChatScreen.css';
 

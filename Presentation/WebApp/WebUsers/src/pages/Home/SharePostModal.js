@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getFollowing, getFollowers } from '../../API/Api';
-import MessageAPI from '../../API/MessageAPI';
+import { getFollowing, getFollowers } from '../../Api/Api';
+import MessageAPI from '../../Api/MessageAPI';
 import './SharePostModal.css';
 
 const SharePostModal = ({ post, onClose }) => {

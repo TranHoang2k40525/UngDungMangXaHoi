@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMyPosts, getProfile, updateAvatar, API_BASE_URL, getBlockedUsers, unblockUser } from '../../API/Api';
-import { useUser } from '../../Context/UserContext';
-import NavigationBar from '../../components/NavigationBar';
+import { getMyPosts, getProfile, updateAvatar, API_BASE_URL, getBlockedUsers, unblockUser } from '../../Api/Api';
+import { useUser } from '../../context/UserContext';
+import NavigationBar from '../../Components/NavigationBar';
 import './Profile.css';
 
 export default function Profile() {

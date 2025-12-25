@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getVideos, API_BASE_URL } from '../../API/Api';
-import NavigationBar from '../../components/NavigationBar';
+import { getVideos, API_BASE_URL } from '../../Api/Api';
+import NavigationBar from '../../Components/NavigationBar';
 import './Video.css';
 
 export default function Video() {
