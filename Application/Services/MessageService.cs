@@ -203,6 +203,13 @@ namespace UngDungMangXaHoi.Application.Services
             var conversations = new List<ConversationDto>();
             foreach (var otherId in followingIds)
             {
+                // Bỏ qua chính mình
+                if (otherId == userId)
+                {
+                    Console.WriteLine($"[MessageService] Skipping self (userId {userId})");
+                    continue;
+                }
+
                 var isFollowBack = await _context.Follows
                     .AnyAsync(f => f.follower_id == otherId && f.following_id == userId);
 

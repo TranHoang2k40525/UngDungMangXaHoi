@@ -56,12 +56,61 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
 
         public async Task DeleteAsync(int postId)
         {
-            var post = await GetByIdAsync(postId);
-            if (post != null)
+            var post = await _context.Posts
+                .Include(p => p.Media)
+                .Include(p => p.Comments)
+                    .ThenInclude(c => c.Reactions)
+                .Include(p => p.Comments)
+                    .ThenInclude(c => c.Mentions)
+                .FirstOrDefaultAsync(p => p.post_id == postId);
+            
+            if (post == null) return;
+
+            // Step 1: Delete all comment-related data first (to avoid FK constraint violations)
+            if (post.Comments != null && post.Comments.Any())
             {
-                _context.Posts.Remove(post);
-                await _context.SaveChangesAsync();
+                foreach (var comment in post.Comments.ToList())
+                {
+                    // Delete comment reactions
+                    if (comment.Reactions != null && comment.Reactions.Any())
+                    {
+                        _context.CommentReactions.RemoveRange(comment.Reactions);
+                    }
+                    
+                    // Delete comment mentions
+                    if (comment.Mentions != null && comment.Mentions.Any())
+                    {
+                        _context.CommentMentions.RemoveRange(comment.Mentions);
+                    }
+                    
+                    // Delete the comment itself
+                    _context.Comments.Remove(comment);
+                }
             }
+
+            // Step 2: Delete post media records (database records)
+            if (post.Media != null && post.Media.Any())
+            {
+                _context.PostMedia.RemoveRange(post.Media);
+            }
+
+            // Step 3: Delete ContentModeration records related to this post (SetNull behavior)
+            var moderations = await _context.ContentModerations
+                .Where(cm => cm.PostId == postId)
+                .ToListAsync();
+            if (moderations.Any())
+            {
+                foreach (var mod in moderations)
+                {
+                    mod.PostId = null; // Set to null instead of deleting
+                }
+            }
+
+            // Step 4: Finally delete the post
+            _context.Posts.Remove(post);
+            
+            // Save all changes
+            await _context.SaveChangesAsync();
         }
 
         public async Task<IEnumerable<Post>> GetFeedAsync(int? currentUserId, int pageNumber, int pageSize)

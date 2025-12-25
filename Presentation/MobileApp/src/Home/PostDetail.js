@@ -22,7 +22,9 @@ import { useFollow } from "../Context/FollowContext";
 import CommentsModal from "./CommentsModal";
 import ReactionPicker from "./ReactionPicker";
 import ReactionsListModal from "./ReactionsListModal";
+import SharePostModal from "./SharePostModal";
 import { SafeAreaView } from "react-native-safe-area-context";
+import notificationSignalRService from "../ServicesSingalR/notificationService";
 import {
   getUserPostsById,
   updatePostPrivacy,
@@ -68,6 +70,9 @@ export default function PostDetail() {
   // State cho modal xem ảnh đơn
   const [singleViewerVisible, setSingleViewerVisible] = useState(false);
   const [singleViewerUrl, setSingleViewerUrl] = useState(null);
+  // State cho SharePostModal
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [sharePost, setSharePost] = useState(null);
   const { user: ctxUser } = useUser();
   // Ensure user/tag objects used in chips have consistent shape
   const normalizeUser = (u) => {
@@ -547,6 +552,37 @@ export default function PostDetail() {
     return unsubscribe;
   }, [navigation, posts]);
 
+  // SignalR listener for real-time share updates
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const handleShareUpdate = (data) => {
+      console.log("[PostDetail] 🔔 Received share update:", data);
+      const { PostId, ShareCount } = data;
+
+      if (PostId) {
+        setPostStates((prev) => {
+          if (prev[PostId]) {
+            return {
+              ...prev,
+              [PostId]: {
+                ...prev[PostId],
+                shares: Number(ShareCount ?? 0),
+              },
+            };
+          }
+          return prev;
+        });
+      }
+    };
+
+    notificationSignalRService.onReceiveShareUpdate(handleShareUpdate);
+
+    return () => {
+      notificationSignalRService.off("ReceiveShareUpdate", handleShareUpdate);
+    };
+  }, [currentUserId]);
+
   // Handle refresh
   const onRefresh = () => {
     setRefreshing(true);
@@ -705,24 +741,21 @@ export default function PostDetail() {
     }
   };
 
-  // Handle repost
-  const onRepost = async (post) => {
-    try {
-      const shareUrl = `https://yourapp.com/post/${post.id}`;
-      await Share.share({
-        message: post.caption || "Xem bài viết này!",
-        url: shareUrl,
-      });
-      setPostStates((prev) => ({
-        ...prev,
-        [post.id]: {
-          ...prev[post.id],
-          sharesCount: (prev[post.id]?.sharesCount || 0) + 1,
-        },
-      }));
-    } catch (error) {
-      console.error("Error sharing:", error);
-    }
+  // Handle share
+  const onShare = (post) => {
+    setSharePost(post);
+    setShowShareModal(true);
+  };
+
+  // Handle share success - Optimistic UI update
+  const handleShareSuccess = (postId) => {
+    setPostStates((prev) => ({
+      ...prev,
+      [postId]: {
+        ...prev[postId],
+        shares: (prev[postId]?.shares ?? 0) + 1,
+      },
+    }));
   };
 
   // Handle follow toggle
@@ -1188,11 +1221,7 @@ export default function PostDetail() {
                     </Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity onPress={() => onRepost(post)}>
-                    <Ionicons name="repeat-outline" size={28} color="#262626" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity onPress={() => onRepost(post)}>
+                  <TouchableOpacity onPress={() => onShare(post)}>
                     <Ionicons
                       name="paper-plane-outline"
                       size={26}
@@ -1757,6 +1786,16 @@ export default function PostDetail() {
       )}
 
       {/* Reactions List Modal */}
+      <SharePostModal
+        visible={showShareModal}
+        onClose={() => {
+          setShowShareModal(false);
+          setSharePost(null);
+        }}
+        post={sharePost}
+        onShareSuccess={handleShareSuccess}
+      />
+
       <ReactionsListModal
         visible={showReactionsList}
         onClose={() => setShowReactionsList(false)}

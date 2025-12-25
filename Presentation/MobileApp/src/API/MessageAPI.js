@@ -1,7 +1,7 @@
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const BASE_URL = "http://10.62.27.105:5297/api"; // Backend IP từ Api.js
+const BASE_URL = "http://172.20.10.2:5297/api"; // Backend IP từ Api.js
 // const BASE_URL = 'http://10.0.2.2:5297/api'; // Android emulator
 // const BASE_URL = 'http://localhost:5297/api'; // iOS simulator
 

@@ -162,21 +162,28 @@ const formatVietnameseTime = (timestamp) => {
 // Component avatar với fallback icon
 // Hiển thị ảnh nếu có URL, hoặc icon mặc định nếu không có
 const UserAvatar = ({ uri, style }) => {
+  const [imageError, setImageError] = useState(false);
   const fullAvatarUrl = getAvatarUrl(uri);
 
-  if (fullAvatarUrl) {
+  // Reset error state khi uri thay đổi
+  useEffect(() => {
+    setImageError(false);
+  }, [uri]);
+
+  if (fullAvatarUrl && !imageError) {
     return (
       <Image
         source={{ uri: fullAvatarUrl }}
         style={style}
         onError={(e) => {
           console.warn("[UserAvatar] Failed to load image:", fullAvatarUrl);
+          setImageError(true);
         }}
       />
     );
   }
 
-  // Icon mặc định nếu không có avatar
+  // Icon mặc định nếu không có avatar hoặc lỗi load ảnh
   return (
     <View style={[style, styles.defaultAvatarContainer]}>
       <Ionicons
@@ -366,9 +373,18 @@ const CommentsModal = ({
             try {
               const mapped = mapServerCommentToUI(c);
               setComments((prev) =>
-                prev.map((item) =>
-                  item.id === String(mapped.id) ? mapped : item
-                )
+                prev.map((item) => {
+                  if (item.id === String(mapped.id)) {
+                    // Merge với comment cũ, preserve avatar và isLiked của user hiện tại
+                    return {
+                      ...item, // Preserve all existing data
+                      ...mapped, // Override with new data
+                      avatar: mapped.avatar || item.avatar, // Preserve old avatar if new one is missing
+                      isLiked: item.isLiked, // CRITICAL: Always preserve isLiked for current user
+                    };
+                  }
+                  return item;
+                })
               );
             } catch (e) {
               console.error(
@@ -406,6 +422,35 @@ const CommentsModal = ({
               );
             }
           });
+
+          // Handler cho reaction changes - chỉ update likes count, preserve isLiked
+          commentService.onCommentReactionChanged?.((payload) => {
+            try {
+              const { commentId, accountId, newLikesCount, isAdded } = payload;
+              const commentIdStr = String(commentId);
+              
+              setComments((prev) =>
+                prev.map((c) => {
+                  if (c.id === commentIdStr) {
+                    // Nếu là reaction của chính mình thì update isLiked
+                    // Nếu là của người khác thì chỉ update count, giữ nguyên isLiked
+                    const isMyReaction = currentUserId != null && Number(accountId) === Number(currentUserId);
+                    return {
+                      ...c,
+                      likes: newLikesCount,
+                      isLiked: isMyReaction ? isAdded : c.isLiked, // Preserve isLiked nếu không phải reaction của mình
+                    };
+                  }
+                  return c;
+                })
+              );
+            } catch (e) {
+              console.error(
+                "[CommentsModal] onCommentReactionChanged handler error",
+                e
+              );
+            }
+          });
         } catch (error) {
           console.error("[CommentsModal] SignalR connect/join error", error);
         }
@@ -432,16 +477,16 @@ const CommentsModal = ({
   const mapServerCommentToUI = (c) => {
     const userIdNum = c.userId != null ? Number(c.userId) : null;
     return {
-      id: String(c.commentId),
-      userId: Number.isFinite(userIdNum) ? userIdNum : null,
-      username: c.username || "Người dùng",
-      avatar: c.userAvatar,
-      comment: c.content || "",
-      likes: Number(c.likesCount) || 0,
-      createdAt: c.createdAt,
-      isLiked: Boolean(c.isLiked),
-      isEdited: Boolean(c.isEdited),
-      parentId: c.parentCommentId ? String(c.parentCommentId) : null,
+      id: String(c.commentId || c.CommentId),
+      userId: Number.isFinite(userIdNum) ? userIdNum : (c.UserId ? Number(c.UserId) : null),
+      username: c.username || c.authorName || c.AuthorName || "Người dùng",
+      avatar: c.userAvatar || c.authorAvatar || c.AuthorAvatar || null, // Support both camelCase and PascalCase
+      comment: c.content || c.Content || "",
+      likes: Number(c.likesCount || c.LikesCount) || 0,
+      createdAt: c.createdAt || c.CreatedAt,
+      isLiked: Boolean(c.isLiked || c.IsLiked),
+      isEdited: Boolean(c.isEdited || c.IsEdited),
+      parentId: (c.parentCommentId || c.ParentCommentId) ? String(c.parentCommentId || c.ParentCommentId) : null,
     };
   };
 
@@ -558,16 +603,26 @@ const CommentsModal = ({
 
         try {
           // Gọi API để update comment
-          await updateComment(editingComment.id, newComment.trim());
-          console.log("[CommentsModal]  Comment updated on backend");
+          const updateResponse = await updateComment(editingComment.id, newComment.trim());
+          console.log("[CommentsModal]  Comment updated on backend:", updateResponse);
 
-          // Update comment trong state (frontend)
+          // Update comment trong state (frontend) - GIỮ NGUYÊN avatar và các thông tin cũ
           setComments((prev) =>
-            prev.map((c) =>
-              c.id === editingComment.id
-                ? { ...c, comment: newComment.trim(), isEdited: true }
-                : c
-            )
+            prev.map((c) => {
+              if (c.id === editingComment.id) {
+                return {
+                  ...c, // Giữ tất cả thông tin cũ (avatar, userId, username, etc.)
+                  comment: updateResponse?.content || updateResponse?.Content || newComment.trim(),
+                  isEdited: true,
+                  createdAt: updateResponse?.createdAt || updateResponse?.CreatedAt || c.createdAt,
+                  likes: updateResponse?.likesCount ?? updateResponse?.LikesCount ?? c.likes,
+                  isLiked: updateResponse?.isLiked ?? updateResponse?.IsLiked ?? c.isLiked,
+                  // Avatar GIỮ NGUYÊN từ comment cũ - không override từ response
+                  avatar: c.avatar, // Explicitly preserve avatar
+                };
+              }
+              return c;
+            })
           );
 
           setEditingComment(null);
