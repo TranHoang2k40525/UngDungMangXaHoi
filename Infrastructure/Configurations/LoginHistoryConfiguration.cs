@@ -21,7 +21,7 @@ namespace UngDungMangXaHoi.Infrastructure.Configurations
                    .HasMaxLength(50);
 
             builder.Property(h => h.device_info)
-                   .HasMaxLength(100);
+                   .HasMaxLength(500);
 
             builder.Property(h => h.login_time)
                    .IsRequired()
