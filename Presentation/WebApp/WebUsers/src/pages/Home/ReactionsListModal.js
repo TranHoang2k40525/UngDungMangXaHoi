@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { API_BASE_URL, getAuthHeaders, followUser, unfollowUser } from '../../API/Api';
+import { API_BASE_URL, getAuthHeaders, followUser, unfollowUser } from '../../Api/Api';
 import { useUser } from '../../context/UserContext';
 import { useFollow } from '../../context/FollowContext';
 import './ReactionsListModal.css';

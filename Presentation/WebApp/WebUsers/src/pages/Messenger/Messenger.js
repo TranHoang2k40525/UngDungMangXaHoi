@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import MessageAPI from '../../API/MessageAPI';
-import { getProfile, getMyGroups, API_BASE_URL } from '../../API/Api';
+import MessageAPI from '../../Api/MessageAPI';
+import { getProfile, getMyGroups, API_BASE_URL } from '../../Api/Api';
 import signalRService from '../../Services/signalRService';
 import NavigationBar from '../../Components/NavigationBar';
 import './Messenger.css';

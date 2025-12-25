@@ -21,7 +21,7 @@ import {
   API_BASE_URL,
   getFeedStories,
   getMyStories,
-} from '../../API/Api';
+} from '../../Api/Api';
 import { getRelativeTime } from '../../Utils/timeUtils';
 import NavigationBar from '../../Components/NavigationBar';
 import './Home.css';

@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE_URL } from "../../API/Api";
+import { API_BASE_URL } from "../../Api/Api";
 import "./SearchUserItem.css";
 
 export default function SearchUserItem({ user, onFollowPress }) {

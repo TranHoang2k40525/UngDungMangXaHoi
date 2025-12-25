@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { createShare, API_BASE_URL } from '../../API/Api';
+import { createShare, API_BASE_URL } from '../../Api/Api';
 import { getRelativeTime } from '../../Utils/timeUtils';
 import './SharePost.css';
 

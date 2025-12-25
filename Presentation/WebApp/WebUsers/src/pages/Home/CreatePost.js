@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createPost, searchUsers, getFollowing, getFollowers } from '../../API/Api';
+import { createPost, searchUsers, getFollowing, getFollowers } from '../../Api/Api';
 import './CreatePost.css';
 
 const CreatePost = () => {
