@@ -664,6 +664,95 @@ export default function Doanchat() {
     return `${hours}:${minutes}`;
   };
 
+  // Render shared post card
+  const renderSharedPost = (content, isOwnMessage) => {
+    if (!content || !content.startsWith("SHARED_POST:")) {
+      return null;
+    }
+
+    try {
+      const jsonStr = content.substring("SHARED_POST:".length);
+      const sharedData = JSON.parse(jsonStr);
+      const {
+        postId,
+        authorName,
+        authorAvatar,
+        content: postContent,
+        mediaUrl,
+        mediaType,
+      } = sharedData;
+
+      const handlePressSharedPost = () => {
+        if (postId) {
+          console.log(
+            "[Doanchat] Navigating to PostDetail with postId:",
+            postId
+          );
+          navigation.navigate("PostDetail", { postId });
+        } else {
+          console.warn("[Doanchat] No postId found in shared post data");
+        }
+      };
+
+      return (
+        <TouchableOpacity
+          style={styles.sharedPostContainer}
+          onPress={handlePressSharedPost}
+          activeOpacity={0.8}
+        >
+          {/* Header */}
+          <View style={styles.sharedPostHeader}>
+            {authorAvatar ? (
+              <Image
+                source={{ uri: authorAvatar }}
+                style={styles.sharedPostAvatar}
+              />
+            ) : (
+              <View style={[styles.sharedPostAvatar, styles.defaultAvatar]}>
+                <Text style={styles.defaultAvatarText}>
+                  {authorName ? authorName.charAt(0).toUpperCase() : "U"}
+                </Text>
+              </View>
+            )}
+            <View style={styles.sharedPostAuthorInfo}>
+              <Text style={styles.sharedPostAuthorName}>
+                {authorName || "Người dùng"}
+              </Text>
+              <Text style={styles.sharedPostLabel}>đã chia sẻ bài viết</Text>
+            </View>
+          </View>
+
+          {/* Content */}
+          {postContent ? (
+            <Text style={styles.sharedPostContent} numberOfLines={3}>
+              {postContent}
+            </Text>
+          ) : null}
+
+          {/* Media */}
+          {mediaUrl && mediaType === "Image" ? (
+            <Image
+              source={{ uri: mediaUrl }}
+              style={styles.sharedPostMedia}
+              resizeMode="cover"
+            />
+          ) : mediaUrl && mediaType === "Video" ? (
+            <View style={styles.sharedPostVideoPlaceholder}>
+              <Ionicons name="play-circle" size={48} color="#0095F6" />
+              <Text style={styles.sharedPostVideoText}>Video</Text>
+            </View>
+          ) : null}
+
+          {/* Footer */}
+          <Text style={styles.sharedPostFooter}>Nhấn để xem bài viết</Text>
+        </TouchableOpacity>
+      );
+    } catch (error) {
+      console.warn("[Doanchat] Failed to parse shared post:", error);
+      return null;
+    }
+  };
+
   // currentUserId is now loaded from AsyncStorage in useEffect above
 
   return (
@@ -876,16 +965,29 @@ export default function Doanchat() {
                             )}
                           </TouchableOpacity>
                         ) : (
-                          <Text
-                            style={[
-                              styles.messageText,
+                          (() => {
+                            // Kiểm tra nếu là shared post
+                            const sharedPostUI = renderSharedPost(
+                              msg.content,
                               isOwnMessage
-                                ? styles.ownMessageText
-                                : styles.otherMessageText,
-                            ]}
-                          >
-                            {msg.content}
-                          </Text>
+                            );
+                            if (sharedPostUI) {
+                              return sharedPostUI;
+                            }
+                            // Nếu không phải shared post, hiển thị text bình thường
+                            return (
+                              <Text
+                                style={[
+                                  styles.messageText,
+                                  isOwnMessage
+                                    ? styles.ownMessageText
+                                    : styles.otherMessageText,
+                                ]}
+                              >
+                                {msg.content}
+                              </Text>
+                            );
+                          })()
                         )}
                         <Text
                           style={[
@@ -1479,5 +1581,70 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     borderRadius: 12,
+  },
+  // Shared post card styles
+  sharedPostContainer: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    maxWidth: 280,
+  },
+  sharedPostHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  sharedPostAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  sharedPostAuthorInfo: {
+    flex: 1,
+  },
+  sharedPostAuthorName: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  sharedPostLabel: {
+    fontSize: 11,
+    color: "#6B7280",
+    marginTop: 2,
+  },
+  sharedPostContent: {
+    fontSize: 13,
+    color: "#374151",
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  sharedPostMedia: {
+    width: "100%",
+    height: 160,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  sharedPostVideoPlaceholder: {
+    width: "100%",
+    height: 160,
+    borderRadius: 8,
+    backgroundColor: "#E5E7EB",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  sharedPostVideoText: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginTop: 4,
+  },
+  sharedPostFooter: {
+    fontSize: 11,
+    color: "#0095F6",
+    fontWeight: "500",
+    textAlign: "center",
   },
 });
