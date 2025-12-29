@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { API_BASE_URL } from '../../API/Api';
+import { API_BASE_URL } from '../../api/Api';
 import { getRelativeTime } from '../../Utils/timeUtils';
 import './StoryViewer.css';
 
@@ -246,8 +246,14 @@ const StoryViewer = () => {
   if (stories.length === 0) {
     return (
       <div className="story-viewer-container">
-        <button className="story-close-button" onClick={() => navigate(-1)}>
-          <i className="fas fa-times"></i>
+        <button 
+          className="story-close-button" 
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate('/');
+          }}
+        >
+          ✕
         </button>
         <div className="story-empty">
           <p>Không có story</p>
@@ -329,8 +335,14 @@ const StoryViewer = () => {
       </div>
 
       {/* Close Button */}
-      <button className="story-close-button" onClick={() => navigate(-1)}>
-        <i className="fas fa-times"></i>
+      <button 
+        className="story-close-button" 
+        onClick={(e) => {
+          e.stopPropagation();
+          navigate('/');
+        }}
+      >
+        ✕
       </button>
 
       {/* Pause Indicator */}

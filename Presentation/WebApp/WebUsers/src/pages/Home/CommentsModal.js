@@ -11,7 +11,7 @@ import {
   updateComment,
   getUserByUsername,
   API_BASE_URL,
-} from '../../API/Api';
+} from '../../api/Api';
 import './CommentsModal.css';
 
 // Helper function: Convert avatar path to full URL

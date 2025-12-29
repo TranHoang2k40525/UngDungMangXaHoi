@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getFollowers, getFollowing, followUser, unfollowUser, API_BASE_URL } from '../../API/Api';
+import { getFollowers, getFollowing, followUser, unfollowUser, API_BASE_URL } from '../../api/Api';
 import './FollowList.css';
 
 export default function FollowList() {

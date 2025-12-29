@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import MessageAPI from '../../API/MessageAPI';
+import MessageAPI from '../../api/MessageAPI';
 import signalRService from '../../Services/signalRService';
 import './Doanchat.css';
 

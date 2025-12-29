@@ -14,7 +14,8 @@ import { Line, Bar } from 'react-chartjs-2';
 import { dashboardAPI } from '../../services/api.js';
 import PostModal from '../../components/PostModal.js';
 import { 
-  FiBarChart2, FiUsers, FiCheckCircle, FiBriefcase, FiDollarSign, FiFileText, FiTrendingUp, FiSearch, FiZap, FiHeart, FiMessageSquare
+  FiBarChart2, FiUsers, FiCheckCircle, FiBriefcase, FiDollarSign, FiFileText,
+  FiTrendingUp, FiSearch, FiZap, FiHeart, FiMessageSquare, FiRefreshCw
 } from 'react-icons/fi';
 import './Dashboard.css';
 
@@ -88,6 +89,7 @@ export default function Dashboard() {
   const [postGrowthData, setPostGrowthData] = useState(null);
   const [topKeywords, setTopKeywords] = useState([]);
   const [topPosts, setTopPosts] = useState([]);
+  const [tableLoading, setTableLoading] = useState({ keywords: false, posts: false });
 
   // Modal state
   const [selectedPost, setSelectedPost] = useState(null);
@@ -114,6 +116,16 @@ export default function Dashboard() {
   useEffect(() => {
     if (!loading) loadPostChartData();
   }, [postChartFilter]);
+
+  // Re-fetch top keywords when the keyword date filter changes
+  useEffect(() => {
+    if (!loading) loadTopKeywords?.();
+  }, [userChartFilter.fromDate, userChartFilter.toDate]);
+
+  // Re-fetch top posts when post date filter changes
+  useEffect(() => {
+    if (!loading) loadTopPosts?.();
+  }, [postChartFilter.fromDate, postChartFilter.toDate]);
 
   const loadInitialData = async () => {
     try {
@@ -649,6 +661,130 @@ export default function Dashboard() {
     }
   };
 
+  // --- Helpers: load Top Keywords & Top Posts (used by initial load and refresh buttons)
+  async function loadTopKeywords(fromDateStr = userChartFilter.fromDate, toDateStr = userChartFilter.toDate, topN = 10) {
+    try {
+      setTableLoading(prev => ({ ...prev, keywords: true }));
+      const fromDate = new Date(fromDateStr);
+      const toDate = new Date(toDateStr);
+      const res = await dashboardAPI.getTopKeywords(fromDate, toDate, topN);
+      const payload = res?.data || res || {};
+      const rawKeywords = Array.isArray(payload) ? payload : (payload?.data || payload?.keywords || payload?.Keywords || []);
+      const normalizedKeywords = (Array.isArray(rawKeywords) ? rawKeywords : []).map(k => ({
+        Keyword: k.Keyword ?? k.keyword ?? k.Key ?? '',
+        SearchCount: Number(k.SearchCount ?? k.searchCount ?? k.search_count ?? 0) || 0,
+        Tyle: Number(k.Tyle ?? k.tyle ?? k.tly ?? 0) || 0
+      }));
+      setTopKeywords(normalizedKeywords);
+      return normalizedKeywords;
+    } catch (error) {
+      console.error('Error loading top keywords:', error);
+      return [];
+    } finally {
+      setTableLoading(prev => ({ ...prev, keywords: false }));
+    }
+  }
+
+  async function loadTopPosts(fromDateStr = postChartFilter.fromDate, toDateStr = postChartFilter.toDate, topN = 10) {
+    try {
+      setTableLoading(prev => ({ ...prev, posts: true }));
+      const fromDate = new Date(fromDateStr);
+      const toDate = new Date(toDateStr);
+      const res = await dashboardAPI.getTopPosts(fromDate, toDate, topN);
+      const payload = res?.data || res || {};
+      const rawPosts = Array.isArray(payload) ? payload : (payload?.data || payload?.posts || payload?.Posts || payload?.Data || []);
+      const normalizedPosts = (Array.isArray(rawPosts) ? rawPosts : []).map(p => {
+        const postId = p.PostId ?? p.postId ?? p.post_id ?? p.Id ?? p.id ?? null;
+        let content = p.Content ?? p.caption ?? p.Caption ?? p.content ?? '';
+        const media = p.Media || p.media || p.MediaItems || p.mediaItems || [];
+        if ((!content || content.trim() === '') && Array.isArray(media) && media.length > 0) {
+          const first = media[0];
+          const mtype = first?.MediaType ?? first?.mediaType ?? '';
+          content = mtype ? `[${mtype}]` : '[Hình ảnh]';
+          if (media.length > 1) content += ` +${media.length - 1}`;
+        }
+        const author = p.Author || p.author || p.PostAuthor || {};
+        const authorName = author?.FullName ?? author?.fullName ?? author?.full_name ?? author?.UserName ?? author?.userName ?? 'N/A';
+        const authorUsername = author?.UserName ?? author?.Username ?? author?.username ?? author?.userName ?? author?.User ?? 'unknown';
+        const engagement = p.Engagement || p.engagement || p.EngagementStats || {};
+        const reaction = Number(p.ReactionCount ?? p.reactionCount ?? engagement?.ReactionCount ?? engagement?.reactionCount ?? engagement?.LikeCount ?? 0) || 0;
+        const comment = Number(p.CommentCount ?? p.commentCount ?? engagement?.CommentCount ?? engagement?.commentCount ?? 0) || 0;
+        const total = Number(
+          p.TotalInteractions ??
+          p.totalInteractions ??
+          engagement?.TotalEngagement ?? engagement?.totalEngagement ??
+          (reaction + comment + (engagement?.ShareCount ?? 0))
+        ) || 0;
+
+        const mediaSource = media || p.MediaItems || p.mediaItems || p.MediaUrls || p.mediaUrls || p.Videos || p.Images || [];
+        const mediaList = Array.isArray(mediaSource) ? mediaSource.map(m => {
+          if (!m) return null;
+          if (typeof m === 'string') {
+            const url = ensureAbsolute(m);
+            const type = url.toLowerCase().endsWith('.mp4') ? 'video' : 'image';
+            return { type, url, poster: null };
+          }
+          const url = ensureAbsolute(m.MediaUrl ?? m.mediaUrl ?? m.Url ?? m.url ?? m.file ?? m.Path ?? '');
+          const type = (m.MediaType ?? m.type ?? (url && url.toLowerCase().endsWith('.mp4') ? 'video' : 'image')) || 'image';
+          const poster = ensureAbsolute(m.Poster ?? m.poster ?? m.Thumbnail ?? m.thumbnail ?? m.thumb ?? m.Preview ?? m.preview ?? null) || null;
+          return { type, url, poster };
+        }).filter(x => x && x.url) : [];
+
+        let thumbnailUrl = '';
+        let thumbnailIsVideo = false;
+        if (mediaList.length > 0) {
+          const firstImage = mediaList.find(m => m.type && m.type.toLowerCase() === 'image');
+          if (firstImage) {
+            thumbnailUrl = firstImage.url;
+            thumbnailIsVideo = false;
+          } else {
+            const firstVideo = mediaList.find(m => m.type && m.type.toLowerCase() === 'video');
+            if (firstVideo) {
+              if (firstVideo.poster) {
+                thumbnailUrl = firstVideo.poster;
+                thumbnailIsVideo = false;
+              } else {
+                thumbnailUrl = firstVideo.url;
+                thumbnailIsVideo = true;
+              }
+            }
+          }
+        }
+
+        const rawAvatar = (
+          p.AuthorAvatar ||
+          p.Author?.AvatarUrl || p.Author?.avatarUrl || p.Author?.Avatar ||
+          p.author?.AvatarUrl || p.author?.avatarUrl || p.author?.Avatar ||
+          p.user?.avatarUrl || p.user?.avatar || p.avatar || ''
+        );
+        const avatar = rawAvatar ? ensureAbsolute(rawAvatar) : '';
+
+        return {
+          PostId: postId,
+          Content: content,
+          AuthorName: authorName,
+          AuthorUsername: authorUsername,
+          AuthorAvatar: avatar,
+          MediaUrls: mediaList.map(m => m.url),
+          Thumbnail: thumbnailUrl,
+          ThumbnailIsVideo: thumbnailIsVideo,
+          ReactionCount: reaction,
+          CommentCount: comment,
+          TotalInteractions: total,
+          Raw: p
+        };
+      });
+      normalizedPosts.sort((a, b) => (b.TotalInteractions || 0) - (a.TotalInteractions || 0));
+      setTopPosts(normalizedPosts);
+      return normalizedPosts;
+    } catch (error) {
+      console.error('Error loading top posts:', error);
+      return [];
+    } finally {
+      setTableLoading(prev => ({ ...prev, posts: false }));
+    }
+  }
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return `${date.getDate()}/${date.getMonth() + 1}`;
@@ -995,7 +1131,12 @@ export default function Dashboard() {
       <div className="tables-grid">
         {/* Top Keywords Table */}
         <div className="table-container">
-          <h3><FiSearch className="table-h-icon" aria-hidden="true"/> Top 10 từ khóa tìm kiếm nhiều nhất</h3>
+          <div className="table-header-row">
+            <h3><FiSearch className="table-h-icon" aria-hidden="true"/> Top 10 từ khóa tìm kiếm nhiều nhất</h3>
+            <button className="btn-refresh" onClick={() => loadTopKeywords()} disabled={tableLoading.keywords}>
+              <FiRefreshCw aria-hidden="true" /> {tableLoading.keywords ? 'Đang tải...' : 'Làm mới'}
+            </button>
+          </div>
           <div className="table-wrapper">
             <table>
               <thead>
@@ -1030,7 +1171,12 @@ export default function Dashboard() {
 
         {/* Top Posts Table */}
         <div className="table-container">
-          <h3><FiZap className="table-h-icon" aria-hidden="true"/> Top 10 bài đăng tương tác nhiều nhất</h3>
+          <div className="table-header-row">
+            <h3><FiZap className="table-h-icon" aria-hidden="true"/> Top 10 bài đăng tương tác nhiều nhất</h3>
+            <button className="btn-refresh" onClick={() => loadTopPosts()} disabled={tableLoading.posts}>
+              <FiRefreshCw aria-hidden="true" /> {tableLoading.posts ? 'Đang tải...' : 'Làm mới'}
+            </button>
+          </div>
           <div className="table-wrapper">
             <table>
               <thead>

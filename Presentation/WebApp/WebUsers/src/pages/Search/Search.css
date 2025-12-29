@@ -1,85 +1,148 @@
+/* ================= CONTAINER ================= */
 .search-container {
-  width: calc(100% - 100px);
-  margin-left: 500px;
-  margin-right: 0;
-  padding: 20px;
-  padding-bottom: 80px;
-  background-color: #FFFFFF;
+  margin-left: 245px; /* chừa sidebar */
   min-height: 100vh;
+  background-color: #fafafa;
+  padding: 40px 20px;
 }
 
+/* ================= SEARCH BOX ================= */
 .search-box {
-  margin-bottom: 66px;
-}
-
-.search-box input {
   width: 100%;
-  padding: 10px 12px;
-  border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  font-size: 14px;
+  max-width: 630px;
+  margin: 0 auto;
+  margin-top: -400px;
 }
 
+/* ================= INPUT + ICON ================= */
+.search-input-wrapper {
+  position: relative;
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.search-input-wrapper input {
+  width: 100%;
+  padding: 16px 48px 16px 20px;
+  border-radius: 12px;
+  border: 1px solid #dbdbdb;
+  font-size: 16px;
+  background-color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s;
+}
+
+.search-input-wrapper input:focus {
+  border-color: #0095f6;
+  outline: none;
+  box-shadow: 0 4px 12px rgba(0, 149, 246, 0.15);
+}
+
+.search-btn {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #8e8e8e;
+}
+
+.search-btn:hover {
+  color: #000;
+}
+
+.search-btn:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+/* ================= STATUS ================= */
 .search-status,
 .search-error,
 .search-empty {
   font-size: 14px;
-  color: #6b7280;
-  margin-bottom: 8px;
+  color: #8e8e8e;
+  padding: 16px;
+  text-align: center;
 }
 
 .search-error {
-  color: #b91c1c;
+  color: #ed4956;
 }
 
+/* ================= RESULTS ================= */
 .search-results {
   list-style: none;
-  display: flex;
+  display: none;
   flex-direction: column;
-  gap: 8px;
+  background-color: #fff;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid #dbdbdb;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.search-results.show {
+  display: flex;
 }
 
 .search-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  gap: 16px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #efefef;
+  cursor: pointer;
+  transition: background-color 0.2s;
 }
 
+.search-item:hover {
+  background-color: #fafafa;
+}
+
+.search-item:last-child {
+  border-bottom: none;
+}
+
+/* ================= AVATAR ================= */
 .search-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  background: #e5e7eb;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 20px;
   font-weight: 600;
+  color: #fff;
+  flex-shrink: 0;
 }
 
 .search-name {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
+  color: #262626;
 }
 
 .search-username {
-  font-size: 12px;
-  color: #9ca3af;
+  font-size: 14px;
+  color: #8e8e8e;
 }
 
-/* Bottom Navigation Bar */
+/* ================= BOTTOM NAV ================= */
 .bottom-nav-bar {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   height: 60px;
-  background-color: #FFFFFF;
-  border-top: 0.5px solid #DBDBDB;
+  background-color: #fff;
+  border-top: 0.5px solid #dbdbdb;
   display: flex;
   justify-content: space-around;
   align-items: center;
@@ -92,9 +155,6 @@
   border: none;
   cursor: pointer;
   padding: 8px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   transition: transform 0.2s;
 }
 
@@ -102,24 +162,6 @@
   transform: scale(1.1);
 }
 
-.bottom-nav-item.active .bottom-nav-icon {
-  transform: scale(1.2);
-  color: #000;
-}
-
 .bottom-nav-icon {
   font-size: 28px;
-}
-
-.bottom-nav-create {
-  background-color: #000;
-  border-radius: 50%;
-  width: 48px;
-  height: 48px;
-  padding: 0;
-}
-
-.bottom-nav-create .bottom-nav-icon {
-  color: #fff;
-  font-size: 24px;
 }

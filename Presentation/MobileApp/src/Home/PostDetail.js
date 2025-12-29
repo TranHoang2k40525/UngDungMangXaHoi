@@ -38,6 +38,7 @@ import {
   API_BASE_URL,
   addReaction,
   getReactionSummary,
+  getPostById,
 } from "../API/Api";
 import { Ionicons } from "@expo/vector-icons";
 import { VideoView, useVideoPlayer } from "expo-video";
@@ -100,7 +101,8 @@ export default function PostDetail() {
   // Nhận index truyền từ Profile/UserProfilePublic
   const initialIndex = route.params?.initialIndex ?? 0;
   const singlePostData = route.params?.singlePost; // Post data từ search
-  const isSinglePostMode = !!singlePostData; // Chế độ hiển thị 1 post
+  const postIdParam = route.params?.postId; // Post ID từ tin nhắn chia sẻ
+  const isSinglePostMode = !!singlePostData || !!postIdParam; // Chế độ hiển thị 1 post
   const [postStates, setPostStates] = useState({});
   const [activeCommentsPostId, setActiveCommentsPostId] = useState(null);
   const [posts, setPosts] = useState([]);
@@ -446,6 +448,46 @@ export default function PostDetail() {
     return states;
   }; // Load user posts
   const loadUserPosts = async (page = 1, append = false) => {
+    // Nếu là single post mode với postIdParam, tải bài viết từ server
+    if (isSinglePostMode && postIdParam && !singlePostData) {
+      try {
+        setLoading(true);
+        console.log(`[PostDetail] Loading post by ID: ${postIdParam}`);
+        const post = await getPostById(postIdParam);
+
+        if (!post) {
+          Alert.alert("Lỗi", "Không tìm thấy bài viết");
+          setLoading(false);
+          return;
+        }
+
+        // Process media URLs
+        const processedPost = { ...post };
+        if (processedPost.media && processedPost.media.length > 0) {
+          processedPost.media = processedPost.media.map((mediaItem) => ({
+            ...mediaItem,
+            url: buildMediaUrl(mediaItem.url),
+          }));
+        }
+
+        if (processedPost.videoUrl) {
+          processedPost.videoUrl = buildMediaUrl(processedPost.videoUrl);
+        }
+
+        const newStates = await initPostStates([processedPost]);
+        setPostStates(newStates);
+        setPosts([processedPost]);
+        setHasMorePosts(false);
+        setLoading(false);
+        return;
+      } catch (error) {
+        console.error("[PostDetail] Error loading post by ID:", error);
+        Alert.alert("Lỗi", "Không thể tải bài viết");
+        setLoading(false);
+        return;
+      }
+    }
+
     // Nếu là single post mode, sử dụng data có sẵn
     if (isSinglePostMode && singlePostData) {
       // Process media URLs for single post from search
@@ -534,10 +576,10 @@ export default function PostDetail() {
 
   // Initial load
   useEffect(() => {
-    if (targetUserId) {
+    if (targetUserId || postIdParam) {
       loadUserPosts(1, false);
     }
-  }, [targetUserId]);
+  }, [targetUserId, postIdParam]);
 
   // Reload reactions when screen focuses (to sync with Home)
   useEffect(() => {
@@ -559,7 +601,7 @@ export default function PostDetail() {
     const handleShareUpdate = (data) => {
       console.log("[PostDetail] 🔔 Received share update:", data);
       const { PostId, ShareCount } = data;
-      
+
       if (PostId) {
         setPostStates((prev) => {
           if (prev[PostId]) {
@@ -745,6 +787,17 @@ export default function PostDetail() {
   const onShare = (post) => {
     setSharePost(post);
     setShowShareModal(true);
+  };
+
+  // Handle share success - Optimistic UI update
+  const handleShareSuccess = (postId) => {
+    setPostStates((prev) => ({
+      ...prev,
+      [postId]: {
+        ...prev[postId],
+        shares: (prev[postId]?.shares ?? 0) + 1,
+      },
+    }));
   };
 
   // Handle follow toggle
@@ -1782,6 +1835,7 @@ export default function PostDetail() {
           setSharePost(null);
         }}
         post={sharePost}
+        onShareSuccess={handleShareSuccess}
       />
 
       <ReactionsListModal

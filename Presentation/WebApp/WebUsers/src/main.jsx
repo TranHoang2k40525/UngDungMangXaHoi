@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import { UserProvider } from './context/UserContext.jsx';
-import { FollowProvider } from './Context/FollowContext.js';
+import { FollowProvider } from './context/FollowContext.js';
 import './styles/global.css';
 
 console.log('🚀 main.jsx loaded');

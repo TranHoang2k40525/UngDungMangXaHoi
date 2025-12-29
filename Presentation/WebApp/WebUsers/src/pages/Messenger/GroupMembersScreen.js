@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { getGroupMembers, API_BASE_URL, getGroupInfo } from '../../API/Api';
+import { getGroupMembers, API_BASE_URL, getGroupInfo } from '../../api/Api';
 import './GroupMembersScreen.css';
 
 export default function GroupMembersScreen() {

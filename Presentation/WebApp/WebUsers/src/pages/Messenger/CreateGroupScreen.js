@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getFollowing, createGroup } from '../../API/Api';
+import { getFollowing, createGroup } from '../../api/Api';
 import './CreateGroupScreen.css';
 
 export default function CreateGroupScreen() {
