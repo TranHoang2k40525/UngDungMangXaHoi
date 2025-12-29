@@ -149,7 +149,11 @@ export default function Dashboard() {
       setTopKeywords(normalizedKeywords);
 
       // Normalize top posts to the flat shape expected by the table
-      const rawPosts = Array.isArray(postsData) ? postsData : (postsData?.data || postsData?.posts || postsData?.Posts || postsData?.Data || []);
+      const rawPosts = Array.isArray(postsData) ? postsData : (postsData?.Posts || postsData?.posts || postsData?.data || postsData?.Data || []);
+      
+      // Debug: log ra response để kiểm tra
+      console.log('Posts data received:', { postsData, rawPosts });
+      
       const normalizedPosts = rawPosts.map(p => {
         const postId = p.PostId ?? p.postId ?? p.post_id ?? p.Id ?? p.id ?? null;
         let content = p.Content ?? p.caption ?? p.Caption ?? p.content ?? '';
@@ -231,6 +235,18 @@ export default function Dashboard() {
         // author avatar fallback - accept many property names
         const rawAvatar = author?.AvatarUrl ?? author?.avatarUrl ?? author?.Avatar ?? author?.avatar ?? author?.avatar_path ?? author?.avatarUrlPath ?? '';
         const avatar = rawAvatar ? ensureAbsolute(rawAvatar) : '';
+
+        // Debug: log first post to check data structure
+        if (postId === rawPosts[0]?.PostId || postId === rawPosts[0]?.postId) {
+          console.log('First post normalization:', {
+            originalPost: p,
+            author,
+            rawAvatar,
+            avatar,
+            authorName,
+            authorUsername
+          });
+        }
 
         return {
           PostId: postId,
@@ -1029,12 +1045,21 @@ export default function Dashboard() {
               <tbody>
                 {topPosts.length > 0 ? (
                   topPosts.map((post, index) => {
-                    // compute avatar the same way PostModal does (support multiple DTO shapes)
-                    const avatarRaw = post.AuthorAvatar || post.Raw?.user?.avatarUrl || post.Raw?.user?.avatar || post.Raw?.author?.avatar || post.Raw?.AuthorAvatar || post.Raw?.author?.AvatarUrl || '';
-                    const avatar = avatarRaw ? ensureAbsolute(avatarRaw) : '';
-                    const reactions = Number(post.ReactionCount ?? post.reactionCount ?? post.Raw?.ReactionCount ?? post.Raw?.reactionCount ?? 0) || 0;
-                    const comments = Number(post.CommentCount ?? post.commentsCount ?? post.Comment ?? post.comments ?? post.Raw?.CommentCount ?? post.Raw?.comments ?? 0) || 0;
+                    // Avatar đã được normalize trong loadDashboardData, chỉ cần dùng trực tiếp
+                    const avatar = post.AuthorAvatar || '';
+                    const reactions = Number(post.ReactionCount ?? post.reactionCount ?? 0) || 0;
+                    const comments = Number(post.CommentCount ?? post.commentsCount ?? 0) || 0;
                     const total = reactions + comments;
+
+                    // Debug: log ra để kiểm tra
+                    if (index === 0) {
+                      console.log('Top post data:', {
+                        post,
+                        avatar,
+                        AuthorName: post.AuthorName,
+                        AuthorUsername: post.AuthorUsername
+                      });
+                    }
 
                     return (
                       <tr key={post.PostId || index}>
@@ -1060,7 +1085,10 @@ export default function Dashboard() {
                           <div className="author-info">
                             <div className="author-meta">
                               {avatar ? (
-                                <img src={avatar} alt="avatar" className="author-avatar" />
+                                <img src={avatar} alt="avatar" className="author-avatar" onError={(e) => {
+                                  console.error('Failed to load avatar:', avatar);
+                                  e.target.style.display = 'none';
+                                }} />
                               ) : (
                                 <div className="author-avatar placeholder"></div>
                               )}
