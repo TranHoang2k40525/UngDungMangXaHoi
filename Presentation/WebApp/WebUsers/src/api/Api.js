@@ -1,5 +1,22 @@
-// Base URL - Thay đổi theo IP của máy backend
-export const API_BASE_URL = "http://localhost:5297"; // Backend đang chạy trên localhost
+// Auto-detect backend URL (runtime override -> build-time env -> fallback to hostname:5297)
+const getApiBaseUrl = () => {
+  try {
+    if (window && window.__ENV && window.__ENV.VITE_API_URL) {
+      return window.__ENV.VITE_API_URL;
+    }
+  } catch (e) {
+    // ignore when window not available
+  }
+
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+  return `http://${hostname}:5297`;
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 
 // Helper để gọi API
 const apiCall = async (endpoint, options = {}) => {

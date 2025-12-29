@@ -1,4 +1,5 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5297';
+import { API_BASE_URL as RUNTIME_API_BASE_URL } from './Api';
+export const API_BASE_URL = RUNTIME_API_BASE_URL;
 
 async function apiCall(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
