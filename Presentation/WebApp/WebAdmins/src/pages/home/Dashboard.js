@@ -144,7 +144,8 @@ export default function Dashboard() {
 
       const activeUsersData = activeUsersRes.data || activeUsersRes;
       const keywordsData = keywordsRes.data || keywordsRes || {};
-      const postsData = postsRes.data || postsRes || {};
+      // Fix: unwrap data twice because response is { success, data: { Posts: [...] } }
+      const postsData = postsRes.data?.data || postsRes.data || postsRes || {};
       
       setStats(prev => ({
         ...prev,
@@ -692,7 +693,9 @@ export default function Dashboard() {
       const toDate = new Date(toDateStr);
       const res = await dashboardAPI.getTopPosts(fromDate, toDate, topN);
       const payload = res?.data || res || {};
-      const rawPosts = Array.isArray(payload) ? payload : (payload?.data || payload?.posts || payload?.Posts || payload?.Data || []);
+      // Fix: unwrap data.data because response is { success, data: { Posts: [...] } }
+      const innerData = payload?.data || payload;
+      const rawPosts = Array.isArray(innerData) ? innerData : (innerData?.Posts || innerData?.posts || innerData?.Data || []);
       const normalizedPosts = (Array.isArray(rawPosts) ? rawPosts : []).map(p => {
         const postId = p.PostId ?? p.postId ?? p.post_id ?? p.Id ?? p.id ?? null;
         let content = p.Content ?? p.caption ?? p.Caption ?? p.content ?? '';

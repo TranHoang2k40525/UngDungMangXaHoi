@@ -12,7 +12,7 @@ namespace UngDungMangXaHoi.Application.Validators
         public string Email { get; set; } = null!;
         public string Phone { get; set; } = null!;
         public string Password { get; set; } = null!;
-        public Gender Gender { get; set; }
+        public string Gender { get; set; } = null!; // "Nam", "Nữ", or "Khác"
     }
 
     public class UserValidator : AbstractValidator<RegisterUserRequest>
@@ -45,7 +45,9 @@ namespace UngDungMangXaHoi.Application.Validators
                 .MinimumLength(8).WithMessage("Password must be at least 8 characters long.");
 
             RuleFor(x => x.Gender)
-                .IsInEnum().WithMessage("Gender must be 'Nam', 'Nữ', or 'Khác'.");
+                .NotEmpty().WithMessage("Gender is required.")
+                .Must(g => g == "Nam" || g == "Nữ" || g == "Khác")
+                .WithMessage("Gender must be 'Nam', 'Nữ', or 'Khác'.");
         }
     }
 }

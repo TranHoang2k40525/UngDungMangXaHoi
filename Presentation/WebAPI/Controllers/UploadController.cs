@@ -5,7 +5,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Policy = "UserOnly")]
+    [Authorize] // All authenticated users
     public class UploadController : ControllerBase
     {
         private readonly IWebHostEnvironment _environment;

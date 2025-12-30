@@ -57,7 +57,7 @@ services:
       - ASPNETCORE_URLS=http://+:5297
       
       # Database connection (Password sẽ được đọc từ /run/secrets/db_password trong Program.cs)
-      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=ungdungmangxahoiv_2;User Id=sa;TrustServerCertificate=True;Encrypt=True;
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=ungdungmangxahoiv_4;User Id=sa;TrustServerCertificate=True;Encrypt=True;
       
       # JWT settings (Issuer và Audience không phải secret)
       - JWT_ISSUER=${JWT_ISSUER:-UngDungMangXaHoi}

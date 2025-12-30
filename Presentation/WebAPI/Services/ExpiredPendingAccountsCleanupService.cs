@@ -72,12 +72,18 @@ namespace UngDungMangXaHoi.WebAPI.Services
                 "[ExpiredPendingAccountsCleanup] Checking for pending accounts created before {CutoffTime}",
                 cutoffTime);
 
-            // Tìm tất cả tài khoản User có status = "pending" và đã quá hạn
+            // ✅ Find all User accounts with status = "pending" that have expired
+            // Use RBAC instead of account_type
+            var userRoleId = await context.Roles
+                .Where(r => r.role_name == "User")
+                .Select(r => r.role_id)
+                .FirstOrDefaultAsync(cancellationToken);
+
             var expiredAccounts = await context.Accounts
                 .Where(a => a.status == "pending")
-                .Where(a => a.account_type == Domain.Entities.AccountType.User)
                 .Where(a => a.created_at <= cutoffTime)
-                .Include(a => a.User) // Bao gồm User để có thể xóa
+                .Where(a => a.AccountRoles.Any(ar => ar.role_id == userRoleId && ar.is_active))
+                .Include(a => a.User) // Include User to delete
                 .ToListAsync(cancellationToken);
 
             if (!expiredAccounts.Any())

@@ -52,6 +52,13 @@ namespace UngDungMangXaHoi.Application.Services
             var followerCount = await _userRepository.GetFollowersCountAsync(user.user_id);
             var followingCount = await _userRepository.GetFollowingCountAsync(user.user_id);
 
+            // RBAC: Determine account type from roles
+            var isBusiness = account.AccountRoles.Any(ar => 
+                ar.is_active && ar.Role.role_name == "Business");
+            var isAdmin = account.AccountRoles.Any(ar => 
+                ar.is_active && ar.Role.role_name == "Admin");
+            var accountType = isAdmin ? "Admin" : (isBusiness ? "Business" : "User");
+
             return new UserProfileDto
             {
                 UserId = user.user_id,
@@ -74,7 +81,7 @@ namespace UngDungMangXaHoi.Application.Services
                 PostCount = postCount,
                 FollowerCount = followerCount,
                 FollowingCount = followingCount,
-                AccountType = account.account_type.ToString()  // Thêm AccountType
+                AccountType = accountType
             };
         }
 

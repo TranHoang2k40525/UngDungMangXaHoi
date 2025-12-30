@@ -25,6 +25,8 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         private readonly IEmailService _emailService;
         private readonly IRefreshTokenRepository _refreshTokenRepository;
         private readonly ILoginHistoryRepository _loginHistoryRepository;
+        private readonly IAccountRoleRepository _accountRoleRepository;
+        private readonly IRoleRepository _roleRepository;
 
         public AuthController(
             IAccountRepository accountRepository,
@@ -35,7 +37,9 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             AuthService authService,
             IEmailService emailService,
             IRefreshTokenRepository refreshTokenRepository,
-            ILoginHistoryRepository loginHistoryRepository)
+            ILoginHistoryRepository loginHistoryRepository,
+            IAccountRoleRepository accountRoleRepository,
+            IRoleRepository roleRepository)
         {
             _accountRepository = accountRepository;
             _userRepository = userRepository;
@@ -46,6 +50,8 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             _emailService = emailService;
             _refreshTokenRepository = refreshTokenRepository;
             _loginHistoryRepository = loginHistoryRepository;
+            _accountRoleRepository = accountRoleRepository;
+            _roleRepository = roleRepository;
         }
 
         [HttpPost("register")]
@@ -86,7 +92,6 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 email = new Email(request.Email),
                 phone = new PhoneNumber(request.Phone),
                 password_hash = new PasswordHash(_passwordHasher.HashPassword(request.Password)),
-                account_type = AccountType.User,
                 status = "pending",
                 created_at = DateTimeOffset.UtcNow,
                 updated_at = DateTimeOffset.UtcNow
@@ -100,7 +105,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 username = new UserName(request.Username),
                 full_name = request.FullName,
                 date_of_birth = new DateTimeOffset(request.DateOfBirth, TimeSpan.Zero),
-                gender = request.Gender,
+                gender = Enum.Parse<Gender>(request.Gender), // Parse string to enum
                 Account = account
             };
 
@@ -144,10 +149,11 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 return BadRequest(new { message = "Email này chưa được cấp quyền đăng ký Admin. Vui lòng liên hệ quản trị viên." });
             }
 
-            // ⭐ Kiểm tra account_type phải là Admin
-            if (existingAccount.account_type != AccountType.Admin)
+            // ✅ Check if account has Admin role using RBAC
+            var hasAdminRole = await _accountRoleRepository.HasRoleAsync(existingAccount.account_id, "Admin");
+            if (!hasAdminRole)
             {
-                Console.WriteLine($"[REGISTER-ADMIN] Email {request.Email} không phải là Admin account");
+                Console.WriteLine($"[REGISTER-ADMIN] Email {request.Email} does not have Admin role");
                 return BadRequest(new { message = "Email này không có quyền đăng ký Admin." });
             }
 
@@ -264,6 +270,13 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             await _accountRepository.UpdateAsync(account);
             await _otpRepository.UpdateAsync(otp);
 
+            // ⭐ Assign default "User" role for new account
+            var userRole = await _roleRepository.GetByNameAsync("User");
+            if (userRole != null && !await _accountRoleRepository.HasRoleAsync(account.account_id, "User"))
+            {
+                await _accountRoleRepository.AssignRoleAsync(account.account_id, userRole.role_id, assignedBy: null);
+            }
+
             var (accessToken, refreshToken) = await _authService.GenerateTokensAsync(account);
             return Ok(new { AccessToken = accessToken, RefreshToken = refreshToken });
         }
@@ -281,7 +294,8 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             }
 
             // ⭐ Kiểm tra đây phải là Admin account
-            if (account.account_type != AccountType.Admin)
+            var hasAdminRole = await _accountRoleRepository.HasRoleAsync(account.account_id, "Admin");
+            if (!hasAdminRole)
             {
                 Console.WriteLine($"[VERIFY-ADMIN-OTP] Account không phải Admin");
                 return BadRequest(new { message = "Tài khoản không hợp lệ." });
@@ -345,10 +359,14 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "";
             var userAgent = HttpContext.Request.Headers["User-Agent"].ToString();
 
+            // Determine account type from RBAC roles
+            var hasAdminRole = await _accountRoleRepository.HasRoleAsync(account.account_id, "Admin");
+            var accountType = hasAdminRole ? "Admin" : "User";
+
             var (accessToken, refreshToken) = await _authService.DangNhapAsync(
                 request.Email ?? request.Phone,
                 request.Password,
-                account.account_type.ToString(),
+                accountType,
                 ipAddress,
                 userAgent);
 
@@ -404,13 +422,14 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             // Lấy tên người dùng
             string fullName = "";
-            if (account.account_type == AccountType.User && account.User != null)
-            {
-                fullName = account.User.full_name;
-            }
-            else if (account.account_type == AccountType.Admin && account.Admin != null)
+            var hasAdminRole = await _accountRoleRepository.HasRoleAsync(account.account_id, "Admin");
+            if (hasAdminRole && account.Admin != null)
             {
                 fullName = account.Admin.full_name;
+            }
+            else if (account.User != null)
+            {
+                fullName = account.User.full_name;
             }
 
             Console.WriteLine($"[FORGOT-PASSWORD] Full name: {fullName}");
@@ -615,13 +634,14 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             // Lấy tên người dùng
             string fullName = "";
-            if (account.account_type == AccountType.User && account.User != null)
-            {
-                fullName = account.User.full_name;
-            }
-            else if (account.account_type == AccountType.Admin && account.Admin != null)
+            var hasAdminRole = await _accountRoleRepository.HasRoleAsync(account.account_id, "Admin");
+            if (hasAdminRole && account.Admin != null)
             {
                 fullName = account.Admin.full_name;
+            }
+            else if (account.User != null)
+            {
+                fullName = account.User.full_name;
             }
 
             Console.WriteLine($"[CHANGE-PASSWORD] Full name: {fullName}");

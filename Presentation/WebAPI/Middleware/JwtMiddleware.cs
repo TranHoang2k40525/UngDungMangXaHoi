@@ -19,7 +19,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Middleware
             _next = next;
         }
 
-        public async Task Invoke(HttpContext context, JwtTokenService jwtService)
+        public async Task Invoke(HttpContext context, RbacJwtTokenService jwtService)
         {
             var path = context.Request.Path.Value?.ToLower() ?? "";
             
@@ -86,10 +86,10 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Middleware
                 // Lưu thông tin user vào HttpContext.User (giống req.user trong Node.js)
                 context.User = principal;
 
-                // Log thông tin user đã xác thực
+                // Log thông tin user đã xác thực (RBAC)
                 var accountId = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                var accountType = principal.FindFirst("account_type")?.Value;
-                Console.WriteLine($"[JWT MIDDLEWARE] User authenticated: AccountId={accountId}, Type={accountType}");
+                var roles = principal.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value);
+                Console.WriteLine($"[JWT MIDDLEWARE] User authenticated: AccountId={accountId}, Roles={string.Join(",", roles)}");
 
                 await _next(context);
             }

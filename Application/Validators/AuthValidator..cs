@@ -3,30 +3,29 @@ using System.Threading.Tasks;
 using UngDungMangXaHoi.Domain.Entities;
 using UngDungMangXaHoi.Domain.Interfaces;
 using UngDungMangXaHoi.Domain.ValueObjects;
-using UngDungMangXaHoi.Infrastructure.Services; // { changed code }
+using UngDungMangXaHoi.Infrastructure.Services;
 
 namespace UngDungMangXaHoi.Application.Services
 {
+    /// <summary>
+    /// DEPRECATED: Use RbacJwtTokenService directly instead.
+    /// This class is kept for backward compatibility only.
+    /// </summary>
     public class AuthValidator : ITokenService
     {
-        private readonly string _accessSecret;
-        private readonly string _refreshSecret;
-        private readonly string _issuer;
-        private readonly string _audience;
+        private readonly RbacJwtTokenService _rbacJwtService;
 
-        public AuthValidator(string accessSecret, string refreshSecret, string issuer, string audience)
+        public AuthValidator(RbacJwtTokenService rbacJwtService)
         {
-            _accessSecret = accessSecret;
-            _refreshSecret = refreshSecret;
-            _issuer = issuer;
-            _audience = audience;
+            _rbacJwtService = rbacJwtService;
         }
 
         public async Task<(string AccessToken, string RefreshToken)> GenerateTokensAsync(Account account)
         {
-            var accessToken = ManualJwt.GenerateAccessToken(account, _accessSecret, _issuer, _audience);
-            var refreshToken = ManualJwt.GenerateRefreshToken(account, _refreshSecret);
-            return await Task.FromResult((accessToken, refreshToken));
+            // Use RBAC JWT Service instead of obsolete ManualJwt
+            var accessToken = await _rbacJwtService.GenerateAccessTokenAsync(account);
+            var refreshToken = await _rbacJwtService.GenerateRefreshTokenAsync(account);
+            return (accessToken, refreshToken);
         }
 
         public async Task<string> GenerateOtpAsync()

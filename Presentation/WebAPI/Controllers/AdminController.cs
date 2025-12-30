@@ -6,13 +6,13 @@ using Microsoft.AspNetCore.Mvc;
 using UngDungMangXaHoi.Domain.Interfaces;
 using UngDungMangXaHoi.Domain.ValueObjects;
 using UngDungMangXaHoi.Application.DTOs;
+using UngDungMangXaHoi.Presentation.WebAPI.Attributes;
 
 namespace UngDungMangXaHoi.WebAPI.Controllers
 {
     [ApiController]
-    
     [Route("api/admin")]
-    [Authorize(Policy = "AdminOnly")]
+    [RequireRole("Admin")]
     public class AdminController : ControllerBase
     {
         private readonly IAccountRepository _accountRepository;

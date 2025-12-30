@@ -28,7 +28,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Policy = "UserOnly")]
+    [Authorize] // All authenticated users
 
     public class StoriesController : ControllerBase
     {

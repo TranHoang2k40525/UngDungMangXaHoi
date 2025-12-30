@@ -1,7 +1,7 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
-using System.Linq; // Dùng cho LINQ in Memory
+using System.Linq; // D�ng cho LINQ in Memory
 using System.Threading.Tasks;
 using UngDungMangXaHoi.Domain.Entities;
 using UngDungMangXaHoi.Domain.Interfaces;
@@ -21,17 +21,17 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
 
         public async Task<List<UserNewByDateResult>> GetUserNewAsync(DateTime fromDate, DateTime toDate, SortUserNewByDateOption options)
         {
-            // BƯỚC 1: Lấy dữ liệu thô từ Database (Server-side evaluation)
-            // Chỉ lấy cột created_at để nhẹ gánh cho đường truyền
+            // B�?C 1: L?y d? li?u th� t? Database (Server-side evaluation)
+            // Ch? l?y c?t created_at �? nh? g�nh cho ��?ng truy?n
             var rawData = await _context.Accounts
-                .Where(a => a.account_type == AccountType.User &&
+                .Where(a => a.AccountRoles.Any(ar => ar.is_active && ar.Role.role_name == "User") &&
                             a.created_at >= fromDate &&
                             a.created_at <= toDate)
-                .Select(a => a.created_at) // Chỉ lấy cột ngày tạo
-                .ToListAsync(); // <--- CHỐT ĐƠN: Lấy dữ liệu về RAM tại đây
+                .Select(a => a.created_at) // Ch? l?y c?t ng�y t?o
+                .ToListAsync(); // <--- CH?T ��N: L?y d? li?u v? RAM t?i ��y
 
-            // BƯỚC 2: Xử lý GroupBy trên RAM (Client-side evaluation)
-            // Lúc này dữ liệu đã là List<DateTimeOffset> trên bộ nhớ, dùng C# thoải mái
+            // B�?C 2: X? l? GroupBy tr�n RAM (Client-side evaluation)
+            // L�c n�y d? li?u �? l� List<DateTimeOffset> tr�n b? nh?, d�ng C# tho?i m�i
 
             IEnumerable<UserNewByDateResult> resultQuery;
 
@@ -48,8 +48,8 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                     break;
 
                 case SortUserNewByDateOption.Week:
-                    // Logic tính ngày đầu tuần (Chủ nhật)
-                    // C# xử lý cái này cực mượt, không bị lỗi SQL nữa
+                    // Logic t�nh ng�y �?u tu?n (Ch? nh?t)
+                    // C# x? l? c�i n�y c?c m�?t, kh�ng b? l?i SQL n?a
                     resultQuery = rawData
                         .GroupBy(d => d.Date.AddDays(-(int)d.DayOfWeek))
                         .Select(g => new UserNewByDateResult
@@ -73,7 +73,7 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                     return new List<UserNewByDateResult>();
             }
 
-            // BƯỚC 3: Sắp xếp và trả về
+            // B�?C 3: S?p x?p v� tr? v?
             return resultQuery
                 .OrderBy(x => x.TimeLabel)
                 .ToList();
@@ -81,7 +81,7 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         public async Task<NumberUserActive> GetUserActiveAsync()
 
         {
-            var numberData = await _context.Accounts.CountAsync(a => a.account_type == AccountType.User &&
+            var numberData = await _context.Accounts.CountAsync(a => a.AccountRoles.Any(ar => ar.is_active && ar.Role.role_name == "User") &&
                             a.status == "active");
 
 
@@ -93,7 +93,7 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         // Tang truong doanh nghiep
         public async Task<List<(DateTime Period, int Count)>> GetBusinessRegistrationGrowthAsync(DateTime fromDate, DateTime toDate, GroupByOption groypBy)
         {
-            var query = _context.Accounts.AsNoTracking().Where(a => a.account_type == AccountType.Business && a.business_verified_at != null && a.business_verified_at >= fromDate && a.business_verified_at <= toDate);
+            var query = _context.Accounts.AsNoTracking().Where(a => a.AccountRoles.Any(ar => ar.is_active && ar.Role.role_name == "Business") && a.business_verified_at != null && a.business_verified_at >= fromDate && a.business_verified_at <= toDate);
 
             IEnumerable<(DateTime Period, int Count)> resultQuery;
             switch (groypBy)
@@ -122,7 +122,7 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         }
         public async Task<int> GetTotalBusinessAccountsAsync()
         {
-            return await _context.Accounts.AsNoTracking().CountAsync(a => a.account_type == AccountType.Business && a.business_verified_at != null && a.status == "active");
+            return await _context.Accounts.AsNoTracking().CountAsync(a => a.AccountRoles.Any(ar => ar.is_active && ar.Role.role_name == "Business") && a.business_verified_at != null && a.status == "active");
         }
         // Doanh thu
         public async Task<List<(DateTime Period, decimal Revenue)>> GetRevenueByPeriodAsync(DateTime fromDate, DateTime toDate, GroupByOption groupBy)
@@ -245,7 +245,7 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 PostId = g.Key,
                 Count = g.Count()
             }).ToDictionaryAsync(x => x.PostId, x => x.Count);
-            // Dem comment: chỉ tính các comment visible
+            // Dem comment: ch? t�nh c�c comment visible
             var commentCounts = await _context.Comments
                 .Where(c => postIds.Contains(c.PostId) && c.IsVisible)
                 .GroupBy(c => c.PostId)
@@ -259,13 +259,13 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                          commentCounts.GetValueOrDefault(id, 0)
         })
         .OrderByDescending(x => x.TotalScore)
-        .Take(topN) // Chỉ lấy Top N cái ID cao điểm nhất
+        .Take(topN) // Ch? l?y Top N c�i ID cao �i?m nh?t
         .Select(x => x.PostId)
         .ToList();
 
             var topPosts = await _context.Posts
         .AsNoTracking()
-        .Include(p => p.User).ThenInclude(u => u.Account)
+        .Include(p => p.User).ThenInclude(u => u.Account).ThenInclude(a => a.AccountRoles).ThenInclude(ar => ar.Role)
         .Include(p => p.Media)
         .Where(p => topPostIds.Contains(p.post_id))
         .ToListAsync();
@@ -279,7 +279,7 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 Username = r.User.username.Value,
                 FullName = r.User.full_name,
                 AvatarUrl = r.User.avatar_url?.Value,
-                AccountType = r.User.Account.account_type.ToString(),
+                AccountType = r.User.Account.AccountRoles.FirstOrDefault(ar => ar.is_active)?.Role.role_name ?? "User",
 
                 ReactionCount = reactionCounts.GetValueOrDefault(r.post_id, 0),
                 CommentCount = commentCounts.GetValueOrDefault(r.post_id, 0),

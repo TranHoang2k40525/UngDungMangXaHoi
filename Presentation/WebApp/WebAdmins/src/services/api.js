@@ -126,8 +126,11 @@ export const authAPI = {
       // Kiểm tra account type inside token
       try {
         const payload = JSON.parse(atob(access.split('.')[1]));
-        const accountType = payload.account_type || payload.role;
-        if (accountType !== 'Admin') {
+        // Backend RBAC giờ dùng "role" array và "primary_role"
+        const roles = payload.role || [];
+        const primaryRole = payload.primary_role;
+        const isAdmin = roles.includes('Admin') || primaryRole === 'Admin';
+        if (!isAdmin) {
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
           throw new Error('Chỉ tài khoản Admin mới có thể đăng nhập');

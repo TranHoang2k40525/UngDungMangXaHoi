@@ -673,7 +673,10 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 }
             }
             catch { }
-            bool isSponsored = p.User?.Account?.account_type == AccountType.Business;
+            // ✅ Check if user has Business role (RBAC)
+            bool hasBusinessRole = p.User?.Account?.AccountRoles
+                .Any(ar => ar.is_active && ar.Role.role_name == "Business") ?? false;
+            bool isSponsored = hasBusinessRole;
 
             return new
             {
@@ -691,8 +694,12 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                     id = p.User?.user_id,
                     username = p.User?.username.Value,
                     avatarUrl = p.User?.avatar_url?.Value != null ? BaseUrl(p.User.avatar_url.Value) : null,
-                    accountType = p.User?.Account?.account_type.ToString(),
-
+                    // ✅ Get account type from RBAC roles
+                    accountType = p.User?.Account?.AccountRoles
+                        .Where(ar => ar.is_active)
+                        .OrderByDescending(ar => ar.Role.priority)
+                        .Select(ar => ar.Role.role_name)
+                        .FirstOrDefault()
                 },
                 media = media,
                 mentions = mentions,

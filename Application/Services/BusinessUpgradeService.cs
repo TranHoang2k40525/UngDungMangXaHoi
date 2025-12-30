@@ -41,12 +41,16 @@ namespace UngDungMangXaHoi.Application.Services
                     _logger.LogWarning($"Tai khoan {accountId} khong ton tai");
                     return (false, string.Empty, 0, DateTime.MinValue, "Account khong ton tai");
                 }
-                //Kiem tra xem tai khoan da la doanh nghiep chua
-                if (account.account_type == AccountType.Business)
+                // RBAC: Check if account already has Business role
+                var hasBusiness = await _context.AccountRoles
+                    .AnyAsync(ar => ar.account_id == accountId && 
+                                    ar.is_active && 
+                                    ar.Role.role_name == "Business");
+                
+                if (hasBusiness)
                 {
                     _logger.LogWarning($"Tai khoan {accountId} da la tai khoan doanh nghiep");
                     return (false, string.Empty, 0, DateTime.MinValue, "Tai khoan da la tai khoan doanh nghiep");
-
                 }
                 //Kiem tra xem tai khoan co haot dong khong ( co bi  khoa khong)
                 if (account.status != "active")
@@ -205,9 +209,24 @@ namespace UngDungMangXaHoi.Application.Services
                 payment.MarkAsCompleted();
                 _logger.LogInformation("Đã cập nhật payment {PaymentId} thành Completed", payment.PaymentId);
 
-                // nang cap tai khoan khi thanh cong
+                // RBAC: Assign Business role when upgrade is successful
                 var account = payment.Account;
-                account.account_type = AccountType.Business;
+                var businessRole = await _context.Roles.FirstOrDefaultAsync(r => r.role_name == "Business");
+                
+                if (businessRole != null)
+                {
+                    var accountRole = new AccountRole
+                    {
+                        account_id = account.account_id,
+                        role_id = businessRole.role_id,
+                        assigned_at = DateTime.UtcNow,
+                        expires_at = DateTime.UtcNow.AddDays(BUSINESS_PACKAGE_DAYS),
+                        is_active = true,
+                        assigned_by = "SYSTEM"
+                    };
+                    _context.AccountRoles.Add(accountRole);
+                }
+                
                 account.business_verified_at = DateTime.UtcNow;
                 account.business_expires_at = DateTime.UtcNow.AddDays(BUSINESS_PACKAGE_DAYS);
                 _logger.LogInformation("Đã nâng cấp account {AccountId} lên Business. Hết hạn: {ExpiresAt}",

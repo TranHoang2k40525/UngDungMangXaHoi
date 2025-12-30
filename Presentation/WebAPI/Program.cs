@@ -38,7 +38,7 @@ builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         // Allow enums to be (de)serialized from/to strings so frontend can send 'Nam'/'Nữ'/'Khác'
-        //options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        // options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
         // Use camelCase naming so frontend JS can access properties with conventional camelCase keys
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
@@ -201,13 +201,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy("UserOnly", policy => policy.RequireAssertion(context => context.User.HasClaim(c => c.Type == "account_type" && (c.Value == "User" || c.Value == "Business"))));
-    options.AddPolicy("BusinessOnly", policy => policy.RequireClaim("account_type", "Business"));
-    options.AddPolicy("AdminOnly", policy => policy.RequireClaim("account_type", "Admin"));
-
-});
+// RBAC Authorization - No policies needed, using custom attributes
+builder.Services.AddAuthorization();
 
 // Repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -242,6 +237,18 @@ builder.Services.AddScoped<IContentModerationRepository>(provider =>
 // ======================================
 // 6️⃣ Đăng ký Service
 // ======================================
+// RBAC Services
+builder.Services.AddMemoryCache(); // Required for RBAC caching
+builder.Services.AddScoped<UngDungMangXaHoi.Domain.Interfaces.IAuthorizationService, UngDungMangXaHoi.Infrastructure.Services.AuthorizationService>();
+builder.Services.AddScoped<UngDungMangXaHoi.Infrastructure.Services.RbacJwtTokenService>();
+
+// RBAC Repositories
+builder.Services.AddScoped<UngDungMangXaHoi.Domain.Interfaces.IRoleRepository, UngDungMangXaHoi.Infrastructure.Repositories.RoleRepository>();
+builder.Services.AddScoped<UngDungMangXaHoi.Domain.Interfaces.IPermissionRepository, UngDungMangXaHoi.Infrastructure.Repositories.PermissionRepository>();
+builder.Services.AddScoped<UngDungMangXaHoi.Domain.Interfaces.IAccountRoleRepository, UngDungMangXaHoi.Infrastructure.Repositories.AccountRoleRepository>();
+builder.Services.AddScoped<UngDungMangXaHoi.Domain.Interfaces.IRolePermissionRepository, UngDungMangXaHoi.Infrastructure.Repositories.RolePermissionRepository>();
+builder.Services.AddScoped<UngDungMangXaHoi.Domain.Interfaces.IAccountPermissionRepository, UngDungMangXaHoi.Infrastructure.Repositories.AccountPermissionRepository>();
+
 builder.Services.AddScoped<StoryService>();
 builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddScoped<ITokenService, AuthService>();
@@ -249,7 +256,6 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<INotificationService, EmailService>();
 builder.Services.AddScoped<UserProfileService>();
-builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<IBusinessUpgradeService, BusinessUpgradeService>();
 // Application layer services (refactor: register new application services)
 builder.Services.AddScoped<UngDungMangXaHoi.Application.Services.PostsService>();

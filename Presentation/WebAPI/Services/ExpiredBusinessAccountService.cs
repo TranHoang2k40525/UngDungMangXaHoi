@@ -73,52 +73,57 @@ namespace UngDungMangXaHoi.WebAPI.Services
             {
                 var now = DateTime.UtcNow;
                 
-                // Find all Business accounts that have expired
-                var expiredAccounts = await context.Accounts
-                    .Where(a => a.account_type == AccountType.Business)
-                    .Where(a => a.business_expires_at.HasValue)
-                    .Where(a => a.business_expires_at!.Value <= now)
+                // ✅ Find all accounts with Business role that have expired
+                var businessRoleId = await context.Roles
+                    .Where(r => r.role_name == "Business")
+                    .Select(r => r.role_id)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                var expiredBusinessRoles = await context.AccountRoles
+                    .Where(ar => ar.role_id == businessRoleId)
+                    .Where(ar => ar.is_active)
+                    .Where(ar => ar.expires_at.HasValue && ar.expires_at.Value <= now)
+                    .Include(ar => ar.Account)
                     .ToListAsync(cancellationToken);
 
-                if (expiredAccounts.Any())
+                if (expiredBusinessRoles.Any())
                 {
                     _logger.LogInformation(
-                        "[ExpiredBusinessAccountService] Found {Count} expired Business accounts", 
-                        expiredAccounts.Count);
+                        "[ExpiredBusinessAccountService] Found {Count} expired Business roles", 
+                        expiredBusinessRoles.Count);
 
-                    foreach (var account in expiredAccounts)
+                    foreach (var accountRole in expiredBusinessRoles)
                     {
                         try
                         {
                             _logger.LogInformation(
-                                "[ExpiredBusinessAccountService] Downgrading account {AccountId} from Business to User. " +
-                                "Expired at: {ExpiresAt}", 
-                                account.account_id, 
-                                account.business_expires_at);
+                                "[ExpiredBusinessAccountService] Deactivating Business role for account {AccountId}. " +
+                                "Expired at: {expires_at}", 
+                                accountRole.account_id, 
+                                accountRole.expires_at);
 
-                            // Downgrade to User account
-                            account.account_type = AccountType.User;
-                            account.business_verified_at = null;
-                            // Keep business_expires_at for history/audit purposes
-                            account.updated_at = DateTimeOffset.UtcNow;
+                            // ✅ Deactivate Business role (RBAC way)
+                            accountRole.is_active = false;
+                            accountRole.Account.business_verified_at = null;
+                            accountRole.Account.updated_at = DateTimeOffset.UtcNow;
 
                             await context.SaveChangesAsync(cancellationToken);
 
                             _logger.LogInformation(
-                                "[ExpiredBusinessAccountService] Successfully downgraded account {AccountId} to User", 
-                                account.account_id);
+                                "[ExpiredBusinessAccountService] Successfully deactivated Business role for account {AccountId}", 
+                                accountRole.account_id);
                         }
                         catch (Exception ex)
                         {
                             _logger.LogError(ex, 
                                 "[ExpiredBusinessAccountService] Failed to downgrade account {AccountId}", 
-                                account.account_id);
+                                accountRole.account_id);
                         }
                     }
 
                     _logger.LogInformation(
                         "[ExpiredBusinessAccountService] Completed processing {Count} expired Business accounts", 
-                        expiredAccounts.Count);
+                        expiredBusinessRoles.Count);
                 }
                 else
                 {

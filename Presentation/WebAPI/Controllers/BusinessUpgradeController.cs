@@ -17,7 +17,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 {
     [ApiController]
     [Route("api/Business")]
-     [Authorize(Policy = "UserOnly")]
+    [Authorize] // All authenticated users
     public class BusinessUpgradeController : ControllerBase
     {
         private readonly AppDbContext _context;
