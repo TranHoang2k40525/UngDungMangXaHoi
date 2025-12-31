@@ -95,35 +95,31 @@ sequenceDiagram
     PostsController-->>Client: 200 OK - Post created
 ```
 
-### 🔁 Sơ đồ tuần tự (PlantUML)
+### 🔁 Sơ đồ tuần tự (Mermaid)
 
-```puml
-@startuml
-title Post Creation Sequence
+```mermaid
+sequenceDiagram
+  participant Mobile
+  participant WebAPI
+  participant PostsService
+  participant Cloudinary
+  participant PostRepo
+  participant DB
+  participant NotificationService
 
-actor Mobile
-participant WebAPI
-participant PostsService
-participant Cloudinary
-participant PostRepo
-database DB
-participant NotificationService
-
-Mobile -> WebAPI : POST /api/posts (multipart/form-data + token)
-WebAPI -> PostsService : CreatePost(dto, files)
-PostsService -> Cloudinary : Upload files
-Cloudinary --> PostsService : media URLs
-PostsService -> PostRepo : Save Post entity
-PostRepo -> DB : INSERT post, media records
-DB --> PostRepo : inserted ids
-PostRepo --> PostsService : saved entity
-PostsService -> NotificationService : NotifyFollowers(postId)
-NotificationService -> NotificationHub : Push notification via SignalR
-NotificationHub -> Followers : real-time notification
-PostsService --> WebAPI : 201 Created {postId}
-WebAPI --> Mobile : 201 {postId, preview}
-
-@enduml
+  Mobile->>WebAPI: POST /api/posts (multipart/form-data + token)
+  WebAPI->>PostsService: CreatePost(dto, files)
+  PostsService->>Cloudinary: Upload files
+  Cloudinary-->>PostsService: media URLs
+  PostsService->>PostRepo: Save Post entity
+  PostRepo->>DB: INSERT post, media records
+  DB-->>PostRepo: inserted ids
+  PostRepo-->>PostsService: saved entity
+  PostsService->>NotificationService: NotifyFollowers(postId)
+  NotificationService->>NotificationHub: Push notification via SignalR
+  NotificationHub->>Followers: real-time notification
+  PostsService-->>WebAPI: 201 Created {postId}
+  WebAPI-->>Mobile: 201 {postId, preview}
 ```
 
 ### 📝 Chi tiết Create Post
