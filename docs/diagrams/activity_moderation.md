@@ -1,4 +1,4 @@
-flowchart TD
+﻿flowchart TD
   Start([Start]) --> receive["Receive content for moderation"]
   receive --> analyze["Analyze with AI (PhoBERT)"]
   analyze --> decision{"Risk level?"}
@@ -12,3 +12,5 @@ flowchart TD
   approve --> publish["Publish content"]
   publish --> End([End])
   notifyUser --> End
+
+

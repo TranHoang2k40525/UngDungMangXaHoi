@@ -1,4 +1,4 @@
-usecaseDiagram
+﻿usecaseDiagram
   actor User
   actor Admin
   actor AI as "AI Moderation System"
@@ -15,3 +15,5 @@ usecaseDiagram
 
   (Create Post) .> (Moderate Content) : <<include>>
   (Process Payment) .> (Manage System) : <<include>>
+
+

@@ -1,4 +1,4 @@
-sequenceDiagram
+﻿sequenceDiagram
     participant User
     participant MobileApp
     participant WebAPI
@@ -18,3 +18,5 @@ sequenceDiagram
       DB-->>PostsService: postId
       PostsService->>WebAPI: 201 Created
     end
+
+

@@ -1,4 +1,4 @@
-flowchart TD
+﻿flowchart TD
   subgraph User
     start([Start]) --> compose["Compose Post (text + media)"]
     compose --> checkMedia{"Has media?"}
@@ -21,3 +21,5 @@ flowchart TD
     notify --> end([End])
     block --> end
   end
+
+

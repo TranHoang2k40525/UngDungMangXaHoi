@@ -1,4 +1,4 @@
-erDiagram
+﻿erDiagram
   USER {
     int id PK
     string username
@@ -46,3 +46,5 @@ erDiagram
   USER ||--o{ LIKE : "gives"
   USER ||--o{ PAYMENT : "makes"
   USER ||--o{ NOTIFICATION : "receives"
+
+

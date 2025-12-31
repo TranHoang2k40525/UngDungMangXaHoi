@@ -1,4 +1,4 @@
-sequenceDiagram
+﻿sequenceDiagram
     participant User
     participant MobileApp
     participant WebAPI
@@ -14,3 +14,5 @@ sequenceDiagram
     WebAPI->>DB: Update payment status
     DB-->>WebAPI: OK
     WebAPI-->>MobileApp: Notify result
+
+

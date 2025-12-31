@@ -1,4 +1,4 @@
-# Use Case Diagram (Toàn hệ thống)
+﻿# Use Case Diagram (Toàn hệ thống)
 
 Mô tả: sơ đồ Use Case tổng thể cho hệ thống (chỉ 1 sơ đồ duy nhất).
 

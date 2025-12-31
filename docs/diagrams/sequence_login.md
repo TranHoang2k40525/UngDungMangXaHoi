@@ -1,4 +1,4 @@
-sequenceDiagram
+﻿sequenceDiagram
     participant User
     participant MobileApp
     participant WebAPI
@@ -13,3 +13,5 @@ sequenceDiagram
     AuthService->>AuthService: Verify password
     AuthService-->>WebAPI: accessToken + refreshToken
     WebAPI-->>MobileApp: 200 OK {tokens}
+
+
