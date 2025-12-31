@@ -95,6 +95,37 @@ sequenceDiagram
     PostsController-->>Client: 200 OK - Post created
 ```
 
+### 🔁 Sơ đồ tuần tự (PlantUML)
+
+```puml
+@startuml
+title Post Creation Sequence
+
+actor Mobile
+participant WebAPI
+participant PostsService
+participant Cloudinary
+participant PostRepo
+database DB
+participant NotificationService
+
+Mobile -> WebAPI : POST /api/posts (multipart/form-data + token)
+WebAPI -> PostsService : CreatePost(dto, files)
+PostsService -> Cloudinary : Upload files
+Cloudinary --> PostsService : media URLs
+PostsService -> PostRepo : Save Post entity
+PostRepo -> DB : INSERT post, media records
+DB --> PostRepo : inserted ids
+PostRepo --> PostsService : saved entity
+PostsService -> NotificationService : NotifyFollowers(postId)
+NotificationService -> NotificationHub : Push notification via SignalR
+NotificationHub -> Followers : real-time notification
+PostsService --> WebAPI : 201 Created {postId}
+WebAPI --> Mobile : 201 {postId, preview}
+
+@enduml
+```
+
 ### 📝 Chi tiết Create Post
 
 **Endpoint:** `POST /api/posts`

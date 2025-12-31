@@ -43,6 +43,19 @@
 - ✅ **MoMo Integration** - Thanh toán QR Code tự động
 - ✅ **Admin Analytics** - Dashboard thống kê business intelligence
 - ✅ **Mobile-First** - React Native app cho iOS & Android
+---
+
+### 📌 Yêu Cầu Nghiệp Vụ (Business Requirements)
+
+- **Y1:** Người dùng đăng ký/đăng nhập với OTP + JWT; refresh token.
+- **Y2:** CRUD bài viết (text, images, video) với quyền riêng tư và nén media.
+- **Y3:** Real-time messaging & notifications (SignalR) với reconnect và read receipts.
+- **Y4:** Comment lồng nhau, reactions, share, mention và AI moderation tự động.
+- **Y5:** Business accounts: nâng cấp qua MoMo, ưu tiên hiển thị, analytics và badge.
+- **Y6:** Admin dashboard: quản lý user, xử lý report, logs và sanctions.
+- **Y7:** Hệ thống modular, dễ scale thành microservices, và có CI/CD trong tương lai.
+- **Y8:** Lưu media trên Cloudinary; secrets và credentials không commit vào git.
+- **Y9:** Logging, audit trail (moderation logs), và backup/rollback cho dữ liệu quan trọng.
 
 ---
 
