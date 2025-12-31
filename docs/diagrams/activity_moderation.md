@@ -1,4 +1,5 @@
-﻿flowchart TD
+﻿```mermaid
+flowchart TD
   Start([Start]) --> receive["Receive content for moderation"]
   receive --> analyze["Analyze with AI (PhoBERT)"]
   analyze --> decision{"Risk level?"}
@@ -13,4 +14,4 @@
   publish --> End([End])
   notifyUser --> End
 
-
+```

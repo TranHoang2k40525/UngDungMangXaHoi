@@ -1,4 +1,5 @@
-﻿sequenceDiagram
+﻿```mermaid
+sequenceDiagram
     participant User
     participant MobileApp
     participant WebAPI
@@ -19,4 +20,4 @@
       PostsService->>WebAPI: 201 Created
     end
 
-
+```

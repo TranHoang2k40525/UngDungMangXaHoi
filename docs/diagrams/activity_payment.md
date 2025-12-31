@@ -1,4 +1,5 @@
-﻿flowchart TD
+﻿```mermaid
+flowchart TD
   userStart([Start]) --> create["User initiates payment (Upgrade Business)"]
   create --> createOrder["Create payment order (backend)"]
   createOrder --> redirect["Redirect / Request MoMo payment (QR / Checkout)"]
@@ -9,5 +10,8 @@
   verify -->|Fail| notify["Notify user (payment failed)"]
   upgrade --> end([End])
   notify --> end
+
+```
+
 
 

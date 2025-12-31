@@ -70,10 +70,10 @@ flowchart LR
 	Mobile["Mobile Client"]
 	Admin["Web Admin"]
 	MoMo["External Payment (MoMo)"]
-	API[["API Gateway / WebAPI"]]
-	DB[("SQL Server")]
-	Cloud[("Cloudinary (Media)")]
-	ML[("MLService (Flask)")]
+	API["API Gateway / WebAPI"]
+	DB(("SQL Server"))
+	Cloud(("Cloudinary (Media)"))
+	ML(("MLService (Flask)"))
 
 	Mobile -->|HTTPS / SignalR| API
 	Admin -->|HTTPS| API
@@ -83,7 +83,7 @@ flowchart LR
 	API -->|Create payment / webhook| MoMo
 	MoMo -->|Payment callback| API
 
-	subgraph note ["Deployment note"]
+	subgraph deployment["Deployment note"]
 		direction TB
 		n1["Deployed as Docker Compose\nCan be split to microservices"]
 	end

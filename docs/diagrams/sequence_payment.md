@@ -1,4 +1,5 @@
-﻿sequenceDiagram
+﻿```mermaid
+sequenceDiagram
     participant User
     participant MobileApp
     participant WebAPI
@@ -15,4 +16,4 @@
     DB-->>WebAPI: OK
     WebAPI-->>MobileApp: Notify result
 
-
+```

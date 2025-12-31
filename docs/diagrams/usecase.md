@@ -22,4 +22,3 @@ usecaseDiagram
   (Process Payment) .> (Manage System) : <<include>>
 ```
 
-File nguồn để export: `DOCS/diagrams/usecase.mmd`

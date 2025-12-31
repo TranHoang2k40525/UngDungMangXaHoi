@@ -1,4 +1,5 @@
-﻿flowchart TD
+﻿```mermaid
+flowchart TD
   subgraph User
     start([Start]) --> compose["Compose Post (text + media)"]
     compose --> checkMedia{"Has media?"}
@@ -22,4 +23,4 @@
     block --> end
   end
 
-
+```

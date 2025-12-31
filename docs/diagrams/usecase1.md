@@ -1,4 +1,5 @@
-﻿usecaseDiagram
+﻿```mermaid
+usecaseDiagram
   actor User
   actor Admin
   actor AI as "AI Moderation System"
@@ -15,5 +16,6 @@
 
   (Create Post) .> (Moderate Content) : <<include>>
   (Process Payment) .> (Manage System) : <<include>>
+```
 
 

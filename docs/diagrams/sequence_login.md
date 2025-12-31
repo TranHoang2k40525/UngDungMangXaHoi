@@ -1,4 +1,5 @@
-﻿sequenceDiagram
+﻿```mermaid
+sequenceDiagram
     participant User
     participant MobileApp
     participant WebAPI
@@ -14,4 +15,4 @@
     AuthService-->>WebAPI: accessToken + refreshToken
     WebAPI-->>MobileApp: 200 OK {tokens}
 
-
+```

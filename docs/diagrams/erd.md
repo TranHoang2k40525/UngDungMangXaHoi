@@ -1,4 +1,5 @@
-﻿erDiagram
+﻿```mermaid
+erDiagram
   USER {
     int id PK
     string username
@@ -47,4 +48,4 @@
   USER ||--o{ PAYMENT : "makes"
   USER ||--o{ NOTIFICATION : "receives"
 
-
+```
