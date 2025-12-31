@@ -1,6 +1,6 @@
 ﻿```mermaid
 flowchart TD
-  Start([Start]) --> receive["Receive content for moderation"]
+  start([Start]) --> receive["Receive content for moderation"]
   receive --> analyze["Analyze with AI (PhoBERT)"]
   analyze --> decision{"Risk level?"}
   decision -->|High| block["Auto block content"]
@@ -11,7 +11,8 @@ flowchart TD
   moderator -->|Reject| block
   block --> notifyUser["Notify user & log moderation action"]
   approve --> publish["Publish content"]
-  publish --> End([End])
-  notifyUser --> End
+  publish --> endNode([End])
+  notifyUser --> endNode
 
 ```
+

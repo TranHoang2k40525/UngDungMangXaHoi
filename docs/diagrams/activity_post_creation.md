@@ -19,8 +19,8 @@ flowchart TD
     queue --> moderator["Moderator review"]
     moderator -->|Approve| save
     moderator -->|Reject| block
-    notify --> end([End])
-    block --> end
+    notify --> endNode([End])
+    block --> endNode
   end
 
 ```

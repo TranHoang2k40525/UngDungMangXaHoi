@@ -1,24 +1,36 @@
 ﻿# Use Case Diagram (Toàn hệ thống)
 
-Mô tả: sơ đồ Use Case tổng thể cho hệ thống (chỉ 1 sơ đồ duy nhất).
+Mô tả: sơ đồ Use Case tổng thể cho hệ thống (chỉ 1 sơ đồ duy nhất). Đây là một phiên bản chuyển sang `flowchart` để đảm bảo tương thích với renderer trên GitHub.
 
 ```mermaid
-usecaseDiagram
-  actor User
-  actor Admin
-  actor AI as "AI Moderation System"
-  actor Payment as "Payment Gateway"
+flowchart LR
+  subgraph Actors
+    User(User)
+    Admin(Admin)
+    AI("AI Moderation System")
+    Payment("Payment Gateway")
+  end
 
-  User --> (Register / Login)
-  User --> (Create Post)
-  User --> (Interact with Content)
-  User --> (View Feed)
-  Admin --> (Manage System)
-  Admin --> (Moderate Content)
-  AI --> (Moderate Content)
-  Payment --> (Process Payment)
+  subgraph UseCases
+    UC1[(Register / Login)]
+    UC2[(Create Post)]
+    UC3[(Interact with Content)]
+    UC4[(View Feed)]
+    UC5[(Manage System)]
+    UC6[(Moderate Content)]
+    UC7[(Process Payment)]
+  end
 
-  (Create Post) .> (Moderate Content) : <<include>>
-  (Process Payment) .> (Manage System) : <<include>>
+  User --> UC1
+  User --> UC2
+  User --> UC3
+  User --> UC4
+  Admin --> UC5
+  Admin --> UC6
+  AI --> UC6
+  Payment --> UC7
+
+  UC2 -.-> UC6
+  UC7 -.-> UC5
 ```
 

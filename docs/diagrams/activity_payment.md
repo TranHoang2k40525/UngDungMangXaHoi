@@ -8,10 +8,7 @@ flowchart TD
   callback --> verify["Verify payment status (backend)"]
   verify -->|Success| upgrade["Upgrade account / grant features"]
   verify -->|Fail| notify["Notify user (payment failed)"]
-   upgrade --> endNode([End])
-   notify --> endNode
+  upgrade --> endNode([End])
+  notify --> endNode
 
 ```
-
-
-

@@ -1,4 +1,4 @@
- # Kiến Trúc & Phân Tích (Architecture)
+# Kiến Trúc & Phân Tích (Architecture)
 
 ## Mục tiêu
 
@@ -29,65 +29,65 @@ Tham khảo sơ đồ dưới đây (PlantUML) — bạn có thể copy block Pl
 
 ```mermaid
 flowchart TB
-	subgraph Presentation
-		WebAPI["WebAPI"]
-		MobileApp["MobileApp"]
-		WebAdmin["WebAdmin"]
-	end
+  subgraph Presentation
+    WebAPI["WebAPI"]
+    MobileApp["MobileApp"]
+    WebAdmin["WebAdmin"]
+  end
 
-	subgraph Application
-		AuthService["AuthService"]
-		PostsService["PostsService"]
-		NotificationService["NotificationService"]
-	end
+  subgraph Application
+    AuthService["AuthService"]
+    PostsService["PostsService"]
+    NotificationService["NotificationService"]
+  end
 
-	subgraph Domain
-		Entities["Entities"]
-		Repos["Repository Interfaces"]
-	end
+  subgraph Domain
+    Entities["Entities"]
+    Repos["Repository Interfaces"]
+  end
 
-	subgraph Infrastructure
-		EF["EF Core / Repositories"]
-		Adapters["External Adapters"]
-	end
+  subgraph Infrastructure
+    EF["EF Core / Repositories"]
+    Adapters["External Adapters"]
+  end
 
-	MobileApp -->|HTTP / SignalR| WebAPI
-	WebAdmin -->|HTTP| WebAPI
-	WebAPI -->|use| AuthService
-	WebAPI -->|use| PostsService
-	AuthService -->|calls| Repos
-	PostsService -->|uses| Repos
-	EF -->|implements| Repos
-	Adapters -->|integrates| PostsService
-	WebAPI -->|publish| NotificationService
-	NotificationService -->|push| MobileApp
+  MobileApp -->|HTTP / SignalR| WebAPI
+  WebAdmin -->|HTTP| WebAPI
+  WebAPI -->|use| AuthService
+  WebAPI -->|use| PostsService
+  AuthService -->|calls| Repos
+  PostsService -->|uses| Repos
+  EF -->|implements| Repos
+  Adapters -->|integrates| PostsService
+  WebAPI -->|publish| NotificationService
+  NotificationService -->|push| MobileApp
 ```
 
 ### High-level System Architecture
 
 ```mermaid
 flowchart LR
-	Mobile["Mobile Client"]
-	Admin["Web Admin"]
-	MoMo["External Payment (MoMo)"]
-	API["API Gateway / WebAPI"]
-	DB(("SQL Server"))
-	Cloud(("Cloudinary (Media)"))
-	ML(("MLService (Flask)"))
+  Mobile["Mobile Client"]
+  Admin["Web Admin"]
+  MoMo["External Payment (MoMo)"]
+  API["API Gateway / WebAPI"]
+  DB(("SQL Server"))
+  Cloud(("Cloudinary (Media)"))
+  ML(("MLService (Flask)"))
 
-	Mobile -->|HTTPS / SignalR| API
-	Admin -->|HTTPS| API
-	API -->|EF Core (CRUD)| DB
-	API -->|Upload/Fetch media| Cloud
-	API -->|Send content for moderation| ML
-	API -->|Create payment / webhook| MoMo
-	MoMo -->|Payment callback| API
+  Mobile -->|HTTPS / SignalR| API
+  Admin -->|HTTPS| API
+  API -->|EF Core (CRUD)| DB
+  API -->|Upload/Fetch media| Cloud
+  API -->|Send content for moderation| ML
+  API -->|Create payment / webhook| MoMo
+  MoMo -->|Payment callback| API
 
-	subgraph deployment["Deployment note"]
-		direction TB
-		n1["Deployed as Docker Compose\nCan be split to microservices"]
-	end
-	API --- n1
+  subgraph deployment["Deployment note"]
+    direction TB
+    n1["Deployed as Docker Compose\nCan be split to microservices"]
+  end
+  API --- n1
 ```
 
 Key external components:
@@ -104,53 +104,55 @@ Key external components:
 
 ```mermaid
 sequenceDiagram
-	participant Mobile
-	participant WebAPI
-	participant AuthService
-	participant UserRepo
-	participant DB
+  participant Mobile
+  participant WebAPI
+  participant AuthService
+  participant UserRepo
+  participant DB
 
-	Mobile->>WebAPI: POST /api/auth/login {username,password}
-	WebAPI->>AuthService: ValidateCredentials(dto)
-	AuthService->>UserRepo: GetByUsername(username)
-	UserRepo->>DB: SELECT user
-	DB-->>UserRepo: user record
-	UserRepo-->>AuthService: user entity
-	AuthService->>AuthService: Verify password (BCrypt)
-	AuthService->>WebAPI: GenerateAccessToken + RefreshToken
-	WebAPI-->>Mobile: 200 {accessToken, refreshToken}
+  Mobile->>WebAPI: POST /api/auth/login {username,password}
+  WebAPI->>AuthService: ValidateCredentials(dto)
+  AuthService->>UserRepo: GetByUsername(username)
+  UserRepo->>DB: SELECT user
+  DB-->>UserRepo: user record
+  UserRepo-->>AuthService: user entity
+  AuthService->>AuthService: Verify password (BCrypt)
+  AuthService->>WebAPI: GenerateAccessToken + RefreshToken
+  WebAPI-->>Mobile: 200 {accessToken, refreshToken}
 
-	Note over AuthService: store refresh token in DB or cache
+  Note over AuthService: store refresh token in DB or cache
 ```
 
 ### Sequence Diagrams (Post Creation)
 
 ```mermaid
 sequenceDiagram
-	participant Mobile
-	participant WebAPI
-	participant PostsService
-	participant Cloudinary
-	participant PostRepo
-	participant DB
-	participant NotificationService
+  participant Mobile
+  participant WebAPI
+  participant PostsService
+  participant Cloudinary
+  participant PostRepo
+  participant DB
+  participant NotificationService
 
-	Mobile->>WebAPI: POST /api/posts (multipart/form-data + token)
-	WebAPI->>PostsService: CreatePost(dto, files)
-	PostsService->>Cloudinary: Upload files
-	Cloudinary-->>PostsService: media URLs
-	PostsService->>PostRepo: Save Post entity
-	PostRepo->>DB: INSERT post, media records
-	DB-->>PostRepo: inserted ids
-	PostRepo-->>PostsService: saved entity
-	PostsService->>NotificationService: NotifyFollowers(postId)
-	NotificationService->>NotificationHub: Push notification via SignalR
-	NotificationHub->>Followers: real-time notification
-	PostsService-->>WebAPI: 201 Created {postId}
-	WebAPI-->>Mobile: 201 {postId, preview}
+  Mobile->>WebAPI: POST /api/posts (multipart/form-data + token)
+  WebAPI->>PostsService: CreatePost(dto, files)
+  PostsService->>Cloudinary: Upload files
+  Cloudinary-->>PostsService: media URLs
+  PostsService->>PostRepo: Save Post entity
+  PostRepo->>DB: INSERT post, media records
+  DB-->>PostRepo: inserted ids
+  PostRepo-->>PostsService: saved entity
+  PostsService->>NotificationService: NotifyFollowers(postId)
+  NotificationService->>NotificationHub: Push notification via SignalR
+  NotificationHub->>Followers: real-time notification
+  PostsService-->>WebAPI: 201 Created {postId}
+  WebAPI-->>Mobile: 201 {postId, preview}
 ```
 
 ### Sequence Diagrams (Authentication)
+
+The following blocks are PlantUML examples for users who prefer PlantUML tooling; keep them as `.puml` files or render with `plantuml.jar`.
 
 ```puml
 @startuml
@@ -176,8 +178,6 @@ note over AuthService: store refresh token in DB or cache
 
 @enduml
 ```
-
-### Sequence Diagrams (Post Creation)
 
 ```puml
 @startuml
