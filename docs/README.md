@@ -1,5 +1,7 @@
 # 📚 Tài liệu API - Ứng Dụng Mạng Xã Hội
 
+> Xem thêm phân tích kiến trúc và sơ đồ tại: [ARCHITECTURE](./ARCHITECTURE.md)
+
 ## 📋 Mục Lục
 
 Hệ thống bao gồm 12 module chính với tài liệu đầy đủ:

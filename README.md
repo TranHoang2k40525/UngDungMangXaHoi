@@ -53,33 +53,14 @@
 
 ### 🎨 Đặc Điểm Nổi Bật
 
-✅ **Clean Architecture** - Tách biệt rõ ràng Domain, Application, Infrastructure, Presentation với dependency inversion  
-✅ **RBAC System** - Role-Based Access Control với 3 roles (User, Business, Admin) và 42 permissions chi tiết  
-✅ **Microservices Ready** - Thiết kế module hóa, dễ dàng scale và tách service  
-✅ **Docker Compose** - Triển khai đơn giản với 1 command, multi-container orchestration  
-✅ **JWT Authentication** - Bảo mật với Access Token (15 phút) & Refresh Token (30 ngày)  
-✅ **SignalR WebSocket** - 4 Hubs cho real-time messaging, notifications, comments  
-✅ **MoMo Integration** - Thanh toán QR Code tự động với webhook callback  
-✅ **AI Content Moderation** - PhoBERT Vietnamese NLP để detect toxic content  
-✅ **Admin Analytics** - Dashboard thống kê business intelligence với charts  
-✅ **Mobile-First** - React Native app cross-platform cho iOS & Android  
-✅ **Cloudinary CDN** - Lưu trữ và tối ưu hóa media (images/videos)  
-✅ **Background Services** - Auto cleanup expired stories, business accounts, pending accounts  
-
-### 📊 Thống Kê Dự Án
-
-| Metric | Value |
-|--------|-------|
-| **Backend Lines of Code** | ~25,000+ lines C# |
-| **Frontend Lines of Code** | ~15,000+ lines JS/JSX |
-| **Total API Endpoints** | 120+ endpoints |
-| **Database Tables** | 45+ tables |
-| **Entities (Domain)** | 33+ entities |
-| **Services (Application)** | 20+ services |
-| **Repositories** | 20+ repositories |
-| **SignalR Hubs** | 4 hubs (Chat, GroupChat, Notification, Comment) |
-| **External Integrations** | 4 (Cloudinary, MoMo, PhoBERT, Email) |
-| **Modules Documented** | 12+ modules |
+- ✅ **Clean Architecture** - Tách biệt rõ ràng Domain, Application, Infrastructure, Presentation
+- ✅ **Microservices Ready** - Thiết kế module hóa, dễ dàng scale
+- ✅ **Docker Compose** - Triển khai đơn giản với 1 command
+- ✅ **JWT Authentication** - Bảo mật với Access & Refresh Token
+- ✅ **SignalR WebSocket** - Real-time messaging & notifications
+- ✅ **MoMo Integration** - Thanh toán QR Code tự động
+- ✅ **Admin Analytics** - Dashboard thống kê business intelligence
+- ✅ **Mobile-First** - React Native app cho iOS & Android
 
 ---
 

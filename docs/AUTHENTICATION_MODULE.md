@@ -126,6 +126,29 @@ sequenceDiagram
     AuthController-->>Client: Access Token + Refresh Token
 ```
 
+### 🔁 Sơ đồ tuần tự (Mermaid)
+
+```mermaid
+sequenceDiagram
+  participant Mobile
+  participant WebAPI
+  participant AuthService
+  participant UserRepo
+  participant DB
+
+  Mobile->>WebAPI: POST /api/auth/login {username,password}
+  WebAPI->>AuthService: ValidateCredentials(dto)
+  AuthService->>UserRepo: GetByUsername(username)
+  UserRepo->>DB: SELECT user
+  DB-->>UserRepo: user record
+  UserRepo-->>AuthService: user entity
+  AuthService->>AuthService: Verify password (BCrypt)
+  AuthService->>WebAPI: GenerateAccessToken + RefreshToken
+  WebAPI-->>Mobile: 200 {accessToken, refreshToken}
+
+  Note over AuthService: store refresh token in DB or cache
+```
+
 ### 📝 Chi tiết các bước
 
 #### Bước 1: Gửi thông tin đăng ký
