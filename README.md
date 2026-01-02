@@ -1271,16 +1271,16 @@ sequenceDiagram
     H-->>S: PasswordHash (BCrypt, work factor 12)
     
     S->>DB: BEGIN TRANSACTION
-    S->>DB: INSERT INTO Accounts<br/>(email, password_hash, status='Pending')
+    S->>DB: Tạo tài khoản mới (status='Pending')
     DB-->>S: account_id
-    S->>DB: INSERT INTO Users<br/>(account_id, fullname, dob, gender, username)
+    S->>DB: Tạo hồ sơ người dùng
     DB-->>S: user_id
     S->>DB: COMMIT TRANSACTION
     
     S->>OTP: GenerateOTP(account_id)
     OTP->>OTP: Generate 6-digit code
     OTP->>H: HashOTP(code)
-    OTP->>DB: INSERT INTO OTPs<br/>(account_id, otp_hash, purpose='Registration'<br/>expires_at=NOW()+10min)
+    OTP->>DB: Lưu mã OTP (hết hạn sau 10 phút)
     
     S->>E: SendEmail(email, otp_code)
     E->>E: SMTP Gmail connection
@@ -1314,7 +1314,9 @@ sequenceDiagram
     U->>API: POST /api/auth/verify-otp<br/>{email, otp_code}
     API->>S: VerifyOTP(email, otp_code)
     
-    S->>DB: SELECT FROM OTPs<br/>WHERE account_id = (SELECT id FROM Accounts WHERE email=?)<br/>AND purpose='Registration'<br/>AND expires_at > NOW()
+    S->>DB: Tìm mã OTP còn hiệu lực
+    
+    Note over DB: Kiểm tra OTP theo email, purpose='Registration'<br/>và chưa hết hạn (expires_at > NOW())
     
     alt OTP Not Found or Expired
         DB-->>S: No valid OTP
@@ -1377,7 +1379,7 @@ sequenceDiagram
     U->>API: POST /api/auth/login<br/>{email, password}
     API->>S: Login(email, password)
     
-    S->>DB: SELECT * FROM Accounts<br/>WHERE email=? AND status='Active'
+    S->>DB: Tìm tài khoản theo email (status='Active')
     
     alt Account Not Found or Not Active
         DB-->>S: No account found
@@ -1390,7 +1392,7 @@ sequenceDiagram
     
     alt Password Mismatch
         H-->>S: Password incorrect
-        S->>DB: INSERT INTO LoginHistories<br/>(account_id, login_at, success=false)
+        S->>DB: Ghi lịch sử đăng nhập thất bại
         S-->>API: Invalid credentials
         API-->>U: 401 Unauthorized
     end
@@ -1398,12 +1400,16 @@ sequenceDiagram
     H-->>S: Password correct
     
     S->>RBAC: GetAccountRoles(account_id)
-    RBAC->>DB: SELECT r.role_name FROM AccountRoles ar<br/>JOIN Roles r ON ar.role_id = r.role_id<br/>WHERE ar.account_id=? AND ar.is_active=true
+    RBAC->>DB: Lấy danh sách roles của tài khoản
+    
+    Note over DB: JOIN AccountRoles với Roles, filter is_active=true
     DB-->>RBAC: List of roles
     RBAC-->>S: ['User'] or ['Business'] or ['Admin']
     
     S->>RBAC: GetAccountPermissions(account_id)
-    RBAC->>DB: Get effective permissions<br/>(RolePermissions + AccountPermissions)
+    RBAC->>DB: Lấy danh sách quyền hiệu lực
+    
+    Note over DB: RolePermissions + AccountPermissions<br/>(Grant - Revoke)
     DB-->>RBAC: List of permissions
     RBAC-->>S: [permissions array]
     
@@ -2050,9 +2056,10 @@ sequenceDiagram
     U->>API: GET /api/notifications?page=1&pageSize=20&type=Like,Comment
     API->>S: GetNotifications(userId, page, pageSize, typeFilter)
     
-    S->>DB: SELECT n.*, fu.username, fu.avatar_url<br/>FROM Notifications n<br/>JOIN Users fu ON n.from_user_id = fu.user_id<br/>WHERE n.to_user_id=@userId<br/>  AND (@type IS NULL OR n.type IN (@types))<br/>ORDER BY n.created_at DESC<br/>OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY
+    S->>DB: Lấy danh sách thông báo (có phân trang)
     
-    DB-->>S: Notification records with user info
+    Note over DB: JOIN với Users để lấy thông tin người gửi<br/>Filter theo type, sắp xếp created_at DESC
+    DB-->>S: Danh sách thông báo kèm user info
     
     S->>S: Transform to DTOs:<br/>For each notification:<br/>- Map notification data<br/>- Include from_user info<br/>- Calculate time ago<br/>- Include related entity (post/comment preview)
     
@@ -2074,11 +2081,11 @@ sequenceDiagram
     U->>API: PUT /api/notifications/{id}/read
     API->>S: MarkAsRead(userId, notificationId)
     
-    S->>DB: UPDATE Notifications<br/>SET is_read=true, read_at=NOW()<br/>WHERE notification_id=@id AND to_user_id=@userId
+    S->>DB: Cập nhật trạng thái đã đọc
     
-    DB-->>S: Updated
+    DB-->>S: Đã cập nhật
     
-    S->>DB: SELECT COUNT(*) FROM Notifications<br/>WHERE to_user_id=@userId AND is_read=false
+    S->>DB: Đếm số thông báo chưa đọc
     DB-->>S: unread_count
     
     S-->>API: Success + unread_count
@@ -2110,17 +2117,17 @@ sequenceDiagram
     
     S->>S: Validate: user1Id != user2Id
     
-    S->>DB: SELECT * FROM Follows<br/>WHERE follower_user_id=@user1 AND followed_user_id=@user2
+    S->>DB: Kiểm tra đã follow chưa
     
-    alt Already following
-        DB-->>S: Follow exists
-        S-->>API: Already following
+    alt Đã follow rồi
+        DB-->>S: Follow đã tồn tại
+        S-->>API: Đã follow rồi
         API-->>U1: 409 Conflict
     end
     
-    S->>DB: SELECT * FROM Blocks<br/>WHERE (blocker_user_id=@user1 AND blocked_user_id=@user2)<br/>  OR (blocker_user_id=@user2 AND blocked_user_id=@user1)
+    S->>DB: Kiểm tra có block lẫn nhau không
     
-    alt Block exists
+    alt Có block
         DB-->>S: Block found
         S-->>API: Cannot follow blocked user
         API-->>U1: 403 Forbidden
