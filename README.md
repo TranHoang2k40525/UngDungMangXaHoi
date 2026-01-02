@@ -68,208 +68,427 @@
 
 ### Clean Architecture Pattern
 
-Dự án được xây dựng theo mô hình **Clean Architecture** của Uncle Bob, đảm bảo tính độc lập, dễ test và dễ maintain.
+#### 📖 Giới Thiệu Lý Thuyết
+
+**Clean Architecture** là một mô hình kiến trúc phần mềm được Robert C. Martin (Uncle Bob) đề xuất, nhằm tạo ra các hệ thống:
+- **Độc lập với Framework**: Không bị ràng buộc với bất kỳ framework cụ thể nào
+- **Testable**: Dễ dàng test business logic mà không cần UI, Database hay External services
+- **Độc lập với UI**: Có thể thay đổi UI mà không ảnh hưởng business logic
+- **Độc lập với Database**: Có thể swap database (SQL Server → PostgreSQL) mà không thay đổi logic
+- **Độc lập với External Services**: Business rules không biết gì về thế giới bên ngoài
+
+**Nguyên tắc cốt lõi**: **Dependency Rule** - Source code dependencies chỉ được phép trỏ vào bên trong (inward). Tầng bên ngoài có thể phụ thuộc vào tầng bên trong, nhưng tầng bên trong KHÔNG BAO GIỜ biết gì về tầng bên ngoài.
+
+#### 🏗️ Sơ Đồ Clean Architecture (4 Layers)
+
+```mermaid
+graph TB
+    subgraph Presentation["🎨 PRESENTATION LAYER (Outer)"]
+        WebAPI["WebAPI<br/>.NET 8 Controllers<br/>SignalR Hubs<br/>Middleware"]
+        MobileApp["Mobile App<br/>React Native<br/>Expo SDK 54"]
+        WebAdmin["Web Admin<br/>HTML/JS/Charts.js<br/>Dashboard"]
+        WebUsers["Web Users<br/>React 18<br/>Vite"]
+    end
+    
+    subgraph Application["🔧 APPLICATION LAYER"]
+        Services["Services<br/>AuthService<br/>PostService<br/>MessageService<br/>20+ Services"]
+        DTOs["DTOs<br/>LoginDto<br/>PostDto<br/>UserDto<br/>15+ DTOs"]
+        Interfaces["Interfaces<br/>IBusinessUpgradeService<br/>ITokenService<br/>IEmailService"]
+        UseCases["Use Cases<br/>UserRegistration<br/>PostCreation<br/>MessageSending"]
+        Validators["Validators<br/>FluentValidation<br/>Input Validation"]
+    end
+    
+    subgraph Infrastructure["🔌 INFRASTRUCTURE LAYER"]
+        Repos["Repositories<br/>AccountRepository<br/>UserRepository<br/>20+ Repositories"]
+        DbContext["EF Core DbContext<br/>AppDbContext<br/>45+ DbSets"]
+        ExtServices["External Services<br/>CloudinaryService<br/>MoMoPaymentService<br/>EmailService<br/>PhoBertService"]
+        Configs["Configurations<br/>Entity Mappings<br/>Fluent API"]
+        BgServices["Background Services<br/>Hosted Services<br/>Cleanup Jobs"]
+    end
+    
+    subgraph Domain["🎯 DOMAIN LAYER (Core - Inner)"]
+        Entities["Entities<br/>Account, User, Admin<br/>Post, Comment, Message<br/>33+ Entities"]
+        ValueObjects["Value Objects<br/>Email<br/>PhoneNumber<br/>PasswordHash<br/>ImageUrl"]
+        Enums["Enums<br/>Gender<br/>Privacy<br/>ReactionType<br/>NotificationType"]
+        RepoInterfaces["Repository Interfaces<br/>IAccountRepository<br/>IUserRepository<br/>IPostRepository"]
+        DomainEvents["Domain Events<br/>(Future)<br/>UserRegisteredEvent<br/>PostCreatedEvent"]
+    end
+    
+    WebAPI --> Services
+    MobileApp --> Services
+    WebAdmin --> Services
+    WebUsers --> Services
+    
+    Services --> DTOs
+    Services --> Interfaces
+    Services --> UseCases
+    Services --> Validators
+    Services --> RepoInterfaces
+    
+    Interfaces --> Repos
+    Repos --> DbContext
+    Repos --> RepoInterfaces
+    ExtServices --> Interfaces
+    
+    Repos --> Entities
+    DbContext --> Entities
+    Services --> Entities
+    Services --> ValueObjects
+    Services --> Enums
+    
+    Entities -."Core Business Rules".-> Entities
+    
+    style Domain fill:#e1f5ff,stroke:#01579b,stroke-width:4px
+    style Application fill:#fff3e0,stroke:#e65100,stroke-width:3px
+    style Infrastructure fill:#f3e5f5,stroke:#4a148c,stroke-width:3px
+    style Presentation fill:#e8f5e9,stroke:#1b5e20,stroke-width:3px
+```
+
+#### 🔑 Nguyên Tắc & Ý Nghĩa
+
+**1. Domain Layer (Tầng Lõi - Inner Most)**
+- **Vai trò**: Chứa business logic thuần túy, entities, value objects và domain rules
+- **Đặc điểm**: 
+  - KHÔNG phụ thuộc vào bất kỳ layer nào khác
+  - KHÔNG biết về database, UI, framework
+  - Chỉ chứa plain C# objects (POCOs)
+- **Ví dụ trong dự án**: 
+  - `Account` entity với validation rules
+  - `Email` value object với format validation
+  - `Privacy` enum định nghĩa các mức độ riêng tư
+- **Lợi ích**: Business logic có thể test độc lập, không bị ảnh hưởng bởi infrastructure changes
+
+**2. Application Layer (Tầng Ứng Dụng)**
+- **Vai trò**: Orchestrate business workflows, use cases và application logic
+- **Đặc điểm**:
+  - Phụ thuộc vào Domain layer
+  - Định nghĩa interfaces cho services (Dependency Inversion)
+  - Chứa DTOs để transfer data ra ngoài
+- **Ví dụ trong dự án**:
+  - `AuthService` orchestrate registration flow (validate → hash password → create account → send OTP)
+  - `PostService` handle post creation workflow
+  - DTOs như `LoginDto`, `PostDto` để transfer data
+- **Lợi ích**: Tách biệt business workflows khỏi implementation details
+
+**3. Infrastructure Layer (Tầng Hạ Tầng)**
+- **Vai trò**: Implement các interfaces từ Application layer, kết nối với external systems
+- **Đặc điểm**:
+  - Phụ thuộc vào Application và Domain
+  - Implement Repository pattern
+  - Tương tác với database, external APIs, file system
+- **Ví dụ trong dự án**:
+  - `AccountRepository` implement `IAccountRepository`
+  - `EmailService` gửi email qua SMTP
+  - `CloudinaryService` upload images lên CDN
+  - `MoMoPaymentService` tích hợp payment gateway
+- **Lợi ích**: Dễ dàng swap implementations (SQL Server → PostgreSQL, Cloudinary → AWS S3)
+
+**4. Presentation Layer (Tầng Trình Diễn - Outer Most)**
+- **Vai trò**: Handle HTTP requests, render UI, user interactions
+- **Đặc điểm**:
+  - Phụ thuộc vào Application layer
+  - Chứa Controllers, Views, API endpoints
+  - Format data cho end users
+- **Ví dụ trong dự án**:
+  - `AuthController` expose `/api/auth/login`, `/api/auth/register`
+  - SignalR Hubs cho real-time messaging
+  - React Native mobile app
+  - React admin dashboard
+- **Lợi ích**: Có thể có nhiều presentation layers (Mobile, Web, Desktop) sử dụng chung Application layer
+
+#### 📊 Luồng Dữ Liệu (Data Flow)
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         PRESENTATION LAYER                               │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐│
-│  │   WebAPI     │  │  MobileApp   │  │  WebAdmin    │  │  WebUsers    ││
-│  │ (.NET Core)  │  │(React Native)│  │   (HTML/JS)  │  │   (React)    ││
-│  │              │  │              │  │              │  │              ││
-│  │ - Controllers│  │ - Components │  │ - Dashboard  │  │ - Pages      ││
-│  │ - Hubs       │  │ - Screens    │  │ - Charts     │  │ - Components ││
-│  │ - Middleware │  │ - Services   │  │ - Analytics  │  │ - Services   ││
-│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘│
-└────────────────────────────────┬────────────────────────────────────────┘
-                                 │ HTTP/WebSocket
-                                 ↓
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        APPLICATION LAYER                                 │
-│  • Services (Business Logic)                                             │
-│    - AuthService, UserService, PostService, MessageService, etc.         │
-│  • DTOs (Data Transfer Objects)                                          │
-│    - LoginDto, PostDto, UserDto, MessageDto, etc.                        │
-│  • Interfaces (Service Contracts)                                        │
-│    - IBusinessUpgradeService, ITokenService, IEmailService               │
-│  • Use Cases (CQRS-style)                                                │
-│    - User Registration, Post Creation, Message Sending                   │
-│  • Validators (FluentValidation)                                         │
-│    - LoginValidator, RegisterValidator, PostValidator                    │
-└────────────────────────────────┬────────────────────────────────────────┘
-                                 │ Business Logic
-                                 ↓
-┌─────────────────────────────────────────────────────────────────────────┐
-│                       INFRASTRUCTURE LAYER                               │
-│  • Repositories (Data Access)                                            │
-│    - AccountRepository, UserRepository, PostRepository, MessageRepo      │
-│  • DbContext (Entity Framework Core)                                     │
-│    - AppDbContext with 45+ DbSets                                        │
-│  • External Services                                                     │
-│    - CloudinaryService (Media CDN)                                       │
-│    - MoMoPaymentService (Payment Gateway)                                │
-│    - EmailService (SMTP)                                                 │
-│    - PhoBertModerationService (AI)                                       │
-│  • Configurations (Entity Mappings)                                      │
-│    - UserConfiguration, PostConfiguration, MessageConfiguration          │
-│  • Background Services                                                   │
-│    - ExpiredStoriesCleanupService                                        │
-│    - ExpiredBusinessAccountService                                       │
-│    - ExpiredPendingAccountsCleanupService                                │
-└────────────────────────────────┬────────────────────────────────────────┘
-                                 │ Repository Pattern
-                                 ↓
-┌─────────────────────────────────────────────────────────────────────────┐
-│                          DOMAIN LAYER (CORE)                             │
-│  • Entities (Business Objects)                                           │
-│    - Account, User, Admin, Post, Comment, Message, Story, etc.           │
-│  • Value Objects (Immutable Types)                                       │
-│    - Email, PhoneNumber, PasswordHash, ImageUrl                          │
-│  • Enums (Business Rules)                                                │
-│    - Gender, Privacy, ReactionType, NotificationType                     │
-│  • Interfaces (Repository Contracts)                                     │
-│    - IAccountRepository, IUserRepository, IPostRepository                │
-│  • Domain Events (Future)                                                │
-│    - UserRegisteredEvent, PostCreatedEvent                               │
-└─────────────────────────────────────────────────────────────────────────┘
+User Request → Controller (Presentation)
+    ↓
+  Service (Application) - Validate với DTOs
+    ↓
+  Repository (Infrastructure) - Query database
+    ↓
+  Entity (Domain) - Business logic
+    ↓
+  Repository → Service → Controller
+    ↓
+  Response (DTO) → User
 ```
 
-**🔑 Nguyên Tắc Clean Architecture:**
+#### ✅ Lợi Ích Trong Dự Án Thực Tế
 
-1. **Dependency Rule**: Dependencies chỉ hướng vào trong (Presentation → Application → Infrastructure → Domain)
-2. **Domain Layer**: Core business logic, không phụ thuộc vào bất kỳ layer nào
-3. **Application Layer**: Use cases và business logic, depend vào Domain
-4. **Infrastructure Layer**: Triển khai chi tiết (DB, External APIs), depend vào Application & Domain
-5. **Presentation Layer**: UI/Controllers, depend vào Application
+1. **Testability**: Unit test `AuthService` mà không cần database thật (mock `IAccountRepository`)
+2. **Maintainability**: Thay đổi database schema chỉ ảnh hưởng Infrastructure layer
+3. **Scalability**: Dễ dàng thêm new features mà không ảnh hưởng existing code
+4. **Team Collaboration**: Nhiều dev có thể làm song song trên các layers khác nhau
+5. **Technology Independence**: Có thể migrate từ SQL Server sang PostgreSQL mà không đụng vào business logic
+6. **Reusability**: Application layer có thể reuse cho multiple UIs (Mobile, Web, Desktop)
 
 ---
 
 ### System Architecture
 
-Sơ đồ kiến trúc hệ thống tổng quan với các components và luồng dữ liệu:
+#### 📖 Lý Thuyết Kiến Trúc 3-Tier
 
+**Kiến trúc 3 tầng (3-Tier Architecture)** là một mô hình kiến trúc phần mềm phổ biến chia hệ thống thành 3 tầng logic:
+
+1. **Presentation Tier (Client Tier)**: 
+   - Tầng giao diện người dùng
+   - Hiển thị dữ liệu và nhận input từ user
+   - Trong dự án: React Native Mobile, React Web Admin, HTML/JS Web Users
+
+2. **Application Tier (Logic Tier/Middle Tier)**:
+   - Tầng xử lý logic nghiệp vụ
+   - Nhận requests từ Presentation, xử lý và gọi Data tier
+   - Trong dự án: ASP.NET Core WebAPI với Controllers, Services, SignalR Hubs
+
+3. **Data Tier (Database Tier)**:
+   - Tầng lưu trữ và quản lý dữ liệu
+   - Trong dự án: SQL Server 2022, Cloudinary CDN, External Services
+
+**Ưu điểm**:
+- ✅ **Tách biệt concerns**: Mỗi tier có trách nhiệm riêng
+- ✅ **Scalability**: Có thể scale từng tier độc lập
+- ✅ **Maintainability**: Dễ maintain và debug
+- ✅ **Security**: Thêm security layers ở mỗi tier
+- ✅ **Reusability**: Application tier có thể serve nhiều clients
+
+**Nhược điểm**:
+- ❌ Network latency giữa các tiers
+- ❌ Phức tạp hơn trong deployment
+- ❌ Cần handle distributed transactions
+
+#### 🏗️ Sơ Đồ Kiến Trúc Hệ Thống
+
+```mermaid
+graph TB
+    subgraph ClientTier["🖥️ CLIENT TIER (Presentation)"]
+        MobileApp["📱 Mobile App<br/>React Native + Expo 54<br/>SignalR WebSocket<br/>Axios HTTP Client"]
+        WebAdmin["👨‍💼 Web Admin<br/>HTML/CSS/JavaScript<br/>Charts.js Analytics<br/>Bootstrap UI"]
+        WebUsers["🌐 Web Users<br/>React 18 + Vite<br/>TailwindCSS<br/>Modern SPA"]
+    end
+    
+    subgraph Gateway["🚪 API GATEWAY"]
+        NGINX["NGINX Reverse Proxy<br/>Load Balancer<br/>SSL/TLS Termination<br/>Rate Limiting"]
+    end
+    
+    subgraph AppTier["⚙️ APPLICATION TIER (Business Logic)"]
+        WebAPI["ASP.NET Core 8 WebAPI"]
+        
+        subgraph Controllers["Controllers"]
+            AuthCtrl["AuthController"]
+            PostCtrl["PostController"]
+            MsgCtrl["MessageController"]
+            BizCtrl["BusinessController"]
+            AdminCtrl["AdminController"]
+        end
+        
+        subgraph Hubs["SignalR Hubs (Real-time)"]
+            ChatHub["ChatHub<br/>1-1 Messaging"]
+            GroupHub["GroupChatHub<br/>Group Messaging"]
+            NotiHub["NotificationHub<br/>Push Notifications"]
+            CommentHub["CommentHub<br/>Live Comments"]
+        end
+        
+        subgraph Middleware["Middleware Pipeline"]
+            JWTAuth["JWT Authentication"]
+            CORS["CORS Policy"]
+            RateLimit["Rate Limiting"]
+            Exception["Exception Handler"]
+        end
+        
+        subgraph Services["Business Services"]
+            AuthSvc["AuthService"]
+            PostSvc["PostService"]
+            MsgSvc["MessageService"]
+            BizSvc["BusinessService"]
+        end
+    end
+    
+    subgraph DataTier["💾 DATA TIER"]
+        subgraph Database["Primary Database"]
+            SQLServer["SQL Server 2022<br/>45+ Tables<br/>EF Core ORM"]
+            Tables["• Accounts<br/>• Users/Admins<br/>• Posts/Comments<br/>• Messages<br/>• RBAC (5 tables)<br/>• Business Payments"]
+        end
+        
+        subgraph Cache["Cache Layer (Future)"]
+            Redis["Redis<br/>Session Storage<br/>Cache Layer"]
+        end
+    end
+    
+    subgraph ExternalServices["🌐 EXTERNAL SERVICES"]
+        Cloudinary["☁️ Cloudinary CDN<br/>Image/Video Storage<br/>Auto Optimization<br/>Transformation API"]
+        MoMo["💰 MoMo Payment<br/>QR Code Payment<br/>Webhook IPN<br/>HMAC SHA256"]
+        Email["📧 Email SMTP<br/>Gmail Service<br/>OTP Delivery<br/>Notifications"]
+        PhoBERT["🤖 PhoBERT AI<br/>Python FastAPI<br/>Content Moderation<br/>Toxicity Detection"]
+    end
+    
+    subgraph BackgroundJobs["⏰ BACKGROUND SERVICES"]
+        Job1["ExpiredStoriesCleanup<br/>(Every 1 hour)"]
+        Job2["ExpiredBusinessAccounts<br/>(Every 1 hour)"]
+        Job3["ExpiredPendingAccounts<br/>(Every 1 hour)"]
+    end
+    
+    %% Client to Gateway
+    MobileApp -->|HTTPS/WSS<br/>JWT Token| NGINX
+    WebAdmin -->|HTTPS<br/>JWT Token| NGINX
+    WebUsers -->|HTTPS/WSS<br/>JWT Token| NGINX
+    
+    %% Gateway to Application
+    NGINX -->|Reverse Proxy| WebAPI
+    
+    %% WebAPI Internal Flow
+    WebAPI --> Middleware
+    Middleware --> Controllers
+    Middleware --> Hubs
+    Controllers --> Services
+    Hubs --> Services
+    
+    %% Application to Data
+    Services -->|EF Core LINQ| SQLServer
+    SQLServer -.-> Tables
+    Services -.->|Future| Redis
+    
+    %% Application to External Services
+    Services -->|REST API| Cloudinary
+    Services -->|REST API + Webhook| MoMo
+    Services -->|SMTP| Email
+    Services -->|HTTP POST| PhoBERT
+    
+    %% Background Jobs
+    BackgroundJobs -->|Scheduled Tasks| Services
+    
+    %% Styling
+    style ClientTier fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px
+    style Gateway fill:#fff3e0,stroke:#e65100,stroke-width:3px
+    style AppTier fill:#e3f2fd,stroke:#1565c0,stroke-width:3px
+    style DataTier fill:#fce4ec,stroke:#c2185b,stroke-width:3px
+    style ExternalServices fill:#f3e5f5,stroke:#6a1b9a,stroke-width:3px
+    style BackgroundJobs fill:#fff9c4,stroke:#f57f17,stroke-width:2px
 ```
-┌────────────────────────────────────────────────────────────────────────────────┐
-│                              CLIENT TIER                                        │
-│  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐                   │
-│  │  Mobile App    │  │  Web Admin     │  │  Web Users     │                   │
-│  │ (React Native) │  │   (HTML/JS)    │  │    (React)     │                   │
-│  │                │  │                │  │                │                   │
-│  │ • Expo SDK     │  │ • Vanilla JS   │  │ • React 18     │                   │
-│  │ • SignalR WS   │  │ • Charts.js    │  │ • Vite         │                   │
-│  │ • Axios HTTP   │  │ • Bootstrap    │  │ • TailwindCSS  │                   │
-│  └────────────────┘  └────────────────┘  └────────────────┘                   │
-│           │                   │                    │                            │
-│           └───────────────────┴────────────────────┘                            │
-│                               │                                                 │
-│                    HTTPS/WSS  │  JWT Bearer Token                               │
-└───────────────────────────────┼─────────────────────────────────────────────────┘
-                                │
-┌───────────────────────────────┼─────────────────────────────────────────────────┐
-│                               │        API GATEWAY / LOAD BALANCER              │
-│                        ┌──────▼──────┐                                          │
-│                        │   NGINX     │                                          │
-│                        │ Reverse     │                                          │
-│                        │ Proxy       │                                          │
-│                        └─────────────┘                                          │
-└───────────────────────────────┼─────────────────────────────────────────────────┘
-                                │
-┌───────────────────────────────┼─────────────────────────────────────────────────┐
-│                               │        APPLICATION TIER                          │
-│                    ┌──────────▼──────────┐                                      │
-│                    │   ASP.NET Core 8    │                                      │
-│                    │   WebAPI Server     │                                      │
-│                    │                     │                                      │
-│                    │ ┌─────────────────┐ │                                      │
-│                    │ │  Controllers    │ │                                      │
-│                    │ │  • Auth         │ │                                      │
-│                    │ │  • Posts        │ │                                      │
-│                    │ │  • Messages     │ │                                      │
-│                    │ │  • Business     │ │                                      │
-│                    │ │  • Admin        │ │                                      │
-│                    │ └─────────────────┘ │                                      │
-│                    │                     │                                      │
-│                    │ ┌─────────────────┐ │                                      │
-│                    │ │  SignalR Hubs   │ │                                      │
-│                    │ │  • ChatHub      │ │                                      │
-│                    │ │  • GroupChatHub │ │                                      │
-│                    │ │  • NotificationHub│                                      │
-│                    │ │  • CommentHub   │ │                                      │
-│                    │ └─────────────────┘ │                                      │
-│                    │                     │                                      │
-│                    │ ┌─────────────────┐ │                                      │
-│                    │ │  Middleware     │ │                                      │
-│                    │ │  • JWT Auth     │ │                                      │
-│                    │ │  • CORS         │ │                                      │
-│                    │ │  • Rate Limit   │ │                                      │
-│                    │ │  • Exception    │ │                                      │
-│                    │ └─────────────────┘ │                                      │
-│                    └─────────────────────┘                                      │
-│                               │                                                 │
-│              ┌───────────────┼────────────────┐                                │
-│              │               │                │                                │
-└──────────────┼───────────────┼────────────────┼────────────────────────────────┘
-               │               │                │
-        ┌──────▼───────┐ ┌────▼─────┐  ┌──────▼────────┐
-        │              │ │          │  │               │
-┌───────┴──────────┐  │ │          │  │  ┌────────────┴──────┐
-│   DATA TIER      │  │ │          │  │  │  EXTERNAL SERVICES │
-│                  │  │ │          │  │  │                    │
-│ ┌──────────────┐ │  │ │          │  │  │ ┌────────────────┐ │
-│ │ SQL Server   │ │  │ │          │  │  │ │  Cloudinary    │ │
-│ │   2022       │ │  │ │          │  │  │ │   CDN          │ │
-│ │              │ │  │ │          │  │  │ │                │ │
-│ │ • Accounts   │ │  │ │          │  │  │ │ • Image Store  │ │
-│ │ • Users      │ │  │ │          │  │  │ │ • Video Store  │ │
-│ │ • Posts      │ │  │ │          │  │  │ │ • Optimization │ │
-│ │ • Messages   │ │  │ │          │  │  │ └────────────────┘ │
-│ │ • RBAC       │ │  │ │          │  │  │                    │
-│ │ • 45+ Tables │ │  │ │          │  │  │ ┌────────────────┐ │
-│ └──────────────┘ │  │ │          │  │  │ │  MoMo Payment  │ │
-│                  │  │ │          │  │  │ │   Gateway      │ │
-└──────────────────┘  │ │          │  │  │ │                │ │
-                      │ │          │  │  │ │ • QR Payment   │ │
-┌─────────────────┐   │ │          │  │  │ │ • Webhook IPN  │ │
-│   CACHE TIER    │   │ │          │  │  │ └────────────────┘ │
-│  (Future)       │   │ │          │  │  │                    │
-│ ┌─────────────┐ │   │ │          │  │  │ ┌────────────────┐ │
-│ │   Redis     │ │   │ │          │  │  │ │  Email SMTP    │ │
-│ │             │ │   │ │          │  │  │ │   (Gmail)      │ │
-│ │ • Sessions  │ │   │ │          │  │  │ │                │ │
-│ │ • Cache     │ │   │ │          │  │  │ │ • OTP Emails   │ │
-│ └─────────────┘ │   │ │          │  │  │ │ • Notifications│ │
-└─────────────────┘   │ │          │  │  │ └────────────────┘ │
-                      │ │          │  │  │                    │
-┌─────────────────┐   │ │          │  │  │ ┌────────────────┐ │
-│  AI SERVICE     │   │ │          │  │  │ │  PhoBERT AI    │ │
-│                 │   │ │          │  │  │ │  Moderation    │ │
-│ ┌─────────────┐ │   │ │          │  │  │ │                │ │
-│ │  Python     │ │   │ │          │  │  │ │ • Toxic Detect │ │
-│ │  FastAPI    │ │───┘ │          │  │  │ │ • Vietnamese   │ │
-│ │             │ │─────┘          │  │  │ │ • ML Model     │ │
-│ │ • PhoBERT   │ │────────────────┘  │  │ └────────────────┘ │
-│ │ • ML Models │ │                   │  └────────────────────┘
-│ └─────────────┘ │                   │
-└─────────────────┘                   │
-                                      │
-┌─────────────────────────────────────┼────────────────────────┐
-│           BACKGROUND SERVICES       │                        │
-│                                     │                        │
-│  • ExpiredStoriesCleanupService     │ (Runs every 1 hour)    │
-│  • ExpiredBusinessAccountService    │ (Runs every 1 hour)    │
-│  • ExpiredPendingAccountsCleanup    │ (Runs every 1 hour)    │
-│                                                              │
-└──────────────────────────────────────────────────────────────┘
+
+#### 📊 Phân Tích Chi Tiết Từng Tầng
+
+**🖥️ CLIENT TIER (Presentation Tier)**
+- **Công nghệ**: React Native (Mobile), React 18 (Web), Vanilla JS (Admin)
+- **Chức năng**: 
+  - Hiển thị UI/UX cho người dùng
+  - Handle user interactions
+  - Real-time updates qua SignalR WebSocket
+  - HTTP requests qua Axios
+- **Giao tiếp**: HTTPS/WSS với JWT Bearer token authentication
+- **Ý nghĩa**: Tách biệt UI khỏi business logic, có thể có multiple clients (Mobile, Web, Desktop)
+
+**🚪 API GATEWAY (NGINX)**
+- **Công nghệ**: NGINX Reverse Proxy
+- **Chức năng**:
+  - Load balancing giữa nhiều API servers
+  - SSL/TLS termination (HTTPS → HTTP internal)
+  - Rate limiting chống DDoS
+  - Static file serving
+  - Request routing based on URL patterns
+- **Ý nghĩa**: Single entry point, bảo mật tốt hơn, dễ scale horizontal
+
+**⚙️ APPLICATION TIER (Business Logic Tier)**
+- **Công nghệ**: ASP.NET Core 8 WebAPI
+- **Components**:
+  - **Controllers**: Handle HTTP requests (RESTful APIs)
+  - **SignalR Hubs**: Handle WebSocket connections (real-time)
+  - **Middleware**: JWT auth, CORS, rate limiting, exception handling
+  - **Services**: Business logic (AuthService, PostService, etc.)
+- **Chức năng**:
+  - Xử lý business rules
+  - Orchestrate workflows
+  - Validate input với FluentValidation
+  - Transform data với DTOs
+- **Ý nghĩa**: Core của hệ thống, chứa toàn bộ business logic, có thể scale độc lập
+
+**💾 DATA TIER (Database Tier)**
+- **Công nghệ**: SQL Server 2022 + EF Core 8/9
+- **Chức năng**:
+  - Persistent storage cho 45+ tables
+  - ACID transactions
+  - Indexes cho performance
+  - Stored procedures (future)
+  - **Redis** (future): Caching, session storage, pub/sub
+- **Ý nghĩa**: Centralized data management, data integrity, backup/restore
+
+**🌐 EXTERNAL SERVICES**
+- **Cloudinary**: CDN cho images/videos, auto-optimization, transformations
+- **MoMo Payment**: Payment gateway cho Business upgrades, QR code, webhooks
+- **Email SMTP**: Gửi OTP, notifications qua Gmail SMTP
+- **PhoBERT AI**: Python microservice cho content moderation (detect toxic content)
+- **Ý nghĩa**: Leverage third-party services, focus on core business, reduce development time
+
+**⏰ BACKGROUND SERVICES**
+- **Hosted Services** chạy theo schedule:
+  - Clean expired stories (24h old)
+  - Deactivate expired business accounts
+  - Remove pending accounts (not verified after 7 days)
+- **Ý nghĩa**: Automated maintenance tasks, không block main API requests
+
+#### 🔄 Luồng Dữ Liệu (Data Flow Patterns)
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant N as NGINX
+    participant API as WebAPI
+    participant S as Service
+    participant R as Repository
+    participant DB as Database
+    participant Ext as External Service
+    
+    Note over C,Ext: 1. Standard HTTP Request Flow
+    C->>N: HTTPS Request + JWT
+    N->>API: Forward Request
+    API->>S: Business Logic
+    S->>R: Data Access
+    R->>DB: SQL Query
+    DB-->>R: Result Set
+    R-->>S: Entities
+    S-->>API: DTOs
+    API-->>N: JSON Response
+    N-->>C: HTTPS Response
+    
+    Note over C,Ext: 2. WebSocket Real-time Flow
+    C->>API: WSS Connection + JWT
+    API->>S: Hub Method Call
+    S->>DB: Save/Query Data
+    S-->>API: Broadcast Event
+    API-->>C: Real-time Update
+    
+    Note over C,Ext: 3. External Service Integration
+    C->>API: Upload Request
+    API->>S: Process
+    S->>Ext: API Call (Cloudinary/MoMo/Email)
+    Ext-->>S: Response
+    S-->>API: Result
+    API-->>C: Success Response
 ```
 
-**🔄 Luồng Dữ Liệu (Data Flow):**
+**Các Luồng Chi Tiết:**
 
-1. **HTTP Request**: Client → NGINX → WebAPI → Controllers → Services → Repositories → Database
-2. **WebSocket**: Client ↔ SignalR Hub ↔ Services ↔ Database (real-time bidirectional)
-3. **Media Upload**: Client → Controller → Cloudinary Service → Cloudinary CDN
-4. **Payment**: Client → Controller → MoMo Service → MoMo Gateway → Webhook Callback
-5. **AI Moderation**: Service → PhoBERT API (Python) → ML Model → Response
-6. **Background Jobs**: Hosted Service → Services → Repositories → Database
+1. **HTTP REST API Flow**: 
+   - Client → NGINX (reverse proxy) → WebAPI Controllers → Services (business logic) → Repositories → Database
+   - Response theo chiều ngược lại: Database → Repository → Service → Controller → NGINX → Client
+
+2. **WebSocket Real-time Flow**: 
+   - Client ↔ SignalR Hub (persistent connection) ↔ Services ↔ Database
+   - Bidirectional: Server có thể push data đến client bất cứ lúc nào
+
+3. **Media Upload Flow**: 
+   - Client → Controller (multipart/form-data) → Cloudinary Service → Cloudinary CDN API
+   - Return: Cloudinary URL → Service → Controller → Client
+
+4. **Payment Flow**: 
+   - Client → BusinessController → MoMo Service → MoMo Gateway (create QR)
+   - Webhook: MoMo → Callback endpoint → Verify signature → Update database
+
+5. **AI Moderation Flow**: 
+   - Post/Comment created → Service → PhoBERT HTTP API (Python FastAPI:8000) → ML Model inference → Response (toxic/safe)
+   - Background processing với retry logic
+
+6. **Background Jobs Flow**: 
+   - Scheduled timer → Hosted Service → Services → Repositories → Database
+   - Chạy độc lập, không block API requests
 
 ---
 
@@ -992,32 +1211,1973 @@ Comment (1) ─→ (0..1) ParentComment
 
 ---
 
-## ⚙️ Nghiệp Vụ Chi Tiết
+## 📊 Sơ Đồ Nghiệp Vụ Chi Tiết (Business Flow Diagrams)
 
-### 1. Quy Trình Đăng Ký & Đăng Nhập
+### 📋 Danh Sách Đầy Đủ 12 Modules
+
+1. [Authentication Module](#1-authentication-module---xác-thực--đăng-nhập) - Đăng ký, Đăng nhập, OTP, JWT
+2. [Posts Module](#2-posts-module---quản-lý-bài-viết) - Tạo bài, Feed, Reels, AI Moderation
+3. [Messages Module](#3-messages-module---nhắn-tin-1-1) - Real-time messaging, WebSocket
+4. [Group Chat Module](#4-group-chat-module---nhóm-chat) - Nhóm chat, Roles, Media sharing
+5. [Notifications Module](#5-notifications-module---thông-báo) - Real-time notifications
+6. [Profile Module](#6-profile-module---quản-lý-profile) - Profile, Follow, Block
+7. [Stories Module](#7-stories-module---stories-24h) - Stories, Auto-expire
+8. [Comments & Reactions Module](#8-comments--reactions-module) - Comments, Reactions, Shares
+9. [Search Module](#9-search-module---tìm-kiếm) - Search users, posts, priority ranking
+10. [Business Module](#10-business-module---nâng-cấp-doanh-nghiệp) - MoMo payment, Business features
+11. [Admin Module](#11-admin-module---quản-trị-hệ-thống) - Dashboard, Analytics, Moderation
+12. [RBAC System](#12-rbac-system---phân-quyền) - Roles, Permissions, Authorization
+
+---
+
+### 1. Authentication Module - Xác Thực & Đăng Nhập
+
+#### 1.1. Quy Trình Đăng Ký User (Registration Flow)
 
 ```mermaid
 sequenceDiagram
     participant U as User
-    participant A as API
+    participant API as AuthController
+    participant S as AuthService
+    participant V as Validator
+    participant H as PasswordHasher
     participant DB as Database
-    participant E as Email Service
+    participant E as EmailService
+    participant OTP as OTP Generator
     
-    U->>A: POST /api/auth/register
-    A->>A: Validate input (FluentValidation)
-    A->>DB: Check email exists
-    A->>A: Hash password (BCrypt)
-    A->>DB: Create Account + User
-    A->>A: Generate OTP
-    A->>E: Send OTP email
-    A->>U: Return success
+    U->>API: POST /api/auth/register<br/>{email, password, fullname, dob, gender}
+    API->>V: Validate RegisterDto
+    V->>V: Email format check
+    V->>V: Password strength<br/>(min 8 chars, uppercase, lowercase, number, special)
+    V->>V: Age >= 13 years
+    V->>V: Gender in [Nam, Nữ, Khác]
     
-    U->>A: POST /api/auth/verify-otp
-    A->>DB: Validate OTP
-    A->>DB: Mark account verified
-    A->>A: Generate JWT tokens
-    A->>U: Return Access + Refresh tokens
+    alt Validation Failed
+        V-->>API: ValidationException
+        API-->>U: 400 Bad Request + Error details
+    end
+    
+    V-->>API: Valid
+    API->>S: RegisterUser(dto)
+    S->>DB: Check email exists
+    
+    alt Email Already Exists
+        DB-->>S: Email found
+        S-->>API: Email already registered
+        API-->>U: 409 Conflict
+    end
+    
+    S->>H: HashPassword(password)
+    H-->>S: PasswordHash (BCrypt, work factor 12)
+    
+    S->>DB: BEGIN TRANSACTION
+    S->>DB: INSERT INTO Accounts<br/>(email, password_hash, status='Pending')
+    DB-->>S: account_id
+    S->>DB: INSERT INTO Users<br/>(account_id, fullname, dob, gender, username)
+    DB-->>S: user_id
+    S->>DB: COMMIT TRANSACTION
+    
+    S->>OTP: GenerateOTP(account_id)
+    OTP->>OTP: Generate 6-digit code
+    OTP->>H: HashOTP(code)
+    OTP->>DB: INSERT INTO OTPs<br/>(account_id, otp_hash, purpose='Registration'<br/>expires_at=NOW()+10min)
+    
+    S->>E: SendEmail(email, otp_code)
+    E->>E: SMTP Gmail connection
+    E->>E: Send email with OTP
+    
+    alt Email Send Failed
+        E-->>S: SMTP Error
+        S->>DB: ROLLBACK
+        S-->>API: Email service unavailable
+        API-->>U: 500 Internal Server Error
+    end
+    
+    E-->>S: Email sent
+    S-->>API: Registration successful<br/>(Account pending verification)
+    API-->>U: 200 OK<br/>{message: "OTP sent to email"}
+    
+    Note over U,OTP: OTP expires in 10 minutes<br/>Max 5 attempts allowed
 ```
+
+#### 1.2. Quy Trình Xác Thực OTP (OTP Verification)
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as AuthController
+    participant S as AuthService
+    participant DB as Database
+    participant JWT as JWTService
+    participant RBAC as RBACService
+    
+    U->>API: POST /api/auth/verify-otp<br/>{email, otp_code}
+    API->>S: VerifyOTP(email, otp_code)
+    
+    S->>DB: SELECT FROM OTPs<br/>WHERE account_id = (SELECT id FROM Accounts WHERE email=?)<br/>AND purpose='Registration'<br/>AND expires_at > NOW()
+    
+    alt OTP Not Found or Expired
+        DB-->>S: No valid OTP
+        S-->>API: Invalid or expired OTP
+        API-->>U: 400 Bad Request
+    end
+    
+    DB-->>S: OTP record
+    S->>S: Verify OTP hash (BCrypt compare)
+    
+    alt OTP Hash Mismatch
+        S->>DB: UPDATE OTPs SET failed_attempts += 1
+        S->>DB: SELECT failed_attempts
+        
+        alt Failed Attempts >= 5
+            S->>DB: DELETE FROM OTPs WHERE account_id=?
+            S-->>API: Too many failed attempts
+            API-->>U: 429 Too Many Requests
+        end
+        
+        S-->>API: Invalid OTP
+        API-->>U: 400 Bad Request<br/>{remaining_attempts}
+    end
+    
+    S->>DB: BEGIN TRANSACTION
+    S->>DB: UPDATE Accounts<br/>SET status='Active', email_verified_at=NOW()<br/>WHERE account_id=?
+    S->>DB: DELETE FROM OTPs WHERE account_id=?
+    
+    S->>RBAC: AssignRole(account_id, 'User')
+    RBAC->>DB: INSERT INTO AccountRoles<br/>(account_id, role_id=1, is_active=true)
+    
+    S->>DB: COMMIT TRANSACTION
+    
+    S->>JWT: GenerateTokens(account_id, email, roles)
+    JWT->>JWT: Create Access Token<br/>(expires in 15 minutes)
+    JWT->>JWT: Create Refresh Token<br/>(expires in 30 days)
+    JWT->>DB: INSERT INTO RefreshTokens<br/>(account_id, token, expires_at)
+    JWT-->>S: {access_token, refresh_token}
+    
+    S->>DB: INSERT INTO LoginHistories<br/>(account_id, login_at, ip_address, user_agent)
+    
+    S-->>API: Authentication successful
+    API-->>U: 200 OK<br/>{access_token, refresh_token, user_info}
+    
+    Note over U,RBAC: User now has 'User' role<br/>Access Token valid for 15 min<br/>Refresh Token valid for 30 days
+```
+
+#### 1.3. Quy Trình Đăng Nhập (Login Flow)
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as AuthController
+    participant S as AuthService
+    participant DB as Database
+    participant H as PasswordHasher
+    participant JWT as JWTService
+    participant RBAC as RBACService
+    
+    U->>API: POST /api/auth/login<br/>{email, password}
+    API->>S: Login(email, password)
+    
+    S->>DB: SELECT * FROM Accounts<br/>WHERE email=? AND status='Active'
+    
+    alt Account Not Found or Not Active
+        DB-->>S: No account found
+        S-->>API: Invalid credentials
+        API-->>U: 401 Unauthorized
+    end
+    
+    DB-->>S: Account record
+    S->>H: VerifyPassword(password, password_hash)
+    
+    alt Password Mismatch
+        H-->>S: Password incorrect
+        S->>DB: INSERT INTO LoginHistories<br/>(account_id, login_at, success=false)
+        S-->>API: Invalid credentials
+        API-->>U: 401 Unauthorized
+    end
+    
+    H-->>S: Password correct
+    
+    S->>RBAC: GetAccountRoles(account_id)
+    RBAC->>DB: SELECT r.role_name FROM AccountRoles ar<br/>JOIN Roles r ON ar.role_id = r.role_id<br/>WHERE ar.account_id=? AND ar.is_active=true
+    DB-->>RBAC: List of roles
+    RBAC-->>S: ['User'] or ['Business'] or ['Admin']
+    
+    S->>RBAC: GetAccountPermissions(account_id)
+    RBAC->>DB: Get effective permissions<br/>(RolePermissions + AccountPermissions)
+    DB-->>RBAC: List of permissions
+    RBAC-->>S: [permissions array]
+    
+    S->>JWT: GenerateTokens(account_id, email, roles, permissions)
+    JWT->>JWT: Create Access Token with claims:<br/>{userId, email, roles, top 20 permissions}
+    JWT->>JWT: Create Refresh Token
+    JWT->>DB: INSERT INTO RefreshTokens
+    JWT-->>S: {access_token, refresh_token}
+    
+    S->>DB: INSERT INTO LoginHistories<br/>(account_id, login_at, ip_address, user_agent, success=true)
+    
+    S->>DB: SELECT user info
+    DB-->>S: User/Admin profile
+    
+    S-->>API: Login successful
+    API-->>U: 200 OK<br/>{access_token, refresh_token, user_info, roles, permissions}
+    
+    Note over U,RBAC: JWT tokens returned<br/>Client stores tokens in localStorage/AsyncStorage<br/>Include in subsequent requests as Bearer token
+```
+
+#### 1.4. Quy Trình Refresh Token
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as AuthController
+    participant S as AuthService
+    participant DB as Database
+    participant JWT as JWTService
+    
+    Note over U: Access token expired (15 min)
+    
+    U->>API: POST /api/auth/refresh<br/>{refresh_token}
+    API->>S: RefreshAccessToken(refresh_token)
+    
+    S->>DB: SELECT * FROM RefreshTokens<br/>WHERE token=? AND expires_at > NOW()<br/>AND is_revoked=false
+    
+    alt Refresh Token Invalid
+        DB-->>S: Token not found or expired
+        S-->>API: Invalid refresh token
+        API-->>U: 401 Unauthorized<br/>(Must login again)
+    end
+    
+    DB-->>S: Valid refresh token record
+    S->>JWT: ValidateRefreshToken(token)
+    JWT->>JWT: Verify signature
+    JWT-->>S: Token valid
+    
+    S->>DB: Get account + roles + permissions
+    
+    S->>JWT: GenerateNewAccessToken(account_id, email, roles, permissions)
+    JWT-->>S: new_access_token
+    
+    S-->>API: Token refreshed
+    API-->>U: 200 OK<br/>{access_token, refresh_token}
+    
+    Note over U,JWT: New access token issued<br/>Same refresh token (or new one)<br/>Client updates stored token
+```
+
+#### 1.5. Quy Trình Quên Mật Khẩu (Forgot Password)
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as AuthController
+    participant S as AuthService
+    participant DB as Database
+    participant OTP as OTP Generator
+    participant E as EmailService
+    participant H as PasswordHasher
+    
+    U->>API: POST /api/auth/forgot-password<br/>{email}
+    API->>S: ForgotPassword(email)
+    
+    S->>DB: SELECT FROM Accounts WHERE email=?
+    
+    alt Account Not Found
+        S-->>API: Account not found
+        API-->>U: 404 Not Found
+    end
+    
+    DB-->>S: Account exists
+    
+    S->>OTP: GenerateOTP(account_id)
+    OTP->>H: HashOTP(code)
+    OTP->>DB: INSERT INTO OTPs<br/>(account_id, otp_hash, purpose='ForgotPassword')
+    
+    S->>E: SendEmail(email, otp_code)
+    E-->>S: Email sent
+    
+    S-->>API: OTP sent
+    API-->>U: 200 OK<br/>{message: "Reset code sent"}
+    
+    Note over U: User receives OTP via email
+    
+    U->>API: POST /api/auth/reset-password<br/>{email, otp_code, new_password}
+    API->>S: ResetPassword(email, otp, new_password)
+    
+    S->>DB: Verify OTP (same as registration)
+    S->>H: HashPassword(new_password)
+    H-->>S: new_password_hash
+    
+    S->>DB: BEGIN TRANSACTION
+    S->>DB: UPDATE Accounts<br/>SET password_hash=?, updated_at=NOW()
+    S->>DB: DELETE FROM OTPs WHERE account_id=?
+    S->>DB: DELETE FROM RefreshTokens WHERE account_id=?
+    S->>DB: COMMIT TRANSACTION
+    
+    S-->>API: Password reset successful
+    API-->>U: 200 OK<br/>{message: "Password updated"}
+    
+    Note over U,H: All refresh tokens revoked<br/>User must login again with new password
+```
+
+---
+
+### 2. Posts Module - Quản Lý Bài Viết
+
+#### 2.1. Quy Trình Tạo Bài Đăng với AI Moderation
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as PostsController
+    participant S as PostsService
+    participant AI as PhoBertModerationService
+    participant C as CloudinaryService
+    participant DB as Database
+    participant CDN as Cloudinary CDN
+    
+    U->>API: POST /api/posts<br/>(multipart/form-data)<br/>{caption, location, privacy, images[], video}
+    API->>S: CreatePost(userId, dto, files)
+    
+    S->>S: Validate input:<br/>- Caption max 2000 chars<br/>- Privacy in [Public, Private, Followers]<br/>- Images: max 10, formats [jpg,png,gif,webp]<br/>- Video: max 100MB, formats [mp4,mov,avi]<br/>- Cannot have both images AND video
+    
+    alt Validation Failed
+        S-->>API: ValidationException
+        API-->>U: 400 Bad Request
+    end
+    
+    Note over S,AI: Step 1: AI Content Moderation for Caption
+    
+    alt Caption exists
+        S->>AI: ModerateText(caption)
+        AI->>AI: Call Python FastAPI<br/>POST http://localhost:8000/moderate
+        AI->>AI: PhoBERT model inference<br/>(Vietnamese BERT for toxicity)
+        
+        AI-->>S: ModerationResult<br/>{toxicLabel, confidence, riskLevel}
+        
+        alt Risk Level = HIGH (confidence >= 0.85)
+            S->>DB: INSERT INTO ContentModeration<br/>(ContentType='Post', ToxicLabel, AIConfidence, Status='Blocked')
+            S-->>API: Content violates policy
+            API-->>U: 400 Bad Request<br/>{message: "Toxic content detected", label, confidence}
+            Note over U: Post creation blocked immediately
+        end
+    end
+    
+    Note over S,CDN: Step 2: Upload Media to Cloudinary
+    
+    alt Images exist
+        loop For each image
+            S->>C: UploadImage(imageFile)
+            C->>CDN: Upload to /social-media/images/{userId}/
+            CDN-->>C: {url, public_id}
+            C-->>S: Image URL
+        end
+    end
+    
+    alt Video exists
+        S->>C: UploadVideo(videoFile)
+        C->>CDN: Upload to /social-media/videos/{userId}/
+        CDN-->>C: {url, public_id}
+        C-->>S: Video URL
+    end
+    
+    Note over S,DB: Step 3: Save to Database
+    
+    S->>DB: BEGIN TRANSACTION
+    S->>DB: INSERT INTO Posts<br/>(user_id, caption, location, privacy, is_visible=true, created_at)
+    DB-->>S: post_id
+    
+    alt Media exists
+        loop For each media
+            S->>DB: INSERT INTO PostMedia<br/>(post_id, media_url, media_type, display_order)
+        end
+    end
+    
+    alt AI Moderation result exists
+        S->>DB: INSERT INTO ContentModeration<br/>(ContentType='Post', ContentID=post_id, AIConfidence, ToxicLabel, Status='Approved')
+    end
+    
+    S->>DB: COMMIT TRANSACTION
+    
+    S-->>API: Post created successfully
+    API-->>U: 201 Created<br/>{post_id, caption, media_urls, created_at}
+    
+    Note over U,DB: Post visible in feed<br/>AI moderation completed
+```
+
+#### 2.2. Quy Trình Lấy Feed (Get Feed with Business Priority)
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as PostsController
+    participant PS as PostsService
+    participant Prior as UserPostPrioritizationService
+    participant Inject as BusinessPostInjectionService
+    participant Search as SearchService
+    participant DB as Database
+    
+    U->>API: GET /api/posts/feed?page=1&pageSize=20
+    API->>PS: GetFeed(userId, page, pageSize)
+    
+    PS->>DB: Query posts:<br/>1. Public posts from all users<br/>2. Followers-only posts from following<br/>3. Private posts from self
+    
+    DB->>DB: Complex query with JOINs:<br/>SELECT p.*, u.*, a.account_type, media, reactions, comments<br/>FROM Posts p<br/>JOIN Users u ON p.user_id = u.user_id<br/>JOIN Accounts a ON u.account_id = a.account_id<br/>LEFT JOIN PostMedia pm ON p.post_id = pm.post_id<br/>LEFT JOIN Reactions r ON p.post_id = r.post_id<br/>LEFT JOIN Comments c ON p.post_id = c.post_id<br/>WHERE (p.privacy = 'Public'<br/>  OR (p.privacy = 'Followers' AND EXISTS(SELECT 1 FROM Follows WHERE followed_user_id=p.user_id AND follower_user_id=@userId))<br/>  OR p.user_id = @userId)<br/>AND p.is_visible = true<br/>ORDER BY p.created_at DESC
+    
+    DB-->>PS: Raw posts list
+    
+    Note over PS,Inject: Apply Business Priority Algorithm
+    
+    PS->>Prior: PrioritizePosts(posts)
+    Prior->>Prior: Separate posts:<br/>businessPosts = posts.Where(p => p.AccountType == Business)<br/>normalPosts = posts.Where(p => p.AccountType == User)
+    Prior->>Prior: Concat: businessPosts + normalPosts
+    Prior-->>PS: Prioritized posts
+    
+    Note over PS,Inject: Apply Personalization (Search History)
+    
+    PS->>Search: GetUserSearchHistory(userId)
+    Search->>DB: SELECT keywords FROM SearchHistory<br/>WHERE user_id=? ORDER BY searched_at DESC LIMIT 20
+    DB-->>Search: Recent search keywords
+    Search-->>PS: [keyword1, keyword2, ...]
+    
+    PS->>PS: Score posts based on keywords:<br/>If post.caption contains any keyword: score += 10<br/>Sort by (score DESC, created_at DESC)
+    
+    Note over PS,Inject: Inject Business Posts Every 5 Posts
+    
+    PS->>Inject: InjectBusinessPosts(posts)
+    Inject->>Inject: Algorithm:<br/>result = []<br/>businessQueue = businessPosts.ToQueue()<br/>for i in range(0, normalPosts.length, 5):<br/>  result.add(normalPosts[i:i+5])<br/>  if businessQueue.Any():<br/>    result.add(businessQueue.Dequeue())
+    Inject-->>PS: Final feed with injected business posts
+    
+    PS->>PS: Apply pagination:<br/>Skip((page-1) * pageSize).Take(pageSize)
+    
+    PS->>PS: Transform to DTOs:<br/>For each post: map to PostDto with:<br/>- Post info (caption, location, privacy)<br/>- Author (username, fullname, avatar, account_type)<br/>- Media URLs (images/videos from Cloudinary)<br/>- Engagement (reaction_count, comment_count, share_count)<br/>- Has user reacted? (check if userId in reactions)
+    
+    PS-->>API: Feed DTOs
+    API-->>U: 200 OK<br/>{posts: [...], totalCount, page, pageSize}
+    
+    Note over U,DB: Feed algorithm:<br/>1. Business posts prioritized<br/>2. Personalized by search history<br/>3. Business posts injected every 5 posts<br/>4. Paginated for performance
+```
+
+#### 2.3. Quy Trình Tạo Reels (Video Posts)
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as PostsController
+    participant S as PostsService
+    participant C as CloudinaryService
+    participant CDN as Cloudinary
+    participant DB as Database
+    
+    U->>API: POST /api/posts<br/>(Form: video file + caption)
+    API->>S: CreateReel(userId, video, caption)
+    
+    S->>S: Validate:<br/>- Video required<br/>- Max 100MB<br/>- Formats: mp4, mov, m4v<br/>- Duration max 60 seconds (future)
+    
+    S->>C: UploadVideo(videoFile)
+    C->>CDN: Upload with transformation:<br/>- Quality: auto<br/>- Format: mp4<br/>- Folder: /social-media/reels/
+    CDN-->>C: {url, thumbnail_url, duration}
+    C-->>S: Video URLs
+    
+    S->>DB: INSERT INTO Posts<br/>(user_id, caption, privacy, is_visible)<br/>INSERT INTO PostMedia<br/>(post_id, media_url, media_type='Video')
+    
+    S-->>API: Reel created
+    API-->>U: 201 Created<br/>{post_id, video_url, thumbnail}
+    
+    Note over U: Video appears in /api/posts/reels feed
+```
+
+---
+
+### 3. Messages Module - Nhắn Tin 1-1
+
+#### 3.1. Quy Trình Kết Nối SignalR (WebSocket Connection)
+
+```mermaid
+sequenceDiagram
+    participant U as User (Client)
+    participant Hub as ChatHub (SignalR)
+    participant Conn as ConnectionManager
+    participant DB as Database
+    participant JWT as JWT Validator
+    
+    Note over U: User opens app/chat screen
+    
+    U->>Hub: Connect to /hubs/messages?access_token={jwt}
+    Hub->>JWT: ValidateToken(access_token)
+    
+    alt Token Invalid
+        JWT-->>Hub: Invalid token
+        Hub-->>U: Connection rejected (401)
+    end
+    
+    JWT-->>Hub: Token valid, extract userId
+    Hub->>Hub: OnConnectedAsync()
+    Hub->>Conn: Store connection:<br/>_connections[userId] = Context.ConnectionId
+    
+    Hub->>DB: Get online users
+    Hub->>Hub: Broadcast to all connections:<br/>UserOnline(userId)
+    
+    Hub-->>U: Connection established<br/>ConnectionId: {guid}
+    
+    Note over U,DB: User now online<br/>Can send/receive messages in real-time
+    
+    alt User closes app/disconnects
+        U->>Hub: Disconnect
+        Hub->>Hub: OnDisconnectedAsync()
+        Hub->>Conn: Remove from _connections
+        Hub->>Hub: Broadcast:<br/>UserOffline(userId)
+    end
+```
+
+#### 3.2. Quy Trình Gửi Tin Nhắn Real-time
+
+```mermaid
+sequenceDiagram
+    participant U1 as User 1 (Sender)
+    participant Hub as ChatHub
+    participant S as MessageService
+    participant F as FollowRepository
+    participant DB as Database
+    participant Conn as ConnectionManager
+    participant U2 as User 2 (Receiver)
+    
+    Note over U1: User types message and clicks send
+    
+    U1->>Hub: SendMessage(receiverUserId, messageContent)
+    Hub->>Hub: Get senderId from Context.User claims
+    
+    Hub->>F: CheckMutualFollow(senderId, receiverUserId)
+    F->>DB: SELECT COUNT(*) FROM Follows<br/>WHERE (follower_user_id=@sender AND followed_user_id=@receiver)<br/>  AND (follower_user_id=@receiver AND followed_user_id=@sender)
+    
+    alt Not Mutual Followers
+        DB-->>F: Count = 0 or 1
+        F-->>Hub: Not mutual
+        Hub-->>U1: Error: Can only message mutual followers
+    end
+    
+    F-->>Hub: Mutual followers confirmed
+    
+    Hub->>S: SendMessage(senderId, receiverUserId, content)
+    S->>DB: Find or create conversation:<br/>SELECT * FROM Conversations c<br/>JOIN ConversationMembers cm1 ON c.conversation_id = cm1.conversation_id<br/>JOIN ConversationMembers cm2 ON c.conversation_id = cm2.conversation_id<br/>WHERE cm1.user_id=@sender AND cm2.user_id=@receiver
+    
+    alt Conversation not found
+        S->>DB: BEGIN TRANSACTION
+        S->>DB: INSERT INTO Conversations (created_at)
+        DB-->>S: conversation_id
+        S->>DB: INSERT INTO ConversationMembers (conversation_id, user_id) VALUES (@conv_id, @sender)
+        S->>DB: INSERT INTO ConversationMembers (conversation_id, user_id) VALUES (@conv_id, @receiver)
+        S->>DB: COMMIT
+    end
+    
+    DB-->>S: conversation_id
+    
+    S->>DB: INSERT INTO Messages<br/>(conversation_id, sender_user_id, message_content, sent_at, is_read=false)
+    DB-->>S: message_id
+    
+    S->>DB: UPDATE Conversations<br/>SET last_message_content=@content, last_message_sent_at=NOW()
+    
+    S-->>Hub: Message saved, message_id
+    
+    Note over Hub,Conn: Send to both parties via SignalR
+    
+    Hub->>Conn: Get sender connection
+    Conn-->>Hub: sender_connection_id
+    Hub->>U1: MessageSent(messageDto)<br/>✓ Confirmation with message_id
+    
+    Hub->>Conn: Get receiver connection
+    Conn-->>Hub: receiver_connection_id
+    
+    alt Receiver Online
+        Hub->>U2: ReceiveMessage(messageDto)<br/>📩 New message notification
+        Note over U2: Message appears immediately in chat
+    end
+    
+    alt Receiver Offline
+        Note over Hub: Message saved in DB<br/>Receiver will fetch when online
+    end
+    
+    Note over U1,U2: Real-time delivery complete<br/>Both parties see message instantly
+```
+
+#### 3.3. Quy Trình Đánh Dấu Đã Đọc (Read Receipts)
+
+```mermaid
+sequenceDiagram
+    participant U2 as User 2 (Reader)
+    participant Hub as ChatHub
+    participant S as MessageService
+    participant DB as Database
+    participant Conn as ConnectionManager
+    participant U1 as User 1 (Sender)
+    
+    Note over U2: User 2 opens conversation with User 1
+    
+    U2->>Hub: MarkAsRead(conversationId)
+    Hub->>S: MarkMessagesAsRead(userId, conversationId)
+    
+    S->>DB: UPDATE Messages<br/>SET is_read=true, read_at=NOW()<br/>WHERE conversation_id=@conv_id<br/>  AND sender_user_id != @userId<br/>  AND is_read=false
+    
+    DB-->>S: Updated count
+    
+    S->>DB: UPDATE ConversationMembers<br/>SET last_read_message_id = (SELECT MAX(message_id) FROM Messages WHERE conversation_id=@conv_id)
+    
+    S-->>Hub: Messages marked as read
+    
+    Hub->>Conn: Get sender (User 1) connection
+    
+    alt User 1 Online
+        Hub->>U1: MessagesRead({conversationId, readByUserId, readAt})<br/>✓✓ Double check mark
+        Note over U1: Sender sees blue check marks
+    end
+    
+    Hub-->>U2: Success
+```
+
+#### 3.4. Quy Trình Thu Hồi Tin Nhắn (Message Recall)
+
+```mermaid
+sequenceDiagram
+    participant U1 as User 1 (Sender)
+    participant API as MessagesController
+    participant S as MessageService
+    participant DB as Database
+    participant Hub as ChatHub
+    participant U2 as User 2 (Receiver)
+    
+    Note over U1: User long-press message, clicks "Recall"
+    
+    U1->>API: POST /api/messages/recall/{messageId}
+    API->>S: RecallMessage(userId, messageId)
+    
+    S->>DB: SELECT * FROM Messages WHERE message_id=@id
+    
+    alt Message not found
+        S-->>API: Not found
+        API-->>U1: 404 Not Found
+    end
+    
+    S->>S: Check: sender_user_id == userId
+    
+    alt Not message owner
+        S-->>API: Unauthorized
+        API-->>U1: 403 Forbidden
+    end
+    
+    S->>S: Check: sent_at within last 15 minutes
+    
+    alt More than 15 minutes ago
+        S-->>API: Recall time expired
+        API-->>U1: 400 Bad Request<br/>{message: "Can only recall within 15 min"}
+    end
+    
+    S->>DB: UPDATE Messages<br/>SET is_recalled=true, recalled_at=NOW(),<br/>message_content='[Tin nhắn đã được thu hồi]'
+    
+    S-->>API: Message recalled
+    API-->>U1: 200 OK
+    
+    S->>Hub: Broadcast MessageRecalled(messageId)
+    Hub->>U1: Update UI: show recalled message
+    Hub->>U2: Update UI: show recalled message
+    
+    Note over U1,U2: Both parties see:<br/>"[Tin nhắn đã được thu hồi]"
+```
+
+---
+
+### 4. Group Chat Module - Nhóm Chat
+
+#### 4.1. Quy Trình Tạo Nhóm Chat
+
+```mermaid
+sequenceDiagram
+    participant U as User (Owner)
+    participant API as GroupChatController
+    participant S as GroupChatService
+    participant DB as Database
+    participant Hub as GroupChatHub
+    
+    U->>API: POST /api/groupchat/create<br/>{groupName, memberUserIds: [id1, id2, id3]}
+    API->>S: CreateGroup(ownerId, dto)
+    
+    S->>S: Validate:<br/>- Group name max 100 chars<br/>- Min 3 members (including owner)<br/>- Max 100 members
+    
+    S->>DB: BEGIN TRANSACTION
+    S->>DB: INSERT INTO GroupConversations<br/>(group_name, created_by, created_at)
+    DB-->>S: group_conversation_id
+    
+    S->>DB: INSERT INTO GroupConversationMembers<br/>(group_conversation_id, user_id=@ownerId, role='Owner', priority=100)
+    
+    loop For each member in memberUserIds
+        S->>DB: INSERT INTO GroupConversationMembers<br/>(group_conversation_id, user_id, role='Member', priority=10)
+    end
+    
+    S->>DB: COMMIT TRANSACTION
+    
+    S-->>API: Group created
+    API-->>U: 201 Created<br/>{group_id, group_name, members}
+    
+    S->>Hub: Broadcast MembersAdded(group_id, membersList)
+    Note over Hub: All members receive notification
+```
+
+#### 4.2. Quy Trình Gửi Tin Nhắn Nhóm
+
+```mermaid
+sequenceDiagram
+    participant U1 as User 1
+    participant Hub as GroupChatHub
+    participant S as GroupMessageService
+    participant DB as Database
+    participant Members as All Group Members
+    
+    U1->>Hub: SendGroupMessage(groupConversationId, content)
+    Hub->>S: Send(senderId, groupId, content)
+    
+    S->>DB: Check membership:<br/>SELECT * FROM GroupConversationMembers<br/>WHERE group_conversation_id=@groupId AND user_id=@senderId
+    
+    alt Not a member
+        S-->>Hub: Forbidden
+        Hub-->>U1: Error: Not a member
+    end
+    
+    S->>DB: Check restrictions:<br/>SELECT * FROM GroupMessageRestrictions<br/>WHERE group_conversation_id=@groupId AND user_id=@senderId<br/>  AND restricted_until > NOW()
+    
+    alt User is restricted
+        S-->>Hub: User restricted from sending
+        Hub-->>U1: Error: You are restricted
+    end
+    
+    S->>DB: INSERT INTO GroupMessages<br/>(group_conversation_id, sender_user_id, message_content, message_type='Text', sent_at)
+    DB-->>S: group_message_id
+    
+    S->>DB: INSERT INTO GroupMessageReads<br/>(group_message_id, user_id=@senderId, read_at=NOW())
+    
+    S-->>Hub: Message saved
+    
+    Hub->>DB: Get all group members
+    DB-->>Hub: List of member user_ids
+    
+    Hub->>Members: Broadcast ReceiveGroupMessage(messageDto)
+    
+    Note over Members: All online members receive message instantly
+```
+
+#### 4.3. Quy Trình Quản Lý Vai Trò (Role Management)
+
+```mermaid
+sequenceDiagram
+    participant Owner as Owner/Admin
+    participant API as GroupChatController
+    participant S as GroupChatService
+    participant DB as Database
+    participant Hub as GroupChatHub
+    participant Target as Target User
+    
+    Note over Owner: Owner wants to promote member to Admin
+    
+    Owner->>API: PUT /api/groupchat/{groupId}/members/{userId}/promote
+    API->>S: PromoteToAdmin(requesterId, groupId, targetUserId)
+    
+    S->>DB: Check requester role:<br/>SELECT role, priority FROM GroupConversationMembers<br/>WHERE group_conversation_id=@groupId AND user_id=@requesterId
+    
+    alt Requester is not Owner
+        S-->>API: Only Owner can promote
+        API-->>Owner: 403 Forbidden
+    end
+    
+    S->>DB: UPDATE GroupConversationMembers<br/>SET role='Admin', priority=50<br/>WHERE group_conversation_id=@groupId AND user_id=@targetUserId
+    
+    S-->>API: Promoted successfully
+    API-->>Owner: 200 OK
+    
+    S->>Hub: Broadcast MemberRoleUpdated(groupId, userId, newRole)
+    Hub->>Target: You are now an Admin!
+    
+    Note over Target: Target user now has admin privileges:<br/>- Add/remove members<br/>- Pin messages<br/>- Restrict members
+```
+
+---
+
+### 5. Notifications Module - Thông Báo
+
+#### 5.1. Quy Trình Gửi Thông Báo Real-time
+
+```mermaid
+sequenceDiagram
+    participant Action as Action Trigger
+    participant S as Service Layer
+    participant NS as NotificationService
+    participant DB as Database
+    participant Hub as NotificationHub
+    participant U as Target User
+    
+    Note over Action: Example: User A likes User B's post
+    
+    Action->>S: PostReactionCreated event
+    S->>NS: CreateNotification(fromUserId, toUserId, type='Like', postId)
+    
+    NS->>NS: Build notification message:<br/>"@username liked your post"
+    
+    NS->>DB: INSERT INTO Notifications<br/>(type='Like', message, from_user_id, to_user_id,<br/>post_id, is_read=false, created_at)
+    DB-->>NS: notification_id
+    
+    NS->>Hub: SendNotificationToUser(toUserId, notificationDto)
+    
+    Hub->>Hub: Get user connections from _connections[toUserId]
+    
+    alt User Online
+        Hub->>U: ReceiveNotification(notificationDto)<br/>🔔 Push notification
+        Note over U: Notification appears in real-time<br/>Badge count updates
+    end
+    
+    alt User Offline
+        Note over DB: Notification stored in DB<br/>User will fetch when online
+    end
+    
+    NS-->>S: Notification sent
+    
+    Note over Action,U: Notification types:<br/>• Like, Love, Haha, Wow, Sad, Angry<br/>• Comment, Reply<br/>• Follow<br/>• Message<br/>• Share<br/>• Mention
+```
+
+#### 5.2. Quy Trình Lấy Danh Sách Thông Báo
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as NotificationsController
+    participant S as NotificationService
+    participant DB as Database
+    
+    U->>API: GET /api/notifications?page=1&pageSize=20&type=Like,Comment
+    API->>S: GetNotifications(userId, page, pageSize, typeFilter)
+    
+    S->>DB: SELECT n.*, fu.username, fu.avatar_url<br/>FROM Notifications n<br/>JOIN Users fu ON n.from_user_id = fu.user_id<br/>WHERE n.to_user_id=@userId<br/>  AND (@type IS NULL OR n.type IN (@types))<br/>ORDER BY n.created_at DESC<br/>OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY
+    
+    DB-->>S: Notification records with user info
+    
+    S->>S: Transform to DTOs:<br/>For each notification:<br/>- Map notification data<br/>- Include from_user info<br/>- Calculate time ago<br/>- Include related entity (post/comment preview)
+    
+    S-->>API: NotificationDtos
+    API-->>U: 200 OK<br/>{notifications: [...], unread_count, total_count}
+    
+    Note over U: Display in notification list<br/>Unread notifications highlighted
+```
+
+#### 5.3. Quy Trình Đánh Dấu Đã Đọc
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as NotificationsController
+    participant S as NotificationService
+    participant DB as Database
+    
+    U->>API: PUT /api/notifications/{id}/read
+    API->>S: MarkAsRead(userId, notificationId)
+    
+    S->>DB: UPDATE Notifications<br/>SET is_read=true, read_at=NOW()<br/>WHERE notification_id=@id AND to_user_id=@userId
+    
+    DB-->>S: Updated
+    
+    S->>DB: SELECT COUNT(*) FROM Notifications<br/>WHERE to_user_id=@userId AND is_read=false
+    DB-->>S: unread_count
+    
+    S-->>API: Success + unread_count
+    API-->>U: 200 OK<br/>{unread_count}
+    
+    Note over U: Badge count updated<br/>Notification marked as read
+```
+
+---
+
+### 6. Profile Module - Quản Lý Profile
+
+#### 6.1. Quy Trình Follow/Unfollow
+
+```mermaid
+sequenceDiagram
+    participant U1 as User 1 (Follower)
+    participant API as UserController
+    participant S as UserFollowService
+    participant DB as Database
+    participant NS as NotificationService
+    participant Hub as NotificationHub
+    participant U2 as User 2 (Followed)
+    
+    Note over U1: User 1 clicks "Follow" on User 2's profile
+    
+    U1->>API: POST /api/user/{user2Id}/follow
+    API->>S: FollowUser(user1Id, user2Id)
+    
+    S->>S: Validate: user1Id != user2Id
+    
+    S->>DB: SELECT * FROM Follows<br/>WHERE follower_user_id=@user1 AND followed_user_id=@user2
+    
+    alt Already following
+        DB-->>S: Follow exists
+        S-->>API: Already following
+        API-->>U1: 409 Conflict
+    end
+    
+    S->>DB: SELECT * FROM Blocks<br/>WHERE (blocker_user_id=@user1 AND blocked_user_id=@user2)<br/>  OR (blocker_user_id=@user2 AND blocked_user_id=@user1)
+    
+    alt Block exists
+        DB-->>S: Block found
+        S-->>API: Cannot follow blocked user
+        API-->>U1: 403 Forbidden
+    end
+    
+    S->>DB: BEGIN TRANSACTION
+    S->>DB: INSERT INTO Follows<br/>(follower_user_id, followed_user_id, created_at)
+    
+    S->>DB: UPDATE Users SET followers_count += 1<br/>WHERE user_id=@user2
+    S->>DB: UPDATE Users SET following_count += 1<br/>WHERE user_id=@user1
+    
+    S->>DB: COMMIT TRANSACTION
+    
+    S-->>API: Followed successfully
+    API-->>U1: 200 OK
+    
+    S->>NS: CreateNotification(from=user1, to=user2, type='Follow')
+    NS->>Hub: Push notification to User 2
+    Hub->>U2: 🔔 "@username started following you"
+    
+    Note over U1,U2: Follow relationship established<br/>User 1 now sees User 2's posts in feed
+```
+
+#### 6.2. Quy Trình Block User
+
+```mermaid
+sequenceDiagram
+    participant U1 as User 1 (Blocker)
+    participant API as UserController
+    participant S as UserService
+    participant DB as Database
+    
+    U1->>API: POST /api/user/{user2Id}/block
+    API->>S: BlockUser(user1Id, user2Id)
+    
+    S->>DB: BEGIN TRANSACTION
+    
+    Note over S,DB: Step 1: Remove follow relationships
+    
+    S->>DB: DELETE FROM Follows<br/>WHERE (follower_user_id=@user1 AND followed_user_id=@user2)<br/>  OR (follower_user_id=@user2 AND followed_user_id=@user1)
+    
+    S->>DB: UPDATE Users SET followers_count -= 1<br/>WHERE user_id IN (@user1, @user2)
+    S->>DB: UPDATE Users SET following_count -= 1<br/>WHERE user_id IN (@user1, @user2)
+    
+    Note over S,DB: Step 2: Create block record
+    
+    S->>DB: INSERT INTO Blocks<br/>(blocker_user_id, blocked_user_id, created_at)
+    
+    S->>DB: COMMIT TRANSACTION
+    
+    S-->>API: Blocked successfully
+    API-->>U1: 200 OK
+    
+    Note over U1: Effects of blocking:<br/>• Cannot see each other's posts<br/>• Cannot message each other<br/>• Cannot follow each other<br/>• Removed from conversations
+```
+
+#### 6.3. Quy Trình Cập Nhật Profile
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as ProfileController
+    participant S as UserProfileService
+    participant V as Validator
+    participant DB as Database
+    
+    U->>API: PUT /api/profile/update<br/>{fullname, bio, dob, address, job, website, is_private}
+    API->>V: Validate UpdateProfileDto
+    
+    V->>V: Check:<br/>- Fullname max 100 chars<br/>- Bio max 500 chars<br/>- Website valid URL format<br/>- Age >= 13
+    
+    V-->>API: Valid
+    API->>S: UpdateProfile(userId, dto)
+    
+    S->>DB: UPDATE Users SET<br/>  full_name=@fullname,<br/>  bio=@bio,<br/>  date_of_birth=@dob,<br/>  address=@address,<br/>  job=@job,<br/>  website=@website,<br/>  is_private=@isPrivate,<br/>  updated_at=NOW()<br/>WHERE user_id=@userId
+    
+    S->>DB: SELECT updated user info
+    DB-->>S: User entity
+    
+    S->>S: Map to UserDto
+    S-->>API: Updated profile
+    API-->>U: 200 OK<br/>{user_info}
+    
+    Note over U: Profile updated<br/>Privacy setting applied immediately
+```
+
+#### 6.4. Quy Trình Upload Avatar
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as ProfileController
+    participant S as UserProfileService
+    participant C as CloudinaryService
+    participant CDN as Cloudinary
+    participant PS as PostsService
+    participant DB as Database
+    
+    U->>API: POST /api/profile/avatar<br/>(multipart: image file, create_post=true)
+    API->>S: UploadAvatar(userId, imageFile, createPost)
+    
+    S->>S: Validate:<br/>- Image required<br/>- Max 10MB<br/>- Formats: jpg, png, webp<br/>- Dimensions min 200x200
+    
+    S->>C: UploadImage(imageFile)
+    C->>CDN: Upload with transformations:<br/>- Resize: 400x400 (crop: fill)<br/>- Quality: auto<br/>- Format: auto<br/>- Folder: /social-media/avatars/
+    CDN-->>C: {url, public_id}
+    C-->>S: avatar_url
+    
+    S->>DB: BEGIN TRANSACTION
+    
+    S->>DB: Get old avatar_url
+    DB-->>S: old_avatar_url
+    
+    S->>DB: UPDATE Users SET avatar_url=@newUrl, updated_at=NOW()
+    
+    alt createPost = true
+        S->>PS: CreatePost(userId, caption="Updated profile picture", images=[avatar_url], privacy=Public)
+        PS->>DB: INSERT INTO Posts + PostMedia
+    end
+    
+    alt old_avatar exists
+        S->>C: DeleteOldImage(old_public_id)
+    end
+    
+    S->>DB: COMMIT TRANSACTION
+    
+    S-->>API: Avatar updated
+    API-->>U: 200 OK<br/>{avatar_url, post_id}
+    
+    Note over U: New avatar displayed everywhere<br/>Optional post created in feed
+```
+
+---
+
+### 7. Stories Module - Stories 24h
+
+#### 7.1. Quy Trình Tạo Story
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as StoriesController
+    participant S as StoryService
+    participant C as CloudinaryService
+    participant CDN as Cloudinary
+    participant DB as Database
+    
+    U->>API: POST /api/stories<br/>(Form: media file + caption)
+    API->>S: CreateStory(userId, mediaFile, caption)
+    
+    S->>S: Validate:<br/>- Caption max 500 chars<br/>- Photo max 10MB<br/>- Video max 50MB, max 30 seconds<br/>- Privacy in [Public, Friends, Private]
+    
+    alt Photo
+        S->>C: UploadImage(file)
+        C->>CDN: Upload to /social-media/stories/<br/>Resize: 1080x1920 (9:16 ratio)
+        CDN-->>C: {url}
+        C-->>S: media_url
+    else Video
+        S->>C: UploadVideo(file)
+        C->>CDN: Upload to /social-media/stories/<br/>Max duration: 30s
+        CDN-->>C: {url, thumbnail_url}
+        C-->>S: media_url, thumbnail_url
+    end
+    
+    S->>S: Calculate expires_at = NOW() + 24 hours
+    
+    S->>DB: INSERT INTO Stories<br/>(user_id, media_url, media_type, caption,<br/>privacy_setting, created_at, expires_at)
+    DB-->>S: story_id
+    
+    S-->>API: Story created
+    API-->>U: 201 Created<br/>{story_id, media_url, expires_at}
+    
+    Note over U: Story visible for 24 hours<br/>Auto-deleted after expiration
+```
+
+#### 7.2. Quy Trình Xem Stories Feed
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as StoriesController
+    participant S as StoryService
+    participant DB as Database
+    
+    U->>API: GET /api/stories/feed
+    API->>S: GetStoriesFeed(userId)
+    
+    S->>DB: SELECT s.*, u.username, u.avatar_url,<br/>  (SELECT COUNT(*) FROM StoryViews WHERE story_id=s.story_id) as views_count,<br/>  EXISTS(SELECT 1 FROM StoryViews WHERE story_id=s.story_id AND viewer_user_id=@userId) as viewed_by_me<br/>FROM Stories s<br/>JOIN Users u ON s.user_id = u.user_id<br/>WHERE s.expires_at > NOW()<br/>  AND (s.user_id = @userId<br/>    OR s.user_id IN (SELECT followed_user_id FROM Follows WHERE follower_user_id=@userId))<br/>  AND (s.privacy_setting = 'Public'<br/>    OR (s.privacy_setting = 'Friends' AND s.user_id IN (SELECT followed_user_id FROM Follows WHERE follower_user_id=@userId)))<br/>ORDER BY s.created_at DESC
+    
+    DB-->>S: Story records
+    
+    S->>S: Group by user_id:<br/>For each user: {<br/>  user_info,<br/>  stories: [...],<br/>  has_unseen: any story not viewed by me<br/>}
+    
+    S-->>API: Grouped stories
+    API-->>U: 200 OK<br/>{users: [{user, stories, has_unseen}]}
+    
+    Note over U: Display story rings<br/>Red ring = unseen stories<br/>Grey ring = all seen
+```
+
+#### 7.3. Quy Trình View Story & Track Viewers
+
+```mermaid
+sequenceDiagram
+    participant U as Viewer
+    participant API as StoriesController
+    participant S as StoryService
+    participant DB as Database
+    participant Owner as Story Owner
+    
+    U->>API: POST /api/stories/{storyId}/view
+    API->>S: ViewStory(viewerId, storyId)
+    
+    S->>DB: SELECT * FROM Stories WHERE story_id=@id AND expires_at > NOW()
+    
+    alt Story not found or expired
+        S-->>API: Not found
+        API-->>U: 404 Not Found
+    end
+    
+    S->>DB: SELECT * FROM StoryViews<br/>WHERE story_id=@storyId AND viewer_user_id=@viewerId
+    
+    alt Already viewed
+        S-->>API: Already viewed
+        API-->>U: 200 OK
+    end
+    
+    S->>DB: BEGIN TRANSACTION
+    S->>DB: INSERT INTO StoryViews<br/>(story_id, viewer_user_id, viewed_at)
+    S->>DB: UPDATE Stories SET views_count += 1<br/>WHERE story_id=@storyId
+    S->>DB: COMMIT
+    
+    S-->>API: View recorded
+    API-->>U: 200 OK
+    
+    Note over Owner: Story owner can see:<br/>GET /api/stories/{id}/viewers<br/>Returns list of viewers with timestamps
+```
+
+#### 7.4. Background Job - Auto Delete Expired Stories
+
+```mermaid
+sequenceDiagram
+    participant Timer as Scheduled Timer
+    participant Service as ExpiredStoriesCleanupService
+    participant DB as Database
+    participant C as CloudinaryService
+    
+    Note over Timer: Runs every 1 hour
+    
+    Timer->>Service: ExecuteAsync()
+    Service->>DB: SELECT story_id, media_url FROM Stories<br/>WHERE expires_at <= NOW()
+    
+    alt No expired stories
+        DB-->>Service: Empty result
+        Service->>Service: Log: No expired stories
+    end
+    
+    DB-->>Service: List of expired stories
+    
+    loop For each expired story
+        Service->>DB: BEGIN TRANSACTION
+        Service->>DB: DELETE FROM StoryViews WHERE story_id=@id
+        Service->>DB: DELETE FROM Stories WHERE story_id=@id
+        Service->>DB: COMMIT
+        
+        Service->>C: DeleteMedia(media_url)
+        Note over C: Clean up Cloudinary storage
+    end
+    
+    Service->>Service: Log: Deleted X expired stories
+```
+
+---
+
+### 8. Comments & Reactions Module
+
+#### 8.1. Quy Trình Tạo Comment với AI Moderation
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as CommentsController
+    participant S as CommentService
+    participant AI as PhoBertModerationService
+    participant DB as Database
+    participant NS as NotificationService
+    participant BG as Background Job
+    
+    U->>API: POST /api/comments<br/>{post_id, content, parent_comment_id}
+    API->>S: CreateComment(userId, dto)
+    
+    S->>S: Validate:<br/>- Content max 2000 chars<br/>- Post exists<br/>- If parent_comment_id: parent exists
+    
+    Note over S,DB: Create comment FIRST (allowing toxic comments temporarily)
+    
+    S->>DB: BEGIN TRANSACTION
+    S->>DB: INSERT INTO Comments<br/>(post_id, user_id, content, parent_comment_id,<br/>created_at, is_deleted=false, is_toxic=false)
+    DB-->>S: comment_id
+    S->>DB: COMMIT
+    
+    S->>NS: CreateNotification(type='Comment', to=post_owner)
+    
+    S-->>API: Comment created
+    API-->>U: 201 Created<br/>{comment_id, content}
+    
+    Note over U: Comment visible immediately
+    
+    Note over BG: Background AI moderation (async)
+    
+    BG->>AI: ModerateText(comment_content)
+    AI-->>BG: {toxicLabel, confidence, riskLevel}
+    
+    alt Risk Level = HIGH
+        BG->>DB: UPDATE Comments SET is_toxic=true WHERE comment_id=@id
+        BG->>DB: INSERT INTO ContentModeration<br/>(ContentType='Comment', ContentID, ToxicLabel, Status='FlaggedForDeletion')
+        
+        BG->>BG: Wait 6 seconds
+        
+        BG->>DB: DELETE FROM Comments WHERE comment_id=@id
+        
+        BG->>NS: CreateNotification(to=comment_author,<br/>message="Your comment was removed for violating policies")
+        
+        Note over U: Comment auto-deleted after 6 seconds<br/>User sees notification
+    end
+```
+
+#### 8.2. Quy Trình React vào Bài Đăng
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as ReactionsController
+    participant S as ReactionService
+    participant DB as Database
+    participant NS as NotificationService
+    participant Owner as Post Owner
+    
+    U->>API: POST /api/reactions/posts/{postId}<br/>{reaction_type: "Like"}
+    API->>S: ReactToPost(userId, postId, reactionType)
+    
+    S->>S: Validate:<br/>- ReactionType in [Like, Love, Haha, Wow, Sad, Angry]<br/>- Post exists
+    
+    S->>DB: SELECT * FROM Reactions<br/>WHERE post_id=@postId AND user_id=@userId
+    
+    alt Reaction exists
+        S->>DB: UPDATE Reactions SET reaction_type=@newType, updated_at=NOW()
+        S-->>API: Reaction updated
+        API-->>U: 200 OK {message: "Updated to Love"}
+    else New reaction
+        S->>DB: INSERT INTO Reactions<br/>(post_id, user_id, reaction_type, created_at)
+        S->>DB: UPDATE Posts SET reactions_count += 1
+        
+        S->>NS: CreateNotification(from=userId, to=postOwnerId,<br/>type='Reaction', reaction_type, post_id)
+        NS->>Owner: 🔔 "@username reacted ❤️ to your post"
+        
+        S-->>API: Reaction created
+        API-->>U: 201 Created
+    end
+    
+    Note over U: Reaction displayed with animation<br/>Count updated in real-time
+```
+
+#### 8.3. Quy Trình Share Bài Đăng
+
+```mermaid
+sequenceDiagram
+    participant U as User (Sharer)
+    participant API as SharesController
+    participant S as ShareService
+    participant PS as PostsService
+    participant DB as Database
+    participant NS as NotificationService
+    participant Owner as Original Post Owner
+    
+    U->>API: POST /api/shares<br/>{post_id, message, share_type: "Feed"}
+    API->>S: SharePost(userId, postId, message, shareType)
+    
+    S->>DB: SELECT * FROM Posts WHERE post_id=@postId
+    
+    alt Post not found or not visible
+        S-->>API: Cannot share
+        API-->>U: 404 Not Found
+    end
+    
+    S->>S: Check privacy & permissions:<br/>- If Private: can share only if owner<br/>- If Followers-only: must be follower<br/>- If Public: anyone can share
+    
+    S->>DB: BEGIN TRANSACTION
+    
+    Note over S,DB: Create share record
+    
+    S->>DB: INSERT INTO Shares<br/>(post_id, shared_by_user_id, message, share_type, shared_at)
+    DB-->>S: share_id
+    
+    alt share_type = "Feed"
+        Note over PS: Create new post that references original
+        S->>PS: CreatePost(userId, caption=message, shared_post_id=postId)
+        PS->>DB: INSERT INTO Posts<br/>(user_id, caption, shared_post_id, created_at)
+    end
+    
+    S->>DB: UPDATE Posts SET shares_count += 1 WHERE post_id=@postId
+    
+    S->>DB: COMMIT
+    
+    S->>NS: CreateNotification(type='Share', to=original_owner)
+    NS->>Owner: 🔔 "@username shared your post"
+    
+    S-->>API: Shared successfully
+    API-->>U: 201 Created<br/>{share_id, new_post_id}
+    
+    Note over U: Shared post appears in feed<br/>Shows original post as embedded content
+```
+
+#### 8.4. Quy Trình Mention trong Comment
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as CommentsController
+    participant S as CommentService
+    participant Parser as MentionParser
+    participant DB as Database
+    participant NS as NotificationService
+    participant Mentioned as @mentioned_users
+    
+    U->>API: POST /api/comments<br/>{content: "Great photo @john @mary!"}
+    API->>S: CreateComment(userId, dto)
+    
+    S->>Parser: ExtractMentions(content)
+    Parser->>Parser: Regex pattern: /@(\w+)/g
+    Parser-->>S: ["john", "mary"]
+    
+    S->>DB: INSERT INTO Comments<br/>(post_id, user_id, content, created_at)
+    DB-->>S: comment_id
+    
+    loop For each mentioned username
+        S->>DB: SELECT user_id FROM Users WHERE username=@username
+        
+        alt User exists
+            DB-->>S: mentioned_user_id
+            S->>DB: INSERT INTO CommentMentions<br/>(comment_id, mentioned_user_id, created_at)
+            
+            S->>NS: CreateNotification(type='Mention',<br/>from=userId, to=mentioned_user_id, comment_id)
+        end
+    end
+    
+    NS->>Mentioned: 🔔 "@username mentioned you in a comment"
+    
+    S-->>API: Comment with mentions created
+    API-->>U: 201 Created
+    
+    Note over Mentioned: Clicking notification navigates to comment<br/>Mentioned users highlighted in UI
+```
+
+---
+
+### 9. Search Module - Tìm Kiếm
+
+#### 9.1. Quy Trình Tìm Kiếm Users với Priority Ranking
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as SearchController
+    participant S as SearchService
+    participant DB as Database
+    
+    U->>API: GET /api/search/users?keyword=john&page=1
+    API->>S: SearchUsers(userId, keyword, page)
+    
+    S->>DB: Complex query with priority:<br/>SELECT u.*, a.account_type,<br/>  CASE<br/>    WHEN EXISTS(SELECT 1 FROM Follows WHERE follower_user_id=@userId AND followed_user_id=u.user_id) THEN 3<br/>    WHEN EXISTS(SELECT 1 FROM Messages m JOIN Conversations c ON m.conversation_id=c.conversation_id WHERE sender_user_id=@userId OR receiver_user_id=u.user_id) THEN 2<br/>    ELSE 1<br/>  END as priority<br/>FROM Users u<br/>JOIN Accounts a ON u.account_id = a.account_id<br/>WHERE (u.username LIKE '%@keyword%'<br/>  OR u.full_name LIKE '%@keyword%')<br/>  AND u.user_id != @userId<br/>  AND NOT EXISTS(SELECT 1 FROM Blocks WHERE blocker_user_id=@userId AND blocked_user_id=u.user_id)<br/>ORDER BY priority DESC, u.username ASC<br/>OFFSET @skip ROWS FETCH NEXT 20 ROWS ONLY
+    
+    DB-->>S: User results with priority
+    
+    S->>S: Transform to DTOs:<br/>For each user:<br/>- User info (username, fullname, avatar, bio)<br/>- Account type badge<br/>- Follow status<br/>- Priority indicator
+    
+    S->>DB: INSERT INTO SearchHistory<br/>(user_id, keyword, search_type='User', searched_at)
+    
+    S-->>API: Search results
+    API-->>U: 200 OK<br/>{users: [...], total_count}
+    
+    Note over U: Results prioritized:<br/>1️⃣ Following (priority 3)<br/>2️⃣ Previously messaged (priority 2)<br/>3️⃣ Strangers (priority 1)
+```
+
+#### 9.2. Quy Trình Tìm Kiếm Posts
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as SearchController
+    participant S as SearchService
+    participant DB as Database
+    
+    U->>API: GET /api/search/posts?keyword=travel&filter=images
+    API->>S: SearchPosts(userId, keyword, filter, page)
+    
+    S->>DB: SELECT p.*, u.username, u.avatar_url, a.account_type,<br/>  (SELECT COUNT(*) FROM Reactions WHERE post_id=p.post_id) as reactions_count,<br/>  (SELECT COUNT(*) FROM Comments WHERE post_id=p.post_id) as comments_count<br/>FROM Posts p<br/>JOIN Users u ON p.user_id = u.user_id<br/>JOIN Accounts a ON u.account_id = a.account_id<br/>LEFT JOIN PostMedia pm ON p.post_id = pm.post_id<br/>WHERE p.caption LIKE '%@keyword%'<br/>  AND p.is_visible=true<br/>  AND (p.privacy='Public'<br/>    OR (p.privacy='Followers' AND EXISTS(SELECT 1 FROM Follows WHERE follower_user_id=@userId AND followed_user_id=p.user_id))<br/>    OR p.user_id=@userId)<br/>  AND (@filter='all'<br/>    OR (@filter='images' AND pm.media_type='Image')<br/>    OR (@filter='videos' AND pm.media_type='Video')<br/>    OR (@filter='text' AND NOT EXISTS(SELECT 1 FROM PostMedia WHERE post_id=p.post_id)))<br/>ORDER BY p.created_at DESC<br/>OFFSET @skip ROWS FETCH NEXT 20 ROWS ONLY
+    
+    DB-->>S: Post results
+    
+    S->>S: Map to PostDtos with media URLs
+    
+    S->>DB: INSERT INTO SearchHistory (keyword, search_type='Post')
+    
+    S-->>API: Search results
+    API-->>U: 200 OK<br/>{posts: [...], total_count}
+    
+    Note over U: Filter options:<br/>• All<br/>• Images only<br/>• Videos only<br/>• Text only
+```
+
+#### 9.3. Search History & Suggestions
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as SearchController
+    participant S as SearchService
+    participant DB as Database
+    
+    Note over U: User types in search box
+    
+    U->>API: GET /api/search/suggestions?q=jo
+    API->>S: GetSuggestions(userId, query)
+    
+    S->>DB: SELECT DISTINCT keyword FROM SearchHistory<br/>WHERE user_id=@userId AND keyword LIKE '@query%'<br/>ORDER BY searched_at DESC LIMIT 5
+    
+    DB-->>S: Recent searches matching query
+    
+    S->>DB: SELECT username FROM Users<br/>WHERE username LIKE '@query%' LIMIT 5
+    
+    DB-->>S: Usernames matching query
+    
+    S->>S: Combine results:<br/>- Recent searches<br/>- Popular users<br/>- Trending hashtags (future)
+    
+    S-->>API: Suggestions
+    API-->>U: 200 OK<br/>{suggestions: [...]}
+    
+    Note over U: Autocomplete dropdown shows suggestions
+```
+
+---
+
+### 10. Business Module - Nâng Cấp Doanh Nghiệp
+
+#### 10.1. Quy Trình Tạo Payment QR với MoMo
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as BusinessController
+    participant S as BusinessUpgradeService
+    participant MS as MoMoPaymentService
+    participant MoMo as MoMo Gateway
+    participant DB as Database
+    
+    U->>API: POST /api/business/upgrade<br/>{plan: "basic"}
+    API->>S: RequestUpgrade(userId, plan)
+    
+    S->>DB: SELECT * FROM Accounts WHERE account_id=@id
+    
+    alt Already Business
+        S-->>API: Already upgraded
+        API-->>U: 409 Conflict
+    end
+    
+    alt Has pending payment
+        DB->>DB: SELECT FROM BusinessPayments WHERE user_id=@id AND status='Pending'
+        S-->>API: Payment already pending
+        API-->>U: 409 Conflict
+    end
+    
+    S->>S: Calculate amount:<br/>- Basic: 1,000 VND (test)<br/>- Standard: 99,000 VND<br/>- Premium: 249,000 VND
+    
+    S->>DB: BEGIN TRANSACTION
+    S->>DB: INSERT INTO BusinessVerificationRequests<br/>(account_id, status='Pending', requested_at)
+    DB-->>S: request_id
+    
+    S->>MS: CreatePaymentQR(userId, amount, requestId)
+    
+    MS->>MS: Generate orderId:<br/>"BUSINESS_{userId}_{requestId}_{timestamp}"
+    
+    MS->>MS: Build MoMo request:<br/>{<br/>  partnerCode,<br/>  accessKey,<br/>  requestId: orderId,<br/>  amount,<br/>  orderInfo: "Business Account Upgrade",<br/>  redirectUrl,<br/>  ipnUrl: "https://api.domain.com/api/business/momo-webhook",<br/>  requestType: "captureWallet",<br/>  extraData: base64(userId)<br/>}
+    
+    MS->>MS: Generate HMAC SHA256 signature:<br/>rawSignature = "accessKey=...&amount=...&extraData=...&ipnUrl=...&orderId=...&orderInfo=...&partnerCode=...&redirectUrl=...&requestId=...&requestType=..."<br/>signature = HMAC_SHA256(rawSignature, secretKey)
+    
+    MS->>MoMo: POST https://test-payment.momo.vn/v2/gateway/api/create<br/>{request + signature}
+    
+    alt MoMo Error
+        MoMo-->>MS: Error response
+        MS-->>S: Payment creation failed
+        S->>DB: ROLLBACK
+        S-->>API: MoMo service error
+        API-->>U: 500 Internal Server Error
+    end
+    
+    MoMo-->>MS: {payUrl, deeplink, qrCodeUrl}
+    MS-->>S: Payment URLs
+    
+    S->>DB: INSERT INTO BusinessPayments<br/>(user_id, request_id, order_id, amount,<br/>status='Pending', qr_expires_at=NOW()+5min)
+    DB-->>S: payment_id
+    
+    S->>DB: COMMIT
+    
+    S-->>API: QR created
+    API-->>U: 200 OK<br/>{<br/>  payment_id,<br/>  qr_code_url,<br/>  deep_link,<br/>  pay_url,<br/>  expires_in: 300<br/>}
+    
+    Note over U: User scans QR with MoMo app<br/>Client polls GET /payment-status/{id} every 3s
+```
+
+#### 10.2. Quy Trình MoMo Webhook IPN
+
+```mermaid
+sequenceDiagram
+    participant MoMo as MoMo Gateway
+    participant API as BusinessController
+    participant S as BusinessUpgradeService
+    participant DB as Database
+    participant NS as NotificationService
+    participant Email as EmailService
+    participant U as User
+    
+    Note over MoMo: User completes payment in MoMo app
+    
+    MoMo->>API: POST /api/business/momo-webhook<br/>{<br/>  partnerCode,<br/>  orderId,<br/>  requestId,<br/>  amount,<br/>  orderInfo,<br/>  orderType,<br/>  transId,<br/>  resultCode,<br/>  message,<br/>  payType,<br/>  responseTime,<br/>  extraData,<br/>  signature<br/>}
+    
+    API->>S: HandleMoMoCallback(callbackDto)
+    
+    Note over S: Step 1: Verify signature
+    
+    S->>S: Build raw signature string:<br/>"accessKey=...&amount=...&extraData=...&message=...&orderId=...&orderInfo=...&orderType=...&partnerCode=...&payType=...&requestId=...&responseTime=...&resultCode=...&transId=..."
+    
+    S->>S: Calculate expected signature:<br/>HMAC_SHA256(rawSignature, secretKey)
+    
+    alt Signature Mismatch
+        S-->>API: Invalid signature
+        API-->>MoMo: 400 Bad Request
+        Note over API: Log security incident
+    end
+    
+    Note over S: Step 2: Check resultCode
+    
+    alt resultCode != 0 (Payment Failed)
+        S->>DB: UPDATE BusinessPayments<br/>SET status='Failed', momo_trans_id=@transId,<br/>    result_code=@resultCode, message=@message
+        S-->>API: Payment failed
+        API-->>MoMo: 200 OK
+    end
+    
+    Note over S: Step 3: Process successful payment
+    
+    S->>DB: BEGIN TRANSACTION
+    
+    S->>DB: SELECT * FROM BusinessPayments<br/>WHERE order_id=@orderId FOR UPDATE
+    
+    alt Payment already processed
+        S->>DB: ROLLBACK
+        S-->>API: Already processed (idempotent)
+        API-->>MoMo: 200 OK
+    end
+    
+    S->>DB: UPDATE BusinessPayments SET<br/>  status='Completed',<br/>  momo_trans_id=@transId,<br/>  paid_at=NOW(),<br/>  result_code=0
+    
+    S->>DB: UPDATE Accounts SET<br/>  account_type='Business',<br/>  business_verified_at=NOW(),<br/>  business_expires_at=NOW() + INTERVAL '30 days'<br/>WHERE account_id=(SELECT account_id FROM Users WHERE user_id=@userId)
+    
+    S->>DB: UPDATE BusinessVerificationRequests SET<br/>  status='Approved',<br/>  approved_at=NOW()
+    
+    S->>DB: COMMIT TRANSACTION
+    
+    S->>NS: CreateNotification(to=userId,<br/>message="🎉 Your account has been upgraded to Business!")
+    
+    S->>Email: SendEmail(to=userEmail,<br/>subject="Business Upgrade Successful",<br/>body="Your payment of {amount} VND completed. Your Business account is now active for 30 days.")
+    
+    S-->>API: Upgrade successful
+    API-->>MoMo: 200 OK
+    
+    Note over U: Polling endpoint returns success<br/>Client navigates to upgraded profile<br/>Blue checkmark badge displayed
+```
+
+#### 10.3. Business Post Injection Algorithm
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant S as PostsService
+    participant Inject as BusinessPostInjectionService
+    participant DB as Database
+    
+    U->>S: GET /api/posts/feed
+    S->>DB: Query all posts (business + normal)
+    DB-->>S: posts[]
+    
+    S->>Inject: InjectBusinessPosts(posts)
+    
+    Inject->>Inject: Separate posts:<br/>businessPosts = posts.Where(AccountType == Business)<br/>normalPosts = posts.Where(AccountType == User)
+    
+    Inject->>Inject: Algorithm:<br/>result = []<br/>businessQueue = Queue(businessPosts)<br/>normalIndex = 0<br/><br/>while normalIndex < normalPosts.length:<br/>  // Add 5 normal posts<br/>  for i in range(5):<br/>    if normalIndex < normalPosts.length:<br/>      result.add(normalPosts[normalIndex])<br/>      normalIndex += 1<br/>  <br/>  // Inject 1 business post<br/>  if businessQueue.Any():<br/>    result.add(businessQueue.Dequeue())<br/><br/># Add remaining normal posts<br/>while normalIndex < normalPosts.length:<br/>  result.add(normalPosts[normalIndex])<br/>  normalIndex += 1
+    
+    Inject-->>S: Injected feed:<br/>[N, N, N, N, N, B, N, N, N, N, N, B, ...]
+    
+    S-->>U: Feed with business posts every 5 posts
+    
+    Note over U: Business posts get more visibility<br/>Appear regularly in user feeds
+```
+
+---
+
+### 11. Admin Module - Quản Trị Hệ Thống
+
+#### 11.1. Quy Trình Xem Dashboard Statistics
+
+```mermaid
+sequenceDiagram
+    participant Admin as Admin
+    participant API as DashboardController
+    participant S as DashboardService
+    participant DB as Database
+    
+    Admin->>API: GET /api/dashboard/summary
+    API->>S: GetDashboardSummary()
+    
+    Note over S,DB: Query multiple statistics
+    
+    par Parallel Queries
+        S->>DB: SELECT COUNT(*) FROM Users
+        DB-->>S: total_users
+        
+        S->>DB: SELECT COUNT(*) FROM Accounts WHERE account_type='Business'
+        DB-->>S: total_business
+        
+        S->>DB: SELECT COUNT(*) FROM Posts WHERE created_at >= DATEADD(day, -30, GETDATE())
+        DB-->>S: posts_last_30_days
+        
+        S->>DB: SELECT SUM(amount) FROM BusinessPayments WHERE status='Completed'
+        DB-->>S: total_revenue
+        
+        S->>DB: SELECT COUNT(DISTINCT keyword) FROM SearchHistory
+        DB-->>S: total_searches
+        
+        S->>DB: SELECT TOP 10 p.*, engagement FROM Posts<br/>ORDER BY (reactions_count + comments_count + shares_count) DESC
+        DB-->>S: top_engaged_posts
+    end
+    
+    S->>S: Build DashboardSummaryDto:<br/>{<br/>  total_users,<br/>  total_business,<br/>  active_users_today,<br/>  posts_count,<br/>  revenue,<br/>  growth_rate,<br/>  top_posts,<br/>  recent_activities<br/>}
+    
+    S-->>API: Dashboard data
+    API-->>Admin: 200 OK<br/>{statistics}
+    
+    Note over Admin: Display in charts:<br/>• User growth chart<br/>• Revenue chart<br/>• Post growth chart<br/>• Top keywords<br/>• Top engaged posts
+```
+
+#### 11.2. Business Growth Chart (Time Series)
+
+```mermaid
+sequenceDiagram
+    participant Admin as Admin
+    participant API as DashboardController
+    participant S as DashboardService
+    participant DB as Database
+    
+    Admin->>API: GET /api/dashboard/business-growth-chart?period=Month
+    API->>S: GetBusinessGrowthChart(period)
+    
+    S->>S: Calculate date range based on period:<br/>- Day: last 30 days<br/>- Week: last 12 weeks<br/>- Month: last 12 months<br/>- Year: last 5 years
+    
+    S->>DB: DECLARE @startDate DATE = DATEADD(month, -12, GETDATE())<br/>DECLARE @endDate DATE = GETDATE()<br/><br/>SELECT<br/>  CASE @period<br/>    WHEN 'Day' THEN CAST(business_verified_at AS DATE)<br/>    WHEN 'Week' THEN DATEADD(week, DATEDIFF(week, 0, business_verified_at), 0)<br/>    WHEN 'Month' THEN DATEFROMPARTS(YEAR(business_verified_at), MONTH(business_verified_at), 1)<br/>    WHEN 'Year' THEN DATEFROMPARTS(YEAR(business_verified_at), 1, 1)<br/>  END as Period,<br/>  COUNT(*) as Count<br/>FROM Accounts<br/>WHERE account_type = 'Business'<br/>  AND business_verified_at >= @startDate<br/>  AND business_verified_at <= @endDate<br/>GROUP BY<br/>  CASE @period<br/>    WHEN 'Day' THEN CAST(business_verified_at AS DATE)<br/>    WHEN 'Week' THEN DATEADD(week, DATEDIFF(week, 0, business_verified_at), 0)<br/>    WHEN 'Month' THEN DATEFROMPARTS(YEAR(business_verified_at), MONTH(business_verified_at), 1)<br/>    WHEN 'Year' THEN DATEFROMPARTS(YEAR(business_verified_at), 1, 1)<br/>  END<br/>ORDER BY Period
+    
+    DB-->>S: Time series data
+    
+    S->>S: Transform to chart format:<br/>{<br/>  labels: ["Jan", "Feb", "Mar", ...],<br/>  data: [5, 12, 18, ...],<br/>  growth_rate: +45%<br/>}
+    
+    S-->>API: Chart data
+    API-->>Admin: 200 OK
+    
+    Note over Admin: Display as line/bar chart<br/>Shows business account growth trend
+```
+
+#### 11.3. Content Moderation - Review Flagged Content
+
+```mermaid
+sequenceDiagram
+    participant Admin as Admin
+    participant API as AdminController
+    participant S as AdminService
+    participant DB as Database
+    participant NS as NotificationService
+    participant Owner as Content Owner
+    
+    Admin->>API: GET /api/admin/moderation/flagged?type=Post&status=Pending
+    API->>S: GetFlaggedContent(type, status)
+    
+    S->>DB: SELECT cm.*, p.*, u.username<br/>FROM ContentModeration cm<br/>LEFT JOIN Posts p ON cm.ContentID = p.post_id AND cm.ContentType='Post'<br/>LEFT JOIN Comments c ON cm.ContentID = c.comment_id AND cm.ContentType='Comment'<br/>LEFT JOIN Users u ON p.user_id = u.user_id OR c.user_id = u.user_id<br/>WHERE cm.Status='Pending'<br/>  AND (@type IS NULL OR cm.ContentType=@type)<br/>ORDER BY cm.AIConfidence DESC, cm.CreatedAt DESC
+    
+    DB-->>S: Flagged content list
+    S-->>API: Content items
+    API-->>Admin: 200 OK<br/>{items: [...]}
+    
+    Note over Admin: Admin reviews content and decides action
+    
+    Admin->>API: POST /api/admin/moderation/review<br/>{<br/>  content_id: 123,<br/>  content_type: "Post",<br/>  action: "Remove",<br/>  reason: "Hate speech"<br/>}
+    API->>S: ReviewContent(adminId, dto)
+    
+    S->>DB: BEGIN TRANSACTION
+    
+    alt Action = Remove
+        S->>DB: UPDATE Posts SET is_visible=false, removed_at=NOW(), removed_by_admin_id=@adminId<br/>WHERE post_id=@contentId
+        
+        S->>DB: UPDATE ContentModeration SET<br/>Status='Removed', reviewed_by_admin_id=@adminId, reviewed_at=NOW()
+        
+        S->>DB: INSERT INTO ModerationLogs<br/>(content_type, content_id, admin_id, action='Remove', reason, timestamp)
+        
+        S->>NS: CreateNotification(to=contentOwner,<br/>message="Your post was removed for violating community guidelines")
+        
+    else Action = Approve
+        S->>DB: UPDATE ContentModeration SET Status='Approved'
+        S->>DB: INSERT INTO ModerationLogs (action='Approve')
+        
+    else Action = Warn
+        S->>DB: UPDATE ContentModeration SET Status='Warned'
+        S->>NS: CreateNotification(message="Warning: Your content has been flagged")
+    end
+    
+    S->>DB: INSERT INTO AdminActions<br/>(admin_id, action_type='ContentModeration', details, timestamp)
+    
+    S->>DB: COMMIT
+    
+    S-->>API: Action completed
+    API-->>Admin: 200 OK
+    
+    Note over Owner: User receives notification<br/>Content removed from public view
+```
+
+---
+
+### 12. RBAC System - Phân Quyền
+
+#### 12.1. Kiến Trúc RBAC (Role-Based Access Control)
+
+```mermaid
+graph TB
+    subgraph Accounts["👤 ACCOUNTS"]
+        A1[Account 1]
+        A2[Account 2]
+        A3[Account 3]
+    end
+    
+    subgraph AccountRoles["📋 ACCOUNT ROLES (Many-to-Many)"]
+        AR1[AccountRole<br/>account_id: 1<br/>role_id: 1<br/>expires_at: null]
+        AR2[AccountRole<br/>account_id: 2<br/>role_id: 2<br/>expires_at: 2026-02-01]
+        AR3[AccountRole<br/>account_id: 3<br/>role_id: 3<br/>expires_at: null]
+    end
+    
+    subgraph Roles["🎭 ROLES"]
+        R1[User<br/>priority: 10]
+        R2[Business<br/>priority: 50]
+        R3[Admin<br/>priority: 100]
+    end
+    
+    subgraph RolePermissions["🔗 ROLE PERMISSIONS"]
+        RP1[RolePermission<br/>role_id: 1<br/>permission_id: 1]
+        RP2[RolePermission<br/>role_id: 2<br/>permission_id: 1-20]
+        RP3[RolePermission<br/>role_id: 3<br/>permission_id: all]
+    end
+    
+    subgraph Permissions["🔑 PERMISSIONS (42 total)"]
+        P1[posts.create<br/>posts.read<br/>posts.update<br/>posts.delete]
+        P2[business.upgrade<br/>business.analytics<br/>business.promote]
+        P3[admin.dashboard<br/>admin.users.manage<br/>admin.content.moderate]
+    end
+    
+    subgraph AccountPermissions["⚡ ACCOUNT PERMISSIONS<br/>(Overrides)"]
+        AP1[AccountPermission<br/>account_id: 2<br/>permission_id: X<br/>is_granted: false]
+        AP2[AccountPermission<br/>account_id: 1<br/>permission_id: Y<br/>is_granted: true<br/>expires_at: 2026-01-15]
+    end
+    
+    A1 --> AR1
+    A2 --> AR2
+    A3 --> AR3
+    
+    AR1 --> R1
+    AR2 --> R2
+    AR3 --> R3
+    
+    R1 --> RP1
+    R2 --> RP2
+    R3 --> RP3
+    
+    RP1 --> P1
+    RP2 --> P2
+    RP3 --> P3
+    
+    A1 -.Override.-> AP2
+    A2 -.Override.-> AP1
+    
+    AP1 -.Revoke.-> P2
+    AP2 -.Grant.-> P2
+    
+    style Roles fill:#e3f2fd,stroke:#1565c0,stroke-width:3px
+    style Permissions fill:#fff3e0,stroke:#e65100,stroke-width:3px
+    style AccountRoles fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style RolePermissions fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style AccountPermissions fill:#ffebee,stroke:#c62828,stroke-width:2px
+```
+
+#### 12.2. Quy Trình Check Permissions
+
+```mermaid
+sequenceDiagram
+    participant U as User Request
+    participant MW as Authorization Middleware
+    participant RBAC as RBACService
+    participant Cache as Permission Cache
+    participant DB as Database
+    participant API as Controller
+    
+    U->>MW: HTTP Request + JWT Token<br/>[RequirePermission("posts.create")]
+    MW->>MW: Extract userId from JWT claims
+    
+    MW->>RBAC: HasPermission(userId, "posts.create")
+    
+    RBAC->>Cache: TryGetPermissions(userId)
+    
+    alt Cache Hit
+        Cache-->>RBAC: Cached permissions list
+        Note over RBAC: Cache valid for 15 minutes
+    else Cache Miss
+        RBAC->>DB: Get effective permissions for user
+        
+        Note over DB: Complex query to calculate final permissions
+        
+        DB->>DB: Step 1: Get account roles<br/>SELECT role_id FROM AccountRoles<br/>WHERE account_id=@userId<br/>  AND is_active=true<br/>  AND (expires_at IS NULL OR expires_at > NOW())
+        
+        DB->>DB: Step 2: Get role permissions<br/>SELECT DISTINCT p.permission_key<br/>FROM RolePermissions rp<br/>JOIN Permissions p ON rp.permission_id = p.permission_id<br/>WHERE rp.role_id IN (@roleIds)
+        
+        DB->>DB: Step 3: Get account-specific grants<br/>SELECT p.permission_key<br/>FROM AccountPermissions ap<br/>JOIN Permissions p ON ap.permission_id = p.permission_id<br/>WHERE ap.account_id=@userId<br/>  AND ap.is_granted=true<br/>  AND (ap.expires_at IS NULL OR ap.expires_at > NOW())
+        
+        DB->>DB: Step 4: Get account-specific revokes<br/>SELECT p.permission_key<br/>FROM AccountPermissions ap<br/>JOIN Permissions p ON ap.permission_id = p.permission_id<br/>WHERE ap.account_id=@userId<br/>  AND ap.is_granted=false<br/>  AND (ap.expires_at IS NULL OR ap.expires_at > NOW())
+        
+        DB->>DB: Step 5: Calculate final permissions<br/>final_permissions = (role_permissions UNION account_grants) EXCEPT account_revokes
+        
+        DB-->>RBAC: Effective permissions list
+        
+        RBAC->>Cache: Store in cache (15 min TTL)
+    end
+    
+    RBAC->>RBAC: Check if "posts.create" in permissions list
+    
+    alt Permission Granted
+        RBAC-->>MW: true
+        MW->>API: Forward request
+        API->>U: Process request normally
+    else Permission Denied
+        RBAC-->>MW: false
+        MW-->>U: 403 Forbidden<br/>{error: "Insufficient permissions"}
+    end
+    
+    Note over U,DB: JWT also contains top 20 permissions<br/>for client-side UI rendering decisions
+```
+
+#### 12.3. Quy Trình Assign Role với Expiration
+
+```mermaid
+sequenceDiagram
+    participant Admin as Admin
+    participant API as RBACController
+    participant S as RBACService
+    participant DB as Database
+    participant Cache as Permission Cache
+    participant U as Target User
+    
+    Admin->>API: POST /api/rbac/assign-role<br/>{<br/>  account_id: 123,<br/>  role_id: 2 (Business),<br/>  expires_at: "2026-02-01"<br/>}
+    API->>S: AssignRole(adminId, dto)
+    
+    S->>DB: Check admin has permission "rbac.roles.assign"
+    
+    S->>DB: BEGIN TRANSACTION
+    
+    S->>DB: SELECT * FROM AccountRoles<br/>WHERE account_id=@accountId AND role_id=@roleId
+    
+    alt Role already assigned
+        S->>DB: UPDATE AccountRoles SET<br/>  is_active=true,<br/>  expires_at=@expiresAt,<br/>  updated_at=NOW()
+    else New role assignment
+        S->>DB: INSERT INTO AccountRoles<br/>(account_id, role_id, is_active=true, expires_at, assigned_at)
+    end
+    
+    S->>DB: INSERT INTO AdminActions<br/>(admin_id, action_type='RoleAssigned', details, timestamp)
+    
+    S->>DB: COMMIT
+    
+    S->>Cache: Invalidate permission cache for user
+    Cache->>Cache: Remove cached permissions for account_id
+    
+    S-->>API: Role assigned
+    API-->>Admin: 200 OK
+    
+    Note over U: Next API request will recalculate permissions<br/>Business features now accessible
+```
+
+#### 12.4. Background Job - Check Expired Business Accounts
+
+```mermaid
+sequenceDiagram
+    participant Timer as Scheduled Timer
+    participant Service as ExpiredBusinessAccountService
+    participant DB as Database
+    participant NS as NotificationService
+    
+    Note over Timer: Runs every 1 hour
+    
+    Timer->>Service: ExecuteAsync()
+    
+    Service->>DB: SELECT account_id, email FROM Accounts<br/>WHERE account_type='Business'<br/>  AND business_expires_at <= NOW()<br/>  AND business_expires_at IS NOT NULL
+    
+    alt No expired accounts
+        DB-->>Service: Empty result
+        Service->>Service: Log: No expired business accounts
+    end
+    
+    DB-->>Service: List of expired accounts
+    
+    loop For each expired account
+        Service->>DB: BEGIN TRANSACTION
+        
+        Service->>DB: UPDATE Accounts SET<br/>  account_type='User',<br/>  business_expires_at=NULL,<br/>  business_downgraded_at=NOW()
+        
+        Service->>DB: UPDATE AccountRoles SET<br/>  is_active=false<br/>WHERE account_id=@id AND role_id=2 (Business)
+        
+        Service->>DB: INSERT INTO AccountRoles<br/>(account_id, role_id=1 (User), is_active=true)
+        
+        Service->>DB: COMMIT
+        
+        Service->>NS: CreateNotification(to=account,<br/>message="Your Business subscription has expired. Renew to continue enjoying Business features.")
+        
+        Note over NS: Send renewal reminder email
+    end
+    
+    Service->>Service: Log: Downgraded X business accounts to User
+```
+
+---
+
+## 📈 Thống Kê Dự Án
+
+| Chỉ Số | Số Lượng | Ghi Chú |
+|--------|----------|---------|
+| **Backend Code** | 25,000+ lines | C# (.NET 8) |
+| **Frontend Code** | 15,000+ lines | React Native + React |
+| **API Endpoints** | 120+ endpoints | RESTful APIs |
+| **Database Tables** | 45+ tables | SQL Server |
+| **Entities** | 33+ entities | Domain models |
+| **Services** | 20+ services | Business logic |
+| **Controllers** | 17 controllers | API endpoints |
+| **SignalR Hubs** | 4 hubs | Real-time features |
+| **DTOs** | 50+ DTOs | Data transfer |
+| **Background Jobs** | 3 jobs | Automated tasks |
+| **Permissions** | 42 permissions | RBAC system |
+| **Roles** | 3 roles | User, Business, Admin |
+| **External Services** | 4 services | Cloudinary, MoMo, Email, PhoBERT |
+| **Mermaid Diagrams** | 30+ diagrams | Architecture & flows |
+
+---
 
 **Chi tiết:**
 1. User nhập email, password, fullname
