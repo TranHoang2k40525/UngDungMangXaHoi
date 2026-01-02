@@ -1,5 +1,8 @@
 import { API_BASE_URL } from './AuthApi';
 
+// Re-export API_BASE_URL for other components
+export { API_BASE_URL };
+
 async function authedApiCall(endpoint, options = {}) {
   const token = localStorage.getItem('accessToken');
   const url = `${API_BASE_URL}${endpoint}`;
@@ -52,6 +55,37 @@ export async function updateProfile(payload) {
 export async function searchUsers(query, page = 1, pageSize = 20) {
   const encoded = encodeURIComponent(query);
   const res = await authedApiCall(`/api/search/users?q=${encoded}&page=${page}&pageSize=${pageSize}`, {
+    method: 'GET',
+  });
+  return res;
+}
+
+export async function searchPosts(query, page = 1, pageSize = 20) {
+  const encoded = encodeURIComponent(query);
+  const res = await authedApiCall(`/api/search/posts?q=${encoded}&page=${page}&pageSize=${pageSize}`, {
+    method: 'GET',
+  });
+  return res;
+}
+
+export async function getSearchSuggestions() {
+  const res = await authedApiCall('/api/search/suggestions', {
+    method: 'GET',
+  });
+  return res;
+}
+
+export async function instantSearchUsers(query, limit = 5) {
+  const encoded = encodeURIComponent(query);
+  const res = await authedApiCall(`/api/search/users?q=${encoded}&page=1&pageSize=${limit}`, {
+    method: 'GET',
+  });
+  return res;
+}
+
+export async function instantSearchPosts(query, limit = 5) {
+  const encoded = encodeURIComponent(query);
+  const res = await authedApiCall(`/api/search/posts?q=${encoded}&page=1&pageSize=${limit}`, {
     method: 'GET',
   });
   return res;
