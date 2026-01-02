@@ -50,6 +50,38 @@ Module Messages quản lý chat 1-1 giữa 2 user:
 └──────────────────────┘
 ```
 
+### 📊 Sơ Đồ Real-time Messaging
+
+```mermaid
+sequenceDiagram
+    participant User1
+    participant SignalR
+    participant API
+    participant DB
+    participant User2
+
+    Note over User1,User2: CONNECTION
+    User1->>SignalR: Connect with JWT
+    SignalR->>SignalR: Store connectionId
+    User2->>SignalR: Connect with JWT
+    SignalR->>User1: UserOnline(User2)
+
+    Note over User1,User2: SEND MESSAGE
+    User1->>SignalR: SendMessage(User2, text)
+    SignalR->>API: Validate mutual follow
+    API->>DB: Save Message
+    SignalR->>User1: MessageSent
+    SignalR->>User2: ReceiveMessage
+
+    Note over User1,User2: READ RECEIPT
+    User2->>SignalR: MarkAsRead(conversationId)
+    SignalR->>DB: Update read status
+    SignalR->>User1: MessagesRead
+```
+
+---
+```
+
 ---
 
 ## 📤 Luồng Gửi Tin Nhắn

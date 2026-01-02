@@ -1,11 +1,14 @@
 # 📱 Ứng Dụng Mạng Xã Hội MediaLite
 
-> **Hệ thống mạng xã hội toàn diện** với backend .NET 8, frontend React Native, tích hợp thanh toán MoMo, WebSocket real-time, và hệ thống thống kê admin đầy đủ.
+> **Hệ thống mạng xã hội toàn diện** được xây dựng theo kiến trúc Clean Architecture, với backend .NET 8, frontend React Native, tích hợp AI moderation (PhoBERT), thanh toán MoMo, WebSocket real-time (SignalR), hệ thống RBAC đầy đủ và dashboard thống kê admin chi tiết.
 
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![React Native](https://img.shields.io/badge/React_Native-0.81-61DAFB?logo=react)](https://reactnative.dev/)
 [![Docker](https://img.shields.io/badge/Docker-Supported-2496ED?logo=docker)](https://www.docker.com/)
 [![SQL Server](https://img.shields.io/badge/SQL_Server-2022-CC2927?logo=microsoftsqlserver)](https://www.microsoft.com/sql-server)
+[![Clean Architecture](https://img.shields.io/badge/Architecture-Clean-blue)](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
+[![SignalR](https://img.shields.io/badge/SignalR-Real--time-green)](https://dotnet.microsoft.com/apps/aspnet/signalr)
+[![PhoBERT](https://img.shields.io/badge/AI-PhoBERT-orange)](https://github.com/VinAIResearch/PhoBERT)
 
 ---
 
@@ -13,25 +16,40 @@
 
 1. [Tổng Quan Dự Án](#-tổng-quan-dự-án)
 2. [Kiến Trúc Hệ Thống](#-kiến-trúc-hệ-thống)
-3. [Công Nghệ Sử Dụng](#-công-nghệ-sử-dụng)
-4. [Tính Năng Chính](#-tính-năng-chính)
-5. [Cấu Trúc Dự Án](#-cấu-trúc-dự-án)
-6. [Database Schema](#-database-schema)
-7. [API Endpoints](#-api-endpoints)
-8. [Nghiệp Vụ Chi Tiết](#-nghiệp-vụ-chi-tiết)
-9. [Cài Đặt & Triển Khai](#-cài-đặt--triển-khai)
-10. [Tài Liệu Liên Quan](#-tài-liệu-liên-quan)
+   - [Clean Architecture](#clean-architecture-pattern)
+   - [System Architecture](#system-architecture)
+   - [Technology Stack](#technology-stack)
+   - [Mô hình RBAC](#mô-hình-rbac-role-based-access-control)
+3. [Sơ Đồ Tuần Tự](#-sơ-đồ-tuần-tự-sequence-diagrams)
+   - [Authentication Flow](#1-authentication-flow)
+   - [Business Upgrade Flow](#2-business-upgrade-payment-flow)
+   - [Real-time Messaging Flow](#3-real-time-messaging-flow)
+   - [Post Creation & Feed Flow](#4-post-creation--feed-flow)
+   - [AI Moderation Flow](#5-ai-moderation-flow-phobert)
+4. [Công Nghệ Sử Dụng](#-công-nghệ-sử-dụng)
+5. [Tính Năng Chính](#-tính-năng-chính)
+6. [Cấu Trúc Dự Án](#-cấu-trúc-dự-án)
+7. [Database Schema](#-database-schema)
+8. [API Endpoints](#-api-endpoints)
+9. [Nghiệp Vụ Chi Tiết](#-nghiệp-vụ-chi-tiết)
+10. [Cài Đặt & Triển Khai](#-cài-đặt--triển-khai)
+11. [Tài Liệu Liên Quan](#-tài-liệu-liên-quan)
+
+> 📐 **[Xem tất cả sơ đồ kiến trúc chi tiết tại đây](./ARCHITECTURE_DIAGRAMS.md)** - Bao gồm RBAC diagrams, Sequence diagrams, ER diagrams và Module architecture đầy đủ
 
 ---
 
 ## 🎯 Tổng Quan Dự Án
 
-**MediaLite** là một nền tảng mạng xã hội hoàn chỉnh được xây dựng với mục đích:
-- **Kết nối người dùng**: Cho phép tạo hồ sơ, theo dõi bạn bè, chia sẻ nội dung
-- **Kinh doanh**: Hỗ trợ tài khoản Business với tính năng nâng cao
-- **Quản trị**: Dashboard admin với thống kê chi tiết
-- **Thanh toán**: Tích hợp MoMo Payment Gateway
-- **Real-time**: SignalR WebSocket cho chat và thông báo tức thời
+**MediaLite** là một nền tảng mạng xã hội toàn diện được xây dựng theo mô hình **Clean Architecture**, tích hợp đầy đủ các tính năng của một ứng dụng mạng xã hội hiện đại với mục đích:
+
+### 🎯 Mục Tiêu Chính
+- **Kết nối người dùng**: Cho phép tạo hồ sơ, theo dõi bạn bè, chia sẻ nội dung đa phương tiện
+- **Kinh doanh**: Hỗ trợ tài khoản Business với tính năng nâng cao, ưu tiên hiển thị và analytics
+- **Quản trị**: Dashboard admin với thống kê chi tiết, kiểm duyệt nội dung
+- **Thanh toán**: Tích hợp hoàn chỉnh MoMo Payment Gateway
+- **Real-time**: SignalR WebSocket cho chat, notifications và cập nhật tức thời
+- **AI Moderation**: Tích hợp PhoBERT AI để kiểm duyệt nội dung độc hại tự động
 
 ### 🎨 Đặc Điểm Nổi Bật
 
@@ -43,19 +61,6 @@
 - ✅ **MoMo Integration** - Thanh toán QR Code tự động
 - ✅ **Admin Analytics** - Dashboard thống kê business intelligence
 - ✅ **Mobile-First** - React Native app cho iOS & Android
----
-
-### 📌 Yêu Cầu Nghiệp Vụ (Business Requirements)
-
-- **Y1:** Người dùng đăng ký/đăng nhập với OTP + JWT; refresh token.
-- **Y2:** CRUD bài viết (text, images, video) với quyền riêng tư và nén media.
-- **Y3:** Real-time messaging & notifications (SignalR) với reconnect và read receipts.
-- **Y4:** Comment lồng nhau, reactions, share, mention và AI moderation tự động.
-- **Y5:** Business accounts: nâng cấp qua MoMo, ưu tiên hiển thị, analytics và badge.
-- **Y6:** Admin dashboard: quản lý user, xử lý report, logs và sanctions.
-- **Y7:** Hệ thống modular, dễ scale thành microservices, và có CI/CD trong tương lai.
-- **Y8:** Lưu media trên Cloudinary; secrets và credentials không commit vào git.
-- **Y9:** Logging, audit trail (moderation logs), và backup/rollback cho dữ liệu quan trọng.
 
 ---
 
@@ -63,67 +68,214 @@
 
 ### Clean Architecture Pattern
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Presentation Layer                    │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │   WebAPI     │  │  MobileApp   │  │  WebAdmin    │  │
-│  │ (.NET Core)  │  │(React Native)│  │   (HTML/JS)  │  │
-│  └──────────────┘  └──────────────┘  └──────────────┘  │
-└─────────────────────────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│                   Application Layer                      │
-│  • Services (Business Logic)                             │
-│  • DTOs (Data Transfer Objects)                          │
-│  • Interfaces (Service Contracts)                        │
-│  • Validators (FluentValidation)                         │
-└─────────────────────────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│                  Infrastructure Layer                    │
-│  • Repositories (Data Access)                            │
-│  • DbContext (Entity Framework Core)                     │
-│  • External Services (Cloudinary, MoMo, Email)           │
-│  • Configurations (Entity Mappings)                      │
-└─────────────────────────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────┐
-│                      Domain Layer                        │
-│  • Entities (User, Post, Comment, Account...)            │
-│  • Value Objects (Email, PasswordHash, ImageUrl...)      │
-│  • Enums (AccountType, PaymentStatus...)                │
-│  • Interfaces (Repository Contracts)                     │
-└─────────────────────────────────────────────────────────┘
-```
-
-### Technology Stack
+Dự án được xây dựng theo mô hình **Clean Architecture** của Uncle Bob, đảm bảo tính độc lập, dễ test và dễ maintain.
 
 ```
-Frontend (Mobile)          Backend (API)              Infrastructure
-┌──────────────┐          ┌──────────────┐          ┌──────────────┐
-│ React Native │  ←HTTP→  │   ASP.NET    │  ←SQL→   │ SQL Server   │
-│   Expo SDK   │          │   Core 8.0   │          │    2022      │
-│   SignalR    │  ←WS→    │   SignalR    │          │              │
-│    Axios     │          │ EF Core 8.0  │          │              │
-└──────────────┘          └──────────────┘          └──────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         PRESENTATION LAYER                               │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐│
+│  │   WebAPI     │  │  MobileApp   │  │  WebAdmin    │  │  WebUsers    ││
+│  │ (.NET Core)  │  │(React Native)│  │   (HTML/JS)  │  │   (React)    ││
+│  │              │  │              │  │              │  │              ││
+│  │ - Controllers│  │ - Components │  │ - Dashboard  │  │ - Pages      ││
+│  │ - Hubs       │  │ - Screens    │  │ - Charts     │  │ - Components ││
+│  │ - Middleware │  │ - Services   │  │ - Analytics  │  │ - Services   ││
+│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘│
+└────────────────────────────────┬────────────────────────────────────────┘
+                                 │ HTTP/WebSocket
                                  ↓
-                          ┌──────────────┐
-                          │  Cloudinary  │
-                          │  (Media CDN) │
-                          └──────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        APPLICATION LAYER                                 │
+│  • Services (Business Logic)                                             │
+│    - AuthService, UserService, PostService, MessageService, etc.         │
+│  • DTOs (Data Transfer Objects)                                          │
+│    - LoginDto, PostDto, UserDto, MessageDto, etc.                        │
+│  • Interfaces (Service Contracts)                                        │
+│    - IBusinessUpgradeService, ITokenService, IEmailService               │
+│  • Use Cases (CQRS-style)                                                │
+│    - User Registration, Post Creation, Message Sending                   │
+│  • Validators (FluentValidation)                                         │
+│    - LoginValidator, RegisterValidator, PostValidator                    │
+└────────────────────────────────┬────────────────────────────────────────┘
+                                 │ Business Logic
                                  ↓
-                          ┌──────────────┐
-                          │     MoMo     │
-                          │  (Payment)   │
-                          └──────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       INFRASTRUCTURE LAYER                               │
+│  • Repositories (Data Access)                                            │
+│    - AccountRepository, UserRepository, PostRepository, MessageRepo      │
+│  • DbContext (Entity Framework Core)                                     │
+│    - AppDbContext with 45+ DbSets                                        │
+│  • External Services                                                     │
+│    - CloudinaryService (Media CDN)                                       │
+│    - MoMoPaymentService (Payment Gateway)                                │
+│    - EmailService (SMTP)                                                 │
+│    - PhoBertModerationService (AI)                                       │
+│  • Configurations (Entity Mappings)                                      │
+│    - UserConfiguration, PostConfiguration, MessageConfiguration          │
+│  • Background Services                                                   │
+│    - ExpiredStoriesCleanupService                                        │
+│    - ExpiredBusinessAccountService                                       │
+│    - ExpiredPendingAccountsCleanupService                                │
+└────────────────────────────────┬────────────────────────────────────────┘
+                                 │ Repository Pattern
+                                 ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          DOMAIN LAYER (CORE)                             │
+│  • Entities (Business Objects)                                           │
+│    - Account, User, Admin, Post, Comment, Message, Story, etc.           │
+│  • Value Objects (Immutable Types)                                       │
+│    - Email, PhoneNumber, PasswordHash, ImageUrl                          │
+│  • Enums (Business Rules)                                                │
+│    - Gender, Privacy, ReactionType, NotificationType                     │
+│  • Interfaces (Repository Contracts)                                     │
+│    - IAccountRepository, IUserRepository, IPostRepository                │
+│  • Domain Events (Future)                                                │
+│    - UserRegisteredEvent, PostCreatedEvent                               │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
+
+**🔑 Nguyên Tắc Clean Architecture:**
+
+1. **Dependency Rule**: Dependencies chỉ hướng vào trong (Presentation → Application → Infrastructure → Domain)
+2. **Domain Layer**: Core business logic, không phụ thuộc vào bất kỳ layer nào
+3. **Application Layer**: Use cases và business logic, depend vào Domain
+4. **Infrastructure Layer**: Triển khai chi tiết (DB, External APIs), depend vào Application & Domain
+5. **Presentation Layer**: UI/Controllers, depend vào Application
 
 ---
 
-## 💻 Công Nghệ Sử Dụng
+### System Architecture
 
-### Backend (.NET 8.0)
+Sơ đồ kiến trúc hệ thống tổng quan với các components và luồng dữ liệu:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                              CLIENT TIER                                        │
+│  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐                   │
+│  │  Mobile App    │  │  Web Admin     │  │  Web Users     │                   │
+│  │ (React Native) │  │   (HTML/JS)    │  │    (React)     │                   │
+│  │                │  │                │  │                │                   │
+│  │ • Expo SDK     │  │ • Vanilla JS   │  │ • React 18     │                   │
+│  │ • SignalR WS   │  │ • Charts.js    │  │ • Vite         │                   │
+│  │ • Axios HTTP   │  │ • Bootstrap    │  │ • TailwindCSS  │                   │
+│  └────────────────┘  └────────────────┘  └────────────────┘                   │
+│           │                   │                    │                            │
+│           └───────────────────┴────────────────────┘                            │
+│                               │                                                 │
+│                    HTTPS/WSS  │  JWT Bearer Token                               │
+└───────────────────────────────┼─────────────────────────────────────────────────┘
+                                │
+┌───────────────────────────────┼─────────────────────────────────────────────────┐
+│                               │        API GATEWAY / LOAD BALANCER              │
+│                        ┌──────▼──────┐                                          │
+│                        │   NGINX     │                                          │
+│                        │ Reverse     │                                          │
+│                        │ Proxy       │                                          │
+│                        └─────────────┘                                          │
+└───────────────────────────────┼─────────────────────────────────────────────────┘
+                                │
+┌───────────────────────────────┼─────────────────────────────────────────────────┐
+│                               │        APPLICATION TIER                          │
+│                    ┌──────────▼──────────┐                                      │
+│                    │   ASP.NET Core 8    │                                      │
+│                    │   WebAPI Server     │                                      │
+│                    │                     │                                      │
+│                    │ ┌─────────────────┐ │                                      │
+│                    │ │  Controllers    │ │                                      │
+│                    │ │  • Auth         │ │                                      │
+│                    │ │  • Posts        │ │                                      │
+│                    │ │  • Messages     │ │                                      │
+│                    │ │  • Business     │ │                                      │
+│                    │ │  • Admin        │ │                                      │
+│                    │ └─────────────────┘ │                                      │
+│                    │                     │                                      │
+│                    │ ┌─────────────────┐ │                                      │
+│                    │ │  SignalR Hubs   │ │                                      │
+│                    │ │  • ChatHub      │ │                                      │
+│                    │ │  • GroupChatHub │ │                                      │
+│                    │ │  • NotificationHub│                                      │
+│                    │ │  • CommentHub   │ │                                      │
+│                    │ └─────────────────┘ │                                      │
+│                    │                     │                                      │
+│                    │ ┌─────────────────┐ │                                      │
+│                    │ │  Middleware     │ │                                      │
+│                    │ │  • JWT Auth     │ │                                      │
+│                    │ │  • CORS         │ │                                      │
+│                    │ │  • Rate Limit   │ │                                      │
+│                    │ │  • Exception    │ │                                      │
+│                    │ └─────────────────┘ │                                      │
+│                    └─────────────────────┘                                      │
+│                               │                                                 │
+│              ┌───────────────┼────────────────┐                                │
+│              │               │                │                                │
+└──────────────┼───────────────┼────────────────┼────────────────────────────────┘
+               │               │                │
+        ┌──────▼───────┐ ┌────▼─────┐  ┌──────▼────────┐
+        │              │ │          │  │               │
+┌───────┴──────────┐  │ │          │  │  ┌────────────┴──────┐
+│   DATA TIER      │  │ │          │  │  │  EXTERNAL SERVICES │
+│                  │  │ │          │  │  │                    │
+│ ┌──────────────┐ │  │ │          │  │  │ ┌────────────────┐ │
+│ │ SQL Server   │ │  │ │          │  │  │ │  Cloudinary    │ │
+│ │   2022       │ │  │ │          │  │  │ │   CDN          │ │
+│ │              │ │  │ │          │  │  │ │                │ │
+│ │ • Accounts   │ │  │ │          │  │  │ │ • Image Store  │ │
+│ │ • Users      │ │  │ │          │  │  │ │ • Video Store  │ │
+│ │ • Posts      │ │  │ │          │  │  │ │ • Optimization │ │
+│ │ • Messages   │ │  │ │          │  │  │ └────────────────┘ │
+│ │ • RBAC       │ │  │ │          │  │  │                    │
+│ │ • 45+ Tables │ │  │ │          │  │  │ ┌────────────────┐ │
+│ └──────────────┘ │  │ │          │  │  │ │  MoMo Payment  │ │
+│                  │  │ │          │  │  │ │   Gateway      │ │
+└──────────────────┘  │ │          │  │  │ │                │ │
+                      │ │          │  │  │ │ • QR Payment   │ │
+┌─────────────────┐   │ │          │  │  │ │ • Webhook IPN  │ │
+│   CACHE TIER    │   │ │          │  │  │ └────────────────┘ │
+│  (Future)       │   │ │          │  │  │                    │
+│ ┌─────────────┐ │   │ │          │  │  │ ┌────────────────┐ │
+│ │   Redis     │ │   │ │          │  │  │ │  Email SMTP    │ │
+│ │             │ │   │ │          │  │  │ │   (Gmail)      │ │
+│ │ • Sessions  │ │   │ │          │  │  │ │                │ │
+│ │ • Cache     │ │   │ │          │  │  │ │ • OTP Emails   │ │
+│ └─────────────┘ │   │ │          │  │  │ │ • Notifications│ │
+└─────────────────┘   │ │          │  │  │ └────────────────┘ │
+                      │ │          │  │  │                    │
+┌─────────────────┐   │ │          │  │  │ ┌────────────────┐ │
+│  AI SERVICE     │   │ │          │  │  │ │  PhoBERT AI    │ │
+│                 │   │ │          │  │  │ │  Moderation    │ │
+│ ┌─────────────┐ │   │ │          │  │  │ │                │ │
+│ │  Python     │ │   │ │          │  │  │ │ • Toxic Detect │ │
+│ │  FastAPI    │ │───┘ │          │  │  │ │ • Vietnamese   │ │
+│ │             │ │─────┘          │  │  │ │ • ML Model     │ │
+│ │ • PhoBERT   │ │────────────────┘  │  │ └────────────────┘ │
+│ │ • ML Models │ │                   │  └────────────────────┘
+│ └─────────────┘ │                   │
+└─────────────────┘                   │
+                                      │
+┌─────────────────────────────────────┼────────────────────────┐
+│           BACKGROUND SERVICES       │                        │
+│                                     │                        │
+│  • ExpiredStoriesCleanupService     │ (Runs every 1 hour)    │
+│  • ExpiredBusinessAccountService    │ (Runs every 1 hour)    │
+│  • ExpiredPendingAccountsCleanup    │ (Runs every 1 hour)    │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**🔄 Luồng Dữ Liệu (Data Flow):**
+
+1. **HTTP Request**: Client → NGINX → WebAPI → Controllers → Services → Repositories → Database
+2. **WebSocket**: Client ↔ SignalR Hub ↔ Services ↔ Database (real-time bidirectional)
+3. **Media Upload**: Client → Controller → Cloudinary Service → Cloudinary CDN
+4. **Payment**: Client → Controller → MoMo Service → MoMo Gateway → Webhook Callback
+5. **AI Moderation**: Service → PhoBERT API (Python) → ML Model → Response
+6. **Background Jobs**: Hosted Service → Services → Repositories → Database
+
+---
+
+### Technology Stack
+
+#### 🎯 Backend Stack (.NET 8.0)
 
 | Công Nghệ | Phiên Bản | Mục Đích |
 |-----------|-----------|----------|

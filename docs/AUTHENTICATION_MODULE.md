@@ -46,7 +46,47 @@ Module Authentication quản lý toàn bộ quy trình xác thực người dùn
 
 ---
 
-## 🔐 Luồng Đăng Ký (Registration)
+## � Sơ Đồ Tổng Quan
+
+### Sequence Diagram - Complete Authentication Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API
+    participant BCrypt
+    participant DB
+    participant Email
+    participant JWT
+
+    Note over User,JWT: REGISTRATION FLOW
+    User->>API: POST /api/auth/register
+    API->>API: Validate Input
+    API->>DB: Check Email Exists
+    API->>BCrypt: Hash Password
+    API->>DB: Create Account + User
+    API->>API: Generate OTP
+    API->>Email: Send OTP
+    API-->>User: Success
+
+    Note over User,JWT: OTP VERIFICATION
+    User->>API: POST /api/auth/verify-otp
+    API->>BCrypt: Verify OTP
+    API->>DB: Activate Account
+    API->>JWT: Generate Tokens
+    API-->>User: {accessToken, refreshToken}
+
+    Note over User,JWT: LOGIN FLOW
+    User->>API: POST /api/auth/login
+    API->>DB: Get Account
+    API->>BCrypt: Verify Password
+    API->>JWT: Generate Tokens
+    API-->>User: {tokens, user}
+```
+
+---
+
+## �🔐 Luồng Đăng Ký (Registration)
 
 ### 📊 Sơ đồ luồng User Registration
 
