@@ -11,7 +11,7 @@ import {
   updateComment,
   getUserByUsername,
   API_BASE_URL,
-} from '../../api/Api';
+} from '../../API/Api';
 import './CommentsModal.css';
 
 // Helper function: Convert avatar path to full URL
@@ -89,6 +89,7 @@ const CommentsModal = ({
   visible,
   onClose,
   postId,
+  post,
   onCommentAdded,
   highlightCommentId,
 }) => {
@@ -189,28 +190,43 @@ const CommentsModal = ({
   // Connect SignalR and register handlers
   useEffect(() => {
     let joined = false;
+    const handlers = {
+      onReceiveComment: null,
+      onCommentUpdated: null,
+      onCommentDeleted: null,
+      onCommentReplyAdded: null,
+      onCommentReactionChanged: null,
+    };
+
     if (visible && postId) {
       (async () => {
         try {
-          await signalRService.connectToComments();
-          await signalRService.joinPostRoom(postId);
+          await signalRService.connectToComment();
+          await signalRService.joinPostComments(postId);
           joined = true;
+          console.log('[CommentsModal] ✅ SignalR connected and joined post:', postId);
 
-          // Handlers
-          signalRService.onReceiveComment((c) => {
+          // Define handlers
+          handlers.onReceiveComment = (c) => {
             try {
+              console.log('[CommentsModal] 📩 ReceiveComment event:', c);
               const mapped = mapServerCommentToUI(c);
               setComments((prev) => {
-                if (prev.find((x) => x.id === String(mapped.id))) return prev;
+                if (prev.find((x) => x.id === String(mapped.id))) {
+                  console.log('[CommentsModal] Comment already exists:', mapped.id);
+                  return prev;
+                }
+                console.log('[CommentsModal] ✅ Adding new comment:', mapped.id);
                 return [mapped, ...prev];
               });
             } catch (e) {
               console.error('[CommentsModal] onReceiveComment handler error', e);
             }
-          });
+          };
 
-          signalRService.onCommentUpdated((c) => {
+          handlers.onCommentUpdated = (c) => {
             try {
+              console.log('[CommentsModal] 📝 CommentUpdated event:', c);
               const mapped = mapServerCommentToUI(c);
               setComments((prev) =>
                 prev.map((item) => (item.id === String(mapped.id) ? mapped : item))
@@ -218,30 +234,64 @@ const CommentsModal = ({
             } catch (e) {
               console.error('[CommentsModal] onCommentUpdated handler error', e);
             }
-          });
+          };
 
-          signalRService.onCommentDeleted((payload) => {
+          handlers.onCommentDeleted = (payload) => {
             try {
+              console.log('[CommentsModal] 🗑️ CommentDeleted event:', payload);
               const cid = payload?.commentId ?? payload;
               const idStr = String(cid);
               setComments((prev) => prev.filter((c) => c.id !== idStr));
             } catch (e) {
               console.error('[CommentsModal] onCommentDeleted handler error', e);
             }
-          });
+          };
 
-          signalRService.onCommentReplyAdded((payload) => {
+          handlers.onCommentReplyAdded = (payload) => {
             try {
+              console.log('[CommentsModal] 💬 CommentReplyAdded event:', payload);
               const reply = payload?.replyComment ?? payload;
               const mapped = mapServerCommentToUI(reply);
               setComments((prev) => {
-                if (prev.find((x) => x.id === String(mapped.id))) return prev;
+                if (prev.find((x) => x.id === String(mapped.id))) {
+                  console.log('[CommentsModal] Reply already exists:', mapped.id);
+                  return prev;
+                }
+                console.log('[CommentsModal] ✅ Adding reply:', mapped.id);
                 return [mapped, ...prev];
               });
             } catch (e) {
               console.error('[CommentsModal] onCommentReplyAdded handler error', e);
             }
-          });
+          };
+
+          handlers.onCommentReactionChanged = (payload) => {
+            try {
+              console.log('[CommentsModal] ❤️ CommentReactionChanged event:', payload);
+              const commentId = String(payload?.commentId ?? payload?.CommentId);
+              const likesCount = Number(payload?.likesCount ?? payload?.LikesCount ?? 0);
+              const isLiked = Boolean(payload?.isLiked ?? payload?.IsLiked);
+
+              setComments((prev) =>
+                prev.map((item) =>
+                  item.id === commentId
+                    ? { ...item, likes: likesCount, isLiked: isLiked }
+                    : item
+                )
+              );
+            } catch (e) {
+              console.error('[CommentsModal] onCommentReactionChanged handler error', e);
+            }
+          };
+
+          // Register all handlers
+          signalRService.onReceiveComment(handlers.onReceiveComment);
+          signalRService.onCommentUpdated(handlers.onCommentUpdated);
+          signalRService.onCommentDeleted(handlers.onCommentDeleted);
+          signalRService.onCommentReplyAdded(handlers.onCommentReplyAdded);
+          signalRService.onCommentReactionChanged(handlers.onCommentReactionChanged);
+          
+          console.log('[CommentsModal] ✅ All handlers registered');
         } catch (error) {
           console.error('[CommentsModal] SignalR connect/join error', error);
         }
@@ -249,16 +299,37 @@ const CommentsModal = ({
     }
 
     return () => {
+      console.log('[CommentsModal] 🧹 Cleanup: removing handlers for post:', postId);
       (async () => {
         try {
-          if (joined) await signalRService.leavePostRoom(postId);
+          if (joined) {
+            await signalRService.leavePostRoom(postId);
+            console.log('[CommentsModal] ✅ Left post room');
+          }
         } catch (e) {
-          /* ignore */
+          console.error('[CommentsModal] Error leaving post room:', e);
         }
+        
+        // Remove specific handlers
         try {
-          signalRService.removeAllListeners();
+          if (handlers.onReceiveComment) {
+            signalRService.removeHandler('ReceiveComment', handlers.onReceiveComment);
+          }
+          if (handlers.onCommentUpdated) {
+            signalRService.removeHandler('CommentUpdated', handlers.onCommentUpdated);
+          }
+          if (handlers.onCommentDeleted) {
+            signalRService.removeHandler('CommentDeleted', handlers.onCommentDeleted);
+          }
+          if (handlers.onCommentReplyAdded) {
+            signalRService.removeHandler('CommentReplyAdded', handlers.onCommentReplyAdded);
+          }
+          if (handlers.onCommentReactionChanged) {
+            signalRService.removeHandler('CommentReactionChanged', handlers.onCommentReactionChanged);
+          }
+          console.log('[CommentsModal] ✅ All handlers removed');
         } catch (e) {
-          /* ignore */
+          console.error('[CommentsModal] Error removing handlers:', e);
         }
       })();
     };
@@ -872,113 +943,130 @@ const CommentsModal = ({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="modal-header">
-          <div className="modal-handle"></div>
-          <h2 className="modal-title">Bình luận</h2>
-        </div>
-
-        {/* Filter Tabs */}
-        {!loading && comments.length > 0 && (
-          <div className="filter-container">
-            <button
-              className={`filter-tab ${commentFilter === 'recent' ? 'active' : ''}`}
-              onClick={() => setCommentFilter('recent')}
-            >
-              Mới nhất
-            </button>
-            <button
-              className={`filter-tab ${commentFilter === 'all' ? 'active' : ''}`}
-              onClick={() => setCommentFilter('all')}
-            >
-              Tất cả bình luận
-            </button>
+      <div className="modal-content instagram-layout" onClick={(e) => e.stopPropagation()}>
+        {/* Left Side - Post Media */}
+        {post && (
+          <div className="modal-left-panel">
+            {post.mediaUrls && post.mediaUrls.length > 0 && (
+              post.mediaUrls[0].endsWith('.mp4') || post.mediaUrls[0].includes('video') ? (
+                <video
+                  src={post.mediaUrls[0].startsWith('http') ? post.mediaUrls[0] : `${API_BASE_URL}${post.mediaUrls[0]}`}
+                  className="post-media-image"
+                  controls
+                  loop
+                />
+              ) : (
+                <img
+                  src={post.mediaUrls[0].startsWith('http') ? post.mediaUrls[0] : `${API_BASE_URL}${post.mediaUrls[0]}`}
+                  alt="Post"
+                  className="post-media-image"
+                />
+              )
+            )}
           </div>
         )}
 
-        {/* Comments List */}
-        {loading ? (
-          <div className="loading-container">
-            <div className="spinner"></div>
-            <p className="loading-text">Đang tải bình luận...</p>
-          </div>
-        ) : comments.length === 0 ? (
-          <div className="empty-container">
-            <i className="far fa-comment-dots empty-icon"></i>
-            <p className="empty-text">Chưa có bình luận nào</p>
-            <p className="empty-subtext">Hãy là người đầu tiên bình luận</p>
-          </div>
-        ) : (
-          <div className="comments-list" ref={commentListRef}>
-            {getFilteredComments().map((item) => renderComment(item))}
-          </div>
-        )}
-
-        {/* Emoji Bar */}
-        <div className="emoji-bar">
-          {['❤️', '🙏', '🔥', '👏', '😢', '😍', '😮', '😂'].map((emoji) => (
-            <button
-              key={emoji}
-              className="emoji-button"
-              onClick={() => handleEmojiPress(emoji)}
-            >
-              {emoji}
+        {/* Right Side - Comments */}
+        <div className="modal-right-panel">
+          {/* Header */}
+          <div className="modal-header">
+            <h2 className="modal-title">Bình luận</h2>
+            <button className="modal-close-btn" onClick={onClose}>
+              <i className="fas fa-times"></i>
             </button>
-          ))}
-        </div>
+          </div>
 
-        {/* Input */}
-        <div className="input-container">
-          {(replyingTo || editingComment) && (
-            <div className="reply-banner">
-              <div className="reply-banner-content">
-                <i
-                  className={`fas ${editingComment ? 'fa-edit' : 'fa-reply'}`}
-                  style={{ color: '#8E8E8E' }}
-                ></i>
-                <span className="reply-banner-text">
-                  {editingComment
-                    ? 'Đang chỉnh sửa bình luận'
-                    : `Đang trả lời @${replyingTo.username}`}
-                </span>
-              </div>
-              <button
-                className="reply-banner-close"
-                onClick={editingComment ? cancelEdit : cancelReply}
-              >
-                <i className="fas fa-times"></i>
-              </button>
+          {/* Comments List */}
+          {loading ? (
+            <div className="loading-container">
+              <div className="spinner"></div>
+              <p className="loading-text">Đang tải bình luận...</p>
+            </div>
+          ) : comments.length === 0 ? (
+            <div className="empty-container">
+              <i className="far fa-comment-dots empty-icon"></i>
+              <p className="empty-text">Chưa có bình luận nào</p>
+              <p className="empty-subtext">Hãy là người đầu tiên bình luận</p>
+            </div>
+          ) : (
+            <div className="comments-list" ref={commentListRef}>
+              {getFilteredComments().map((item) => renderComment(item))}
             </div>
           )}
 
-          <div className="input-row">
-            <UserAvatar uri={currentUserAvatar} style="input-avatar" />
-            <textarea
-              ref={inputRef}
-              className="comment-input"
-              placeholder={
-                editingComment
-                  ? 'Chỉnh sửa bình luận...'
-                  : replyingTo
-                  ? `Trả lời @${replyingTo.username}...`
-                  : 'Bắt đầu trò chuyện... (dùng @username để tag)'
-              }
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              disabled={submitting}
-              maxLength={500}
-              rows={1}
-            />
-            {submitting ? (
-              <div className="spinner-small"></div>
-            ) : newComment.trim().length > 0 ? (
-              <button className="send-button" onClick={handleAddComment}>
-                {editingComment ? 'Lưu' : 'Gửi'}
+          {/* Emoji Bar */}
+          <div className="emoji-bar">
+            {['❤️', '🙏', '🔥', '👏', '😢', '😍', '😮', '😂'].map((emoji) => (
+              <button
+                key={emoji}
+                className="emoji-button"
+                onClick={() => handleEmojiPress(emoji)}
+              >
+                {emoji}
               </button>
-            ) : null}
+            ))}
           </div>
-          <div className="char-counter">{newComment.length}/500</div>
+
+          {/* Input */}
+          <div className="input-container">
+            {(replyingTo || editingComment) && (
+              <div className="reply-banner">
+                <div className="reply-banner-content">
+                  <i
+                    className={`fas ${editingComment ? 'fa-edit' : 'fa-reply'}`}
+                    style={{ color: '#8E8E8E' }}
+                  ></i>
+                  <span className="reply-banner-text">
+                    {editingComment
+                      ? 'Đang chỉnh sửa bình luận'
+                      : `Đang trả lời @${replyingTo.username}`}
+                  </span>
+                </div>
+                <button
+                  className="reply-banner-close"
+                  onClick={editingComment ? cancelEdit : cancelReply}
+                >
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+            )}
+
+            <div className="input-row">
+              <UserAvatar uri={currentUserAvatar} style="input-avatar" />
+              <textarea
+                ref={inputRef}
+                className="comment-input"
+                placeholder={
+                  editingComment
+                    ? 'Chỉnh sửa bình luận...'
+                    : replyingTo
+                    ? `Trả lời @${replyingTo.username}...`
+                    : 'Bắt đầu trò chuyện... (dùng @username để tag)'
+                }
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (newComment.trim().length > 0 && !submitting) {
+                      handleAddComment();
+                    }
+                  }
+                }}
+                disabled={submitting}
+                maxLength={500}
+                rows={1}
+              />
+              {submitting ? (
+                <div className="spinner-small"></div>
+              ) : newComment.trim().length > 0 ? (
+                <button className="send-button" onClick={handleAddComment}>
+                  {editingComment ? 'Lưu' : 'Gửi'}
+                </button>
+              ) : null}
+            </div>
+            <div className="char-counter">{newComment.length}/500</div>
+          </div>
         </div>
 
         {/* Global Menu */}

@@ -44,16 +44,19 @@
 }
 
 .post-button {
-  color: #FFFFFF;
-  background-color: #0095F6;
+  color: #FFFFFF !important;
+  background-color: #0095F6 !important;
+  transition: background-color 0.2s;
 }
 
 .post-button:hover:not(:disabled) {
-  background-color: #1877F2;
+  background-color: #0084E0 !important;
 }
 
 .post-button:disabled {
   background-color: #B2DFFC;
+  color: #FFFFFF;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 

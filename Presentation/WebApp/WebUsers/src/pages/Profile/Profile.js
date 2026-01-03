@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMyPosts, getProfile, updateAvatar, API_BASE_URL, getBlockedUsers, unblockUser } from '../../api/Api';
-import { useUser } from '../../context/UserContext';
-import NavigationBar from '../../Components/NavigationBar';
+import { getMyPosts, getProfile, updateAvatar, API_BASE_URL, getBlockedUsers, unblockUser } from '../../API/Api';
+import { useUser } from '../../Context/UserContext';
+import NavigationBar from '../../components/NavigationBar';
+import { MdPerson, MdGridOn, MdPlayArrow, MdCameraAlt, MdAdd, MdPersonAdd } from 'react-icons/md';
 import './Profile.css';
 
 export default function Profile() {
@@ -178,7 +179,9 @@ export default function Profile() {
                     {getAvatarUri(u) ? (
                       <img src={getAvatarUri(u)} alt={u.username} className="blocked-avatar" />
                     ) : (
-                      <div className="blocked-avatar default">👤</div>
+                      <div className="blocked-avatar default">
+                        <MdPerson />
+                      </div>
                     )}
                     <div>
                       <div className="blocked-name">{u.username || u.fullName}</div>
@@ -204,7 +207,9 @@ export default function Profile() {
                 {avatarUri ? (
                   <img src={avatarUri} alt="Profile" className="profile-avatar-img" />
                 ) : (
-                  <div className="profile-avatar-img default">👤</div>
+                  <div className="profile-avatar-img default">
+                    <MdPerson />
+                  </div>
                 )}
               </div>
               {hasStory && <div className="story-indicator" />}
@@ -237,7 +242,6 @@ export default function Profile() {
 
           <div className="button-container">
             <button className="edit-btn" onClick={() => navigate('/profile/edit')}>Edit Profile</button>
-            <button className="share-btn">Share Profile</button>
           </div>
         </div>
 
@@ -245,7 +249,7 @@ export default function Profile() {
         <div className="stories-section">
           <div className="stories-scroll">
             <div className="story-highlight-item">
-              <div className="add-story-circle">➕</div>
+              <div className="add-story-circle"><MdAdd /></div>
               <span className="story-highlight-name">New</span>
             </div>
           </div>
@@ -253,8 +257,8 @@ export default function Profile() {
 
         {/* Tab Bar */}
         <div className="tab-bar">
-          <button className="tab-button active">📱</button>
-          <button className="tab-button">👤</button>
+          <button className="tab-button active"><MdGridOn /></button>
+          <button className="tab-button"><MdPersonAdd /></button>
         </div>
 
         {/* Posts Grid */}
@@ -280,7 +284,7 @@ export default function Profile() {
                       className="post-grid-image"
                     />
                   )}
-                  {isVideo && <span className="video-play-icon">▶</span>}
+                  {isVideo && <MdPlayArrow className="video-play-icon" />}
                 </button>
               );
             })
@@ -294,11 +298,11 @@ export default function Profile() {
           <div className="avatar-menu-sheet" onClick={(e) => e.stopPropagation()}>
             <h3 className="sheet-title">Tùy chọn</h3>
             <button className="sheet-item" onClick={handleViewStory}>
-              <span className="sheet-icon">▶</span>
+              <MdPlayArrow className="sheet-icon" />
               <span className="sheet-item-text">Xem Story</span>
             </button>
             <button className="sheet-item" onClick={() => { setShowAvatarMenu(false); handlePickAvatar(); }}>
-              <span className="sheet-icon">📷</span>
+              <MdCameraAlt className="sheet-icon" />
               <span className="sheet-item-text">Đổi Avatar</span>
             </button>
           </div>

@@ -1,11 +1,9 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
-import { API_BASE_URL } from "../../api/Api";
+import { IoPersonCircle } from "react-icons/io5";
+import { API_BASE_URL } from "../../api/AppApi";
 import "./SearchUserItem.css";
 
-export default function SearchUserItem({ user, onFollowPress }) {
-    const navigate = useNavigate();
-    
+export default function SearchUserItem({ user, onPress, onFollowPress }) {
     // Build avatar URL
     let avatarUri = user?.avatarUrl || user?.AvatarUrl || null;
     if (avatarUri && !avatarUri.startsWith("http")) {
@@ -23,7 +21,9 @@ export default function SearchUserItem({ user, onFollowPress }) {
     };
 
     const handleUserClick = () => {
-        navigate(`/profile/${user.userId || user.UserId}`);
+        if (onPress) {
+            onPress(user);
+        }
     };
 
     return (
@@ -32,9 +32,7 @@ export default function SearchUserItem({ user, onFollowPress }) {
                 {avatarUri ? (
                     <img src={avatarUri} alt="Avatar" className="user-avatar" />
                 ) : (
-                    <div className="user-avatar-placeholder">
-                        <i className="icon-person"></i>
-                    </div>
+                    <IoPersonCircle size={48} color="#e5e7eb" />
                 )}
             </div>
             
@@ -47,15 +45,8 @@ export default function SearchUserItem({ user, onFollowPress }) {
                 </div>
                 
                 {user.priority === 1 && (
-                    <div className="priority-badge">
-                        <i className="icon-check-circle"></i>
-                        <span>Đang theo dõi</span>
-                    </div>
-                )}
-                {user.priority === 2 && (
-                    <div className="priority-badge">
-                        <i className="icon-chat"></i>
-                        <span>Đã nhắn tin</span>
+                    <div className="priority-badge following">
+                        Đang theo dõi
                     </div>
                 )}
                 
@@ -68,7 +59,7 @@ export default function SearchUserItem({ user, onFollowPress }) {
                 </div>
             </div>
             
-            {!user.isCurrentUser && (
+            {!user.isCurrentUser && onFollowPress && (
                 <button
                     className={`follow-button ${user.isFollowing ? 'following' : ''}`}
                     onClick={handleFollowPress}

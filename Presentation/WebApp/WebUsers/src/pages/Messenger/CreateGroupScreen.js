@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getFollowing, createGroup } from '../../api/Api';
+import { getFollowing, createGroup } from '../../API/Api';
+import { MdGroup, MdSearch } from 'react-icons/md';
 import './CreateGroupScreen.css';
 
 export default function CreateGroupScreen() {
@@ -198,7 +199,7 @@ export default function CreateGroupScreen() {
       {/* Group Name Input */}
       <div className="create-group-name-section">
         <div className="create-group-input-container">
-          <i className="icon-people">👥</i>
+          <MdGroup className="icon-people" />
           <input
             type="text"
             className="create-group-input"
@@ -224,7 +225,7 @@ export default function CreateGroupScreen() {
 
       {/* Search Bar */}
       <div className="create-group-search-container">
-        <i className="icon-search">🔍</i>
+        <MdSearch className="icon-search" />
         <input
           type="text"
           className="create-group-search-input"

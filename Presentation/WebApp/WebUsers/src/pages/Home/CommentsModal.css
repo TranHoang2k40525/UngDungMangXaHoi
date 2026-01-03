@@ -6,9 +6,9 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.85);
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   z-index: 9999;
   animation: fadeIn 0.2s ease-out;
@@ -25,41 +25,91 @@
 
 .modal-content {
   background-color: #ffffff;
-  border-top-left-radius: 20px;
-  border-top-right-radius: 20px;
+  border-radius: 12px;
   max-height: 90vh;
-  width: 100%;
-  max-width: 600px;
+  height: 85vh;
+  width: 90vw;
+  max-width: 1400px;
   display: flex;
-  flex-direction: column;
-  animation: slideUp 0.3s ease-out;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+  flex-direction: row;
+  animation: scaleIn 0.3s ease-out;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
 }
 
-@keyframes slideUp {
+.modal-content.instagram-layout {
+  display: flex;
+  flex-direction: row;
+}
+
+@keyframes scaleIn {
   from {
-    transform: translateY(100%);
+    transform: scale(0.9);
+    opacity: 0;
   }
   to {
-    transform: translateY(0);
+    transform: scale(1);
+    opacity: 1;
   }
+}
+
+/* Left Panel - Post Media */
+.modal-left-panel {
+  flex: 1;
+  min-width: 0;
+  background-color: #000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.post-media-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* Right Panel - Comments */
+.modal-right-panel {
+  width: 500px;
+  min-width: 400px;
+  max-width: 600px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff;
 }
 
 /* Header */
 .modal-header {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  padding: 12px 0;
-  border-bottom: 0.5px solid #dbdbdb;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #dbdbdb;
+}
+
+.modal-close-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #262626;
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.modal-close-btn:hover {
+  color: #8e8e8e;
 }
 
 .modal-handle {
-  width: 40px;
-  height: 4px;
-  background-color: #dbdbdb;
-  border-radius: 2px;
-  margin-bottom: 8px;
+  display: none;
 }
 
 .modal-title {
@@ -67,6 +117,8 @@
   font-weight: 600;
   color: #000000;
   margin: 0;
+}
+  
 }
 
 /* Filter Tabs */
@@ -255,7 +307,7 @@
 
 .comment-username {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   color: #000000;
   cursor: pointer;
   transition: opacity 0.2s;
@@ -286,10 +338,15 @@
 
 .mention-text {
   font-size: 14px;
-  color: #000000;
+  color: #000000 !important;
+  font-weight: 400 !important;
   line-height: 18px;
   margin-top: 2px;
   display: inline-block;
+}
+
+.mention-text > span {
+  font-weight: 400 !important;
 }
 
 .mention-link {

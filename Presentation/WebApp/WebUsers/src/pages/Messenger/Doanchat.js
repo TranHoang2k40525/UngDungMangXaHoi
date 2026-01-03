@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import MessageAPI from '../../api/MessageAPI';
+import MessageAPI from '../../API/MessageAPI';
 import signalRService from '../../Services/signalRService';
 import './Doanchat.css';
 
@@ -559,7 +559,7 @@ export default function Doanchat() {
         </div>
 
         <button className="doanchat-header-icon">
-          <i className="icon-info">ℹ️</i>
+          <i className="icon-info"></i>
         </button>
       </div>
 
@@ -684,10 +684,6 @@ export default function Doanchat() {
 
       {/* Message Input */}
       <div className="doanchat-message-input-container">
-        <button className="doanchat-camera-button">
-          <i className="icon-camera">📷</i>
-        </button>
-        
         <div className="doanchat-input-wrapper">
           <textarea
             className="doanchat-message-input"
@@ -700,40 +696,13 @@ export default function Doanchat() {
           />
         </div>
 
-        {message.trim() ? (
-          <button 
-            className={`doanchat-send-button ${sending ? 'disabled' : ''}`}
-            onClick={handleSend}
-            disabled={sending}
-          >
-            {sending ? <div className="doanchat-spinner-small" /> : '↑'}
-          </button>
-        ) : (
-          <>
-            <button className="doanchat-mic-button">
-              <i className="icon-mic">🎤</i>
-            </button>
-
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileSelected}
-              accept="image/*"
-              style={{ display: 'none' }}
-            />
-            <button 
-              className="doanchat-image-button" 
-              onClick={pickImage} 
-              disabled={uploadingImage}
-            >
-              {uploadingImage ? <div className="doanchat-spinner-small" /> : '🖼️'}
-            </button>
-
-            <button className="doanchat-like-button">
-              <i className="icon-add">➕</i>
-            </button>
-          </>
-        )}
+        <button 
+          className={`doanchat-send-button ${sending ? 'disabled' : ''}`}
+          onClick={handleSend}
+          disabled={sending || !message.trim()}
+        >
+          {sending ? <div className="doanchat-spinner-small" /> : '↑'}
+        </button>
       </div>
 
       {/* Action Modal */}

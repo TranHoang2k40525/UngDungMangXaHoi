@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { API_BASE_URL } from '../../api/Api';
+import { API_BASE_URL } from '../../API/Api';
 import { getRelativeTime } from '../../Utils/timeUtils';
 import './StoryViewer.css';
 

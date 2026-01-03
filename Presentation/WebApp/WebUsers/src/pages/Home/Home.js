@@ -1,9 +1,10 @@
-// Home.js - Complete web version converted from MobileApp
+﻿// Home.js - Complete web version converted from MobileApp
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useUser } from '../../context/UserContext';
-import { useFollow } from '../../context/FollowContext';
+import { useUser } from '../../Context/UserContext';
+import { useFollow } from '../../Context/FollowContext';
 import CommentsModal from './CommentsModal';
+import { IoHeartOutline, IoHeart, IoChatbubbleOutline, IoRepeatOutline, IoSendOutline, IoBookmarkOutline, IoEllipsisHorizontal, IoLockClosed, IoPeople, IoEarth, IoPersonCircle } from 'react-icons/io5';
 import {
   getFeed,
   updatePostPrivacy,
@@ -21,9 +22,9 @@ import {
   API_BASE_URL,
   getFeedStories,
   getMyStories,
-} from '../../api/Api';
+} from '../../API/Api';
 import { getRelativeTime } from '../../Utils/timeUtils';
-import NavigationBar from '../../Components/NavigationBar';
+import NavigationBar from '../../components/NavigationBar';
 import './Home.css';
 
 // Story Components
@@ -52,7 +53,7 @@ const StoryItem = ({ id, name, avatar, hasStory, storyData, navigate }) => {
           <img src={typeof avatar === 'string' ? avatar : avatar.uri} alt={name} className="story-avatar" />
         ) : (
           <div className="story-avatar default-avatar">
-            <span>👤</span>
+            <IoPersonCircle size={56} color="#e5e7eb" />
           </div>
         )}
       </div>
@@ -141,12 +142,12 @@ const ReactionPicker = ({ visible, position, onSelectReaction }) => {
   if (!visible) return null;
 
   const reactions = [
-    { type: 1, emoji: '❤️' },
-    { type: 2, emoji: '😆' },
-    { type: 3, emoji: '😂' },
-    { type: 4, emoji: '😮' },
-    { type: 5, emoji: '😢' },
-    { type: 6, emoji: '😠' },
+    { type: 1, emoji: '❤️', label: 'Like' },
+    { type: 2, emoji: '😍', label: 'Love' },
+    { type: 3, emoji: '😂', label: 'Haha' },
+    { type: 4, emoji: '😮', label: 'Wow' },
+    { type: 5, emoji: '😢', label: 'Sad' },
+    { type: 6, emoji: '😠', label: 'Angry' },
   ];
 
   return (
@@ -167,7 +168,7 @@ const ReactionPicker = ({ visible, position, onSelectReaction }) => {
 const getReactionEmoji = (reactionType) => {
   switch (reactionType) {
     case 1: return '❤️';
-    case 2: return '😆';
+    case 2: return '😍';
     case 3: return '😂';
     case 4: return '😮';
     case 5: return '😢';
@@ -905,7 +906,7 @@ export default function Home() {
                         <img src={avatarUri} alt={p.user?.username} className="post-avatar" />
                       ) : (
                         <div className="post-avatar default-avatar">
-                          <span>👤</span>
+                          <IoPersonCircle size={32} color="#e5e7eb" />
                         </div>
                       );
                     })()}
@@ -947,9 +948,11 @@ export default function Home() {
                         {p.privacy && (
                           <div className="privacy-pill">
                             <span className="privacy-icon">
-                              {p.privacy === 'private' ? '🔒' : p.privacy === 'followers' ? '👥' : '🌍'}
+                              {p.privacy === 'private' ? <IoLockClosed size={12} /> : p.privacy === 'followers' ? <IoPeople size={12} /> : <IoEarth size={12} />}
                             </span>
-                            <span className="privacy-text">{p.privacy}</span>
+                            <span className="privacy-text">
+                              {p.privacy === 'private' ? 'Riêng tư' : p.privacy === 'followers' ? 'Bạn bè' : 'Công khai'}
+                            </span>
                           </div>
                         )}
                       </div>
@@ -961,7 +964,9 @@ export default function Home() {
                         Theo dõi
                       </button>
                     )}
-                    <button className="more-btn" onClick={() => openOptionsFor(p)}>⋯</button>
+                    <button className="more-btn" onClick={() => openOptionsFor(p)}>
+                      <IoEllipsisHorizontal size={24} />
+                    </button>
                   </div>
                 </div>
 
@@ -1028,18 +1033,18 @@ export default function Home() {
                       {postStates[p.id]?.reactionType ? (
                         <span className="reaction-emoji">{getReactionEmoji(postStates[p.id].reactionType)}</span>
                       ) : (
-                        <span className="icon heart-outline">🤍</span>
+                        <IoHeartOutline className="icon" size={24} />
                       )}
                     </button>
                     <button className="action-btn comment-btn" onClick={() => onOpenComments(p.id)}>
-                      <span className="icon">💬</span>
+                      <IoChatbubbleOutline className="icon" size={24} />
                       <span className="count">{postStates[p.id]?.comments ?? 0}</span>
                     </button>
                     <button className="action-btn repost-btn" onClick={() => onRepost(p.id)}>
-                      <span className="icon">🔁</span>
+                      <IoRepeatOutline className="icon" size={24} />
                     </button>
                     <button className="action-btn share-btn" onClick={() => onShare(p)}>
-                      <span className="icon">📤</span>
+                      <IoSendOutline className="icon" size={24} />
                     </button>
                   </div>
                 </div>
@@ -1133,7 +1138,7 @@ export default function Home() {
                       <img src={t.avatarUrl} alt={t.username} className="tag-list-avatar" />
                     ) : (
                       <div className="tag-list-avatar default-avatar">
-                        <span>👤</span>
+                        <IoPersonCircle size={36} color="#e5e7eb" />
                       </div>
                     )}
                     <span className="tag-list-name">{t.username || 'user'}</span>
@@ -1169,7 +1174,7 @@ export default function Home() {
                     <img src={t.avatarUrl} alt={t.username} className="tag-chip-avatar" />
                   ) : (
                     <div className="tag-chip-avatar default-avatar">
-                      <span>👤</span>
+                      <IoPersonCircle size={20} color="#e5e7eb" />
                     </div>
                   )}
                   <span className="tag-chip-text">{t.username || t.fullName || 'user'}</span>
@@ -1237,7 +1242,7 @@ export default function Home() {
                           <img src={item.avatarUrl} alt={item.username} className="user-avatar" />
                         ) : (
                           <div className="user-avatar default-avatar">
-                            <span>👤</span>
+                            <IoPersonCircle size={40} color="#e5e7eb" />
                           </div>
                         )}
                         <div className="user-info">
@@ -1369,6 +1374,7 @@ export default function Home() {
             setCommentsPostId(null);
           }}
           postId={commentsPostId}
+          post={posts.find(p => p.id === commentsPostId)}
           onCommentAdded={() => {
             // Refresh comment count for this post
             if (commentsPostId) {

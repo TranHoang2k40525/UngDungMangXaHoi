@@ -482,3 +482,232 @@
   margin-left: 245px;
   color: #8e8e8e;
 }
+
+/* Responsive Design */
+
+/* Desktop lớn */
+@media (min-width: 1024px) {
+  .profile-container {
+    margin-left: 245px;
+  }
+}
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .profile-container {
+    margin-left: 0;
+  }
+
+  .profile-loading {
+    margin-left: 0;
+  }
+}
+
+/* Mobile và Tablet */
+@media (max-width: 768px) {
+  .profile-page-header {
+    padding: 16px 16px;
+  }
+
+  .profile-username {
+    font-size: 18px;
+  }
+
+  .profile-content {
+    padding: 20px 16px;
+  }
+
+  .profile-header-row {
+    gap: 40px;
+    margin-bottom: 32px;
+  }
+
+  .avatar-ring {
+    width: 120px;
+    height: 120px;
+  }
+
+  .profile-avatar-img.default {
+    font-size: 52px;
+  }
+
+  .stats-container {
+    gap: 30px;
+    padding-top: 20px;
+  }
+
+  .stat-number {
+    font-size: 15px;
+  }
+
+  .stat-label {
+    font-size: 15px;
+  }
+
+  .bio-name,
+  .bio-text {
+    font-size: 13px;
+  }
+
+  .button-container {
+    gap: 6px;
+  }
+
+  .edit-btn,
+  .share-btn {
+    padding: 6px;
+    font-size: 13px;
+  }
+
+  .posts-grid {
+    gap: 2px;
+  }
+
+  .tab-bar {
+    margin-bottom: 2px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .profile-page-header {
+    padding: 12px 12px;
+  }
+
+  .profile-username {
+    font-size: 17px;
+  }
+
+  .header-icon-btn {
+    font-size: 22px;
+    padding: 6px;
+  }
+
+  .profile-content {
+    padding: 16px 12px;
+  }
+
+  .profile-header-row {
+    gap: 30px;
+    margin-bottom: 24px;
+  }
+
+  .avatar-ring {
+    width: 100px;
+    height: 100px;
+  }
+
+  .profile-avatar-img.default {
+    font-size: 44px;
+  }
+
+  .stats-container {
+    gap: 20px;
+    padding-top: 16px;
+  }
+
+  .stat-number {
+    font-size: 14px;
+  }
+
+  .stat-label {
+    font-size: 14px;
+  }
+
+  .bio-name,
+  .bio-text {
+    font-size: 12px;
+  }
+
+  .button-container {
+    gap: 5px;
+  }
+
+  .edit-btn,
+  .share-btn {
+    padding: 5px;
+    font-size: 12px;
+  }
+
+  .stories-section {
+    padding: 12px 0;
+  }
+
+  .add-story-circle {
+    width: 56px;
+    height: 56px;
+    font-size: 28px;
+  }
+
+  .story-highlight-name {
+    font-size: 11px;
+  }
+
+  .tab-button {
+    font-size: 22px;
+  }
+
+  .posts-grid {
+    gap: 1px;
+  }
+
+  .modal-overlay .menu-sheet,
+  .modal-overlay .avatar-menu-sheet {
+    padding: 8px;
+  }
+
+  .sheet-title {
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+
+  .sheet-item,
+  .menu-item {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+}
+
+/* Mobile nhỏ */
+@media (max-width: 375px) {
+  .profile-page-header {
+    padding: 10px 10px;
+  }
+
+  .profile-username {
+    font-size: 16px;
+  }
+
+  .profile-content {
+    padding: 12px 8px;
+  }
+
+  .profile-header-row {
+    gap: 24px;
+    margin-bottom: 20px;
+  }
+
+  .avatar-ring {
+    width: 88px;
+    height: 88px;
+  }
+
+  .profile-avatar-img.default {
+    font-size: 38px;
+  }
+
+  .stats-container {
+    gap: 16px;
+  }
+
+  .stat-number,
+  .stat-label {
+    font-size: 13px;
+  }
+
+  .add-story-circle {
+    width: 52px;
+    height: 52px;
+    font-size: 24px;
+  }
+}

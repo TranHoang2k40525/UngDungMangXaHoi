@@ -5,7 +5,7 @@ import {
   getGroupInfo,
   getGroupMembers,
   API_BASE_URL,
-} from '../../api/Api';
+} from '../../API/Api';
 import ImageViewer from '../../Components/ImageViewer';
 import './GroupChatScreen.css';
 
@@ -781,17 +781,6 @@ export default function GroupChatScreen() {
 
       {/* Input area */}
       <div className="input-container">
-        <button className="attachment-button" onClick={() => fileInputRef.current?.click()}>
-          📎
-        </button>
-        <input
-          type="file"
-          ref={fileInputRef}
-          style={{ display: 'none' }}
-          onChange={handleFileSelect}
-          accept="image/*,video/*,.pdf,.doc,.docx"
-        />
-
         <textarea
           ref={messageInputRef}
           className="message-input"
@@ -801,10 +790,6 @@ export default function GroupChatScreen() {
           placeholder="Nhập tin nhắn..."
           rows={1}
         />
-
-        <button className="emoji-button" onClick={() => setShowEmojiPicker(!showEmojiPicker)}>
-          😊
-        </button>
 
         <button className="send-button" onClick={() => handleSend()} disabled={!message.trim()}>
           ➤

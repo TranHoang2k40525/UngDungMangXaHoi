@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import * as NotificationAPI from '../../api/Api';
+import * as NotificationAPI from '../../API/Api';
 import signalRService from '../../Services/signalRService';
-import NavigationBar from '../../Components/NavigationBar';
+import NavigationBar from '../../components/NavigationBar';
+import { MdFavorite, MdFavoriteBorder, MdComment, MdPersonAdd, MdAlternateEmail, MdMail, MdGroup, MdNotifications, MdShare, MdArrowBack } from 'react-icons/md';
+import { FaHeart, FaGrinHearts, FaLaughSquint, FaSurprise, FaSadTear, FaAngry } from 'react-icons/fa';
 import './Notifications.css';
 
 const NotificationItem = ({ notification, onPress, onMarkAsRead, onDelete }) => {
@@ -11,24 +13,24 @@ const NotificationItem = ({ notification, onPress, onMarkAsRead, onDelete }) => 
       case 1: // Reaction
         if (reactionType) {
           switch (reactionType) {
-            case 1: return '❤️';
-            case 2: return '😍';
-            case 3: return '😂';
-            case 4: return '😮';
-            case 5: return '😢';
-            case 6: return '😠';
-            default: return '❤️';
+            case 1: return <FaHeart />;
+            case 2: return <FaGrinHearts />;
+            case 3: return <FaLaughSquint />;
+            case 4: return <FaSurprise />;
+            case 5: return <FaSadTear />;
+            case 6: return <FaAngry />;
+            default: return <FaHeart />;
           }
         }
-        return '❤️';
-      case 2: return '🔄'; // Share
-      case 3: return '💬'; // Comment
-      case 4: return '👤'; // Follow
-      case 5: return '@';   // Mention
-      case 6: return '💬'; // CommentReply
-      case 7: return '✉️';  // Message
-      case 8: return '👥'; // GroupMessage
-      default: return '🔔';
+        return <FaHeart />;
+      case 2: return <MdShare />; // Share
+      case 3: return <MdComment />; // Comment
+      case 4: return <MdPersonAdd />; // Follow
+      case 5: return <MdAlternateEmail />;   // Mention
+      case 6: return <MdComment />; // CommentReply
+      case 7: return <MdMail />;  // Message
+      case 8: return <MdGroup />; // GroupMessage
+      default: return <MdNotifications />;
     }
   };
 
@@ -228,7 +230,7 @@ export default function Notifications() {
     <div className="notifications-container">
       <div className="notifications-header">
         <button className="notifications-back-button" onClick={() => navigate(-1)}>
-          ←
+          <MdArrowBack />
         </button>
         <h2 className="notifications-logo">Thông báo</h2>
         <div className="notifications-header-right">
@@ -236,7 +238,7 @@ export default function Notifications() {
             Đánh dấu đã đọc
           </button>
           <button className="notifications-messenger-button" onClick={() => navigate('/messenger')}>
-            💬
+            <MdMail />
           </button>
         </div>
       </div>

@@ -265,3 +265,139 @@
   background-color: #3B82F6;
   border-color: #3B82F6;
 }
+
+/* Responsive Design */
+
+/* Tablet */
+@media (max-width: 768px) {
+  .create-group-header {
+    padding: 10px 14px;
+  }
+
+  .create-group-header-title {
+    font-size: 17px;
+  }
+
+  .create-group-back-button {
+    font-size: 22px;
+  }
+
+  .create-group-name-section {
+    padding: 10px 14px;
+  }
+
+  .create-group-input-container {
+    padding: 9px 11px;
+  }
+
+  .create-group-input {
+    font-size: 14px;
+  }
+
+  .create-group-selected-section {
+    padding: 10px 14px;
+  }
+
+  .create-group-selected-title {
+    font-size: 12px;
+  }
+
+  .create-group-selected-chip {
+    padding: 5px 9px;
+  }
+
+  .create-group-selected-chip-text {
+    font-size: 12px;
+  }
+
+  .create-group-search-container {
+    margin: 10px 14px 0;
+    padding: 9px 11px;
+  }
+
+  .create-group-search-input {
+    font-size: 14px;
+  }
+
+  .create-group-user-item {
+    padding: 10px 14px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .create-group-header {
+    padding: 8px 12px;
+  }
+
+  .create-group-header-title {
+    font-size: 16px;
+  }
+
+  .create-group-back-button {
+    font-size: 20px;
+    padding: 6px;
+  }
+
+  .create-group-create-button {
+    font-size: 15px;
+    padding: 5px 10px;
+  }
+
+  .create-group-name-section {
+    padding: 8px 12px;
+  }
+
+  .create-group-input-container {
+    padding: 8px 10px;
+  }
+
+  .create-group-input {
+    font-size: 13px;
+  }
+
+  .create-group-selected-section {
+    padding: 8px 12px;
+  }
+
+  .create-group-selected-title {
+    font-size: 11px;
+    margin-bottom: 6px;
+  }
+
+  .create-group-selected-chip {
+    padding: 4px 8px;
+  }
+
+  .create-group-selected-chip-text {
+    font-size: 11px;
+  }
+
+  .create-group-search-container {
+    margin: 8px 12px 0;
+    padding: 8px 10px;
+  }
+
+  .create-group-search-input {
+    font-size: 13px;
+  }
+
+  .create-group-user-item {
+    padding: 8px 12px;
+  }
+}
+
+/* Mobile nhỏ */
+@media (max-width: 375px) {
+  .create-group-header-title {
+    font-size: 15px;
+  }
+
+  .create-group-input {
+    font-size: 12px;
+  }
+
+  .create-group-search-input {
+    font-size: 12px;
+  }
+}

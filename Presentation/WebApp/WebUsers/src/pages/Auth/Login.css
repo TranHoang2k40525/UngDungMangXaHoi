@@ -107,3 +107,301 @@
   font-size: 12px;
   color: #9ca3af;
 }
+
+/* Responsive Design */
+
+/* Tablet và màn hình nhỏ hơn */
+@media (max-width: 1024px) {
+  .auth-card {
+    max-width: 400px;
+    padding: 36px 28px 28px;
+  }
+
+  .auth-logo {
+    font-size: 26px;
+  }
+}
+
+/* Mobile và tablet nhỏ */
+@media (max-width: 768px) {
+  .auth-container {
+    padding: 16px;
+  }
+
+  .auth-card {
+    max-width: 100%;
+    padding: 32px 24px 24px;
+    border-radius: 12px;
+  }
+
+  .auth-logo {
+    font-size: 24px;
+    margin-bottom: 28px;
+  }
+
+  .auth-input-group {
+    padding: 11px 14px;
+    margin-bottom: 14px;
+  }
+
+  .auth-input-group input {
+    font-size: 14px;
+  }
+
+  .auth-button {
+    padding: 11px 14px;
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+
+  .auth-forgot {
+    margin-bottom: 14px;
+  }
+
+  .auth-forgot a {
+    font-size: 13px;
+  }
+
+  .auth-divider {
+    margin-bottom: 20px;
+    font-size: 12px;
+  }
+
+  .auth-switch {
+    font-size: 13px;
+  }
+
+  .auth-footer {
+    margin-top: 28px;
+  }
+}
+
+/* Mobile nhỏ */
+@media (max-width: 480px) {
+  .auth-container {
+    padding: 12px;
+  }
+
+  .auth-card {
+    padding: 28px 20px 20px;
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
+  }
+
+  .auth-logo {
+    font-size: 22px;
+    margin-bottom: 24px;
+  }
+
+  .auth-input-group {
+    padding: 10px 12px;
+    margin-bottom: 12px;
+  }
+
+  .auth-input-group input {
+    font-size: 13px;
+  }
+
+  .auth-button {
+    padding: 10px 12px;
+    font-size: 13px;
+    margin-bottom: 18px;
+  }
+
+  .auth-forgot {
+    margin-bottom: 12px;
+  }
+
+  .auth-forgot a {
+    font-size: 12px;
+  }
+
+  .auth-divider {
+    margin-bottom: 18px;
+    font-size: 11px;
+  }
+
+  .auth-switch {
+    font-size: 12px;
+  }
+
+  .auth-footer {
+    margin-top: 24px;
+    font-size: 11px;
+  }
+}
+
+/* Màn hình rất nhỏ (iPhone SE, etc.) */
+@media (max-width: 375px) {
+  .auth-card {
+    padding: 24px 16px 16px;
+  }
+
+  .auth-logo {
+    font-size: 20px;
+    margin-bottom: 20px;
+  }
+
+  .auth-input-group {
+    padding: 9px 11px;
+    margin-bottom: 11px;
+  }
+
+  .auth-input-group input {
+    font-size: 13px;
+  }
+
+  .auth-button {
+    padding: 9px 11px;
+    font-size: 13px;
+  }
+}
+
+/* Responsive Design */
+
+/* Tablet và màn hình nhỏ hơn */
+@media (max-width: 1024px) {
+  .auth-card {
+    max-width: 400px;
+    padding: 36px 28px 28px;
+  }
+
+  .auth-logo {
+    font-size: 26px;
+  }
+}
+
+/* Mobile và tablet nhỏ */
+@media (max-width: 768px) {
+  .auth-container {
+    padding: 16px;
+  }
+
+  .auth-card {
+    max-width: 100%;
+    padding: 32px 24px 24px;
+    border-radius: 12px;
+  }
+
+  .auth-logo {
+    font-size: 24px;
+    margin-bottom: 28px;
+  }
+
+  .auth-input-group {
+    padding: 11px 14px;
+    margin-bottom: 14px;
+  }
+
+  .auth-input-group input {
+    font-size: 14px;
+  }
+
+  .auth-button {
+    padding: 11px 14px;
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+
+  .auth-forgot {
+    margin-bottom: 14px;
+  }
+
+  .auth-forgot a {
+    font-size: 13px;
+  }
+
+  .auth-divider {
+    margin-bottom: 20px;
+    font-size: 12px;
+  }
+
+  .auth-switch {
+    font-size: 13px;
+  }
+
+  .auth-footer {
+    margin-top: 28px;
+  }
+}
+
+/* Mobile nhỏ */
+@media (max-width: 480px) {
+  .auth-container {
+    padding: 12px;
+  }
+
+  .auth-card {
+    padding: 28px 20px 20px;
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
+  }
+
+  .auth-logo {
+    font-size: 22px;
+    margin-bottom: 24px;
+  }
+
+  .auth-input-group {
+    padding: 10px 12px;
+    margin-bottom: 12px;
+  }
+
+  .auth-input-group input {
+    font-size: 13px;
+  }
+
+  .auth-button {
+    padding: 10px 12px;
+    font-size: 13px;
+    margin-bottom: 18px;
+  }
+
+  .auth-forgot {
+    margin-bottom: 12px;
+  }
+
+  .auth-forgot a {
+    font-size: 12px;
+  }
+
+  .auth-divider {
+    margin-bottom: 18px;
+    font-size: 11px;
+  }
+
+  .auth-switch {
+    font-size: 12px;
+  }
+
+  .auth-footer {
+    margin-top: 24px;
+    font-size: 11px;
+  }
+}
+
+/* Màn hình rất nhỏ (iPhone SE, etc.) */
+@media (max-width: 375px) {
+  .auth-card {
+    padding: 24px 16px 16px;
+  }
+
+  .auth-logo {
+    font-size: 20px;
+    margin-bottom: 20px;
+  }
+
+  .auth-input-group {
+    padding: 9px 11px;
+    margin-bottom: 11px;
+  }
+
+  .auth-input-group input {
+    font-size: 13px;
+  }
+
+  .auth-button {
+    padding: 9px 11px;
+    font-size: 13px;
+  }
+}

@@ -13,17 +13,18 @@
 /* Main Feed Area */
 .home-content {
   width: 100%;
-  max-width: 830px;
+  max-width: 630px;
   padding: 0;
 }
 
 /* Stories */
 .stories-container {
-  padding: 24px 0 16px;
-  border: 1px solid #dbdbdb;
-  border-radius: 8px;
-  background-color: #FFFFFF;
-  margin-bottom: 24px;
+  padding: 20px 0 20px;
+  border: none;
+  border-bottom: 1px solid #dbdbdb;
+  border-radius: 0;
+  background-color: transparent;
+  margin-bottom: 20px;
 }
 
 .stories-scroll {
@@ -129,10 +130,12 @@
 }
 
 .post {
-  margin-bottom: 12px;
-  background-color: #FFFFFF;
-  border: 1px solid #dbdbdb;
-  border-radius: 8px;
+  margin-bottom: 20px;
+  background-color: transparent;
+  border: none;
+  border-bottom: 1px solid #dbdbdb;
+  border-radius: 0;
+  padding-bottom: 20px;
 }
 
 .post-header {
@@ -231,13 +234,19 @@
 }
 
 .privacy-icon {
-  font-size: 11px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #374151;
 }
 
 .privacy-text {
   color: #374151;
-  font-size: 11px;
-  text-transform: capitalize;
+  font-size: 9px !important;
+  font-weight: 400;
+  line-height: 1;
+  text-transform: none;
 }
 
 .post-header-actions {
@@ -264,11 +273,17 @@
 .more-btn {
   background: none;
   border: none;
-  font-size: 24px;
-  font-weight: 700;
-  color: #262626;
   cursor: pointer;
-  padding: 0 4px;
+  padding: 4px;
+  color: #262626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s;
+}
+
+.more-btn:hover {
+  opacity: 0.6;
 }
 
 /* Post Images */
@@ -412,35 +427,48 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  transition: opacity 0.2s;
+  transition: transform 0.1s, opacity 0.2s;
+  color: #262626;
 }
 
 .action-btn:hover {
-  opacity: 0.6;
+  opacity: 0.7;
+}
+
+.action-btn:active {
+  transform: scale(0.95);
 }
 
 .action-btn .icon {
   font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .action-btn.like-btn .icon {
-  font-size: 24px;
+  color: #262626;
+}
+
+.action-btn.like-btn:hover .icon {
+  color: #ed4956;
 }
 
 .action-btn.comment-btn .icon {
-  font-size: 24px;
+  color: #262626;
 }
 
 .action-btn.repost-btn .icon {
-  font-size: 24px;
+  color: #262626;
 }
 
 .action-btn.share-btn .icon {
-  font-size: 24px;
+  color: #262626;
 }
 
 .action-btn .reaction-emoji {
   font-size: 24px;
+  line-height: 1;
 }
 
 .action-btn .count {

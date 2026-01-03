@@ -196,8 +196,171 @@
   border-color: #3B82F6;
 }
 
+/* Responsive Design */
+
+/* Tablet */
 @media (max-width: 768px) {
+  .edit-profile-header {
+    padding: 10px 14px;
+  }
+
+  .edit-profile-title {
+    font-size: 17px;
+  }
+
+  .cancel-button,
+  .done-button {
+    font-size: 15px;
+  }
+
   .form-container {
+    padding: 0 14px;
+  }
+
+  .form-group {
+    margin-bottom: 14px;
+  }
+
+  .profile-section {
+    padding: 14px 0 6px;
+  }
+
+  .profile-image,
+  .profile-image-placeholder {
+    width: 72px;
+    height: 72px;
+  }
+
+  .profile-image-placeholder {
+    font-size: 36px;
+  }
+
+  .change-photo-button {
+    font-size: 13px;
+  }
+
+  .input-label {
+    font-size: 13px;
+  }
+
+  .form-input,
+  .form-textarea {
+    padding: 11px;
+    font-size: 13px;
+  }
+
+  .gender-pill {
+    padding: 9px 12px;
+    font-size: 13px;
+  }
+
+  .hint-text,
+  .avatar-hint {
+    font-size: 11px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .edit-profile-header {
+    padding: 8px 12px;
+  }
+
+  .edit-profile-title {
+    font-size: 16px;
+  }
+
+  .cancel-button,
+  .done-button {
+    font-size: 14px;
+    padding: 3px 6px;
+  }
+
+  .form-container {
+    padding: 0 12px;
+  }
+
+  .form-group {
+    margin-bottom: 12px;
+  }
+
+  .profile-section {
+    padding: 12px 0 6px;
+  }
+
+  .profile-image,
+  .profile-image-placeholder {
+    width: 68px;
+    height: 68px;
+  }
+
+  .profile-image-placeholder {
+    font-size: 32px;
+  }
+
+  .change-photo-button {
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  .input-label {
+    font-size: 12px;
+    margin-bottom: 5px;
+  }
+
+  .form-input,
+  .form-textarea {
+    padding: 10px;
+    font-size: 13px;
+    border-radius: 8px;
+  }
+
+  .gender-pill {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .gender-row {
+    gap: 6px;
+  }
+
+  .hint-text,
+  .avatar-hint {
+    font-size: 10px;
+  }
+
+  .avatar-hint {
+    max-width: 280px;
+  }
+}
+
+/* Mobile rất nhỏ */
+@media (max-width: 375px) {
+  .edit-profile-title {
+    font-size: 15px;
+  }
+
+  .profile-image,
+  .profile-image-placeholder {
+    width: 64px;
+    height: 64px;
+  }
+
+  .profile-image-placeholder {
+    font-size: 28px;
+  }
+
+  .form-input,
+  .form-textarea {
+    padding: 9px;
+    font-size: 12px;
+  }
+
+  .gender-pill {
+    padding: 7px 9px;
+    font-size: 11px;
+  }
+}
     padding: 0 12px;
   }
 }
