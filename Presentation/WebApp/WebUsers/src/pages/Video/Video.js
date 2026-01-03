@@ -1,8 +1,20 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getReels, getFollowingReels, API_BASE_URL, getAuthHeaders } from '../../API/Api';
+import { 
+  getReels, 
+  getFollowingReels, 
+  API_BASE_URL, 
+  getAuthHeaders,
+  addReaction,
+  getReactionSummary,
+  deletePost,
+  updatePostPrivacy,
+  updatePostCaption
+} from '../../API/Api';
 import NavigationBar from '../../components/NavigationBar';
-import { MdArrowBack, MdCameraAlt, MdFavorite, MdFavoriteBorder, MdComment, MdMoreVert, MdVideoLibrary, MdPlayArrow, MdBookmark, MdBookmarkBorder, MdClose, MdSend } from 'react-icons/md';
+import CommentsModal from '../Home/CommentsModal';
+import { MdArrowBack, MdCameraAlt, MdFavorite, MdFavoriteBorder, MdComment, MdMoreVert, MdVideoLibrary, MdPlayArrow, MdBookmark, MdBookmarkBorder, MdClose } from 'react-icons/md';
+import { IoEllipsisHorizontal, IoLockClosed, IoPeople, IoEarth } from 'react-icons/io5';
 import './Video.css';
 
 export default function Video() {
@@ -16,13 +28,35 @@ export default function Video() {
   const [activeTab, setActiveTab] = useState('reels'); // 'reels' or 'following'
   const videoRefs = useRef({});
   const containerRef = useRef(null);
-  const [videoStates, setVideoStates] = useState({}); // { [postId]: { playing, liked, likes, saved } }
+  const [videoStates, setVideoStates] = useState({}); // { [postId]: { playing, liked, likes, saved, reactionType, comments } }
   
-  // Comments state
-  const [showComments, setShowComments] = useState(false);
-  const [selectedReel, setSelectedReel] = useState(null);
-  const [comments, setComments] = useState([]);
-  const [commentText, setCommentText] = useState('');
+  // Comments state - sử dụng CommentsModal
+  const [commentsModalVisible, setCommentsModalVisible] = useState(false);
+  const [commentsPostId, setCommentsPostId] = useState(null);
+
+  // Menu state - giống trang chủ
+  const [showOptions, setShowOptions] = useState(false);
+  const [optionsPostId, setOptionsPostId] = useState(null);
+  const [showPrivacySheet, setShowPrivacySheet] = useState(false);
+  const [editingCaptionPostId, setEditingCaptionPostId] = useState(null);
+  const [captionDraft, setCaptionDraft] = useState('');
+  const [currentUserId, setCurrentUserId] = useState(null);
+
+  // Get current user
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          setCurrentUserId(user.id);
+        }
+      } catch (error) {
+        console.error('Error getting current user:', error);
+      }
+    };
+    fetchCurrentUser();
+  }, []);
 
   useEffect(() => {
     loadReels(true);
@@ -70,15 +104,32 @@ export default function Video() {
       
       setHasMore(reelsList.length >= pageSize);
 
-      // Initialize video states
+      // Initialize video states and load reactions
       const states = {};
-      reelsList.forEach(reel => {
-        states[reel.id] = {
-          playing: false,
-          liked: false,
-          likes: reel.totalReactions || 0
-        };
-      });
+      for (const reel of reelsList) {
+        try {
+          // Load reaction data from API
+          const reactionData = await getReactionSummary(reel.id);
+          states[reel.id] = {
+            playing: false,
+            liked: reactionData?.userReaction != null,
+            likes: Number(reactionData?.totalReactions ?? reel?.totalReactions ?? 0),
+            reactionType: reactionData?.userReaction,
+            saved: false,
+            comments: Number(reel?.commentsCount ?? 0)
+          };
+        } catch (error) {
+          console.error(`Error loading reactions for reel ${reel.id}:`, error);
+          states[reel.id] = {
+            playing: false,
+            liked: false,
+            likes: reel.totalReactions || 0,
+            reactionType: null,
+            saved: false,
+            comments: Number(reel?.commentsCount ?? 0)
+          };
+        }
+      }
       setVideoStates(prev => ({ ...prev, ...states }));
 
     } catch (error) {
@@ -147,30 +198,69 @@ export default function Video() {
   };
 
   const handleLike = async (reel) => {
-    // TODO: Implement like API call
-    setVideoStates(prev => {
-      const currentState = prev[reel.id] || {};
+    try {
+      const currentState = videoStates[reel.id] || {};
       const isLiked = currentState.liked;
-      return {
+
+      // Optimistic update
+      setVideoStates(prev => ({
         ...prev,
         [reel.id]: {
-          ...currentState,
+          ...prev[reel.id],
           liked: !isLiked,
-          likes: (currentState.likes || 0) + (isLiked ? -1 : 1)
+          likes: (currentState.likes || 0) + (isLiked ? -1 : 1),
+          reactionType: isLiked ? null : 'Like'
         }
-      };
-    });
+      }));
+
+      // API call
+      if (!isLiked) {
+        await addReaction(reel.id, 'Like');
+      } else {
+        await addReaction(reel.id, 'None'); // Remove reaction
+      }
+
+      // Refresh reaction summary to get accurate count
+      const reactionData = await getReactionSummary(reel.id);
+      setVideoStates(prev => ({
+        ...prev,
+        [reel.id]: {
+          ...prev[reel.id],
+          liked: reactionData?.userReaction != null,
+          likes: Number(reactionData?.totalReactions ?? 0),
+          reactionType: reactionData?.userReaction
+        }
+      }));
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      // Revert on error
+      const reactionData = await getReactionSummary(reel.id);
+      setVideoStates(prev => ({
+        ...prev,
+        [reel.id]: {
+          ...prev[reel.id],
+          liked: reactionData?.userReaction != null,
+          likes: Number(reactionData?.totalReactions ?? 0),
+          reactionType: reactionData?.userReaction
+        }
+      }));
+    }
   };
 
   const handleComment = (reel) => {
-    setSelectedReel(reel);
-    setShowComments(true);
-    // TODO: Load comments from API
-    setComments([
-      // Mock data for now
-      { id: 1, user: { username: 'user1', avatar: null }, text: 'Video hay quá!', likes: 10 },
-      { id: 2, user: { username: 'user2', avatar: null }, text: 'Tuyệt vời', likes: 5 },
-    ]);
+    setCommentsPostId(reel.id);
+    setCommentsModalVisible(true);
+  };
+
+  const handleCommentAdded = (postId) => {
+    // Update comment count
+    setVideoStates(prev => ({
+      ...prev,
+      [postId]: {
+        ...prev[postId],
+        comments: (prev[postId]?.comments || 0) + 1
+      }
+    }));
   };
 
   const handleSaveToggle = (reel) => {
@@ -184,6 +274,84 @@ export default function Video() {
         }
       };
     });
+  };
+
+  // Menu handlers - giống trang chủ
+  const isOwner = (reel) => {
+    return currentUserId != null && reel?.user?.id != null && Number(currentUserId) === Number(reel.user.id);
+  };
+
+  const openOptionsFor = (reel) => {
+    setOptionsPostId(reel.id);
+    setShowOptions(true);
+    setShowPrivacySheet(false);
+    setEditingCaptionPostId(null);
+  };
+
+  const closeAllOverlays = () => {
+    setShowOptions(false);
+    setShowPrivacySheet(false);
+    setEditingCaptionPostId(null);
+    setOptionsPostId(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!optionsPostId) return;
+    if (!window.confirm('Bạn có chắc muốn xóa video này?')) return;
+
+    try {
+      await deletePost(optionsPostId);
+      setReels(prev => prev.filter(r => r.id !== optionsPostId));
+      closeAllOverlays();
+      alert('Đã xóa video thành công');
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      alert('Không thể xóa video. Vui lòng thử lại.');
+    }
+  };
+
+  const startEditCaption = (reel) => {
+    setEditingCaptionPostId(reel.id);
+    setCaptionDraft(reel.caption || '');
+    setShowOptions(false);
+  };
+
+  const submitCaptionEdit = async () => {
+    if (!editingCaptionPostId) return;
+
+    try {
+      await updatePostCaption(editingCaptionPostId, captionDraft.trim());
+      
+      // Update local state
+      setReels(prev => prev.map(r => 
+        r.id === editingCaptionPostId ? { ...r, caption: captionDraft.trim() } : r
+      ));
+      
+      closeAllOverlays();
+      alert('Đã cập nhật caption thành công');
+    } catch (error) {
+      console.error('Error updating caption:', error);
+      alert('Không thể cập nhật caption. Vui lòng thử lại.');
+    }
+  };
+
+  const pickPrivacy = async (privacy) => {
+    if (!optionsPostId) return;
+
+    try {
+      await updatePostPrivacy(optionsPostId, privacy);
+      
+      // Update local state
+      setReels(prev => prev.map(r => 
+        r.id === optionsPostId ? { ...r, privacy } : r
+      ));
+      
+      closeAllOverlays();
+      alert('Đã cập nhật quyền riêng tư');
+    } catch (error) {
+      console.error('Error updating privacy:', error);
+      alert('Không thể cập nhật quyền riêng tư. Vui lòng thử lại.');
+    }
   };
 
   const handleSendComment = () => {
@@ -211,7 +379,8 @@ export default function Video() {
     // First check: media array (current backend structure)
     if (Array.isArray(reel?.media) && reel.media.length > 0) {
       console.log('[Video] Media items:', JSON.stringify(reel.media, null, 2));
-      const videoMedia = reel.media.find(m => m.type === 'video');
+      // Backend returns "Video" with capital V, so we need case-insensitive comparison
+      const videoMedia = reel.media.find(m => m.type?.toLowerCase() === 'video');
       console.log('[Video] Video media found:', videoMedia);
       if (videoMedia) {
         videoUrl = videoMedia.altUrl || videoMedia.url; // Prefer altUrl (compat version) if available
@@ -375,7 +544,7 @@ export default function Video() {
                       onClick={() => handleComment(reel)}
                     >
                       <MdComment className="action-icon" />
-                      <span className="action-count">{reel.totalComments || 0}</span>
+                      <span className="action-count">{state.comments || 0}</span>
                     </button>
                     <button 
                       className="video-action-btn"
@@ -389,9 +558,9 @@ export default function Video() {
                     </button>
                     <button 
                       className="video-action-btn"
-                      onClick={() => handleMore(reel)}
+                      onClick={() => openOptionsFor(reel)}
                     >
-                      <MdMoreVert className="action-icon" />
+                      <IoEllipsisHorizontal className="action-icon" size={24} />
                     </button>
                   </div>
                 </div>
@@ -410,62 +579,103 @@ export default function Video() {
         </div>
       </div>
 
-      {/* Comments Panel - TikTok Style */}
-      {showComments && (
-        <div className="comments-overlay" onClick={() => setShowComments(false)}>
-          <div className="comments-panel" onClick={(e) => e.stopPropagation()}>
-            <div className="comments-header">
-              <h3>{selectedReel?.totalComments || 0} bình luận</h3>
-              <button className="comments-close" onClick={() => setShowComments(false)}>
-                <MdClose />
-              </button>
-            </div>
-            
-            <div className="comments-list">
-              {comments.length > 0 ? (
-                comments.map(comment => (
-                  <div key={comment.id} className="comment-item">
-                    <div className="comment-avatar">
-                      {comment.user.avatar ? (
-                        <img src={comment.user.avatar} alt={comment.user.username} />
-                      ) : (
-                        <div className="comment-avatar-placeholder">
-                          {comment.user.username.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
-                    <div className="comment-content">
-                      <div className="comment-user">{comment.user.username}</div>
-                      <div className="comment-text">{comment.text}</div>
-                      <div className="comment-meta">
-                        <span className="comment-time">1 giờ trước</span>
-                        <button className="comment-reply">Trả lời</button>
-                        <button className="comment-like">{comment.likes} thích</button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="comments-empty">Chưa có bình luận nào</div>
-              )}
-            </div>
-            
-            <div className="comments-input-container">
-              <input
-                type="text"
-                className="comments-input"
-                placeholder="Thêm bình luận..."
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSendComment()}
-              />
-              <button 
-                className="comments-send" 
-                onClick={handleSendComment}
-                disabled={!commentText.trim()}
-              >
-                <MdSend />
-              </button>
+      {/* CommentsModal - giống trang chủ */}
+      <CommentsModal
+        visible={commentsModalVisible}
+        onClose={() => {
+          setCommentsModalVisible(false);
+          setCommentsPostId(null);
+        }}
+        postId={commentsPostId}
+        post={reels.find(r => r.id === commentsPostId)}
+        onCommentAdded={handleCommentAdded}
+      />
+
+      {/* Options Menu Modal - giống trang chủ */}
+      {showOptions && optionsPostId && (
+        <div className="overlay" onClick={closeAllOverlays}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-title">Tùy chọn</div>
+            {isOwner(reels.find(r => r.id === optionsPostId)) ? (
+              <>
+                <button className="sheet-item" onClick={() => {
+                  const reel = reels.find(r => r.id === optionsPostId);
+                  if (reel) {
+                    setShowPrivacySheet(true);
+                    setShowOptions(false);
+                  }
+                }}>
+                  <span>Chỉnh sửa quyền riêng tư</span>
+                </button>
+                <button className="sheet-item" onClick={() => {
+                  const reel = reels.find(r => r.id === optionsPostId);
+                  if (reel) startEditCaption(reel);
+                }}>
+                  <span>Chỉnh sửa caption</span>
+                </button>
+                <button className="sheet-item danger" onClick={confirmDelete}>
+                  <span>Xóa bài viết</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="sheet-item" onClick={() => {
+                  alert('Chức năng báo cáo đang được phát triển');
+                  closeAllOverlays();
+                }}>
+                  <span>Báo cáo</span>
+                </button>
+                <button className="sheet-item" onClick={() => {
+                  alert('Đã ẩn bài viết');
+                  closeAllOverlays();
+                }}>
+                  <span>Ẩn bài viết</span>
+                </button>
+              </>
+            )}
+            <button className="sheet-item" onClick={closeAllOverlays}>
+              <span>Hủy</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Privacy Sheet - giống trang chủ */}
+      {showPrivacySheet && (
+        <div className="overlay" onClick={closeAllOverlays}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-title">Chọn quyền riêng tư</div>
+            <button className="sheet-item" onClick={() => pickPrivacy('public')}>
+              <span>Công khai</span>
+            </button>
+            <button className="sheet-item" onClick={() => pickPrivacy('followers')}>
+              <span>Người theo dõi</span>
+            </button>
+            <button className="sheet-item" onClick={() => pickPrivacy('private')}>
+              <span>Riêng tư</span>
+            </button>
+            <button className="sheet-item" onClick={closeAllOverlays}>
+              <span>Hủy</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Caption Modal - giống trang chủ */}
+      {editingCaptionPostId && (
+        <div className="overlay" onClick={closeAllOverlays}>
+          <div className="edit-caption-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-title">Chỉnh sửa caption</div>
+            <textarea
+              value={captionDraft}
+              onChange={(e) => setCaptionDraft(e.target.value)}
+              placeholder="Viết caption của bạn..."
+              maxLength={500}
+            />
+            <div className="caption-counter">{captionDraft.length}/500</div>
+            <div className="edit-caption-actions">
+              <button onClick={closeAllOverlays}>Hủy</button>
+              <button onClick={submitCaptionEdit}>Lưu</button>
             </div>
           </div>
         </div>

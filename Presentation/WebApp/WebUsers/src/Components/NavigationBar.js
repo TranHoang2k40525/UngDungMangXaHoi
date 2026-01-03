@@ -23,7 +23,7 @@ export default function NavigationBar() {
     <div className="left-nav-bar">
       {/* Logo */}
       <div className="nav-logo">
-        <span className="logo-text">SNA67CS</span>
+        <span className="logo-text">MediaLite</span>
       </div>
 
       {/* Menu Items */}
