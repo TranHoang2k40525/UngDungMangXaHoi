@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import MessageAPI from '../../api/MessageAPI';
-import { getProfile, getMyGroups, API_BASE_URL } from '../../api/Api';
+import MessageAPI from '../../API/MessageAPI';
+import { getProfile, getMyGroups, API_BASE_URL } from '../../API/Api';
 import signalRService from '../../Services/signalRService';
-import NavigationBar from '../../Components/NavigationBar';
+import NavigationBar from '../../components/NavigationBar';
+import { IoSearch } from 'react-icons/io5';
 import './Messenger.css';
 
 export default function Messenger() {
@@ -528,13 +529,13 @@ export default function Messenger() {
             <button className="group-button" onClick={() => navigate('/group-list')}>
               👥
             </button>
-            <button className="compose-button">✏️</button>
+            <button className="compose-button"></button>
           </div>
         </div>
 
         {/* Search Bar */}
         <div className="search-container">
-          <span className="search-icon">🔍</span>
+          <IoSearch className="search-icon" size={16} />
           <input
             type="text"
             className="search-input"

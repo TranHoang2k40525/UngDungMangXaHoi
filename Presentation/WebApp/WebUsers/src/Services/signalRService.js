@@ -1,5 +1,6 @@
 import * as SignalR from '@microsoft/signalr';
-import { API_BASE_URL } from '../api/Api';
+
+const API_BASE_URL = "http://localhost:5297";
 
 class SignalRService {
   constructor() {

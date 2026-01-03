@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { getGroupInfo, getGroupMembers, API_BASE_URL } from '../../api/Api';
+import { getGroupInfo, getGroupMembers, API_BASE_URL } from '../../API/Api';
 import signalRService from '../../Services/signalRService';
 import './GroupDetailScreen.css';
 

@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getUserPostsById, getUserProfile, followUser, unfollowUser, API_BASE_URL, blockUser, unblockUser, getBlockedUsers } from '../../api/Api';
-import { useFollow } from '../../context/FollowContext';
+import { getUserPostsById, getUserProfile, followUser, unfollowUser, API_BASE_URL, blockUser, unblockUser, getBlockedUsers } from '../../API/Api';
+import { useFollow } from '../../Context/FollowContext';
+import { MdPerson, MdPersonAdd, MdPlayArrow, MdContentCopy, MdClose } from 'react-icons/md';
 import './UserProfilePublic.css';
 
 export default function UserProfilePublic() {
@@ -167,7 +168,9 @@ export default function UserProfilePublic() {
               {avatarUri ? (
                 <img src={avatarUri} alt="Avatar" className="avatar" />
               ) : (
-                <div className="avatar-placeholder">👤</div>
+                <div className="avatar-placeholder">
+                  <MdPerson />
+                </div>
               )}
             </div>
 
@@ -213,9 +216,6 @@ export default function UserProfilePublic() {
             )}
             <button className="action-button message-button" onClick={handleMessage}>
               Nhắn tin
-            </button>
-            <button className="share-button">
-              <span className="icon-person-add">👤+</span>
             </button>
           </div>
         </div>
@@ -268,7 +268,7 @@ export default function UserProfilePublic() {
           <div className="user-info-modal" onClick={(e) => e.stopPropagation()}>
             <div className="user-info-header">
               <h2>Thông tin người dùng</h2>
-              <button onClick={() => setUserInfoModalVisible(false)}>✕</button>
+              <button onClick={() => setUserInfoModalVisible(false)}><MdClose /></button>
             </div>
             <div className="user-info-content">
               <div className="info-section">
@@ -276,7 +276,9 @@ export default function UserProfilePublic() {
                 {avatarUri ? (
                   <img src={avatarUri} alt="Avatar" className="info-avatar" />
                 ) : (
-                  <div className="info-avatar-placeholder">👤</div>
+                  <div className="info-avatar-placeholder">
+                    <MdPerson />
+                  </div>
                 )}
               </div>
               <div className="info-section">

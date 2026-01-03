@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getFollowers, getFollowing, followUser, unfollowUser, API_BASE_URL } from '../../api/Api';
+import { getFollowers, getFollowing, followUser, unfollowUser, API_BASE_URL } from '../../API/Api';
+import { MdGroup, MdPerson } from 'react-icons/md';
 import './FollowList.css';
 
 export default function FollowList() {
@@ -81,7 +82,7 @@ export default function FollowList() {
           </div>
         ) : users.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-icon">👥</div>
+            <MdGroup className="empty-icon" />
             <p className="empty-text">
               {type === 'followers' 
                 ? 'Chưa có người theo dõi'
@@ -101,7 +102,7 @@ export default function FollowList() {
                       <img src={avatarUri} alt="Avatar" className="user-avatar" />
                     ) : (
                       <div className="user-avatar-placeholder">
-                        <span className="icon-person">👤</span>
+                        <MdPerson className="icon-person" />
                       </div>
                     )}
                     <div className="user-details">

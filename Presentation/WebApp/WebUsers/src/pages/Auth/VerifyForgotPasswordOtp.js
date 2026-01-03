@@ -22,10 +22,11 @@ export default function VerifyForgotPasswordOtp() {
     setIsLoading(true);
     const payload = {
       Email: email,
-      OtpCode: otp,
+      Otp: otp,
     };
     const result = await verifyForgotPasswordOtp(payload);
     if (result.success) {
+      alert('Xác thực OTP thành công!');
       navigate('/reset-password', { state: { email } });
     } else {
       alert(result.error || 'Xác thực OTP thất bại');
@@ -41,17 +42,20 @@ export default function VerifyForgotPasswordOtp() {
           <div className="auth-input-group">
             <input
               type="email"
-              placeholder="Email"
+              placeholder="Email đã đăng ký"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              required
             />
           </div>
           <div className="auth-input-group">
             <input
               type="text"
-              placeholder="Mã OTP"
+              placeholder="Nhập mã OTP (6 số)"
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
+              maxLength={6}
+              required
             />
           </div>
           <button className="auth-button" type="submit" disabled={isLoading}>

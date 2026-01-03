@@ -205,6 +205,160 @@
   background-color: #E5E7EB;
 }
 
+/* Responsive Design */
+
+/* Tablet */
+@media (max-width: 768px) {
+  .follow-list-header {
+    padding: 10px 14px;
+  }
+
+  .follow-list-title {
+    font-size: 17px;
+  }
+
+  .back-button {
+    font-size: 26px;
+  }
+
+  .user-item {
+    padding: 10px 14px;
+  }
+
+  .user-avatar,
+  .user-avatar-placeholder {
+    width: 46px;
+    height: 46px;
+  }
+
+  .icon-person {
+    font-size: 22px;
+  }
+
+  .user-fullname {
+    font-size: 14px;
+  }
+
+  .user-username {
+    font-size: 13px;
+  }
+
+  .user-bio {
+    font-size: 12px;
+  }
+
+  .follow-button {
+    padding: 5px 14px;
+    font-size: 12px;
+  }
+
+  .empty-icon {
+    font-size: 56px;
+  }
+
+  .empty-text {
+    font-size: 15px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .follow-list-header {
+    padding: 8px 12px;
+  }
+
+  .follow-list-title {
+    font-size: 16px;
+  }
+
+  .back-button {
+    font-size: 24px;
+  }
+
+  .user-item {
+    padding: 8px 12px;
+  }
+
+  .user-avatar,
+  .user-avatar-placeholder {
+    width: 42px;
+    height: 42px;
+  }
+
+  .icon-person {
+    font-size: 20px;
+  }
+
+  .user-details {
+    margin-left: 10px;
+  }
+
+  .user-fullname {
+    font-size: 13px;
+  }
+
+  .user-username {
+    font-size: 12px;
+  }
+
+  .user-bio {
+    font-size: 11px;
+  }
+
+  .follow-button {
+    padding: 4px 12px;
+    font-size: 11px;
+    margin-left: 8px;
+  }
+
+  .empty-icon {
+    font-size: 48px;
+  }
+
+  .empty-text {
+    font-size: 14px;
+  }
+
+  .loading-container p {
+    font-size: 14px;
+  }
+}
+
+/* Mobile nhỏ */
+@media (max-width: 375px) {
+  .follow-list-header {
+    padding: 6px 10px;
+  }
+
+  .follow-list-title {
+    font-size: 15px;
+  }
+
+  .user-avatar,
+  .user-avatar-placeholder {
+    width: 38px;
+    height: 38px;
+  }
+
+  .icon-person {
+    font-size: 18px;
+  }
+
+  .user-fullname {
+    font-size: 12px;
+  }
+
+  .user-username,
+  .user-bio {
+    font-size: 11px;
+  }
+
+  .follow-button {
+    padding: 3px 10px;
+    font-size: 10px;
+  }
+}
+
 @media (max-width: 480px) {
   .user-avatar,
   .user-avatar-placeholder {

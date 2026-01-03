@@ -12,7 +12,7 @@ import {
   verifyForgotPasswordOtp,
   resetPassword,
   changePassword,
-} from '../api/Api';
+} from '../API/Api';
 
 const UserContext = createContext(null);
 

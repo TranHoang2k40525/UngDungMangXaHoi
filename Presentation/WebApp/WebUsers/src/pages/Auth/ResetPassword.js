@@ -18,8 +18,12 @@ export default function ResetPassword() {
       alert('Thiếu email, vui lòng thực hiện lại bước quên mật khẩu');
       return;
     }
-    if (!password || password !== confirmPassword) {
-      alert('Mật khẩu không khớp');
+    if (!password || password.length < 8) {
+      alert('Mật khẩu phải có ít nhất 8 ký tự');
+      return;
+    }
+    if (password !== confirmPassword) {
+      alert('Mật khẩu xác nhận không khớp');
       return;
     }
 
@@ -46,9 +50,11 @@ export default function ResetPassword() {
           <div className="auth-input-group">
             <input
               type="password"
-              placeholder="Mật khẩu mới"
+              placeholder="Mật khẩu mới (tối thiểu 8 ký tự)"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              minLength={8}
+              required
             />
           </div>
           <div className="auth-input-group">
@@ -57,6 +63,8 @@ export default function ResetPassword() {
               placeholder="Nhập lại mật khẩu"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              minLength={8}
+              required
             />
           </div>
           <button className="auth-button" type="submit" disabled={isLoading}>

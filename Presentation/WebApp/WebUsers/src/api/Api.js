@@ -1,22 +1,5 @@
-// Auto-detect backend URL (runtime override -> build-time env -> fallback to hostname:5297)
-const getApiBaseUrl = () => {
-  try {
-    if (window && window.__ENV && window.__ENV.VITE_API_URL) {
-      return window.__ENV.VITE_API_URL;
-    }
-  } catch (e) {
-    // ignore when window not available
-  }
-
-  if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
-  }
-
-  const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-  return `http://${hostname}:5297`;
-};
-
-export const API_BASE_URL = getApiBaseUrl();
+// Base URL - Thay đổi theo IP của máy backend
+export const API_BASE_URL = "http://localhost:5297"; // Backend đang chạy trên localhost
 
 // Helper để gọi API
 const apiCall = async (endpoint, options = {}) => {
@@ -400,6 +383,15 @@ export const getFeed = async (page = 1, pageSize = 20) => {
 export const getReels = async (page = 1, pageSize = 20) => {
   const headers = getAuthHeaders();
   return apiCall(`/api/posts/reels?page=${page}&pageSize=${pageSize}`, {
+    method: "GET",
+    headers,
+  });
+};
+
+// Get reels from following users
+export const getFollowingReels = async (page = 1, pageSize = 20) => {
+  const headers = getAuthHeaders();
+  return apiCall(`/api/posts/reels/following?page=${page}&pageSize=${pageSize}`, {
     method: "GET",
     headers,
   });

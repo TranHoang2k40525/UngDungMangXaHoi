@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { createStory, API_BASE_URL } from '../../api/Api';
+import { createStory, API_BASE_URL } from '../../API/Api';
 import './CreateStory.css';
 
 const CreateStory = () => {
@@ -38,9 +38,9 @@ const CreateStory = () => {
     }
 
     // Validate file size
-    const MAX_SIZE = 100 * 1024 * 1024; // 100MB
+    const MAX_SIZE = 60 * 1024 * 1024; // 60MB
     if (file.size > MAX_SIZE) {
-      alert('File quá lớn! Kích thước tối đa: 100MB');
+      alert('File quá lớn! Kích thước tối đa: 60MB');
       return;
     }
 
@@ -63,8 +63,8 @@ const CreateStory = () => {
         window.URL.revokeObjectURL(video.src);
         const duration = video.duration;
         
-        if (duration > 60) {
-          alert(`Video quá dài! Thời lượng tối đa: 60s (${Math.floor(duration)}s)`);
+        if (duration > 30) {
+          alert('Video vượt quá thời gian cho phép, vui lòng chọn video khác');
           resolve(false);
         } else {
           resolve(true);
@@ -195,8 +195,8 @@ const CreateStory = () => {
                 Chọn từ thiết bị
               </button>
               <div className="upload-info">
-                <p>Video tối đa 60 giây</p>
-                <p>Kích thước tối đa: 100MB</p>
+                <p>Video tối đa 30 giây</p>
+                <p>Kích thước tối đa: 60MB</p>
               </div>
             </div>
           </div>
@@ -219,64 +219,10 @@ const CreateStory = () => {
                   className="preview-media"
                 />
               )}
-
-              {/* Text Overlay */}
-              {textOverlay && (
-                <div 
-                  className="text-overlay"
-                  style={{ color: textColor }}
-                >
-                  {textOverlay}
-                </div>
-              )}
             </div>
 
             {/* Controls */}
             <div className="story-controls">
-              {/* Text Input */}
-              <div className="control-section">
-                <label className="control-label">Thêm text (tùy chọn)</label>
-                <div className="text-input-row">
-                  <input
-                    type="text"
-                    className="text-input"
-                    placeholder="Nhập text..."
-                    value={textOverlay}
-                    onChange={(e) => setTextOverlay(e.target.value)}
-                    maxLength={100}
-                    disabled={uploading}
-                  />
-                  <button 
-                    className="color-picker-button"
-                    onClick={() => setShowColorPicker(!showColorPicker)}
-                    style={{ backgroundColor: textColor }}
-                    disabled={uploading}
-                    title="Chọn màu text"
-                  >
-                    A
-                  </button>
-                </div>
-
-                {showColorPicker && (
-                  <div className="color-picker-dropdown">
-                    {TEXT_COLORS.map((item) => (
-                      <button
-                        key={item.color}
-                        className={`color-option ${textColor === item.color ? 'active' : ''}`}
-                        style={{ backgroundColor: item.color }}
-                        onClick={() => {
-                          setTextColor(item.color);
-                          setShowColorPicker(false);
-                        }}
-                        title={item.label}
-                      >
-                        {textColor === item.color && '✓'}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
               {/* Privacy */}
               <div className="control-section">
                 <label className="control-label">Quyền riêng tư</label>
