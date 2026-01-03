@@ -1,6 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IoSend } from 'react-icons/io5';
+import { 
+  IoSend,
+  IoHeart,
+  IoHeartOutline,
+  IoEllipsisHorizontal,
+  IoCopy,
+  IoCreate,
+  IoTrash,
+  IoClose,
+  IoChatbubbleOutline,
+  IoPersonCircle
+} from 'react-icons/io5';
 import signalRService from '../../Services/signalRService';
 import { getRelativeTime } from '../../Utils/timeUtils';
 import {
@@ -44,18 +55,17 @@ const UserAvatar = ({ uri, style, onClick }) => {
 
   return (
     <div className={`${style} default-avatar`} onClick={onClick}>
-      <i className="fas fa-user-circle"></i>
+      <IoPersonCircle size={32} color="#c7c7c7" />
     </div>
   );
 };
 
 // Component: Heart Icon with animation
 const HeartIcon = ({ isLiked, size = 20 }) => {
-  return (
-    <i
-      className={`${isLiked ? 'fas' : 'far'} fa-heart heart-icon ${isLiked ? 'liked' : ''}`}
-      style={{ fontSize: `${size}px` }}
-    ></i>
+  return isLiked ? (
+    <IoHeart className="heart-icon liked" size={size} />
+  ) : (
+    <IoHeartOutline className="heart-icon" size={size} />
   );
 };
 
@@ -821,7 +831,7 @@ const CommentsModal = ({
                   toggleCommentMenu(reply.id);
                 }}
               >
-                <i className="fas fa-ellipsis-h"></i>
+                <IoEllipsisHorizontal size={18} />
               </button>
             </div>
 
@@ -840,14 +850,14 @@ const CommentsModal = ({
               {reply.userId === currentUserId && (
                 <>
                   <button className="menu-item" onClick={() => handleEdit(reply)}>
-                    <i className="fas fa-edit"></i>
+                    <IoCreate size={18} />
                     <span>Chỉnh sửa</span>
                   </button>
                   <button
                     className="menu-item delete-item"
                     onClick={() => handleDelete(reply)}
                   >
-                    <i className="fas fa-trash"></i>
+                    <IoTrash size={18} />
                     <span>Xóa</span>
                   </button>
                 </>
@@ -922,7 +932,7 @@ const CommentsModal = ({
                     toggleCommentMenu(item.id);
                   }}
                 >
-                  <i className="fas fa-ellipsis-h"></i>
+                  <IoEllipsisHorizontal size={18} />
                 </button>
               </div>
 
@@ -1035,7 +1045,7 @@ const CommentsModal = ({
               <div className="global-menu-overlay" onClick={() => setShowMenuForComment(null)}>
                 <div className="global-menu-dropdown" onClick={(e) => e.stopPropagation()}>
                   <button className="menu-option" onClick={() => handleCopy(comment)}>
-                    <i className="far fa-copy"></i>
+                    <IoCopy size={18} />
                     <span>Sao chép</span>
                   </button>
 
@@ -1048,14 +1058,14 @@ const CommentsModal = ({
                           handleEdit(comment);
                         }}
                       >
-                        <i className="fas fa-edit"></i>
+                        <IoCreate size={18} />
                         <span>Chỉnh sửa</span>
                       </button>
                       <button
                         className="menu-option danger"
                         onClick={() => handleDelete(comment)}
                       >
-                        <i className="fas fa-trash"></i>
+                        <IoTrash size={18} />
                         <span>Xóa</span>
                       </button>
                     </>
@@ -1100,9 +1110,32 @@ const CommentsModal = ({
           <div className="modal-header">
             <h2 className="modal-title">Bình luận</h2>
             <button className="modal-close-btn" onClick={onClose}>
-              <i className="fas fa-times"></i>
+              <IoClose size={24} />
             </button>
           </div>
+
+          {/* Filter Tabs - giống Facebook */}
+          {!loading && comments.length > 0 && (
+            <div className="filter-container">
+              <button
+                className={`filter-tab ${commentFilter === 'recent' ? 'filter-tab-active' : ''}`}
+                onClick={() => setCommentFilter('recent')}
+              >
+                <span className={`filter-tab-text ${commentFilter === 'recent' ? 'filter-tab-text-active' : ''}`}>
+                  Mới nhất
+                </span>
+              </button>
+
+              <button
+                className={`filter-tab ${commentFilter === 'all' ? 'filter-tab-active' : ''}`}
+                onClick={() => setCommentFilter('all')}
+              >
+                <span className={`filter-tab-text ${commentFilter === 'all' ? 'filter-tab-text-active' : ''}`}>
+                  Tất cả bình luận
+                </span>
+              </button>
+            </div>
+          )}
 
           {/* Comments List */}
           {loading ? (
@@ -1112,7 +1145,7 @@ const CommentsModal = ({
             </div>
           ) : comments.length === 0 ? (
             <div className="empty-container">
-              <i className="far fa-comment-dots empty-icon"></i>
+              <IoChatbubbleOutline size={48} color="#ccc" className="empty-icon" />
               <p className="empty-text">Chưa có bình luận nào</p>
               <p className="empty-subtext">Hãy là người đầu tiên bình luận</p>
             </div>
@@ -1140,10 +1173,7 @@ const CommentsModal = ({
             {(replyingTo || editingComment) && (
               <div className="reply-banner">
                 <div className="reply-banner-content">
-                  <i
-                    className={`fas ${editingComment ? 'fa-edit' : 'fa-reply'}`}
-                    style={{ color: '#8E8E8E' }}
-                  ></i>
+                  {editingComment ? <IoCreate size={18} color="#8E8E8E" /> : <IoSend size={18} color="#8E8E8E" />}
                   <span className="reply-banner-text">
                     {editingComment
                       ? 'Đang chỉnh sửa bình luận'
@@ -1154,7 +1184,7 @@ const CommentsModal = ({
                   className="reply-banner-close"
                   onClick={editingComment ? cancelEdit : cancelReply}
                 >
-                  <i className="fas fa-times"></i>
+                  <IoClose size={18} />
                 </button>
               </div>
             )}
