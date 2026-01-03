@@ -600,6 +600,147 @@
   opacity: 0.5;
 }
 
+/* Send Icon Button Styles */
+.send-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  margin-left: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.send-icon {
+  font-size: 24px;
+  color: #0095f6;
+}
+
+/* ==========================
+   EMBEDDED MODE STYLES
+   ========================== */
+
+.embedded-comments-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: white;
+}
+
+.comments-list-embed {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px;
+}
+
+.loading-container-embed {
+  display: flex;
+  justify-content: center;
+  padding: 40px;
+}
+
+.empty-container-embed {
+  text-align: center;
+  padding: 40px 20px;
+  color: #8e8e8e;
+}
+
+.input-container-embed {
+  border-top: 1px solid #efefef;
+  padding: 12px 16px;
+  background: white;
+}
+
+.replying-indicator-embed,
+.editing-indicator-embed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #f0f0f0;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #262626;
+}
+
+.replying-indicator-embed button,
+.editing-indicator-embed button {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #8e8e8e;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+}
+
+.input-row-embed {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.comment-input-embed {
+  flex: 1;
+  border: 1px solid #dbdbdb;
+  border-radius: 20px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.comment-input-embed:focus {
+  outline: none;
+  border-color: #8e8e8e;
+}
+
+.send-button-embed {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.send-button-embed:hover {
+  transform: scale(1.1);
+}
+
+.send-button-embed:active {
+  transform: scale(0.95);
+}
+
+.send-button-embed:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.send-icon-btn:hover {
+  transform: scale(1.1);
+  opacity: 0.8;
+}
+
+.send-icon-btn:active {
+  transform: scale(0.95);
+  opacity: 0.6;
+}
+
+.send-icon-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 .spinner-small {
   width: 20px;
   height: 20px;

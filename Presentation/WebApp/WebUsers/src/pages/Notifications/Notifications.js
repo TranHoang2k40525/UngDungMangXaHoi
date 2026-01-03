@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import * as NotificationAPI from '../../API/Api';
 import signalRService from '../../Services/signalRService';
 import NavigationBar from '../../components/NavigationBar';
-import { MdFavorite, MdFavoriteBorder, MdComment, MdPersonAdd, MdAlternateEmail, MdMail, MdGroup, MdNotifications, MdShare, MdArrowBack } from 'react-icons/md';
+import { MdFavorite, MdFavoriteBorder, MdComment, MdPersonAdd, MdAlternateEmail, MdMail, MdGroup, MdNotifications, MdShare, MdArrowBack, MdDelete } from 'react-icons/md';
 import { FaHeart, FaGrinHearts, FaLaughSquint, FaSurprise, FaSadTear, FaAngry } from 'react-icons/fa';
 import './Notifications.css';
 
@@ -82,7 +82,7 @@ const NotificationItem = ({ notification, onPress, onMarkAsRead, onDelete }) => 
           onDelete(notification.notificationId);
         }}
       >
-        🗑️
+        <MdDelete size={20} />
       </button>
     </div>
   );
@@ -148,7 +148,7 @@ export default function Notifications() {
           break;
         case 4: // Follow
           if (notification.senderId) {
-            navigate(`/profile/${notification.senderId}`);
+            navigate(`/user/${notification.senderId}`);
           }
           break;
         case 7: // Message

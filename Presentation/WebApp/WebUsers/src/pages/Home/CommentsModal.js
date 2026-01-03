@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { IoSend } from 'react-icons/io5';
 import signalRService from '../../Services/signalRService';
 import { getRelativeTime } from '../../Utils/timeUtils';
 import {
@@ -92,6 +93,7 @@ const CommentsModal = ({
   post,
   onCommentAdded,
   highlightCommentId,
+  embedded = false, // New prop for embedded mode
 }) => {
   const navigate = useNavigate();
   const [comments, setComments] = useState([]);
@@ -768,6 +770,26 @@ const CommentsModal = ({
     setNewComment((prev) => prev + emoji);
   };
 
+  // Handle input change
+  const handleInputChange = (e) => {
+    setNewComment(e.target.value);
+  };
+
+  // Handle key press (Enter to submit)
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  // Handle submit
+  const handleSubmit = () => {
+    if (newComment.trim() && !submitting) {
+      handleAddComment();
+    }
+  };
+
   const renderReplyItem = (reply) => {
     const isMenuOpen = showMenuForComment === reply.id;
 
@@ -939,8 +961,114 @@ const CommentsModal = ({
     );
   };
 
-  if (!visible) return null;
+  if (!visible && !embedded) return null;
 
+  // Embedded mode renders without modal overlay
+  if (embedded) {
+    return (
+      <div className="embedded-comments-container">
+        {/* Comments List */}
+        {loading ? (
+          <div className="loading-container-embed">
+            <div className="spinner"></div>
+          </div>
+        ) : comments.length === 0 ? (
+          <div className="empty-container-embed">
+            <p className="empty-text">Chưa có bình luận</p>
+          </div>
+        ) : (
+          <div className="comments-list-embed">
+            {getFilteredComments().map((item) => renderComment(item))}
+          </div>
+        )}
+
+        {/* Comment Input */}
+        <div className="input-container-embed">
+          {replyingTo && (
+            <div className="replying-indicator-embed">
+              <span>Đang trả lời @{replyingTo.username}</span>
+              <button onClick={() => setReplyingTo(null)}>×</button>
+            </div>
+          )}
+          {editingComment && (
+            <div className="editing-indicator-embed">
+              <span>Đang chỉnh sửa</span>
+              <button onClick={() => setEditingComment(null)}>×</button>
+            </div>
+          )}
+          <div className="input-row-embed">
+            <textarea
+              ref={inputRef}
+              className="comment-input-embed"
+              placeholder="Thêm bình luận..."
+              value={newComment}
+              onChange={handleInputChange}
+              onKeyPress={handleKeyPress}
+              maxLength={500}
+              rows={1}
+            />
+            {newComment.trim().length > 0 && (
+              <button
+                className="send-button-embed"
+                onClick={handleSubmit}
+                disabled={submitting}
+              >
+                <IoSend size={24} color="#0095f6" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Global Menu */}
+        {showMenuForComment &&
+          (() => {
+            const comment = comments.find((c) => c.id === showMenuForComment);
+            if (!comment) return null;
+
+            const commentUserId = comment.userId != null ? Number(comment.userId) : null;
+            const isOwner =
+              currentUserId != null &&
+              commentUserId != null &&
+              commentUserId === currentUserId;
+
+            return (
+              <div className="global-menu-overlay" onClick={() => setShowMenuForComment(null)}>
+                <div className="global-menu-dropdown" onClick={(e) => e.stopPropagation()}>
+                  <button className="menu-option" onClick={() => handleCopy(comment)}>
+                    <i className="far fa-copy"></i>
+                    <span>Sao chép</span>
+                  </button>
+
+                  {isOwner && (
+                    <>
+                      <button
+                        className="menu-option"
+                        onClick={() => {
+                          setShowMenuForComment(null);
+                          handleEdit(comment);
+                        }}
+                      >
+                        <i className="fas fa-edit"></i>
+                        <span>Chỉnh sửa</span>
+                      </button>
+                      <button
+                        className="menu-option danger"
+                        onClick={() => handleDelete(comment)}
+                      >
+                        <i className="fas fa-trash"></i>
+                        <span>Xóa</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+      </div>
+    );
+  }
+
+  // Full modal mode
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content instagram-layout" onClick={(e) => e.stopPropagation()}>
@@ -1060,8 +1188,12 @@ const CommentsModal = ({
               {submitting ? (
                 <div className="spinner-small"></div>
               ) : newComment.trim().length > 0 ? (
-                <button className="send-button" onClick={handleAddComment}>
-                  {editingComment ? 'Lưu' : 'Gửi'}
+                <button 
+                  className="send-button send-icon-btn" 
+                  onClick={handleAddComment}
+                  title={editingComment ? 'Lưu' : 'Gửi'}
+                >
+                  <IoSend className="send-icon" />
                 </button>
               ) : null}
             </div>

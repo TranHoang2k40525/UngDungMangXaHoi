@@ -207,21 +207,25 @@ class SignalRService {
   }
 
   // COMMENT CONNECTION
-  async connectToComment() {
+  async connectToComments() {
     if (this.commentConnection?.state === SignalR.HubConnectionState.Connected) {
       console.log('✅ Comment already connected');
       return this.commentConnection;
     }
 
     try {
-      this.commentConnection = this.createConnection(`${API_BASE_URL}/hubs/comment`);
+      this.commentConnection = this.createConnection(`${API_BASE_URL}/hubs/comments`);
       
+      this.commentConnection.onreconnecting((error) => {
+        console.warn('🔄 Comment reconnecting...', error?.message);
+      });
+
       this.commentConnection.onreconnected((connectionId) => {
         console.log('✅ Comment reconnected:', connectionId);
         try {
           for (const postId of this._joinedPostRooms) {
             try {
-              this.commentConnection.invoke('JoinPostComments', postId.toString());
+              this.commentConnection.invoke('JoinPostRoom', postId);
               console.log('[SignalR] Re-joined post room after reconnect:', postId);
             } catch (e) {
               console.warn('[SignalR] Failed to re-join post room', postId, e);
@@ -232,8 +236,28 @@ class SignalRService {
         }
       });
 
+      this.commentConnection.onclose((error) => {
+        console.log('❌ Comment connection closed:', error?.message);
+      });
+
       await this.commentConnection.start();
-      console.log('✅ Comment connected successfully');
+      console.log('✅ Connected to Comment Hub');
+      
+      // Attach previously registered handlers
+      try {
+        for (const [event, cbs] of Object.entries(this._handlers)) {
+          for (const cb of cbs) {
+            try { 
+              this.commentConnection.on(event, cb); 
+            } catch (e) { 
+              console.error('[SignalR] attach comment handler error', event, e); 
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[SignalR] Error attaching handlers after connect', e);
+      }
+
       return this.commentConnection;
     } catch (error) {
       console.error('❌ Comment connection error:', error);
@@ -241,17 +265,39 @@ class SignalRService {
     }
   }
 
-  async joinPostComments(postId) {
+  // Legacy alias for backward compatibility
+  async connectToComment() {
+    return this.connectToComments();
+  }
+
+  async joinPostRoom(postId) {
     try {
-      await this.connectToComment();
+      await this.connectToComments();
       if (this.commentConnection?.state === SignalR.HubConnectionState.Connected) {
-        await this.commentConnection.invoke('JoinPostComments', postId.toString());
+        await this.commentConnection.invoke('JoinPostRoom', postId);
         this._joinedPostRooms.add(postId);
-        console.log('[SignalR] Joined post comments:', postId);
+        console.log('[SignalR] Joined post room:', postId);
       }
     } catch (error) {
-      console.error('[SignalR] Join post comments error:', error);
+      console.error('[SignalR] Join post room error:', error);
       throw error;
+    }
+  }
+
+  // Legacy alias
+  async joinPostComments(postId) {
+    return this.joinPostRoom(postId);
+  }
+
+  async leavePostRoom(postId) {
+    try {
+      if (this.commentConnection?.state === SignalR.HubConnectionState.Connected) {
+        await this.commentConnection.invoke('LeavePostRoom', postId);
+        this._joinedPostRooms.delete(postId);
+        console.log('[SignalR] Left post room:', postId);
+      }
+    } catch (error) {
+      console.error('[SignalR] Leave post room error:', error);
     }
   }
 
@@ -263,6 +309,61 @@ class SignalRService {
 
     if (this.commentConnection?.state === SignalR.HubConnectionState.Connected) {
       this.commentConnection.on('ReceiveComment', callback);
+    }
+  }
+
+  onReceiveComment(callback) {
+    if (!this._handlers['ReceiveComment']) {
+      this._handlers['ReceiveComment'] = new Set();
+    }
+    this._handlers['ReceiveComment'].add(callback);
+
+    if (this.commentConnection?.state === SignalR.HubConnectionState.Connected) {
+      this.commentConnection.on('ReceiveComment', callback);
+    }
+  }
+
+  onCommentUpdated(callback) {
+    if (!this._handlers['CommentUpdated']) {
+      this._handlers['CommentUpdated'] = new Set();
+    }
+    this._handlers['CommentUpdated'].add(callback);
+
+    if (this.commentConnection?.state === SignalR.HubConnectionState.Connected) {
+      this.commentConnection.on('CommentUpdated', callback);
+    }
+  }
+
+  onCommentDeleted(callback) {
+    if (!this._handlers['CommentDeleted']) {
+      this._handlers['CommentDeleted'] = new Set();
+    }
+    this._handlers['CommentDeleted'].add(callback);
+
+    if (this.commentConnection?.state === SignalR.HubConnectionState.Connected) {
+      this.commentConnection.on('CommentDeleted', callback);
+    }
+  }
+
+  onCommentReplyAdded(callback) {
+    if (!this._handlers['CommentReplyAdded']) {
+      this._handlers['CommentReplyAdded'] = new Set();
+    }
+    this._handlers['CommentReplyAdded'].add(callback);
+
+    if (this.commentConnection?.state === SignalR.HubConnectionState.Connected) {
+      this.commentConnection.on('CommentReplyAdded', callback);
+    }
+  }
+
+  onCommentReactionChanged(callback) {
+    if (!this._handlers['CommentReactionChanged']) {
+      this._handlers['CommentReactionChanged'] = new Set();
+    }
+    this._handlers['CommentReactionChanged'].add(callback);
+
+    if (this.commentConnection?.state === SignalR.HubConnectionState.Connected) {
+      this.commentConnection.on('CommentReactionChanged', callback);
     }
   }
 

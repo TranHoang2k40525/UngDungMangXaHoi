@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useUser } from '../../context/UserContext';
 import { 
   getReels, 
   getFollowingReels, 
@@ -17,8 +18,52 @@ import { MdArrowBack, MdCameraAlt, MdFavorite, MdFavoriteBorder, MdComment, MdMo
 import { IoEllipsisHorizontal, IoLockClosed, IoPeople, IoEarth } from 'react-icons/io5';
 import './Video.css';
 
+// Reaction Picker Component
+const ReactionPicker = ({ visible, position, onSelectReaction }) => {
+  if (!visible) return null;
+
+  const reactions = [
+    { type: 1, emoji: '❤️', label: 'Like' },
+    { type: 2, emoji: '😍', label: 'Love' },
+    { type: 3, emoji: '😂', label: 'Haha' },
+    { type: 4, emoji: '😮', label: 'Wow' },
+    { type: 5, emoji: '😢', label: 'Sad' },
+    { type: 6, emoji: '😠', label: 'Angry' },
+  ];
+
+  return (
+    <div className="reaction-picker" style={{ top: position.top, left: position.left }}>
+      {reactions.map(({ type, emoji }) => (
+        <button
+          key={type}
+          className="reaction-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelectReaction(type);
+          }}
+        >
+          {emoji}
+        </button>
+      ))}
+    </div>
+  );
+};
+
+const getReactionEmoji = (reactionType) => {
+  switch (reactionType) {
+    case 1: return '❤️';
+    case 2: return '😍';
+    case 3: return '😂';
+    case 4: return '😮';
+    case 5: return '😢';
+    case 6: return '😠';
+    default: return '❤️';
+  }
+};
+
 export default function Video() {
   const navigate = useNavigate();
+  const { user: ctxUser } = useUser();
   const [reels, setReels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -41,6 +86,11 @@ export default function Video() {
   const [editingCaptionPostId, setEditingCaptionPostId] = useState(null);
   const [captionDraft, setCaptionDraft] = useState('');
   const [currentUserId, setCurrentUserId] = useState(null);
+  
+  // Reaction picker state
+  const [showReactionPicker, setShowReactionPicker] = useState(null);
+  const [reactionPickerPosition, setReactionPickerPosition] = useState({ top: 0, left: 0 });
+  const likeButtonRefs = useRef({});
 
   // Get current user
   useEffect(() => {
@@ -197,54 +247,71 @@ export default function Video() {
     }));
   };
 
-  const handleLike = async (reel) => {
+  // Get owner ID helper
+  const getOwnerId = () => {
+    const fromCtx = ctxUser?.user_id ?? ctxUser?.userId ?? ctxUser?.UserId ?? ctxUser?.id;
+    const n1 = fromCtx != null ? Number(fromCtx) : null;
+    if (Number.isFinite(n1)) return n1;
+    const n2 = currentUserId != null ? Number(currentUserId) : null;
+    return Number.isFinite(n2) ? n2 : null;
+  };
+
+  // Handle reaction (like, love, etc.)
+  const handleReaction = async (reelId, reactionType) => {
     try {
-      const currentState = videoStates[reel.id] || {};
-      const isLiked = currentState.liked;
+      setVideoStates(prev => {
+        const cur = prev[reelId] || { liked: false, likes: 0, shares: 0, comments: 0, reactionType: null };
+        const isSameType = cur.reactionType === reactionType;
+        const liked = !isSameType;
+        const likes = Math.max(0, cur.likes + (liked ? 1 : isSameType ? -1 : 0));
+        return {
+          ...prev,
+          [reelId]: { ...cur, liked, likes, reactionType: liked ? reactionType : null },
+        };
+      });
 
-      // Optimistic update
-      setVideoStates(prev => ({
-        ...prev,
-        [reel.id]: {
-          ...prev[reel.id],
-          liked: !isLiked,
-          likes: (currentState.likes || 0) + (isLiked ? -1 : 1),
-          reactionType: isLiked ? null : 'Like'
-        }
-      }));
+      await addReaction(reelId, reactionType);
 
-      // API call
-      if (!isLiked) {
-        await addReaction(reel.id, 'Like');
-      } else {
-        await addReaction(reel.id, 'None'); // Remove reaction
+      try {
+        const reactionData = await getReactionSummary(reelId);
+        setVideoStates(prev => ({
+          ...prev,
+          [reelId]: {
+            ...prev[reelId],
+            liked: reactionData?.userReaction != null,
+            likes: Number(reactionData?.totalReactions ?? 0),
+            reactionType: reactionData?.userReaction,
+          },
+        }));
+      } catch (err) {
+        console.error('Error loading reaction summary:', err);
       }
 
-      // Refresh reaction summary to get accurate count
-      const reactionData = await getReactionSummary(reel.id);
-      setVideoStates(prev => ({
-        ...prev,
-        [reel.id]: {
-          ...prev[reel.id],
-          liked: reactionData?.userReaction != null,
-          likes: Number(reactionData?.totalReactions ?? 0),
-          reactionType: reactionData?.userReaction
-        }
-      }));
+      setShowReactionPicker(null);
     } catch (error) {
-      console.error('Error toggling like:', error);
-      // Revert on error
-      const reactionData = await getReactionSummary(reel.id);
-      setVideoStates(prev => ({
-        ...prev,
-        [reel.id]: {
-          ...prev[reel.id],
-          liked: reactionData?.userReaction != null,
-          likes: Number(reactionData?.totalReactions ?? 0),
-          reactionType: reactionData?.userReaction
-        }
-      }));
+      console.error('Error adding reaction:', error);
+      setVideoStates(prev => {
+        const cur = prev[reelId] || { liked: false, likes: 0, shares: 0, comments: 0 };
+        return {
+          ...prev,
+          [reelId]: { ...cur, liked: false, likes: Math.max(0, cur.likes - 1) },
+        };
+      });
     }
+  };
+
+  const onToggleLike = (reelId) => {
+    handleReaction(reelId, 1);
+  };
+
+  const onLongPressLike = (reelId, e) => {
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setReactionPickerPosition({
+      top: rect.top - 70,
+      left: rect.left - 10,
+    });
+    setShowReactionPicker(reelId);
   };
 
   const handleComment = (reel) => {
@@ -278,7 +345,10 @@ export default function Video() {
 
   // Menu handlers - giống trang chủ
   const isOwner = (reel) => {
-    return currentUserId != null && reel?.user?.id != null && Number(currentUserId) === Number(reel.user.id);
+    const uid = getOwnerId();
+    const pidRaw = reel?.user?.id;
+    const pid = pidRaw != null ? Number(pidRaw) : null;
+    return Number.isFinite(uid) && Number.isFinite(pid) && uid === pid;
   };
 
   const openOptionsFor = (reel) => {
@@ -507,7 +577,15 @@ export default function Video() {
                   
                   {/* Video Info */}
                   <div className="video-info">
-                    <div className="video-user" onClick={() => navigate(`/profile/${reel.user?.id}`)}>
+                    <div className="video-user" onClick={() => {
+                      const ownerId = getOwnerId();
+                      const postUserId = reel.user?.id;
+                      if (ownerId && postUserId && Number(ownerId) === Number(postUserId)) {
+                        navigate('/profile');
+                      } else {
+                        navigate(`/user/${reel.user?.id}`);
+                      }
+                    }}>
                       {avatarUrl ? (
                         <img 
                           src={avatarUrl} 
@@ -529,10 +607,14 @@ export default function Video() {
                   {/* Actions */}
                   <div className="video-actions">
                     <button 
+                      ref={el => { if (el) likeButtonRefs.current[reel.id] = el; }}
                       className="video-action-btn"
-                      onClick={() => handleLike(reel)}
+                      onClick={() => onToggleLike(reel.id)}
+                      onContextMenu={(e) => onLongPressLike(reel.id, e)}
                     >
-                      {state.liked ? (
+                      {state.reactionType ? (
+                        <span className="reaction-emoji">{getReactionEmoji(state.reactionType)}</span>
+                      ) : state.liked ? (
                         <MdFavorite className="action-icon liked" />
                       ) : (
                         <MdFavoriteBorder className="action-icon" />
@@ -578,6 +660,17 @@ export default function Video() {
           )}
         </div>
       </div>
+
+      {/* Reaction Picker */}
+      {showReactionPicker && (
+        <div className="reaction-overlay" onClick={() => setShowReactionPicker(null)}>
+          <ReactionPicker
+            visible={showReactionPicker !== null}
+            position={reactionPickerPosition}
+            onSelectReaction={(reactionType) => handleReaction(showReactionPicker, reactionType)}
+          />
+        </div>
+      )}
 
       {/* CommentsModal - giống trang chủ */}
       <CommentsModal

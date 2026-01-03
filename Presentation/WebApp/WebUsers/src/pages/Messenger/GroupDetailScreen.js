@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { getGroupInfo, getGroupMembers, API_BASE_URL } from '../../API/Api';
 import signalRService from '../../Services/signalRService';
+import { MdArrowBack } from 'react-icons/md';
 import './GroupDetailScreen.css';
 
 export default function GroupDetailScreen() {
@@ -323,7 +324,7 @@ export default function GroupDetailScreen() {
       <div className="group-detail-container">
         <div className="group-detail-header">
           <button className="back-button" onClick={() => navigate(-1)}>
-            ←
+            <MdArrowBack size={24} />
           </button>
           <h3>Chi tiết nhóm</h3>
           <div style={{ width: 40 }} />
@@ -340,7 +341,7 @@ export default function GroupDetailScreen() {
     <div className="group-detail-container">
       <div className="group-detail-header">
         <button className="back-button" onClick={() => navigate(-1)}>
-          ←
+          <MdArrowBack size={24} />
         </button>
         <h3>Chi tiết nhóm</h3>
         <button className="more-button">⋯</button>

@@ -3,6 +3,9 @@
   background-color: #FFFFFF;
   display: flex;
   flex-direction: column;
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .user-profile-header {
@@ -76,6 +79,8 @@
 .avatar {
   width: 90px;
   height: 90px;
+  max-width: 90px;
+  max-height: 90px;
   border-radius: 50%;
   object-fit: cover;
 }
@@ -83,6 +88,8 @@
 .avatar-placeholder {
   width: 90px;
   height: 90px;
+  max-width: 90px;
+  max-height: 90px;
   border-radius: 50%;
   background-color: #e5e7eb;
   display: flex;
@@ -213,56 +220,51 @@
 .posts-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
+  gap: 4px;
   margin-top: 16px;
 }
 
-.post-tile {
-  aspect-ratio: 1;
-  cursor: pointer;
+.post-grid-item {
+  aspect-ratio: 1 / 1;
   position: relative;
   overflow: hidden;
-  background-color: #F3F4F6;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
 }
 
-.post-tile:hover {
-  opacity: 0.9;
+.post-grid-item:hover::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.3);
 }
 
-.post-image {
+.post-grid-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
-.video-tile {
-  width: 100%;
-  height: 100%;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.video-placeholder {
-  width: 100%;
-  height: 100%;
-  background-color: #000000;
-}
-
-.play-icon {
+.video-play-icon {
   position: absolute;
-  right: 6px;
-  bottom: 6px;
-  color: #FFFFFF;
-  font-size: 22px;
-  opacity: 0.9;
+  top: 8px;
+  right: 8px;
+  color: #fff;
+  font-size: 20px;
 }
 
-.empty-tile {
-  width: 100%;
-  height: 100%;
-  background-color: #F3F4F6;
+.empty-posts {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 60px 20px;
+  color: #8e8e8e;
+  font-size: 14px;
 }
 
 .modal-overlay {
@@ -393,6 +395,8 @@
 .info-avatar {
   width: 100px;
   height: 100px;
+  max-width: 100px;
+  max-height: 100px;
   border-radius: 50%;
   object-fit: cover;
   margin-top: 8px;
@@ -401,6 +405,8 @@
 .info-avatar-placeholder {
   width: 100px;
   height: 100px;
+  max-width: 100px;
+  max-height: 100px;
   border-radius: 50%;
   background-color: #e5e7eb;
   display: flex;
