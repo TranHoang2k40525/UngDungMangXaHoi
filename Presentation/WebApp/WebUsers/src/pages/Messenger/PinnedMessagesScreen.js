@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { MdClose } from 'react-icons/md';
 import './PinnedMessagesScreen.css';
 // import * as groupChatService from '../../Services/groupChatService';
 
@@ -154,7 +155,7 @@ export default function PinnedMessagesScreen() {
             handleUnpinMessage(message.id);
           }}
         >
-          <span className="unpin-icon">✕</span>
+          <span className="unpin-icon"><MdClose size={20} /></span>
         </button>
       </div>
 

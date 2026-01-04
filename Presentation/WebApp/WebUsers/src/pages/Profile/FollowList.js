@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getFollowers, getFollowing, followUser, unfollowUser, API_BASE_URL } from '../../API/Api';
-import { MdGroup, MdPerson } from 'react-icons/md';
+import { MdGroup, MdPerson, MdArrowBack } from 'react-icons/md';
 import './FollowList.css';
 
 export default function FollowList() {
@@ -53,7 +53,7 @@ export default function FollowList() {
   };
 
   const handleUserClick = (user) => {
-    navigate(`/profile/${user.userId || user.UserId}`);
+    navigate(`/user/${user.userId || user.UserId}`);
   };
 
   const getAvatarUri = (avatarUrl) => {
@@ -66,7 +66,7 @@ export default function FollowList() {
     <div className="follow-list-container">
       <div className="follow-list-header">
         <button className="back-button" onClick={() => navigate(-1)}>
-          ←
+          <MdArrowBack size={24} />
         </button>
         <h1 className="follow-list-title">
           {type === 'followers' ? 'Người theo dõi' : 'Đang theo dõi'}

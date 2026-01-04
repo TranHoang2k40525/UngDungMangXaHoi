@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { getGroupMembers, API_BASE_URL, getGroupInfo } from '../../API/Api';
+import { MdArrowBack, MdClose, MdGroup, MdSearch } from 'react-icons/md';
 import './GroupMembersScreen.css';
 
 export default function GroupMembersScreen() {
@@ -207,7 +208,7 @@ export default function GroupMembersScreen() {
       <div className="group-members-container">
         <div className="group-members-header">
           <button className="back-button" onClick={() => navigate(-1)}>
-            ←
+            <MdArrowBack size={24} />
           </button>
           <div className="header-center">
             <h3>Thành viên</h3>
@@ -226,7 +227,7 @@ export default function GroupMembersScreen() {
       {/* Header */}
       <div className="group-members-header">
         <button className="back-button" onClick={() => navigate(-1)}>
-          ←
+          <MdArrowBack size={24} />
         </button>
         <div className="header-center">
           <h3>Thành viên</h3>
@@ -237,7 +238,7 @@ export default function GroupMembersScreen() {
 
       {/* Search Bar */}
       <div className="search-container">
-        <span className="search-icon">🔍</span>
+        <span className="search-icon"><MdSearch size={20} /></span>
         <input
           type="text"
           className="search-input"
@@ -247,7 +248,7 @@ export default function GroupMembersScreen() {
         />
         {searchQuery.length > 0 && (
           <button className="clear-button" onClick={() => setSearchQuery('')}>
-            ✕
+            <MdClose size={20} />
           </button>
         )}
       </div>
@@ -256,7 +257,7 @@ export default function GroupMembersScreen() {
       <div className="members-list">
         {filteredMembers.length === 0 ? (
           <div className="empty-container">
-            <span className="empty-icon">👥</span>
+            <span className="empty-icon"><MdGroup size={48} /></span>
             <p className="empty-text">{searchQuery ? 'Không tìm thấy thành viên' : 'Chưa có thành viên'}</p>
           </div>
         ) : (

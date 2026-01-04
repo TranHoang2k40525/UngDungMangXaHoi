@@ -538,9 +538,16 @@ export const addReaction = async (postId, reactionType) => {
   const headers = getAuthHeaders();
   const body = { postId, reactionType };
 
+  console.log('[API] addReaction called - postId:', postId, 'reactionType:', reactionType);
+  console.log('[API] addReaction body:', body);
+
   const result = await apiCall("/api/reactions", {
     method: "POST",
-    headers,
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
     body: JSON.stringify(body),
   });
 

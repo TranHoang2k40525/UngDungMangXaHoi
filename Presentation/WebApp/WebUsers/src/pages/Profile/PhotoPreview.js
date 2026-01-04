@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { MdClose, MdArrowBack, MdArrowForward } from 'react-icons/md';
 import './PhotoPreview.css';
 
 export default function PhotoPreview() {
@@ -109,7 +110,7 @@ export default function PhotoPreview() {
     >
       <div className="photo-preview-header">
         <button className="close-button" onClick={() => navigate(-1)}>
-          ✕
+          <MdClose size={24} />
         </button>
         <div className="image-counter">
           {currentIndex + 1} / {images.length}
@@ -130,7 +131,7 @@ export default function PhotoPreview() {
       <div className="photo-preview-content">
         {currentIndex > 0 && (
           <button className="nav-button nav-button-left" onClick={handlePrev}>
-            ‹
+            <MdArrowBack size={32} />
           </button>
         )}
 
@@ -152,7 +153,7 @@ export default function PhotoPreview() {
 
         {currentIndex < images.length - 1 && (
           <button className="nav-button nav-button-right" onClick={handleNext}>
-            ›
+            <MdArrowForward size={32} />
           </button>
         )}
       </div>

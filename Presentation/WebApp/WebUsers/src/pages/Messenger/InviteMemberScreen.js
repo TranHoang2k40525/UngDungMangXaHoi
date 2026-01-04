@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import './InviteMemberScreen.css';
 import { getFollowing, inviteToGroup, getProfile, API_BASE_URL } from '../../API/Api';
+import { MdClose, MdGroup } from 'react-icons/md';
 
 export default function InviteMemberScreen() {
   const navigate = useNavigate();
@@ -224,7 +225,7 @@ export default function InviteMemberScreen() {
 
   const renderEmptyState = () => (
     <div className="empty-container">
-      <div className="empty-icon">👥</div>
+      <div className="empty-icon"><MdGroup size={48} /></div>
       <div className="empty-title">
         {searchQuery ? 'Không tìm thấy người dùng' : 'Không có người theo dõi'}
       </div>
@@ -243,7 +244,7 @@ export default function InviteMemberScreen() {
           className="back-button"
           onClick={() => navigate(-1)}
         >
-          <span className="back-icon">‹</span>
+          <span className="back-icon"><MdArrowBack size={24} /></span>
         </button>
         <div className="header-center">
           <div className="header-title">Mời thành viên</div>
@@ -269,7 +270,7 @@ export default function InviteMemberScreen() {
             className="clear-button"
             onClick={() => setSearchQuery('')}
           >
-            <span className="clear-icon">✕</span>
+            <span className="clear-icon"><MdClose size={20} /></span>
           </button>
         )}
       </div>

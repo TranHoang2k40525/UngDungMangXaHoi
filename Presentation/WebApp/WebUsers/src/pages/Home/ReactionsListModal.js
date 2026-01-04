@@ -114,7 +114,7 @@ const ReactionsListModal = ({ postId, onClose }) => {
     if (currentUser && Number(userId) === Number(currentUser.userId)) {
       navigate('/profile');
     } else {
-      navigate(`/profile/${userId}`);
+      navigate(`/user/${userId}`);
     }
   };
 

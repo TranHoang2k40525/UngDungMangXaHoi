@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { MdClose } from 'react-icons/md';
 import './MediaLinksScreen.css';
 // import * as groupChatService from '../../Services/groupChatService';
 
@@ -367,7 +368,7 @@ export default function MediaLinksScreen() {
         <div className="video-modal-overlay" onClick={() => setShowVideoModal(false)}>
           <div className="video-modal-content" onClick={(e) => e.stopPropagation()}>
             <button className="video-close-button" onClick={() => setShowVideoModal(false)}>
-              <span className="close-icon">✕</span>
+              <span className="close-icon"><MdClose size={24} /></span>
             </button>
             {videoUri ? (
               <video
@@ -391,7 +392,7 @@ export default function MediaLinksScreen() {
       {showImageViewer && (
         <div className="image-viewer-overlay" onClick={() => setShowImageViewer(false)}>
           <button className="image-close-button" onClick={() => setShowImageViewer(false)}>
-            <span className="close-icon">✕</span>
+            <span className="close-icon"><MdClose size={24} /></span>
           </button>
           <div className="image-viewer-content" onClick={(e) => e.stopPropagation()}>
             <img 

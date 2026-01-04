@@ -265,7 +265,7 @@ export default function Search() {
 
   const handleSuggestionSelect = (item, type) => {
     if (type === 'user') {
-      navigate(`/profile/${item.userId || item.UserId}`);
+      navigate(`/user/${item.userId || item.UserId}`);
     } else if (type === 'post') {
       // Navigate to home
       navigate('/');
@@ -395,7 +395,7 @@ export default function Search() {
               <SearchUserItem
                 key={user.userId || user.UserId || index}
                 user={user}
-                onPress={() => navigate(`/profile/${user.userId || user.UserId}`)}
+                onPress={() => navigate(`/user/${user.userId || user.UserId}`)}
               />
             ))}
           </div>

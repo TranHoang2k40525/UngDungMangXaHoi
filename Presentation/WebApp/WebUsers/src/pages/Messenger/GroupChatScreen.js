@@ -7,6 +7,7 @@ import {
   API_BASE_URL,
 } from '../../API/Api';
 import ImageViewer from '../../Components/ImageViewer';
+import { MdArrowBack, MdClose } from 'react-icons/md';
 import './GroupChatScreen.css';
 
 const EMOJI_LIST = [
@@ -619,7 +620,7 @@ export default function GroupChatScreen() {
       {/* Header */}
       <div className="group-chat-header">
         <button className="back-button" onClick={() => navigate(-1)}>
-          ←
+          <MdArrowBack size={24} />
         </button>
         <img
           className="group-avatar"
@@ -749,7 +750,7 @@ export default function GroupChatScreen() {
       {replyingTo && (
         <div className="replying-to-preview">
           <p>Đang trả lời: {replyingTo.message}</p>
-          <button onClick={() => setReplyingTo(null)}>✕</button>
+          <button onClick={() => setReplyingTo(null)}><MdClose size={20} /></button>
         </div>
       )}
 

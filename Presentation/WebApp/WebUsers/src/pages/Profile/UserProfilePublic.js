@@ -2,7 +2,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getUserPostsById, getUserProfile, followUser, unfollowUser, API_BASE_URL, blockUser, unblockUser, getBlockedUsers } from '../../API/Api';
 import { useFollow } from '../../Context/FollowContext';
-import { MdPerson, MdPersonAdd, MdPlayArrow, MdContentCopy, MdClose } from 'react-icons/md';
+import PostDetail from '../Home/PostDetail';
+import { MdPerson, MdPersonAdd, MdPlayArrow, MdContentCopy, MdClose, MdArrowBack, MdMoreVert } from 'react-icons/md';
 import './UserProfilePublic.css';
 
 export default function UserProfilePublic() {
@@ -15,6 +16,10 @@ export default function UserProfilePublic() {
   const [menuVisible, setMenuVisible] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [userInfoModalVisible, setUserInfoModalVisible] = useState(false);
+  
+  // Modal state for Instagram-style post view
+  const [selectedPostIndex, setSelectedPostIndex] = useState(null);
+  const [showPostModal, setShowPostModal] = useState(false);
 
   const formatNumber = (num) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1).replace('.0', '') + ' triệu';
@@ -45,6 +50,10 @@ export default function UserProfilePublic() {
           getUserProfile(userId),
           getUserPostsById(userId),
         ]);
+        
+        console.log('[UserProfilePublic] Profile data:', profileData);
+        console.log('[UserProfilePublic] Posts data:', postsData);
+        
         setProfile(profileData || null);
         setPosts(Array.isArray(postsData) ? postsData : []);
         const isFollowingFromAPI = profileData?.isFollowing || false;
@@ -137,10 +146,12 @@ export default function UserProfilePublic() {
 
   const onPressPost = (post) => {
     const isVideo = (post.media||[]).some(m => (m.type||'').toLowerCase()==='video');
+    const index = posts.findIndex(p => p.id === post.id);
     if (isVideo) {
       navigate(`/video/${post.id}`);
     } else {
-      navigate(`/post/${post.id}`);
+      setSelectedPostIndex(index);
+      setShowPostModal(true);
     }
   };
 
@@ -148,7 +159,7 @@ export default function UserProfilePublic() {
     <div className="user-profile-public-container">
       <div className="user-profile-header">
         <button className="back-button" onClick={() => navigate(-1)}>
-          ←
+          <MdArrowBack size={24} />
         </button>
         <div className="header-center">
           <span className="header-username">{profile?.username || 'user'}</span>
@@ -157,7 +168,7 @@ export default function UserProfilePublic() {
           )}
         </div>
         <button className="more-button" onClick={() => setMenuVisible(!menuVisible)}>
-          ⋮
+          <MdMoreVert size={24} />
         </button>
       </div>
 
@@ -221,23 +232,41 @@ export default function UserProfilePublic() {
         </div>
 
         <div className="posts-grid">
-          {posts.map((post) => {
-            const img = (post.media||[]).find(m => (m.type||'').toLowerCase()==='image');
-            const vid = (post.media||[]).find(m => (m.type||'').toLowerCase()==='video');
-            
-            return (
-              <div key={post.id} className="post-tile" onClick={() => onPressPost(post)}>
-                {img && <img src={img.url} alt="Post" className="post-image" />}
-                {vid && (
-                  <div className="video-tile">
-                    <div className="video-placeholder"></div>
-                    <span className="play-icon">▶</span>
-                  </div>
-                )}
-                {!img && !vid && <div className="empty-tile"></div>}
-              </div>
-            );
-          })}
+          {posts.length === 0 ? (
+            <p className="empty-posts">Chưa có bài đăng</p>
+          ) : (
+            posts.map((post) => {
+              const images = (post.media || []).filter(m => (m.type || '').toLowerCase() === 'image');
+              const videos = (post.media || []).filter(m => (m.type || '').toLowerCase() === 'video');
+              const isVideo = videos.length > 0;
+              const firstMedia = images[0] || videos[0];
+              return (
+                <button
+                  key={post.id}
+                  className="post-grid-item"
+                  onClick={() => onPressPost(post)}
+                >
+                  {firstMedia?.url && (
+                    isVideo ? (
+                      <>
+                        <video
+                          src={firstMedia.url.startsWith('http') ? firstMedia.url : `${API_BASE_URL}${firstMedia.url}`}
+                          className="post-grid-image"
+                        />
+                        <MdPlayArrow className="video-play-icon" />
+                      </>
+                    ) : (
+                      <img
+                        src={firstMedia.url.startsWith('http') ? firstMedia.url : `${API_BASE_URL}${firstMedia.url}`}
+                        alt="Post"
+                        className="post-grid-image"
+                      />
+                    )
+                  )}
+                </button>
+              );
+            })
+          )}
         </div>
       </div>
 
@@ -315,6 +344,19 @@ export default function UserProfilePublic() {
             </div>
           </div>
         </div>
+      )}
+      
+      {/* Instagram-style Post Modal */}
+      {showPostModal && selectedPostIndex !== null && (
+        <PostDetail 
+          posts={posts}
+          initialIndex={selectedPostIndex}
+          userId={userId}
+          onClose={() => {
+            setShowPostModal(false);
+            setSelectedPostIndex(null);
+          }}
+        />
       )}
     </div>
   );

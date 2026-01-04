@@ -5,6 +5,7 @@ import { getProfile, getMyGroups, API_BASE_URL } from '../../API/Api';
 import signalRService from '../../Services/signalRService';
 import NavigationBar from '../../components/NavigationBar';
 import { IoSearch } from 'react-icons/io5';
+import { MdArrowBack, MdGroup, MdChatBubbleOutline } from 'react-icons/md';
 import './Messenger.css';
 
 export default function Messenger() {
@@ -609,7 +610,7 @@ export default function Messenger() {
                   )}
                   {/* Group badge */}
                   {conv.isGroup && (
-                    <div className="group-badge">👥</div>
+                    <div className="group-badge"><MdGroup size={16} /></div>
                   )}
                 </div>
                 <div className="conversation-content">
@@ -634,7 +635,7 @@ export default function Messenger() {
             ))
           ) : (
             <div className="empty-state">
-              <div className="empty-icon">💬</div>
+              <div className="empty-icon"><MdChatBubbleOutline size={48} /></div>
               <p className="empty-state-text">
                 {searchText ? 'Không tìm thấy cuộc trò chuyện' : 'Chưa có tin nhắn'}
               </p>

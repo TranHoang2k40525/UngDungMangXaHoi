@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { getMyPosts, getProfile, updateAvatar, API_BASE_URL, getBlockedUsers, unblockUser } from '../../API/Api';
 import { useUser } from '../../Context/UserContext';
 import NavigationBar from '../../components/NavigationBar';
-import { MdPerson, MdGridOn, MdPlayArrow, MdCameraAlt, MdAdd, MdPersonAdd } from 'react-icons/md';
+import PostDetail from '../Home/PostDetail';
+import { MdPerson, MdGridOn, MdPlayArrow, MdCameraAlt, MdAdd, MdPersonAdd, MdLock } from 'react-icons/md';
 import './Profile.css';
 
 export default function Profile() {
@@ -19,6 +20,10 @@ export default function Profile() {
   const [hasStory, setHasStory] = useState(false);
   const [storyData, setStoryData] = useState(null);
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+  
+  // Modal state for Instagram-style post view
+  const [selectedPostIndex, setSelectedPostIndex] = useState(null);
+  const [showPostModal, setShowPostModal] = useState(false);
 
   const getAvatarUri = (p) => {
     const raw = p?.avatarUrl || p?.AvatarUrl;
@@ -61,6 +66,10 @@ export default function Profile() {
     try {
       setLoading(true);
       const [p, me] = await Promise.all([getMyPosts(), getProfile()]);
+      
+      console.log('[Profile] Posts data:', p);
+      console.log('[Profile] Profile data:', me);
+      
       setPosts(Array.isArray(p) ? p : []);
       setProfile(me || null);
       await checkUserStory();
@@ -143,7 +152,7 @@ export default function Profile() {
       {/* Header */}
       <div className="profile-page-header">
         <div className="profile-header-left">
-          {profile?.isPrivate && <span className="lock-icon">🔒</span>}
+          {profile?.isPrivate && <span className="lock-icon"><MdLock size={16} /></span>}
           <span className="profile-username">{profile?.username || 'username'}</span>
           {profile?.accountType === 'Business' && <span className="verified-badge">✓</span>}
           <span className="chevron-down">▼</span>
@@ -275,16 +284,29 @@ export default function Profile() {
                 <button
                   key={post.id}
                   className="post-grid-item"
-                  onClick={() => navigate(`/post/${post.id}`)}
+                  onClick={() => {
+                    const index = posts.findIndex(p => p.id === post.id);
+                    setSelectedPostIndex(index);
+                    setShowPostModal(true);
+                  }}
                 >
                   {firstMedia?.url && (
-                    <img
-                      src={firstMedia.url.startsWith('http') ? firstMedia.url : `${API_BASE_URL}${firstMedia.url}`}
-                      alt="Post"
-                      className="post-grid-image"
-                    />
+                    isVideo ? (
+                      <>
+                        <video
+                          src={firstMedia.url.startsWith('http') ? firstMedia.url : `${API_BASE_URL}${firstMedia.url}`}
+                          className="post-grid-image"
+                        />
+                        <MdPlayArrow className="video-play-icon" />
+                      </>
+                    ) : (
+                      <img
+                        src={firstMedia.url.startsWith('http') ? firstMedia.url : `${API_BASE_URL}${firstMedia.url}`}
+                        alt="Post"
+                        className="post-grid-image"
+                      />
+                    )
                   )}
-                  {isVideo && <MdPlayArrow className="video-play-icon" />}
                 </button>
               );
             })
@@ -307,6 +329,19 @@ export default function Profile() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Instagram-style Post Modal */}
+      {showPostModal && selectedPostIndex !== null && (
+        <PostDetail 
+          posts={posts}
+          initialIndex={selectedPostIndex}
+          userId={profile?.userId}
+          onClose={() => {
+            setShowPostModal(false);
+            setSelectedPostIndex(null);
+          }}
+        />
       )}
 
       <NavigationBar />
