@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getFollowing, getFollowers } from '../../API/Api';
+import { getFollowing, getFollowers } from '../../api/Api';
 import MessageAPI from '../../API/MessageAPI';
 import './SharePostModal.css';
 

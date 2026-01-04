@@ -11,7 +11,7 @@ import {
   deletePost,
   updatePostPrivacy,
   updatePostCaption
-} from '../../API/Api';
+} from '../../api/Api';
 import NavigationBar from '../../components/NavigationBar';
 import CommentsModal from '../Home/CommentsModal';
 import { MdArrowBack, MdCameraAlt, MdFavorite, MdFavoriteBorder, MdComment, MdMoreVert, MdVideoLibrary, MdPlayArrow, MdBookmark, MdBookmarkBorder, MdClose } from 'react-icons/md';

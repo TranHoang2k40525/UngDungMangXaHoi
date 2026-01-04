@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMyPosts, getProfile, updateAvatar, API_BASE_URL, getBlockedUsers, unblockUser } from '../../API/Api';
-import { useUser } from '../../Context/UserContext';
+import { getMyPosts, getProfile, updateAvatar, API_BASE_URL, getBlockedUsers, unblockUser } from '../../api/Api';
+import { useUser } from '../../context/UserContext';
 import NavigationBar from '../../components/NavigationBar';
 import PostDetail from '../Home/PostDetail';
 import { MdPerson, MdGridOn, MdPlayArrow, MdCameraAlt, MdAdd, MdPersonAdd, MdLock } from 'react-icons/md';

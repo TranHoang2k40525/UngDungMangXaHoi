@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getProfile, updateProfile, API_BASE_URL } from '../../API/Api';
+import { getProfile, updateProfile, API_BASE_URL } from '../../api/Api';
 import './EditProfile.css';
 
 export default function EditProfile() {
