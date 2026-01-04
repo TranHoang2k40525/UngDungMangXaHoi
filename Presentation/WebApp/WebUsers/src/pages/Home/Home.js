@@ -22,7 +22,7 @@ import {
   API_BASE_URL,
   getFeedStories,
   getMyStories,
-} from '../../API/Api';
+} from '../../api/Api';
 import { getRelativeTime } from '../../Utils/timeUtils';
 import NavigationBar from '../../components/NavigationBar';
 import './Home.css';
