@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { getGroupMembers, API_BASE_URL, getGroupInfo } from '../../API/Api';
+import { getGroupMembers, API_BASE_URL, getGroupInfo } from '../../api/Api';
 import { MdArrowBack, MdClose, MdGroup, MdSearch } from 'react-icons/md';
 import './GroupMembersScreen.css';
 

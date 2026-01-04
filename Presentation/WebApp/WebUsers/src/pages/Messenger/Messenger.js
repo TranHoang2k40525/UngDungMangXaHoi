@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import MessageAPI from '../../API/MessageAPI';
-import { getProfile, getMyGroups, API_BASE_URL } from '../../API/Api';
+import MessageAPI from '../../api/MessageAPI';
+import { getProfile, getMyGroups, API_BASE_URL } from '../../api/Api';
 import signalRService from '../../Services/signalRService';
-import NavigationBar from '../../components/NavigationBar';
+import NavigationBar from '../../Components/NavigationBar';
 import { IoSearch } from 'react-icons/io5';
 import { MdArrowBack, MdGroup, MdChatBubbleOutline } from 'react-icons/md';
 import './Messenger.css';

@@ -12,7 +12,7 @@ import {
   updatePostPrivacy,
   updatePostCaption
 } from '../../api/Api';
-import NavigationBar from '../../components/NavigationBar';
+import NavigationBar from '../../Components/NavigationBar';
 import CommentsModal from '../Home/CommentsModal';
 import { MdArrowBack, MdCameraAlt, MdFavorite, MdFavoriteBorder, MdComment, MdMoreVert, MdVideoLibrary, MdPlayArrow, MdBookmark, MdBookmarkBorder, MdClose } from 'react-icons/md';
 import { IoEllipsisHorizontal, IoLockClosed, IoPeople, IoEarth } from 'react-icons/io5';

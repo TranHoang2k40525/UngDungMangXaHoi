@@ -5,7 +5,7 @@ import {
   getGroupInfo,
   getGroupMembers,
   API_BASE_URL,
-} from '../../API/Api';
+} from '../../api/Api';
 import ImageViewer from '../../Components/ImageViewer';
 import { MdArrowBack, MdClose } from 'react-icons/md';
 import './GroupChatScreen.css';

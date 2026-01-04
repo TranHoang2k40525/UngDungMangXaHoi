@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import * as NotificationAPI from '../../API/Api';
+import * as NotificationAPI from '../../api/Api';
 import signalRService from '../../Services/signalRService';
-import NavigationBar from '../../components/NavigationBar';
+import NavigationBar from '../../Components/NavigationBar';
 import { MdFavorite, MdFavoriteBorder, MdComment, MdPersonAdd, MdAlternateEmail, MdMail, MdGroup, MdNotifications, MdShare, MdArrowBack, MdDelete } from 'react-icons/md';
 import { FaHeart, FaGrinHearts, FaLaughSquint, FaSurprise, FaSadTear, FaAngry } from 'react-icons/fa';
 import './Notifications.css';

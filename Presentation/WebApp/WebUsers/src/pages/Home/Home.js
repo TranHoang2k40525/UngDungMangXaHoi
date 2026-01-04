@@ -24,7 +24,7 @@ import {
   getMyStories,
 } from '../../api/Api';
 import { getRelativeTime } from '../../Utils/timeUtils';
-import NavigationBar from '../../components/NavigationBar';
+import NavigationBar from '../../Components/NavigationBar';
 import './Home.css';
 
 // Story Components

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import './InviteMemberScreen.css';
-import { getFollowing, inviteToGroup, getProfile, API_BASE_URL } from '../../API/Api';
+import { getFollowing, inviteToGroup, getProfile, API_BASE_URL } from '../../api/Api';
 import { MdClose, MdGroup } from 'react-icons/md';
 
 export default function InviteMemberScreen() {

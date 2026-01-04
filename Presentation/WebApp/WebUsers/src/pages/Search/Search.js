@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { IoSearch, IoClose, IoTimeOutline, IoPersonOutline, IoDocumentTextOutline, IoTrendingUp, IoArrowUpOutline } from 'react-icons/io5';
-import NavigationBar from '../../components/NavigationBar';
+import NavigationBar from '../../Components/NavigationBar';
 import SearchUserItem from './SearchUserItem';
 import SearchPostItem from './SearchPostItem';
 import { 
