@@ -1,8 +1,8 @@
 ﻿// Home.js - Complete web version converted from MobileApp
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useUser } from '../../Context/UserContext';
-import { useFollow } from '../../Context/FollowContext';
+import { useUser } from '../../context/UserContext';
+import { useFollow } from '../../context/FollowContext';
 import CommentsModal from './CommentsModal';
 import { IoHeartOutline, IoHeart, IoChatbubbleOutline, IoRepeatOutline, IoSendOutline, IoBookmarkOutline, IoEllipsisHorizontal, IoLockClosed, IoPeople, IoEarth, IoPersonCircle } from 'react-icons/io5';
 import {

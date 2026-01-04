@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getUserPostsById, getUserProfile, followUser, unfollowUser, API_BASE_URL, blockUser, unblockUser, getBlockedUsers } from '../../API/Api';
-import { useFollow } from '../../Context/FollowContext';
+import { useFollow } from '../../context/FollowContext';
 import PostDetail from '../Home/PostDetail';
 import { MdPerson, MdPersonAdd, MdPlayArrow, MdContentCopy, MdClose, MdArrowBack, MdMoreVert } from 'react-icons/md';
 import './UserProfilePublic.css';
