@@ -375,7 +375,7 @@ class SignalRService {
     }
 
     try {
-      this.notificationConnection = this.createConnection(`${API_BASE_URL}/hubs/notification`);
+      this.notificationConnection = this.createConnection(`${API_BASE_URL}/hubs/notifications`);
       await this.notificationConnection.start();
       console.log('✅ Notification connected successfully');
       return this.notificationConnection;

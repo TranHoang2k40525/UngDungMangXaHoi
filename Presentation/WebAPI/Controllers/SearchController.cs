@@ -18,24 +18,39 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
     {
         private readonly SearchService _searchService;
         private readonly ISearchHistoryRepository _searchHistoryRepository;
+        private readonly IUserRepository _userRepository;
 
         public SearchController(
             SearchService searchService,
-            ISearchHistoryRepository searchHistoryRepository)
+            ISearchHistoryRepository searchHistoryRepository,
+            IUserRepository userRepository)
         {
             _searchService = searchService;
             _searchHistoryRepository = searchHistoryRepository;
+            _userRepository = userRepository;
         }
 
         /// <summary>
-        /// Lấy userId từ JWT token
+        /// Lấy accountId từ JWT token
         /// </summary>
-        private int? GetCurrentUserId()
+        private int? GetCurrentAccountId()
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (int.TryParse(userIdClaim, out var userId))
-                return userId;
+            var accountIdClaim = User.FindFirst("AccountId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (int.TryParse(accountIdClaim, out var accountId))
+                return accountId;
             return null;
+        }
+
+        /// <summary>
+        /// Convert accountId to userId
+        /// </summary>
+        private async Task<int?> GetCurrentUserIdAsync()
+        {
+            var accountId = GetCurrentAccountId();
+            if (!accountId.HasValue) return null;
+            
+            var user = await _userRepository.GetByAccountIdAsync(accountId.Value);
+            return user?.user_id;
         }
 
         /// <summary>
@@ -60,7 +75,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                     });
                 }
 
-                var currentUserId = GetCurrentUserId();
+                var currentUserId = await GetCurrentUserIdAsync();
                 var result = await _searchService.SearchUsersAsync(q, currentUserId, page, pageSize);
 
                 return Ok(new
@@ -101,7 +116,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                     });
                 }
 
-                var currentUserId = GetCurrentUserId();
+                var currentUserId = await GetCurrentUserIdAsync();
                 
                 // Lưu lịch sử tìm kiếm
                 if (currentUserId.HasValue)
@@ -145,7 +160,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                     });
                 }
 
-                var currentUserId = GetCurrentUserId();
+                var currentUserId = await GetCurrentUserIdAsync();
                 
                 // Lưu lịch sử tìm kiếm
                 if (currentUserId.HasValue)

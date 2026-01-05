@@ -122,7 +122,28 @@ export default function UserProfilePublic() {
   };
 
   const handleMessage = () => {
-    navigate('/messenger');
+    // Navigate directly to chat screen with this user (like MobileApp)
+    const fullAvatarUrl = profile?.avatarUrl 
+      ? (profile.avatarUrl.startsWith('http') 
+          ? profile.avatarUrl 
+          : `${API_BASE_URL}${profile.avatarUrl}`)
+      : null;
+      
+    console.log('[UserProfilePublic] Navigate to chat with:', {
+      userId,
+      userName: profile?.username || profile?.fullName || 'User',
+      userAvatar: fullAvatarUrl,
+      username: profile?.username || '@user'
+    });
+      
+    navigate(`/messenger/chat/${userId}`, { 
+      state: {
+        userId: parseInt(userId),
+        userName: profile?.username || profile?.fullName || 'User',
+        userAvatar: fullAvatarUrl,
+        username: profile?.username || '@user'
+      }
+    });
   };
 
   const handleBlock = () => {
@@ -209,11 +230,11 @@ export default function UserProfilePublic() {
                 <div className="stat-number">{formattedStats.posts}</div>
                 <div className="stat-label">bài viết</div>
               </div>
-              <div className="stat-item" onClick={() => navigate(`/profile/${userId}/followers`)}>
+              <div className="stat-item" onClick={() => navigate(`/profile/followers/${userId}`)}>
                 <div className="stat-number">{formattedStats.followers}</div>
                 <div className="stat-label">người theo dõi</div>
               </div>
-              <div className="stat-item" onClick={() => navigate(`/profile/${userId}/following`)}>
+              <div className="stat-item" onClick={() => navigate(`/profile/following/${userId}`)}>
                 <div className="stat-number">{formattedStats.following}</div>
                 <div className="stat-label">đang theo dõi</div>
               </div>

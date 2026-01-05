@@ -17,7 +17,8 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
     {
         private readonly MessageService _messageService;
         private readonly AppDbContext _context;
-        private static readonly ConcurrentDictionary<int, string> _userConnections = new();
+        // Sử dụng ConcurrentDictionary với HashSet để hỗ trợ multiple connections
+        private static readonly ConcurrentDictionary<int, HashSet<string>> _userConnections = new();
 
         public MessageHub(MessageService messageService, AppDbContext context)
         {
@@ -34,7 +35,16 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
             
             if (int.TryParse(userIdClaim, out int userId))
             {
-                _userConnections.TryAdd(userId, Context.ConnectionId);
+                // Thêm connection vào danh sách của user
+                _userConnections.AddOrUpdate(
+                    userId,
+                    new HashSet<string> { Context.ConnectionId },
+                    (key, existingSet) =>
+                    {
+                        existingSet.Add(Context.ConnectionId);
+                        return existingSet;
+                    });
+                
                 Console.WriteLine($"[MessageHub] User {userId} connected with ConnectionId: {Context.ConnectionId}");
                 
                 // Thông báo cho user đã online
@@ -57,24 +67,35 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
             
             if (int.TryParse(userIdClaim, out int userId))
             {
-                _userConnections.TryRemove(userId, out _);
+                // Xóa connection khỏi danh sách của user
+                if (_userConnections.TryGetValue(userId, out var connections))
+                {
+                    connections.Remove(Context.ConnectionId);
+                    
+                    // Nếu user không còn connection nào, xóa khỏi dictionary
+                    if (connections.Count == 0)
+                    {
+                        _userConnections.TryRemove(userId, out _);
+                        
+                        // Lưu thời điểm offline vào database
+                        try
+                        {
+                            await _context.Users
+                                .Where(u => u.user_id == userId)
+                                .ExecuteUpdateAsync(u => u.SetProperty(x => x.last_seen, DateTime.UtcNow));
+                            Console.WriteLine($"[MessageHub] Updated last_seen for user {userId}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[MessageHub] Error updating last_seen: {ex.Message}");
+                        }
+                        
+                        // Thông báo cho user đã offline
+                        await Clients.Others.SendAsync("UserOffline", userId);
+                    }
+                }
+                
                 Console.WriteLine($"[MessageHub] User {userId} disconnected");
-                
-                // Lưu thời điểm offline vào database
-                try
-                {
-                    await _context.Users
-                        .Where(u => u.user_id == userId)
-                        .ExecuteUpdateAsync(u => u.SetProperty(x => x.last_seen, DateTime.UtcNow));
-                    Console.WriteLine($"[MessageHub] Updated last_seen for user {userId}");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[MessageHub] Error updating last_seen: {ex.Message}");
-                }
-                
-                // Thông báo cho user đã offline
-                await Clients.Others.SendAsync("UserOffline", userId);
             }
 
             await base.OnDisconnectedAsync(exception);
@@ -111,10 +132,13 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
                 // Gửi tin nhắn cho người gửi (confirmation)
                 await Clients.Caller.SendAsync("MessageSent", message);
 
-                // Gửi tin nhắn cho người nhận nếu họ đang online
-                if (_userConnections.TryGetValue(dto.receiver_id, out string? receiverConnectionId))
+                // Gửi tin nhắn cho người nhận nếu họ đang online (gửi cho tất cả connections)
+                if (_userConnections.TryGetValue(dto.receiver_id, out var receiverConnections))
                 {
-                    await Clients.Client(receiverConnectionId).SendAsync("ReceiveMessage", message);
+                    foreach (var connectionId in receiverConnections)
+                    {
+                        await Clients.Client(connectionId).SendAsync("ReceiveMessage", message);
+                    }
                 }
 
                 Console.WriteLine($"[MessageHub] Message sent from {senderId} to {dto.receiver_id}");
@@ -270,6 +294,14 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
                 Console.WriteLine($"[MessageHub] Error recalling message: {ex.Message}");
                 await Clients.Caller.SendAsync("Error", "An error occurred");
             }
+        }
+
+        /// <summary>
+        /// Check xem user có đang online không
+        /// </summary>
+        public static bool IsUserOnline(int userId)
+        {
+            return _userConnections.ContainsKey(userId);
         }
     }
 }

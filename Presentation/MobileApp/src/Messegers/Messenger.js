@@ -18,13 +18,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MessageAPI from '../API/MessageAPI';
-import { getProfile, getMyGroups, API_BASE_URL } from '../API/Api';
+import { getProfile, getMyGroups, API_BASE_URL, getFollowing } from '../API/Api';
 import MessageWebSocketService from '../Services/MessageWebSocketService';
 import signalRService from '../ServicesSingalR/signalRService';
 
 export default function Messenger() {
   const [searchText, setSearchText] = useState('');
   const [conversations, setConversations] = useState([]);
+  const [allFollowing, setAllFollowing] = useState([]); // For avatar bar
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -56,9 +57,45 @@ export default function Messenger() {
     try {
       setLoading(true);
       
-      // Lấy danh sách 1:1 (mutual followers)
+      // Lấy danh sách conversations từ backend (không cần follow requirement nữa)
       const mutualResponse = await MessageAPI.getMutualFollowers();
-      console.log('[Messenger] Mutual followers response:', mutualResponse);
+      console.log('[Messenger] Conversations response:', mutualResponse);
+      
+      // Load all following users for avatar bar (Facebook Messenger style)
+      if (currentUserId) {
+        try {
+          const followingData = await getFollowing(currentUserId);
+          console.log('[Messenger] Raw following data:', JSON.stringify(followingData?.slice(0, 2), null, 2));
+          
+          // Normalize field names for each user
+          const normalizedFollowing = (followingData || []).map(user => {
+            // Handle multiple possible field names
+            // Backend returns: userId, username, fullName, avatarUrl
+            const userId = user.userId ?? user.user_id ?? user.id;
+            const fullName = user.fullName ?? user.full_name ?? user.name ?? user.username;
+            const avatarUrl = user.avatarUrl ?? user.avatar_url ?? user.avatar;
+            const username = user.username ?? user.userName;
+            
+            console.log('[Messenger] User object:', {
+              original: user,
+              normalized: { userId, fullName, avatarUrl, username }
+            });
+            
+            return {
+              user_id: userId,
+              full_name: fullName,
+              avatar_url: avatarUrl,
+              username: username
+            };
+          }).filter(user => user.user_id); // Only keep users with valid ID
+          
+          console.log('[Messenger] Normalized following users:', normalizedFollowing.length);
+          setAllFollowing(normalizedFollowing);
+        } catch (error) {
+          console.error('[Messenger] Error loading following users:', error);
+          setAllFollowing([]);
+        }
+      }
       
       let oneToOneConversations = [];
       if (mutualResponse.success && mutualResponse.data) {
@@ -115,11 +152,11 @@ export default function Messenger() {
         console.error('Load groups error:', error);
       }
 
-      // Merge và sort theo time mới nhất (desc)
+      // Merge và sort theo time mới nhất (desc) - newest first
       const allConversations = [...oneToOneConversations, ...groupConversations].sort((a, b) => {
         const timeA = new Date(a.time || 0).getTime();
         const timeB = new Date(b.time || 0).getTime();
-        return timeB - timeA;
+        return timeB - timeA; // Newest first
       });
 
       setConversations(allConversations);
@@ -516,6 +553,71 @@ export default function Messenger() {
           )}
         </View>
 
+        {/* Avatar Bar - Facebook Messenger style */}
+        {allFollowing.length > 0 && !searchText && (
+          <View style={styles.avatarBarContainer}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.avatarBar}
+            >
+              {allFollowing.slice(0, 10).map((user, index) => (
+                <TouchableOpacity
+                  key={user.user_id || `user-${index}`}
+                  style={styles.avatarBarItem}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    console.log('[Messenger] Avatar bar click - navigating with:', {
+                      userId: user.user_id,
+                      userName: user.full_name,
+                      userAvatar: user.avatar_url,
+                      username: user.username
+                    });
+                    
+                    if (!user.user_id) {
+                      console.error('[Messenger] Cannot navigate - user.user_id is undefined!');
+                      return;
+                    }
+                    
+                    navigation.navigate('Doanchat', {
+                      userId: user.user_id,
+                      userName: user.full_name || user.username || 'User',
+                      userAvatar: user.avatar_url,
+                      username: user.username
+                    });
+                  }}
+                >
+                  <View style={styles.avatarBarAvatarWrapper}>
+                    {user.avatar_url ? (
+                      <Image 
+                        source={{ 
+                          uri: user.avatar_url.startsWith('http') 
+                            ? user.avatar_url 
+                            : `${API_BASE_URL}${user.avatar_url}` 
+                        }}
+                        style={styles.avatarBarAvatar}
+                      />
+                    ) : (
+                      <View style={[styles.avatarBarAvatar, styles.defaultAvatarBar]}>
+                        <Text style={styles.defaultAvatarBarText}>
+                          {user.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
+                        </Text>
+                      </View>
+                    )}
+                    {/* Online indicator for avatar bar */}
+                    {isUserOnline(user.user_id) && (
+                      <View style={styles.avatarBarOnlineIndicator} />
+                    )}
+                  </View>
+                  <Text style={styles.avatarBarName} numberOfLines={1}>
+                    {user.full_name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Conversations List */}
         <ScrollView 
           style={styles.conversationsList}
@@ -861,5 +963,58 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: '#6B7280',
+  },
+  // Avatar Bar styles - Facebook Messenger
+  avatarBarContainer: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+  },
+  avatarBar: {
+    paddingHorizontal: 8,
+    gap: 12,
+  },
+  avatarBarItem: {
+    alignItems: 'center',
+    width: 64,
+  },
+  avatarBarAvatarWrapper: {
+    position: 'relative',
+  },
+  avatarBarAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: '#0095F6',
+  },
+  avatarBarOnlineIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#10B981',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  defaultAvatarBar: {
+    backgroundColor: '#8B5CF6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  defaultAvatarBarText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  avatarBarName: {
+    fontSize: 12,
+    color: '#111827',
+    marginTop: 4,
+    textAlign: 'center',
   },
 });

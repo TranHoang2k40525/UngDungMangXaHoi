@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import * as NotificationAPI from '../../api/NotificationAPI';
+import NotificationAPI from '../../api/NotificationAPI';
+import { getPostById } from '../../api/Api';
 import signalRService from '../../Services/signalRService';
 import NavigationBar from '../../Components/NavigationBar';
 import { MdFavorite, MdFavoriteBorder, MdComment, MdPersonAdd, MdAlternateEmail, MdMail, MdGroup, MdNotifications, MdShare, MdArrowBack, MdDelete } from 'react-icons/md';
@@ -50,7 +51,7 @@ const NotificationItem = ({ notification, onPress, onMarkAsRead, onDelete }) => 
     return notifDate.toLocaleDateString('vi-VN');
   };
 
-  const apiUrl = localStorage.getItem('API_URL') || 'http://localhost:5000';
+  const apiUrl = 'http://localhost:5297';
   const avatarUrl = notification.senderAvatar
     ? `${apiUrl}${notification.senderAvatar}`
     : 'https://i.pravatar.cc/150?img=8';
@@ -97,12 +98,25 @@ export default function Notifications() {
   const loadNotifications = async () => {
     try {
       const data = await NotificationAPI.getNotifications(0, 50);
-      setNotifications(data);
+      console.log('[Notifications] API response:', data);
+      
+      // Handle both array response and paginated response
+      if (Array.isArray(data)) {
+        setNotifications(data);
+      } else if (data && Array.isArray(data.items)) {
+        setNotifications(data.items);
+      } else if (data && Array.isArray(data.data)) {
+        setNotifications(data.data);
+      } else {
+        console.warn('[Notifications] Unexpected response format:', data);
+        setNotifications([]);
+      }
 
       const count = await NotificationAPI.getUnreadCount();
       setUnreadCount(count);
     } catch (error) {
       console.error('[Notifications] Load notifications error:', error);
+      setNotifications([]); // Ensure notifications is always an array
     } finally {
       setLoading(false);
     }
@@ -110,9 +124,9 @@ export default function Notifications() {
 
   const connectSignalR = async () => {
     try {
-      await signalRService.connect();
+      await signalRService.connectToNotification();
 
-      signalRService.onReceiveNotification((notification) => {
+      signalRService.onNotification((notification) => {
         console.log('[Notifications] Received new notification:', notification);
         setNotifications((prev) => [notification, ...prev]);
         setUnreadCount((prev) => prev + 1);
@@ -124,6 +138,17 @@ export default function Notifications() {
 
   const handleNotificationPress = async (notification) => {
     try {
+      console.log('[Notifications] Notification pressed:', {
+        type: notification.type,
+        conversationId: notification.conversationId,
+        messageId: notification.messageId,
+        senderId: notification.senderId,
+        postId: notification.postId,
+        commentId: notification.commentId,
+        content: notification.content,
+      });
+
+      // Đánh dấu đã đọc nếu chưa đọc
       if (!notification.isRead) {
         await NotificationAPI.markAsRead(notification.notificationId);
         setNotifications((prev) =>
@@ -134,44 +159,93 @@ export default function Notifications() {
         setUnreadCount((prev) => Math.max(0, prev - 1));
       }
 
+      // Navigate dựa vào loại thông báo
       switch (notification.type) {
         case 1: // Reaction
         case 2: // Share
-        case 3: // Comment
-        case 5: // Mention
-        case 6: // CommentReply
           if (notification.postId) {
-            navigate(`/post/${notification.postId}`, {
-              state: { openComments: [3, 5, 6].includes(notification.type) }
-            });
+            try {
+              const postData = await getPostById(notification.postId);
+              navigate(`/post/${notification.postId}`, {
+                state: { 
+                  singlePost: postData,
+                  openComments: false 
+                }
+              });
+            } catch (error) {
+              console.error('[Notifications] Failed to load post:', error);
+              alert('Không thể tải bài viết');
+            }
           }
           break;
+
+        case 5: // Mention - Mở comment modal để thấy chỗ được nhắc
+        case 3: // Comment
+        case 6: // CommentReply
+          if (notification.postId) {
+            try {
+              console.log('[Notifications] Navigating to PostDetail with comments open');
+              const postData = await getPostById(notification.postId);
+              navigate(`/post/${notification.postId}`, {
+                state: { 
+                  singlePost: postData,
+                  openComments: true,
+                  from: 'Notifications',
+                  highlightCommentId: notification.commentId 
+                }
+              });
+            } catch (error) {
+              console.error('[Notifications] Failed to load post:', error);
+              alert('Không thể tải bài viết');
+            }
+          }
+          break;
+
         case 4: // Follow
           if (notification.senderId) {
             navigate(`/user/${notification.senderId}`);
           }
           break;
-        case 7: // Message
+
+        case 7: // Message - Mở chat với người gửi
           if (notification.senderId) {
-            navigate(`/messenger/${notification.senderId}`, {
+            navigate(`/messenger`, {
               state: {
+                userId: notification.senderId,
                 userName: notification.senderUsername || 'User',
                 userAvatar: notification.senderAvatar,
+                messageId: notification.messageId
               }
             });
           }
           break;
-        case 8: // GroupMessage
+
+        case 8: // GroupMessage - Mở nhóm chat cụ thể
           if (notification.conversationId) {
             const groupNameMatch = notification.content.match(/trong nhóm "([^"]+)":/);
             const groupName = groupNameMatch ? groupNameMatch[1] : 'Nhóm chat';
+
+            console.log('[Notifications] Navigating to GroupChat:', {
+              conversationId: notification.conversationId,
+              groupName: groupName,
+              messageId: notification.messageId,
+            });
+
             navigate(`/messenger/group/${notification.conversationId}`, {
-              state: { groupName }
+              state: { 
+                conversationId: notification.conversationId,
+                groupName: groupName,
+                scrollToMessageId: notification.messageId 
+              }
             });
           } else {
+            console.log('[Notifications] No conversationId, navigating to Messenger');
             navigate('/messenger');
           }
           break;
+
+        default:
+          console.warn('[Notifications] Unknown notification type:', notification.type);
       }
     } catch (error) {
       console.error('[Notifications] Handle notification error:', error);

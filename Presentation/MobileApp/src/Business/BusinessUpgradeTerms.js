@@ -38,9 +38,7 @@ export default function BusinessUpgradeTerms({ navigation }) {
           <Text style={styles.paragraph}>
             • Dấu tích xanh xác thực bên cạnh tên tài khoản{'\n'}
             • Hiển thị bài viết quảng cáo trong nguồn cấp của người dùng{'\n'}
-            • Tăng độ ưu tiên hiển thị nội dung{'\n'}
-            • Thống kê chi tiết về tương tác và tiếp cận{'\n'}
-            • Hỗ trợ khách hàng ưu tiên
+            
           </Text>
         </View>
 

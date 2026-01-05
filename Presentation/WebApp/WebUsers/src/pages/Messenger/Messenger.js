@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MessageAPI from '../../api/MessageAPI';
-import { getProfile, getMyGroups, API_BASE_URL } from '../../api/Api';
+import { getProfile, getMyGroups, API_BASE_URL, getFollowing } from '../../api/Api';
 import signalRService from '../../Services/signalRService';
 import NavigationBar from '../../Components/NavigationBar';
 import { IoSearch } from 'react-icons/io5';
-import { MdArrowBack, MdGroup, MdChatBubbleOutline } from 'react-icons/md';
+import { MdArrowBack, MdGroup, MdChatBubbleOutline, MdPersonAdd } from 'react-icons/md';
 import './Messenger.css';
 
 export default function Messenger() {
@@ -17,6 +17,8 @@ export default function Messenger() {
   const [userProfile, setUserProfile] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserName, setCurrentUserName] = useState('');
+  const [allFollowing, setAllFollowing] = useState([]);
+  const [showAllFollowing, setShowAllFollowing] = useState(false);
   const joinedGroupsRef = useRef(new Set());
   const [isSignalRConnected, setIsSignalRConnected] = useState(false);
   const navigate = useNavigate();
@@ -42,7 +44,7 @@ export default function Messenger() {
     try {
       setLoading(true);
       
-      // Get 1:1 conversations (mutual followers)
+      // Get 1:1 conversations (all conversations with last message)
       const mutualResponse = await MessageAPI.getMutualFollowers();
       console.log('[Messenger] Mutual followers response:', mutualResponse);
       
@@ -67,6 +69,47 @@ export default function Messenger() {
             raw: conv,
           };
         });
+      }
+
+      console.log('[Messenger] Loaded 1:1 conversations:', oneToOneConversations.length);
+
+      // Load mutual followers for avatar bar (people who follow each other)
+      if (!currentUserId) {
+        console.warn('[Messenger] Cannot load mutual followers - currentUserId is null');
+        setAllFollowing([]);
+      } else {
+        try {
+          // Get all mutual followers regardless of conversation status
+          const followingData = await getFollowing(currentUserId);
+          console.log('[Messenger] Raw following data:', followingData?.slice(0, 2));
+          
+          // Normalize field names for each user
+          // Backend returns: userId, username, fullName, avatarUrl
+          const normalizedFollowing = (followingData || []).map(user => {
+            const userId = user.userId ?? user.user_id ?? user.id;
+            const fullName = user.fullName ?? user.full_name ?? user.name ?? user.username;
+            const avatarUrl = user.avatarUrl ?? user.avatar_url ?? user.avatar;
+            const username = user.username ?? user.userName;
+            
+            console.log('[Messenger] User normalized:', {
+              original: user,
+              normalized: { userId, fullName, avatarUrl, username }
+            });
+            
+            return {
+              user_id: userId,
+              full_name: fullName,
+              avatar_url: avatarUrl,
+              username: username
+            };
+          }).filter(user => user.user_id);
+          
+          console.log('[Messenger] Normalized following users:', normalizedFollowing.length);
+          setAllFollowing(normalizedFollowing);
+        } catch (err) {
+          console.error('[Messenger] Error loading following:', err);
+          setAllFollowing([]);
+        }
       }
 
       // Get group conversations
@@ -435,11 +478,15 @@ export default function Messenger() {
     };
   }, []);
 
-  // Load on mount
+  // Load on mount - only when currentUserId is available
   useEffect(() => {
-    console.log('[Messenger] Component mounted - loading conversations');
+    if (!currentUserId) {
+      console.log('[Messenger] Waiting for currentUserId to load...');
+      return;
+    }
+    console.log('[Messenger] Component mounted - loading conversations with userId:', currentUserId);
     loadConversations();
-  }, [loadConversations]);
+  }, [currentUserId, loadConversations]);
 
   // Filter conversations
   const filteredConversations = useMemo(() => {
@@ -551,8 +598,73 @@ export default function Messenger() {
           )}
         </div>
 
+        {/* Avatar Bar - Mutual Followers (Facebook style) */}
+        {allFollowing.length > 0 && !searchText && (
+          <div className="avatar-bar-container">
+            <div className="avatar-bar">
+              {allFollowing.slice(0, 10).map((user, index) => (
+                <div
+                  key={user.user_id || `user-${index}`}
+                  className="avatar-bar-item"
+                  onClick={() => {
+                    console.log('[Messenger] Avatar bar click - navigating with:', {
+                      userId: user.user_id,
+                      userName: user.full_name,
+                      userAvatar: user.avatar_url,
+                      username: user.username
+                    });
+                    
+                    if (!user.user_id) {
+                      console.error('[Messenger] Cannot navigate - user.user_id is undefined!');
+                      return;
+                    }
+                    
+                    navigate('/messenger/chat/' + user.user_id, {
+                      state: {
+                        userId: user.user_id,
+                        userName: user.full_name || user.username || 'User',
+                        userAvatar: user.avatar_url,
+                        username: user.username
+                      }
+                    });
+                  }}
+                  title={user.full_name}
+                >
+                  <div className="avatar-bar-avatar-wrapper">
+                    {user.avatar_url ? (
+                      <img 
+                        src={user.avatar_url.startsWith('http') ? user.avatar_url : `${API_BASE_URL}${user.avatar_url}`} 
+                        alt={user.full_name} 
+                        className="avatar-bar-avatar" 
+                      />
+                    ) : (
+                      <div className="avatar-bar-avatar default-avatar">
+                        {user.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
+                      </div>
+                    )}
+                    {/* Online indicator for avatar bar */}
+                    {isUserOnline(user.user_id) && (
+                      <div className="avatar-bar-online-indicator"></div>
+                    )}
+                  </div>
+                  <span className="avatar-bar-name">{user.full_name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Conversations List */}
         <div className="conversations-list">
+          {/* Show all following section - removed, now using avatar bar instead */}
+
+          {/* Active conversations */}
+          {!searchText && conversations.length > 0 && (
+            <div className="section-header">
+              <h3 className="section-title">Tin nhắn gần đây</h3>
+            </div>
+          )}
+          
           {filteredConversations.length > 0 ? (
             filteredConversations.map((conv) => (
               <div
@@ -634,16 +746,22 @@ export default function Messenger() {
               </div>
             ))
           ) : (
+            !searchText && allFollowing.length === 0 && (
+              <div className="empty-state">
+                <div className="empty-icon"><MdChatBubbleOutline size={48} /></div>
+                <p className="empty-state-text">Chưa có tin nhắn</p>
+                <p className="empty-state-subtext">
+                  Follow bạn bè để bắt đầu trò chuyện
+                </p>
+              </div>
+            )
+          )}
+          
+          {searchText && filteredConversations.length === 0 && (
             <div className="empty-state">
               <div className="empty-icon"><MdChatBubbleOutline size={48} /></div>
-              <p className="empty-state-text">
-                {searchText ? 'Không tìm thấy cuộc trò chuyện' : 'Chưa có tin nhắn'}
-              </p>
-              <p className="empty-state-subtext">
-                {searchText 
-                  ? 'Thử tìm kiếm với từ khóa khác' 
-                  : 'Bắt đầu cuộc trò chuyện mới với bạn bè'}
-              </p>
+              <p className="empty-state-text">Không tìm thấy cuộc trò chuyện</p>
+              <p className="empty-state-subtext">Thử tìm kiếm với từ khóa khác</p>
             </div>
           )}
         </div>
