@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { getMyPosts, getProfile, updateAvatar, API_BASE_URL, getBlockedUsers, unblockUser } from '../../api/Api';
 import { useUser } from '../../context/UserContext';
 import NavigationBar from '../../Components/NavigationBar';
@@ -9,6 +9,7 @@ import './Profile.css';
 
 export default function Profile() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { logout, user } = useUser();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,6 +25,7 @@ export default function Profile() {
   // Modal state for Instagram-style post view
   const [selectedPostIndex, setSelectedPostIndex] = useState(null);
   const [showPostModal, setShowPostModal] = useState(false);
+  const postRefs = useRef({});
 
   const getAvatarUri = (p) => {
     const raw = p?.avatarUrl || p?.AvatarUrl;
@@ -61,6 +63,21 @@ export default function Profile() {
   useEffect(() => {
     loadProfile();
   }, []);
+
+  // Scroll to specific post when returning from PostDetail
+  useEffect(() => {
+    const scrollToPostId = location.state?.scrollToPostId;
+    if (scrollToPostId && posts.length > 0 && !loading) {
+      const postRef = postRefs.current[scrollToPostId];
+      if (postRef) {
+        setTimeout(() => {
+          postRef.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Clear the state to prevent re-scrolling
+          navigate(location.pathname, { replace: true, state: {} });
+        }, 300);
+      }
+    }
+  }, [posts, location.state, loading]);
 
   const loadProfile = async () => {
     try {
@@ -284,6 +301,7 @@ export default function Profile() {
                 <button
                   key={post.id}
                   className="post-grid-item"
+                  ref={el => postRefs.current[post.id] = el}
                   onClick={() => {
                     const index = posts.findIndex(p => p.id === post.id);
                     setSelectedPostIndex(index);
@@ -339,6 +357,16 @@ export default function Profile() {
           userId={profile?.userId}
           onClose={() => {
             setShowPostModal(false);
+            // Scroll to the post after modal closes
+            const postId = posts[selectedPostIndex]?.id;
+            if (postId && postRefs.current[postId]) {
+              setTimeout(() => {
+                postRefs.current[postId].scrollIntoView({ 
+                  behavior: 'smooth', 
+                  block: 'center' 
+                });
+              }, 100);
+            }
             setSelectedPostIndex(null);
           }}
         />

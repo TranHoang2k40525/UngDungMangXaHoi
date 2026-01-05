@@ -225,6 +225,7 @@ export default function Home() {
   const [showReactionPicker, setShowReactionPicker] = useState(null);
   const [reactionPickerPosition, setReactionPickerPosition] = useState({ top: 0, left: 0 });
   const likeButtonRefs = useRef({});
+  const postRefs = useRef({});
 
   // Helper: normalize user
   const normalizeUser = (u) => {
@@ -459,6 +460,36 @@ export default function Home() {
       loadFeedStories();
     }
   }, [currentUserId]);
+
+  // Scroll to specific post when returning from PostDetail
+  useEffect(() => {
+    const scrollToPostId = location.state?.scrollToPostId;
+    if (scrollToPostId && posts.length > 0 && !loading) {
+      const postRef = postRefs.current[scrollToPostId];
+      if (postRef) {
+        setTimeout(() => {
+          postRef.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          // Clear the state to prevent re-scrolling
+          navigate(location.pathname, { replace: true, state: {} });
+        }, 300);
+      }
+    }
+  }, [posts, location.state, loading]);
+
+  // Scroll to specific post if navigated from external source
+  useEffect(() => {
+    if (location.state?.scrollToPostId && posts.length > 0) {
+      const postId = location.state.scrollToPostId;
+      const postRef = postRefs.current[postId];
+      if (postRef) {
+        setTimeout(() => {
+          postRef.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 300);
+        // Clear state to prevent re-scrolling on subsequent renders
+        window.history.replaceState({}, document.title);
+      }
+    }
+  }, [posts, location.state]);
 
   // Helper functions
   const getOwnerId = () => {
@@ -1388,6 +1419,16 @@ export default function Home() {
           initialIndex={selectedPostIndex}
           onClose={() => {
             setShowPostModal(false);
+            // Scroll to the post after modal closes
+            const postId = posts[selectedPostIndex]?.id;
+            if (postId && postRefs.current[postId]) {
+              setTimeout(() => {
+                postRefs.current[postId].scrollIntoView({ 
+                  behavior: 'smooth', 
+                  block: 'start' 
+                });
+              }, 100);
+            }
             setSelectedPostIndex(null);
           }}
         />

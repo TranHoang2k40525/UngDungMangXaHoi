@@ -171,23 +171,14 @@ const PostDetail = ({ posts: propsPosts, initialIndex: propsInitialIndex, userId
   const handleReaction = async (reactionType) => {
     if (!currentPost) return;
     try {
+      console.log('[PostDetail] Adding reaction:', { postId: currentPost.id, reactionType });
       await addReaction(currentPost.id, reactionType);
+      console.log('[PostDetail] Reaction added successfully, reloading summary...');
       await loadReactionSummary(currentPost.id);
-      
-      // Update post state
-      setPosts(prev => prev.map(p => 
-        p.id === currentPost.id ? { ...p, userReaction: reactionType } : p
-      ));
+      console.log('[PostDetail] Reaction summary reloaded');
     } catch (err) {
       console.error('[PostDetail] Reaction error:', err);
-      
-      // Check if it's a database foreign key error
-      if (err.response?.data?.message?.includes('FOREIGN KEY') || 
-          err.response?.data?.message?.includes('user_id')) {
-        alert('Lỗi: Tài khoản không tồn tại trong database. Vui lòng logout và login lại!');
-      } else {
-        alert('Không thể thả cảm xúc. Lỗi: ' + (err.response?.data?.message || err.message));
-      }
+      alert('Không thể thả cảm xúc: ' + (err.message || 'Lỗi không xác định'));
     }
   };
 
@@ -208,7 +199,10 @@ const PostDetail = ({ posts: propsPosts, initialIndex: propsInitialIndex, userId
 
   const handleQuickReaction = () => {
     if (showReactionPicker) return;
-    handleReaction(currentPost.userReaction ? 0 : 1);
+    const userReaction = getUserReaction();
+    // If already reacted, remove (send same type to toggle off)
+    // If not reacted, add Like (type 1)
+    handleReaction(userReaction || 1);
   };
 
   const handleDeletePost = async () => {
@@ -276,6 +270,13 @@ const PostDetail = ({ posts: propsPosts, initialIndex: propsInitialIndex, userId
       case 6: return '😠';
       default: return '❤️';
     }
+  };
+
+  const getUserReaction = () => {
+    if (!currentPost) return null;
+    const summary = reactionSummaries[currentPost.id];
+    if (!summary) return null;
+    return summary.userReaction || summary.UserReaction || null;
   };
 
   const getTotalReactions = () => {
@@ -393,7 +394,13 @@ const PostDetail = ({ posts: propsPosts, initialIndex: propsInitialIndex, userId
     if (isModalMode) {
       propsOnClose();
     } else {
-      navigate(-1);
+      // Pass current post ID to scroll to it when going back
+      const currentPostId = currentPost?.id;
+      if (currentPostId) {
+        navigate(-1, { state: { scrollToPostId: currentPostId } });
+      } else {
+        navigate(-1);
+      }
     }
   };
 
@@ -494,7 +501,7 @@ const PostDetail = ({ posts: propsPosts, initialIndex: propsInitialIndex, userId
           </div>
         )}
       </div>
-        
+
       {/* Right Side - Post Info & Comments */}
       <div className="post-info-section">
         {/* Comments Area with Integrated Comments */}
@@ -656,8 +663,8 @@ const PostDetail = ({ posts: propsPosts, initialIndex: propsInitialIndex, userId
                 if (timer) clearTimeout(timer);
               }}
             >
-              {currentPost.userReaction ? (
-                <span className="reaction-emoji">{getReactionEmoji(currentPost.userReaction)}</span>
+              {getUserReaction() ? (
+                <span className="reaction-emoji">{getReactionEmoji(getUserReaction())}</span>
               ) : (
                 <IoHeartOutline className="icon" size={24} />
               )}
@@ -680,19 +687,23 @@ const PostDetail = ({ posts: propsPosts, initialIndex: propsInitialIndex, userId
 
           {/* Reactions & Comments Summary */}
           <div className="post-stats-row">
-            {getTotalReactions() > 0 && (
-              <div className="reactions-count" onClick={(e) => {
-                e.stopPropagation();
-                setShowReactionsModal(true);
-              }}>
-                <strong>{getTotalReactions().toLocaleString()}</strong> lượt thích
-              </div>
-            )}
-            {totalComments > 0 && (
-              <div className="comments-count">
-                <strong>{totalComments.toLocaleString()}</strong> bình luận
-              </div>
-            )}
+            <div className="stats-left">
+              {getTotalReactions() > 0 && (
+                <div className="reactions-count" onClick={(e) => {
+                  e.stopPropagation();
+                  setShowReactionsModal(true);
+                }}>
+                  <strong>{getTotalReactions().toLocaleString()}</strong> lượt thích
+                </div>
+              )}
+            </div>
+            <div className="stats-right">
+              {totalComments > 0 && (
+                <div className="comments-count">
+                  <strong>{totalComments.toLocaleString()}</strong> bình luận
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Time Only (removed Privacy) */}

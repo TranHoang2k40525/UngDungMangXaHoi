@@ -104,6 +104,7 @@ const CommentsModal = ({
   onCommentAdded,
   highlightCommentId,
   embedded = false, // New prop for embedded mode
+  showInputInEmbedded = false, // New prop to control input visibility in embedded mode
   inputRef: externalInputRef, // External ref from PostDetail
   externalCommentText, // Comment text from PostDetail
   onCommentTextChange, // Callback to update PostDetail's text
@@ -587,6 +588,7 @@ const CommentsModal = ({
       const targetComment = findComment(comments, commentId);
       const wasLiked = targetComment?.isLiked || false;
 
+      // Optimistic update for instant UI feedback
       const updateCommentRecursive = (commentsList) => {
         return commentsList.map((comment) => {
           if (comment.id === commentId) {
@@ -606,17 +608,22 @@ const CommentsModal = ({
         });
       };
 
-      // Optimistic update
+      // Apply optimistic update immediately
       setComments((prev) => updateCommentRecursive(prev));
 
+      // Call API
       if (wasLiked) {
         await removeCommentReaction(commentId);
       } else {
         await addCommentReaction(commentId, 'Like');
       }
+
+      // Reload from server to confirm
+      await loadComments();
     } catch (error) {
       console.error('[CommentsModal] Like comment error:', error);
 
+      // Rollback on error
       const rollbackCommentRecursive = (commentsList) => {
         return commentsList.map((comment) => {
           if (comment.id === commentId) {
@@ -637,6 +644,7 @@ const CommentsModal = ({
       };
 
       setComments((prev) => rollbackCommentRecursive(prev));
+      alert('Không thể thả cảm xúc: ' + (error.message || 'Lỗi không xác định'));
     }
   };
 
@@ -1033,8 +1041,8 @@ const CommentsModal = ({
           </div>
         )}
 
-        {/* Comment Input - Hidden in embedded mode because PostDetail has its own */}
-        {!embedded && (
+        {/* Comment Input - Show in embedded mode if showInputInEmbedded is true */}
+        {showInputInEmbedded && (
         <div className="input-container-embed">
           {replyingTo && (
             <div className="replying-indicator-embed">

@@ -73,11 +73,7 @@ export default function Video() {
   const [activeTab, setActiveTab] = useState('reels'); // 'reels' or 'following'
   const videoRefs = useRef({});
   const containerRef = useRef(null);
-  const [videoStates, setVideoStates] = useState({}); // { [postId]: { playing, liked, likes, saved, reactionType, comments } }
-  
-  // Comments state - sử dụng CommentsModal
-  const [commentsModalVisible, setCommentsModalVisible] = useState(false);
-  const [commentsPostId, setCommentsPostId] = useState(null);
+  const [videoStates, setVideoStates] = useState({}); // { [postId]: { playing, liked, likes, saved, reactionType, comments, showComments } }
 
   // Menu state - giống trang chủ
   const [showOptions, setShowOptions] = useState(false);
@@ -315,8 +311,13 @@ export default function Video() {
   };
 
   const handleComment = (reel) => {
-    setCommentsPostId(reel.id);
-    setCommentsModalVisible(true);
+    setVideoStates(prev => ({
+      ...prev,
+      [reel.id]: {
+        ...prev[reel.id],
+        showComments: !prev[reel.id]?.showComments
+      }
+    }));
   };
 
   const handleCommentAdded = (postId) => {
@@ -553,97 +554,132 @@ export default function Video() {
               
               return (
                 <div key={reel.id || index} className="video-item">
-                  {videoUrl ? (
-                    <>
-                      <video
-                        ref={(el) => (videoRefs.current[index] = el)}
-                        src={videoUrl}
-                        className="video-player"
-                        loop
-                        playsInline
-                        onClick={() => togglePlayPause(index)}
-                      />
+                  <div className="video-content-wrapper">
+                    {/* Video Player */}
+                    <div className="video-player-section">
+                      {videoUrl ? (
+                        <>
+                          <video
+                            ref={(el) => (videoRefs.current[index] = el)}
+                            src={videoUrl}
+                            className="video-player"
+                            loop
+                            playsInline
+                            onClick={() => togglePlayPause(index)}
+                          />
+                          
+                          {/* Play/Pause overlay */}
+                          {!state.playing && (
+                            <div className="video-play-overlay" onClick={() => togglePlayPause(index)}>
+                              <MdPlayArrow className="play-icon" />
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="video-error">Video không khả dụng</div>
+                      )}
                       
-                      {/* Play/Pause overlay */}
-                      {!state.playing && (
-                        <div className="video-play-overlay" onClick={() => togglePlayPause(index)}>
-                          <MdPlayArrow className="play-icon" />
+                      {/* Video Info */}
+                      <div className="video-info">
+                        <div className="video-user" onClick={() => {
+                          const ownerId = getOwnerId();
+                          const postUserId = reel.user?.id;
+                          if (ownerId && postUserId && Number(ownerId) === Number(postUserId)) {
+                            navigate('/profile');
+                          } else {
+                            navigate(`/user/${reel.user?.id}`);
+                          }
+                        }}>
+                          {avatarUrl ? (
+                            <img 
+                              src={avatarUrl} 
+                              alt={reel.user?.username}
+                              className="video-user-avatar"
+                            />
+                          ) : (
+                            <div className="video-user-avatar-placeholder">
+                              {reel.user?.username?.charAt(0)?.toUpperCase() || '?'}
+                            </div>
+                          )}
+                          <span className="video-user-name">{reel.user?.username || 'Unknown'}</span>
                         </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="video-error">Video không khả dụng</div>
-                  )}
-                  
-                  {/* Video Info */}
-                  <div className="video-info">
-                    <div className="video-user" onClick={() => {
-                      const ownerId = getOwnerId();
-                      const postUserId = reel.user?.id;
-                      if (ownerId && postUserId && Number(ownerId) === Number(postUserId)) {
-                        navigate('/profile');
-                      } else {
-                        navigate(`/user/${reel.user?.id}`);
-                      }
-                    }}>
-                      {avatarUrl ? (
-                        <img 
-                          src={avatarUrl} 
-                          alt={reel.user?.username}
-                          className="video-user-avatar"
-                        />
-                      ) : (
-                        <div className="video-user-avatar-placeholder">
-                          {reel.user?.username?.charAt(0)?.toUpperCase() || '?'}
-                        </div>
-                      )}
-                      <span className="video-user-name">{reel.user?.username || 'Unknown'}</span>
-                    </div>
-                    {reel.caption && (
-                      <p className="video-caption">{reel.caption}</p>
-                    )}
-                  </div>
+                        {reel.caption && (
+                          <p className="video-caption">{reel.caption}</p>
+                        )}
+                      </div>
 
-                  {/* Actions */}
-                  <div className="video-actions">
-                    <button 
-                      ref={el => { if (el) likeButtonRefs.current[reel.id] = el; }}
-                      className="video-action-btn"
-                      onClick={() => onToggleLike(reel.id)}
-                      onContextMenu={(e) => onLongPressLike(reel.id, e)}
-                    >
-                      {state.reactionType ? (
-                        <span className="reaction-emoji">{getReactionEmoji(state.reactionType)}</span>
-                      ) : state.liked ? (
-                        <MdFavorite className="action-icon liked" />
-                      ) : (
-                        <MdFavoriteBorder className="action-icon" />
-                      )}
-                      <span className="action-count">{state.likes || 0}</span>
-                    </button>
-                    <button 
-                      className="video-action-btn"
-                      onClick={() => handleComment(reel)}
-                    >
-                      <MdComment className="action-icon" />
-                      <span className="action-count">{state.comments || 0}</span>
-                    </button>
-                    <button 
-                      className="video-action-btn"
-                      onClick={() => handleSaveToggle(reel)}
-                    >
-                      {state.saved ? (
-                        <MdBookmark className="action-icon saved" />
-                      ) : (
-                        <MdBookmarkBorder className="action-icon" />
-                      )}
-                    </button>
-                    <button 
-                      className="video-action-btn"
-                      onClick={() => openOptionsFor(reel)}
-                    >
-                      <IoEllipsisHorizontal className="action-icon" size={24} />
-                    </button>
+                      {/* Actions */}
+                      <div className="video-actions">
+                        <button 
+                          ref={el => { if (el) likeButtonRefs.current[reel.id] = el; }}
+                          className="video-action-btn"
+                          onClick={() => onToggleLike(reel.id)}
+                          onContextMenu={(e) => onLongPressLike(reel.id, e)}
+                        >
+                          {state.reactionType ? (
+                            <span className="reaction-emoji">{getReactionEmoji(state.reactionType)}</span>
+                          ) : state.liked ? (
+                            <MdFavorite className="action-icon liked" />
+                          ) : (
+                            <MdFavoriteBorder className="action-icon" />
+                          )}
+                          <span className="action-count">{state.likes || 0}</span>
+                        </button>
+                        <button 
+                          className="video-action-btn"
+                          onClick={() => handleComment(reel)}
+                        >
+                          <MdComment className="action-icon" />
+                          <span className="action-count">{state.comments || 0}</span>
+                        </button>
+                        <button 
+                          className="video-action-btn"
+                          onClick={() => handleSaveToggle(reel)}
+                        >
+                          {state.saved ? (
+                            <MdBookmark className="action-icon saved" />
+                          ) : (
+                            <MdBookmarkBorder className="action-icon" />
+                          )}
+                        </button>
+                        <button 
+                          className="video-action-btn"
+                          onClick={() => openOptionsFor(reel)}
+                        >
+                          <IoEllipsisHorizontal className="action-icon" size={24} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Comments Sidebar - shown when state.showComments */}
+                    {state.showComments && (
+                      <div className="video-comments-sidebar">
+                        <div className="comments-sidebar-header">
+                          <h3>Bình luận</h3>
+                          <button 
+                            className="close-comments-btn"
+                            onClick={() => setVideoStates(prev => ({
+                              ...prev,
+                              [reel.id]: { ...prev[reel.id], showComments: false }
+                            }))}
+                          >
+                            <MdClose size={24} />
+                          </button>
+                        </div>
+                        <CommentsModal
+                          visible={true}
+                          embedded={true}
+                          showInputInEmbedded={true}
+                          onClose={() => setVideoStates(prev => ({
+                            ...prev,
+                            [reel.id]: { ...prev[reel.id], showComments: false }
+                          }))}
+                          postId={reel.id}
+                          post={reel}
+                          onCommentAdded={handleCommentAdded}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -672,17 +708,7 @@ export default function Video() {
         </div>
       )}
 
-      {/* CommentsModal - giống trang chủ */}
-      <CommentsModal
-        visible={commentsModalVisible}
-        onClose={() => {
-          setCommentsModalVisible(false);
-          setCommentsPostId(null);
-        }}
-        postId={commentsPostId}
-        post={reels.find(r => r.id === commentsPostId)}
-        onCommentAdded={handleCommentAdded}
-      />
+      {/* CommentsModal removed - now inline per video */}
 
       {/* Options Menu Modal - giống trang chủ */}
       {showOptions && optionsPostId && (
