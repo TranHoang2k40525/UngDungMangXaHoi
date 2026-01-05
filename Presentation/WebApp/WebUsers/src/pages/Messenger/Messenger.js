@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MessageAPI from '../../api/MessageAPI';
-import { getProfile, getMyGroups, API_BASE_URL } from '../../api/Api';
+import { getProfile, getMyGroups, API_BASE_URL, getFollowing } from '../../api/Api';
 import signalRService from '../../Services/signalRService';
 import NavigationBar from '../../Components/NavigationBar';
 import { IoSearch } from 'react-icons/io5';
-import { MdArrowBack, MdGroup, MdChatBubbleOutline } from 'react-icons/md';
+import { MdArrowBack, MdGroup, MdChatBubbleOutline, MdPersonAdd } from 'react-icons/md';
 import './Messenger.css';
 
 export default function Messenger() {
@@ -17,6 +17,8 @@ export default function Messenger() {
   const [userProfile, setUserProfile] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserName, setCurrentUserName] = useState('');
+  const [allFollowing, setAllFollowing] = useState([]);
+  const [showAllFollowing, setShowAllFollowing] = useState(false);
   const joinedGroupsRef = useRef(new Set());
   const [isSignalRConnected, setIsSignalRConnected] = useState(false);
   const navigate = useNavigate();
@@ -67,6 +69,23 @@ export default function Messenger() {
             raw: conv,
           };
         });
+      }
+
+      console.log('[Messenger] Loaded 1:1 conversations:', oneToOneConversations.length);
+
+      // Load all following users for "Start new chat" section
+      if (!currentUserId) {
+        console.warn('[Messenger] Cannot load following - currentUserId is null');
+        setAllFollowing([]);
+      } else {
+        try {
+          const followingData = await getFollowing(currentUserId);
+          console.log('[Messenger] Loaded following users:', followingData?.length || 0);
+          setAllFollowing(followingData || []);
+        } catch (err) {
+          console.error('[Messenger] Error loading following:', err);
+          setAllFollowing([]);
+        }
       }
 
       // Get group conversations
@@ -435,11 +454,15 @@ export default function Messenger() {
     };
   }, []);
 
-  // Load on mount
+  // Load on mount - only when currentUserId is available
   useEffect(() => {
-    console.log('[Messenger] Component mounted - loading conversations');
+    if (!currentUserId) {
+      console.log('[Messenger] Waiting for currentUserId to load...');
+      return;
+    }
+    console.log('[Messenger] Component mounted - loading conversations with userId:', currentUserId);
     loadConversations();
-  }, [loadConversations]);
+  }, [currentUserId, loadConversations]);
 
   // Filter conversations
   const filteredConversations = useMemo(() => {
@@ -553,6 +576,72 @@ export default function Messenger() {
 
         {/* Conversations List */}
         <div className="conversations-list">
+          {/* Show all following section */}
+          {allFollowing.length > 0 && conversations.length === 0 && !searchText && (
+            <div className="all-following-section">
+              <div className="section-header">
+                <h3 className="section-title">Bạn bè đang theo dõi ({allFollowing.length})</h3>
+                <p className="section-subtitle">Bắt đầu cuộc trò chuyện với người bạn follow</p>
+              </div>
+              <div className="following-list">
+                {allFollowing.slice(0, showAllFollowing ? allFollowing.length : 5).map((user) => (
+                  <div
+                    key={user.user_id}
+                    className="following-item"
+                    onClick={() => {
+                      navigate('/messenger/chat/' + user.user_id, {
+                        state: {
+                          userId: user.user_id,
+                          userName: user.full_name,
+                          userAvatar: user.avatar_url,
+                          username: user.username
+                        }
+                      });
+                    }}
+                  >
+                    <div className="avatar-container">
+                      {user.avatar_url ? (
+                        <img 
+                          src={user.avatar_url.startsWith('http') ? user.avatar_url : `${API_BASE_URL}${user.avatar_url}`} 
+                          alt={user.full_name} 
+                          className="avatar" 
+                        />
+                      ) : (
+                        <div className="avatar default-avatar">
+                          <span className="default-avatar-text">
+                            {user.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="following-info">
+                      <span className="following-name">{user.full_name}</span>
+                      <span className="following-username">@{user.username}</span>
+                    </div>
+                    <button className="chat-button">
+                      <MdChatBubbleOutline size={20} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {allFollowing.length > 5 && (
+                <button 
+                  className="show-more-button" 
+                  onClick={() => setShowAllFollowing(!showAllFollowing)}
+                >
+                  {showAllFollowing ? 'Thu gọn' : `Xem thêm ${allFollowing.length - 5} người`}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Active conversations */}
+          {!searchText && conversations.length > 0 && (
+            <div className="section-header">
+              <h3 className="section-title">Tin nhắn gần đây</h3>
+            </div>
+          )}
+          
           {filteredConversations.length > 0 ? (
             filteredConversations.map((conv) => (
               <div
@@ -634,16 +723,22 @@ export default function Messenger() {
               </div>
             ))
           ) : (
+            !searchText && allFollowing.length === 0 && (
+              <div className="empty-state">
+                <div className="empty-icon"><MdChatBubbleOutline size={48} /></div>
+                <p className="empty-state-text">Chưa có tin nhắn</p>
+                <p className="empty-state-subtext">
+                  Follow bạn bè để bắt đầu trò chuyện
+                </p>
+              </div>
+            )
+          )}
+          
+          {searchText && filteredConversations.length === 0 && (
             <div className="empty-state">
               <div className="empty-icon"><MdChatBubbleOutline size={48} /></div>
-              <p className="empty-state-text">
-                {searchText ? 'Không tìm thấy cuộc trò chuyện' : 'Chưa có tin nhắn'}
-              </p>
-              <p className="empty-state-subtext">
-                {searchText 
-                  ? 'Thử tìm kiếm với từ khóa khác' 
-                  : 'Bắt đầu cuộc trò chuyện mới với bạn bè'}
-              </p>
+              <p className="empty-state-text">Không tìm thấy cuộc trò chuyện</p>
+              <p className="empty-state-subtext">Thử tìm kiếm với từ khóa khác</p>
             </div>
           )}
         </div>

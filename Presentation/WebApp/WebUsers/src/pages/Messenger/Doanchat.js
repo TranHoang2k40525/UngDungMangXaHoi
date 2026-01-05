@@ -22,12 +22,13 @@ export default function Doanchat() {
   const { conversationId: paramUserId } = useParams();
   
   // Get user info from location state or params
-  const { userId, userName, userAvatar, username } = location.state || {
-    userId: paramUserId,
-    userName: 'User',
-    userAvatar: null,
-    username: '@user'
-  };
+  const stateUserId = location.state?.userId;
+  const userId = stateUserId || paramUserId;
+  const userName = location.state?.userName || 'User';
+  const userAvatar = location.state?.userAvatar || null;
+  const username = location.state?.username || '@user';
+  
+  console.log('[Doanchat] Params:', { paramUserId, stateUserId, userId });
 
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
@@ -73,11 +74,17 @@ export default function Doanchat() {
 
   // Load conversation and messages (Page 1 = newest messages)
   const loadConversation = async () => {
+    if (!userId) {
+      console.error('[Doanchat] No userId provided, cannot load conversation');
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
       const pageSize = 10;
       
-      console.log(`[Doanchat] REQUEST: page=1, pageSize=${pageSize}`);
+      console.log(`[Doanchat] REQUEST: userId=${userId}, page=1, pageSize=${pageSize}`);
       const response = await MessageAPI.getConversationDetail(userId, 1, pageSize);
       
       if (response.success && response.data) {

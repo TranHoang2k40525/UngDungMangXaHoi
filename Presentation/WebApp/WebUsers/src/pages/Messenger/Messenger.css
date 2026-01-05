@@ -331,6 +331,135 @@
   color: #111827;
 }
 
+/* Following users section */
+.all-following-section {
+  padding: 16px 0;
+  border-bottom: 1px solid #dbdbdb;
+}
+
+.section-header {
+  padding: 8px 16px 12px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
+  margin: 0 0 4px 0;
+}
+
+.section-subtitle {
+  font-size: 14px;
+  color: #8E8E8E;
+  margin: 0;
+}
+
+.following-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.following-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.following-item:hover {
+  background-color: #fafafa;
+}
+
+.following-item .avatar-container {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  overflow: hidden;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.following-item .avatar-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.following-item .default-avatar {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.following-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.following-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #262626;
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.following-username {
+  font-size: 14px;
+  color: #8E8E8E;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-button {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #0095F6;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  margin-left: 12px;
+  flex-shrink: 0;
+  transition: background-color 0.2s;
+}
+
+.chat-button:hover {
+  background-color: #1877F2;
+}
+
+.show-more-button {
+  margin: 8px 16px;
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  color: #0095F6;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: opacity 0.2s;
+}
+
+.show-more-button:hover {
+  opacity: 0.7;
+}
+
 .empty-state {
   display: flex;
   flex-direction: column;
