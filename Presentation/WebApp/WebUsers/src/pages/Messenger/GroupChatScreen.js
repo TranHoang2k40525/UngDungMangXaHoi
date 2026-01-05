@@ -631,7 +631,7 @@ export default function GroupChatScreen() {
           <h3 className="group-name">{groupInfo?.name || groupName}</h3>
           <p className="members-count">{members.length} thành viên</p>
         </div>
-        <button className="info-button" onClick={() => navigate(`/messenger/group/${conversationId}/details`)}>
+        <button className="info-button" onClick={() => navigate(`/messenger/group/${conversationId}`)}>
           <MdInfo size={24} />
         </button>
       </div>

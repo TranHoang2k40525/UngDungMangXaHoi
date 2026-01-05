@@ -23,8 +23,12 @@
   border: none;
   font-size: 24px;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 8px;
   color: #262626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .back-button:hover {
@@ -36,10 +40,13 @@
   height: 40px;
   border-radius: 50%;
   object-fit: cover;
+  flex-shrink: 0;
 }
 
 .group-info {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .group-name {
@@ -47,6 +54,34 @@
   font-weight: 600;
   margin: 0;
   color: #262626;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.members-count {
+  font-size: 12px;
+  color: #8E8E8E;
+  margin: 2px 0 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.info-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  color: #262626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.info-button:hover {
+  opacity: 0.7;
 }
 
 .members-count {
