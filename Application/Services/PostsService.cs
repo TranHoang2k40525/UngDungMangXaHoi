@@ -39,13 +39,31 @@ namespace UngDungMangXaHoi.Application.Services
             var video = form.Video;
             if (images.Count == 0 && video == null) throw new ArgumentException("Bài đăng phải có ít nhất 1 ảnh hoặc 1 video.");
 
-            if (video != null && video.Length > 100L * 1024 * 1024) throw new ArgumentException("Video vượt quá dung lượng tối đa 100MB.");
-
-            var allowedImageExt = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+            if (video != null && video.Length > 100L * 1024 * 1024) throw new ArgumentException("Video vượt quá dung lượng tối đa 100MB.");            var allowedImageExt = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
             foreach (var img in images)
             {
-                var ext = Path.GetExtension(img.FileName).ToLowerInvariant();
-                if (!allowedImageExt.Contains(ext)) throw new ArgumentException($"Ảnh không hợp lệ: {img.FileName}");
+                var fileName = img.FileName ?? "";
+                
+                // If no filename or no extension, check ContentType
+                var ext = Path.GetExtension(fileName).ToLowerInvariant();
+                if (string.IsNullOrEmpty(ext))
+                {
+                    // Try to infer from ContentType
+                    var contentType = img.ContentType?.ToLowerInvariant() ?? "";
+                    if (contentType.Contains("jpeg") || contentType.Contains("jpg"))
+                        ext = ".jpg";
+                    else if (contentType.Contains("png"))
+                        ext = ".png";
+                    else if (contentType.Contains("gif"))
+                        ext = ".gif";
+                    else if (contentType.Contains("webp"))
+                        ext = ".webp";
+                    else
+                        ext = ".jpg"; // Default fallback for image/* types
+                }
+                
+                if (!allowedImageExt.Contains(ext))
+                    throw new ArgumentException($"Ảnh không hợp lệ: {fileName}");
             }
 
             if (video != null)

@@ -23,17 +23,18 @@ tokenizer = None
 device = None
 id2label = None
 
-# Smart thresholds
+# ✅ NGƯỠNG CHẶT CHẼ HƠN - GIẢM FALSE POSITIVE
 SMART_THRESHOLDS = {
-    'suicide': 0.35,
-    'violence': 0.40,
-    'nsfw': 0.50,
-    'toxic': 0.60,
-    'hate': 0.70,
-    'safe': 0.30
+    'suicide': 0.70,      # Tăng từ 0.35 → 0.70 (rất nghiêm trọng)
+    'violence': 0.65,     # Tăng từ 0.40 → 0.65 (nghiêm trọng)
+    'nsfw': 0.60,         # Tăng từ 0.50 → 0.60 (nội dung người lớn)
+    'toxic': 0.75,        # Tăng từ 0.60 → 0.75 (toxic chung chung)
+    'hate': 0.70,         # Giữ nguyên 0.70 (ngôn từ kích động)
+    'safe': 0.30          # Giữ nguyên 0.30
 }
 
-CUMULATIVE_THRESHOLD = 0.60
+# ✅ TĂNG NGƯỠNG TÍCH LŨY - CHỈ BÁO NGUY HIỂM KHI THỰC SỰ NGUY HIỂM
+CUMULATIVE_THRESHOLD = 0.80  # Tăng từ 0.60 → 0.80
 
 
 class TextRequest(BaseModel):
@@ -103,13 +104,32 @@ def load_model():
 
 
 def assess_risk(label: str, confidence: float, cumulative: float) -> str:
-    """Đánh giá mức độ rủi ro"""
+    """
+    Đánh giá mức độ rủi ro - CHẶT CHẼ HƠN
+    
+    - high_risk: Chỉ khi thực sự nguy hiểm (confidence > 0.85 hoặc cumulative > 0.85)
+    - medium_risk: Nguy hiểm vừa phải (confidence > 0.70 hoặc cumulative > 0.70)
+    - low_risk: Nguy hiểm thấp
+    - no_risk: An toàn
+    """
     if label == 'safe':
         return 'no_risk'
-    elif label in ['suicide', 'violence', 'nsfw', 'hate', 'toxic'] or cumulative > 0.75:
+    
+    # ✅ CHỈ BÁO HIGH RISK KHI THỰC SỰ NGUY HIỂM CAO
+    if label in ['suicide', 'violence'] and confidence > 0.85:
         return 'high_risk'
-    elif confidence > 0.80 or cumulative > 0.65:
+    elif label in ['nsfw', 'hate'] and confidence > 0.80:
+        return 'high_risk'
+    elif label == 'toxic' and confidence > 0.90:  # Toxic phải rất cao mới là high risk
+        return 'high_risk'
+    elif cumulative > 0.85:  # Tổng điểm rất cao
+        return 'high_risk'
+    
+    # ✅ MEDIUM RISK: MỨC ĐỘ VỪA PHẢI
+    elif confidence > 0.70 or cumulative > 0.70:
         return 'medium_risk'
+    
+    # ✅ LOW RISK: NGUY HIỂM THẤP
     else:
         return 'low_risk'
 

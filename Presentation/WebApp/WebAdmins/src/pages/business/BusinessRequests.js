@@ -1,341 +1,461 @@
-import { useState, useEffect } from 'react';
-import './BusinessRequests.css';
+import { useState, useEffect } from "react";
+import { businessAPI } from "../../services/api";
+import "./BusinessRequests.css";
 
 export default function BusinessRequests() {
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('pending');
-  const [page, setPage] = useState(1);
-  const [modalData, setModalData] = useState(null);
+    const [requests, setRequests] = useState([]);
+    const [allRequests, setAllRequests] = useState([]); // Store all data for client-side search
+    const [loading, setLoading] = useState(true);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
+    const [modalData, setModalData] = useState(null);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [stats, setStats] = useState({
+        total: 0,
+    });
+    useEffect(() => {
+        loadRequests();
+        loadStats();
+    }, [page]);
 
-  useEffect(() => {
-    loadRequests();
-  }, [page, filter]);
+    // Client-side filtering when search term changes
+    useEffect(() => {
+        if (searchTerm.trim() === "") {
+            setRequests(allRequests);
+        } else {
+            const filtered = allRequests.filter(
+                (req) =>
+                    req.businessName
+                        ?.toLowerCase()
+                        .includes(searchTerm.toLowerCase()) ||
+                    req.ownerName
+                        ?.toLowerCase()
+                        .includes(searchTerm.toLowerCase()) ||
+                    req.email
+                        ?.toLowerCase()
+                        .includes(searchTerm.toLowerCase()) ||
+                    req.taxCode
+                        ?.toLowerCase()
+                        .includes(searchTerm.toLowerCase())
+            );
+            setRequests(filtered);
+        }
+    }, [searchTerm, allRequests]);
+    const loadRequests = async () => {
+        try {
+            setLoading(true);
+            const response = await businessAPI.getVerificationRequests(
+                page,
+                20,
+                "all", // Load all statuses
+                "" // No server-side search
+            );
 
-  const loadRequests = async () => {
-    try {
-      setLoading(true);
-      // Mock data - Sẽ thay bằng API call khi backend sẵn sàng
-      // const result = await businessAPI.getVerificationRequests(page, 20, filter);
-      const mockData = generateMockRequests();
-      setRequests(mockData);
-    } catch (error) {
-      console.error('Error loading requests:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+            if (response.success) {
+                setAllRequests(response.data);
+                setRequests(response.data);
+                setTotalPages(response.totalPages);
+                setTotalCount(response.totalCount);
+            }
+        } catch (error) {
+            console.error("Error loading requests:", error);
+            alert(
+                "Lỗi khi tải danh sách yêu cầu: " +
+                    (error.message || "Unknown error")
+            );
+        } finally {
+            setLoading(false);
+        }
+    };
+    const loadStats = async () => {
+        try {
+            const response = await businessAPI.getStats();
+            if (response.success) {
+                setStats({
+                    total:
+                        response.data.total ||
+                        response.data.pending +
+                            response.data.approved +
+                            response.data.rejected,
+                });
+            }
+        } catch (error) {
+            console.error("Error loading stats:", error);
+        }
+    };
+    const handleView = (request) => {
+        setModalData({ type: "view", request });
+    };
 
-  const generateMockRequests = () => {
-    const statuses = ['pending', 'approved', 'rejected'];
-    const businesses = [
-      'Nhà hàng ABC', 'Cửa hàng XYZ', 'Công ty DEF', 'Shop Thời Trang',
-      'Quán Cafe 123', 'Spa Đẹp', 'Gym Center', 'Phòng khám Y tế'
-    ];
-    
-    return Array.from({ length: 15 }, (_, i) => ({
-      id: i + 1,
-      businessName: businesses[i % businesses.length],
-      ownerName: `Nguyễn Văn ${String.fromCharCode(65 + i)}`,
-      email: `business${i + 1}@example.com`,
-      phone: `098765${4321 + i}`,
-      taxCode: `0${100000000 + i * 111111}`,
-      businessType: ['Nhà hàng', 'Cửa hàng', 'Dịch vụ'][i % 3],
-      address: `${i + 1} Đường ABC, Quận ${(i % 12) + 1}, TP.HCM`,
-      website: `https://business${i + 1}.com`,
-      description: `Mô tả ngắn về doanh nghiệp ${businesses[i % businesses.length]}`,
-      status: filter === 'all' ? statuses[i % 3] : filter,
-      submittedAt: new Date(Date.now() - i * 86400000).toISOString(),
-      documents: [
-        { type: 'Giấy phép kinh doanh', url: '/docs/license.pdf' },
-        { type: 'CMND/CCCD', url: '/docs/id.pdf' }
-      ]
-    }));
-  };
+    const handleSearch = (e) => {
+        setSearchTerm(e.target.value);
+    };
 
-  const handleView = (request) => {
-    setModalData({ type: 'view', request });
-  };
+    return (
+        <div className="business-requests-page">
+            {" "}
+            <div className="page-header">
+                <h1>🏢 Doanh nghiệp</h1>
+                <p>
+                    Quản lý và phê duyệt các yêu cầu xác thực tài khoản doanh
+                    nghiệp
+                </p>
+            </div>{" "}
+            <div className="stats-cards">
+                <div className="stat-card total">
+                    <h3>📊 Tổng số doanh nghiệp</h3>
+                    <div className="stat-value">{stats.total || 0}</div>
+                </div>
+            </div>{" "}
+            <div className="card">
+                <div className="toolbar">
+                    <input
+                        type="search"
+                        placeholder="Tìm kiếm theo tên, email..."
+                        className="input search-input"
+                        value={searchTerm}
+                        onChange={handleSearch}
+                    />
+                </div>
 
-  const handleApprove = (request) => {
-    setModalData({ type: 'approve', request });
-  };
-
-  const handleReject = (request) => {
-    setModalData({ type: 'reject', request });
-  };
-
-  const confirmAction = async (action, note) => {
-    try {
-      // await businessAPI.updateVerificationStatus(modalData.request.id, action, note);
-      alert(`Đã ${action === 'approved' ? 'phê duyệt' : 'từ chối'} yêu cầu`);
-      setModalData(null);
-      loadRequests();
-    } catch (error) {
-      alert('Lỗi: ' + error.message);
-    }
-  };
-
-  return (
-    <div className="business-requests-page">
-      <div className="page-header">
-        <h1>🏢 Yêu cầu Xác thực Doanh nghiệp</h1>
-        <p>Quản lý và phê duyệt các yêu cầu xác thực tài khoản doanh nghiệp</p>
-      </div>
-
-      <div className="stats-cards">
-        <div className="stat-card pending">
-          <h3>Chờ xử lý</h3>
-          <div className="stat-value">{requests.filter(r => r.status === 'pending').length}</div>
+                {loading ? (
+                    <div className="loading-container">
+                        <div className="loading"></div>
+                    </div>
+                ) : (
+                    <>
+                        {" "}
+                        <table className="requests-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Tên doanh nghiệp</th>
+                                    <th>Chủ sở hữu</th>
+                                    <th>Loại hình</th>
+                                    <th>Ngày gửi</th>
+                                    <th>Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {requests.map((request) => (
+                                    <tr key={request.id}>
+                                        <td>#{request.id}</td>
+                                        <td>
+                                            <strong>
+                                                {request.businessName}
+                                            </strong>
+                                            <div className="text-muted">
+                                                {request.taxCode}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            {request.ownerName}
+                                            <div className="text-muted">
+                                                {request.email}
+                                            </div>
+                                        </td>
+                                        <td>{request.businessType}</td>{" "}
+                                        <td>
+                                            {new Date(
+                                                request.submittedAt
+                                            ).toLocaleDateString("vi-VN")}
+                                        </td>
+                                        <td className="actions-cell">
+                                            <button
+                                                onClick={() =>
+                                                    handleView(request)
+                                                }
+                                                className="btn-link"
+                                            >
+                                                👁️ Xem
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>{" "}
+                        <div className="pagination">
+                            <button
+                                onClick={() =>
+                                    setPage((p) => Math.max(1, p - 1))
+                                }
+                                disabled={page === 1}
+                                className="btn btn-primary"
+                            >
+                                ← Trước
+                            </button>
+                            <span>
+                                Trang {page} / {totalPages} (Tổng: {totalCount})
+                            </span>
+                            <button
+                                onClick={() => setPage((p) => p + 1)}
+                                disabled={page >= totalPages}
+                                className="btn btn-primary"
+                            >
+                                Sau →
+                            </button>
+                        </div>
+                    </>
+                )}
+            </div>{" "}
+            {modalData && (
+                <RequestModal
+                    data={modalData}
+                    onClose={() => setModalData(null)}
+                />
+            )}
         </div>
-        <div className="stat-card approved">
-          <h3>Đã phê duyệt</h3>
-          <div className="stat-value">{requests.filter(r => r.status === 'approved').length}</div>
-        </div>
-        <div className="stat-card rejected">
-          <h3>Đã từ chối</h3>
-          <div className="stat-value">{requests.filter(r => r.status === 'rejected').length}</div>
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="toolbar">
-          <select value={filter} onChange={(e) => setFilter(e.target.value)} className="input">
-            <option value="pending">Chờ xử lý</option>
-            <option value="approved">Đã phê duyệt</option>
-            <option value="rejected">Đã từ chối</option>
-            <option value="all">Tất cả</option>
-          </select>
-
-          <input
-            type="search"
-            placeholder="Tìm kiếm theo tên, email..."
-            className="input search-input"
-          />
-        </div>
-
-        {loading ? (
-          <div className="loading-container">
-            <div className="loading"></div>
-          </div>
-        ) : (
-          <>
-            <table className="requests-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Tên doanh nghiệp</th>
-                  <th>Chủ sở hữu</th>
-                  <th>Loại hình</th>
-                  <th>Ngày gửi</th>
-                  <th>Trạng thái</th>
-                  <th>Hành động</th>
-                </tr>
-              </thead>
-              <tbody>
-                {requests.map(request => (
-                  <tr key={request.id}>
-                    <td>#{request.id}</td>
-                    <td>
-                      <strong>{request.businessName}</strong>
-                      <div className="text-muted">{request.taxCode}</div>
-                    </td>
-                    <td>
-                      {request.ownerName}
-                      <div className="text-muted">{request.email}</div>
-                    </td>
-                    <td>{request.businessType}</td>
-                    <td>{new Date(request.submittedAt).toLocaleDateString('vi-VN')}</td>
-                    <td>
-                      <span className={`status-badge ${request.status}`}>
-                        {request.status === 'pending' ? '⏳ Chờ xử lý' : 
-                         request.status === 'approved' ? '✅ Đã duyệt' : '❌ Từ chối'}
-                      </span>
-                    </td>
-                    <td className="actions-cell">
-                      <button onClick={() => handleView(request)} className="btn-link">
-                        👁️ Xem
-                      </button>
-                      {request.status === 'pending' && (
-                        <>
-                          <button onClick={() => handleApprove(request)} className="btn-link success">
-                            ✅ Duyệt
-                          </button>
-                          <button onClick={() => handleReject(request)} className="btn-link danger">
-                            ❌ Từ chối
-                          </button>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div className="pagination">
-              <button 
-                onClick={() => setPage(p => Math.max(1, p - 1))} 
-                disabled={page === 1} 
-                className="btn btn-primary"
-              >
-                ← Trước
-              </button>
-              <span>Trang {page}</span>
-              <button onClick={() => setPage(p => p + 1)} className="btn btn-primary">
-                Sau →
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-
-      {modalData && (
-        <RequestModal
-          data={modalData}
-          onClose={() => setModalData(null)}
-          onConfirm={confirmAction}
-        />
-      )}
-    </div>
-  );
+    );
 }
 
-function RequestModal({ data, onClose, onConfirm }) {
-  const [note, setNote] = useState('');
-  const { request } = data;
+function RequestModal({ data, onClose }) {
+    const { request } = data;
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const action = data.type === 'approve' ? 'approved' : 'rejected';
-    onConfirm(action, note);
-  };
+    // Calculate days remaining
+    const calculateDaysRemaining = () => {
+        if (!request.upgrade?.expiresAt) return null;
+        const expiresAt = new Date(request.upgrade.expiresAt);
+        const now = new Date();
+        const diffTime = expiresAt - now;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays;
+    };
 
-  if (data.type === 'view') {
+    const daysRemaining = calculateDaysRemaining();
+    const isExpired = daysRemaining !== null && daysRemaining <= 0;
+    const isExpiringSoon =
+        daysRemaining !== null && daysRemaining > 0 && daysRemaining <= 30;
+
+    // Get business status display
+    const getBusinessStatus = () => {
+        if (request.businessStatus === "active") {
+            return { text: "✅ Đang hoạt động", className: "status-active" };
+        } else if (request.businessStatus === "expired") {
+            return { text: "⏰ Hết hạn", className: "status-expired" };
+        } else if (request.businessStatus === "pending") {
+            return { text: "⏳ Chờ xử lý", className: "status-pending" };
+        } else if (request.businessStatus === "rejected") {
+            return { text: "❌ Đã từ chối", className: "status-rejected" };
+        }
+        return { text: "❓ Không xác định", className: "status-unknown" };
+    };
+
+    const businessStatus = getBusinessStatus();
+
     return (
-      <div className="modal-overlay" onClick={onClose}>
-        <div className="modal-content card" onClick={(e) => e.stopPropagation()}>
-          <div className="modal-header">
-            <h3>Chi tiết yêu cầu xác thực</h3>
-            <button onClick={onClose} className="close-btn">×</button>
-          </div>
+        <div className="modal-overlay" onClick={onClose}>
+            <div
+                className="modal-content card"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="modal-header">
+                    <h3>Chi tiết doanh nghiệp</h3>
+                    <button onClick={onClose} className="close-btn">
+                        ×
+                    </button>
+                </div>{" "}
+                <div className="modal-body">
+                    {/* Thông tin doanh nghiệp */}
+                    <section className="modal-section">
+                        <h4>🏢 Thông tin doanh nghiệp</h4>
+                        <div className="info-grid">
+                            <div className="info-item">
+                                <label>Tên doanh nghiệp:</label>
+                                <strong>{request.businessName}</strong>
+                            </div>
+                            <div className="info-item">
+                                <label>Chủ sở hữu:</label>
+                                <strong>
+                                    {request.user?.fullName ||
+                                        request.ownerName}
+                                </strong>
+                            </div>
+                            <div className="info-item">
+                                <label>Email:</label>
+                                <strong>
+                                    {request.user?.email || request.email}
+                                </strong>
+                            </div>
+                            <div className="info-item">
+                                <label>Điện thoại:</label>
+                                <strong>
+                                    {request.user?.phone ||
+                                        request.phone ||
+                                        "N/A"}
+                                </strong>
+                            </div>
+                            <div className="info-item">
+                                <label>Loại hình:</label>
+                                <strong>{request.businessType}</strong>
+                            </div>
+                            <div className="info-item">
+                                <label>Tình trạng:</label>
+                                <span
+                                    className={`status-badge ${businessStatus.className}`}
+                                >
+                                    {businessStatus.text}
+                                </span>
+                            </div>
+                            <div className="info-item full-width">
+                                <label>Địa chỉ:</label>
+                                <p>{request.address}</p>
+                            </div>
+                            <div className="info-item full-width">
+                                <label>Website:</label>
+                                {request.website &&
+                                request.website !== "N/A" ? (
+                                    <a
+                                        href={request.website}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        {request.website}
+                                    </a>
+                                ) : (
+                                    <span className="text-muted">
+                                        Chưa cập nhật
+                                    </span>
+                                )}
+                            </div>
+                            <div className="info-item full-width">
+                                <label>Mô tả:</label>
+                                <p>{request.description}</p>
+                            </div>
+                        </div>
+                    </section>
 
-          <div className="modal-body">
-            <div className="info-grid">
-              <div className="info-item">
-                <label>Tên doanh nghiệp:</label>
-                <strong>{request.businessName}</strong>
-              </div>
-              <div className="info-item">
-                <label>Mã số thuế:</label>
-                <strong>{request.taxCode}</strong>
-              </div>
-              <div className="info-item">
-                <label>Chủ sở hữu:</label>
-                <strong>{request.ownerName}</strong>
-              </div>
-              <div className="info-item">
-                <label>Email:</label>
-                <strong>{request.email}</strong>
-              </div>
-              <div className="info-item">
-                <label>Điện thoại:</label>
-                <strong>{request.phone}</strong>
-              </div>
-              <div className="info-item">
-                <label>Loại hình:</label>
-                <strong>{request.businessType}</strong>
-              </div>
-              <div className="info-item full-width">
-                <label>Địa chỉ:</label>
-                <p>{request.address}</p>
-              </div>
-              <div className="info-item full-width">
-                <label>Website:</label>
-                <a href={request.website} target="_blank" rel="noopener noreferrer">
-                  {request.website}
-                </a>
-              </div>
-              <div className="info-item full-width">
-                <label>Mô tả:</label>
-                <p>{request.description}</p>
-              </div>
+                    {/* Thời hạn nâng quyền */}
+                    <section className="modal-section">
+                        <h4>⏰ Thời hạn nâng quyền</h4>
+                        <div className="info-grid">
+                            <div className="info-item">
+                                <label>Ngày bắt đầu:</label>
+                                <span>
+                                    {request.upgrade?.verifiedAt ||
+                                    request.upgradedAt ? (
+                                        new Date(
+                                            request.upgrade?.verifiedAt ||
+                                                request.upgradedAt
+                                        ).toLocaleString("vi-VN")
+                                    ) : (
+                                        <span className="text-muted">
+                                            Chưa nâng quyền
+                                        </span>
+                                    )}
+                                </span>
+                            </div>
+                            <div className="info-item">
+                                <label>Ngày kết thúc:</label>
+                                <span>
+                                    {request.upgrade?.expiresAt ? (
+                                        new Date(
+                                            request.upgrade.expiresAt
+                                        ).toLocaleString("vi-VN")
+                                    ) : (
+                                        <span className="text-muted">
+                                            Chưa có
+                                        </span>
+                                    )}
+                                </span>
+                            </div>
+                            {daysRemaining !== null && (
+                                <div className="info-item full-width">
+                                    <label>Thời gian còn lại:</label>
+                                    <div style={{ marginTop: "10px" }}>
+                                        {isExpired ? (
+                                            <div className="countdown-expired">
+                                                <span
+                                                    style={{
+                                                        fontSize: "24px",
+                                                        color: "#ef4444",
+                                                    }}
+                                                >
+                                                    ⏰ Đã hết hạn{" "}
+                                                    {Math.abs(daysRemaining)}{" "}
+                                                    ngày trước
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <div
+                                                className={`countdown-active ${
+                                                    isExpiringSoon
+                                                        ? "expiring-soon"
+                                                        : ""
+                                                }`}
+                                            >
+                                                <span
+                                                    style={{
+                                                        fontSize: "32px",
+                                                        fontWeight: "bold",
+                                                        color: isExpiringSoon
+                                                            ? "#f59e0b"
+                                                            : "#10b981",
+                                                    }}
+                                                >
+                                                    {daysRemaining}
+                                                </span>
+                                                <span
+                                                    style={{
+                                                        fontSize: "18px",
+                                                        marginLeft: "10px",
+                                                    }}
+                                                >
+                                                    ngày
+                                                </span>
+                                                {isExpiringSoon && (
+                                                    <div
+                                                        style={{
+                                                            marginTop: "8px",
+                                                            color: "#f59e0b",
+                                                            fontSize: "14px",
+                                                        }}
+                                                    >
+                                                        ⚠️ Sắp hết hạn!
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                            <div className="info-item">
+                                <label>Trạng thái:</label>
+                                <span>
+                                    {request.upgrade?.isActive ? (
+                                        <span
+                                            style={{
+                                                color: "#10b981",
+                                                fontWeight: "bold",
+                                            }}
+                                        >
+                                            ✅ Đang hoạt động
+                                        </span>
+                                    ) : request.upgrade?.isExpired ? (
+                                        <span
+                                            style={{
+                                                color: "#ef4444",
+                                                fontWeight: "bold",
+                                            }}
+                                        >
+                                            ❌ Đã hết hạn
+                                        </span>
+                                    ) : (
+                                        <span className="text-muted">
+                                            Chưa kích hoạt
+                                        </span>
+                                    )}
+                                </span>
+                            </div>{" "}
+                        </div>
+                    </section>
+                </div>
+                <div className="modal-footer">
+                    <button onClick={onClose} className="btn btn-secondary">
+                        Đóng
+                    </button>
+                </div>
             </div>
-
-            <div className="documents-section">
-              <h4>📄 Tài liệu đính kèm</h4>
-              <div className="documents-list">
-                {request.documents.map((doc, idx) => (
-                  <div key={idx} className="document-item">
-                    <span>📎 {doc.type}</span>
-                    <a href={doc.url} target="_blank" rel="noopener noreferrer" className="btn-link">
-                      Xem tài liệu
-                    </a>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="info-item">
-              <label>Trạng thái:</label>
-              <span className={`status-badge ${request.status}`}>
-                {request.status === 'pending' ? 'Chờ xử lý' : 
-                 request.status === 'approved' ? 'Đã duyệt' : 'Từ chối'}
-              </span>
-            </div>
-          </div>
-
-          <div className="modal-footer">
-            <button onClick={onClose} className="btn btn-secondary">
-              Đóng
-            </button>
-          </div>
         </div>
-      </div>
     );
-  }
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content card" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>
-            {data.type === 'approve' ? '✅ Phê duyệt yêu cầu' : '❌ Từ chối yêu cầu'}
-          </h3>
-          <button onClick={onClose} className="close-btn">×</button>
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body">
-            <p>
-              <strong>Doanh nghiệp:</strong> {request.businessName}<br />
-              <strong>Chủ sở hữu:</strong> {request.ownerName}
-            </p>
-
-            <div className="form-group">
-              <label>Ghi chú {data.type === 'reject' && '(bắt buộc)'}</label>
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                className="input"
-                rows={4}
-                placeholder={data.type === 'approve' 
-                  ? 'Ghi chú cho việc phê duyệt (tùy chọn)...'
-                  : 'Lý do từ chối yêu cầu...'}
-                required={data.type === 'reject'}
-              />
-            </div>
-          </div>
-
-          <div className="modal-footer">
-            <button type="button" onClick={onClose} className="btn btn-secondary">
-              Hủy
-            </button>
-            <button type="submit" className={`btn ${data.type === 'approve' ? 'btn-success' : 'btn-danger'}`}>
-              {data.type === 'approve' ? 'Phê duyệt' : 'Từ chối'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
 }

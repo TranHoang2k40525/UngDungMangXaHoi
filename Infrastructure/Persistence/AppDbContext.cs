@@ -47,19 +47,19 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
         public DbSet<BusinessVerificationRequest> BusinessVerificationRequests { get; set; }
         public DbSet<ContentReport> ContentReports { get; set; } = null!;
         public DbSet<ModerationLog> ModerationLogs { get; set; } = null!;
-        public DbSet<AdminAction> AdminActions { get; set; }
+        public DbSet<AdminAction> AdminActions { get; set; }        
         public DbSet<ContentModeration> ContentModerations { get; set; }
         //Business
         public DbSet<BusinessPayment> BusinessPayments { get; set; }
         // Search
         public DbSet<SearchHistory> SearchHistories { get; set; } = null!;
+        // Reports
+        public DbSet<Report> Reports { get; set; } = null!;
 
+        // Admin Activity Logs
+        public DbSet<AdminActivityLog> AdminActivityLogs { get; set; } = null!;
 
         //Admin quan tri bao cao noi dung
-
-
-
-
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -92,11 +92,11 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new GroupConversationConfiguration());
             modelBuilder.ApplyConfiguration(new GroupConversationMemberConfiguration());
             modelBuilder.ApplyConfiguration(new BlockConfiguration());
-            modelBuilder.ApplyConfiguration(new GroupMessageRestrictionConfiguration());
-
+            modelBuilder.ApplyConfiguration(new GroupMessageRestrictionConfiguration());            
             // Configure composite keys for group message reactions and reads
             modelBuilder.Entity<GroupMessageReaction>().HasKey(r => new { r.message_id, r.user_id });
             modelBuilder.Entity<GroupMessageRead>().HasKey(r => new { r.message_id, r.user_id });
+            
             modelBuilder.ApplyConfiguration(new BusinessVerificationRequestConfiguration());
             modelBuilder.ApplyConfiguration(new ContentReportConfiguration());
             modelBuilder.ApplyConfiguration(new ModerationLogConfiguration());
@@ -105,6 +105,7 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new AccountSanctionConfiguration());
             modelBuilder.ApplyConfiguration(new BusinessPaymentConfiguration());
             modelBuilder.ApplyConfiguration(new SearchHistoryConfiguration());
+            modelBuilder.ApplyConfiguration(new ReportConfiguration());
 
         }
     }

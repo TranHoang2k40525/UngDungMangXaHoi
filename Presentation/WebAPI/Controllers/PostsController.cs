@@ -97,16 +97,34 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             if (video != null && video.Length > 100L * 1024 * 1024)
             {
                 return BadRequest(new { message = "Video vượt quá dung lượng tối đa 100MB." });
-            }
-
-            // Validate file extensions
+            }            // Validate file extensions
             var allowedImageExt = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
             foreach (var img in images)
             {
-                var ext = Path.GetExtension(img.FileName).ToLowerInvariant();
+                var fileName = img.FileName ?? "";
+                
+                // If no filename or no extension, check ContentType
+                var ext = Path.GetExtension(fileName).ToLowerInvariant();
+                if (string.IsNullOrEmpty(ext))
+                {
+                    // Try to infer from ContentType
+                    var contentType = img.ContentType?.ToLowerInvariant() ?? "";
+                    if (contentType.Contains("jpeg") || contentType.Contains("jpg"))
+                        ext = ".jpg";
+                    else if (contentType.Contains("png"))
+                        ext = ".png";
+                    else if (contentType.Contains("gif"))
+                        ext = ".gif";
+                    else if (contentType.Contains("webp"))
+                        ext = ".webp";
+                    else
+                        ext = ".jpg"; // Default fallback for image/* types
+                }
+                
                 if (!allowedImageExt.Contains(ext))
                 {
-                    return BadRequest(new { message = $"Ảnh không hợp lệ: {img.FileName}" });
+                    Console.WriteLine($"[CreatePost] Invalid image - FileName: '{fileName}', ContentType: '{img.ContentType}', Extension: '{ext}'");
+                    return BadRequest(new { message = $"Ảnh không hợp lệ: {fileName}" });
                 }
             }
 
@@ -141,38 +159,15 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 if (!string.IsNullOrEmpty(form.Tags))
                 {
                     tagIds = System.Text.Json.JsonSerializer.Deserialize<int[]>(form.Tags);
-                }
-            }
-            catch { /* ignore parse errors */ }
-
-            // ✅ KIỂM TRA TOXIC CHO CAPTION TRƯỚC KHI TẠO POST
-            if (!string.IsNullOrWhiteSpace(form.Caption))
-            {
-                try
-                {
-                    var moderationResult = await _moderationService.AnalyzeTextAsync(form.Caption);
-                    
-                    // Nếu caption có nội dung nguy hiểm cao, chặn post
-                    if (moderationResult.RiskLevel == "high_risk")
-                    {
-                        return BadRequest(new { message = $"Bài đăng bị chặn do vi phạm: {moderationResult.Label}" });
-                    }
-                }
-                catch (Exception ex)
-                {
-                    // ML Service không khả dụng - log nhưng vẫn cho phép post
-                    Console.WriteLine($"[Moderation Warning] ML Service unavailable: {ex.Message}");
-                }
-            }
-
-            // Create post first
+                }            }
+            catch { /* ignore parse errors */ }            // ✅ TẠO POST - TỰ ĐỘNG HIỂN thị NGAY - KHÔNG CẦN ADMIN DUYỆT
             var post = new Post
             {
                 user_id = user.user_id,
                 caption = form.Caption,
                 location = form.Location,
                 privacy = incomingPrivacy,
-                is_visible = true,
+                is_visible = true, // ✅ TỰ ĐỘNG HIỂN THỊ NGAY
                 created_at = DateTimeOffset.UtcNow,
                 MentionedUserIds = (mentionIds != null && mentionIds.Length > 0) ? string.Join(",", mentionIds) : null,
                 TaggedUserIds = (tagIds != null && tagIds.Length > 0) ? string.Join(",", tagIds) : null
@@ -180,12 +175,22 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             var createdPost = await _postRepository.AddAsync(post);
 
-            // ✅ LƯU KẾT QUẢ MODERATION VÀO DATABASE (nếu có caption)
+            // ✅ LƯU KẾT QUẢ AI MODERATION - CHỈ ĐỂ BÁO CÁO, KHÔNG CHẶN
             if (!string.IsNullOrWhiteSpace(form.Caption))
             {
                 try
                 {
                     var moderationResult = await _moderationService.AnalyzeTextAsync(form.Caption);
+                    
+                    // Tính status dựa trên risk level
+                    string status = moderationResult.RiskLevel switch
+                    {
+                        "high_risk" => "flagged",    // Đánh dấu để admin xem xét
+                        "medium_risk" => "review",   // Cần xem xét
+                        "low_risk" => "approved",    // An toàn
+                        _ => "approved"
+                    };
+                    
                     var moderation = new ContentModeration
                     {
                         ContentType = "Post",
@@ -195,20 +200,16 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                         CommentId = null,
                         AIConfidence = moderationResult.Confidence,
                         ToxicLabel = moderationResult.Label,
-                        Status = moderationResult.RiskLevel switch
-                        {
-                            "high_risk" => "blocked",
-                            "medium_risk" => "pending",
-                            "low_risk" => "approved",
-                            _ => "approved"
-                        },
+                        Status = status,
                         CreatedAt = DateTime.UtcNow
                     };
                     await _moderationRepository.CreateAsync(moderation);
+                    
+                    Console.WriteLine($"[CreatePost] Post {createdPost.post_id} created - AI Status: {status}, Label: {moderationResult.Label}, Confidence: {moderationResult.Confidence}");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[Moderation Warning] Failed to save moderation result: {ex.Message}");
+                    Console.WriteLine($"[Moderation Warning] ML Service unavailable: {ex.Message}");
                 }
             }
 
@@ -705,25 +706,27 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             var post = await _postRepository.GetByIdAsync(id);
             if (post == null) return NotFound(new { message = "Không tìm thấy bài đăng." });
-            if (post.user_id != user.user_id) return Forbid();
-
-            var caption = dto?.Caption?.Trim() ?? string.Empty;
+            if (post.user_id != user.user_id) return Forbid();            var caption = dto?.Caption?.Trim() ?? string.Empty;
             if (caption.Length > 2200)
                 return BadRequest(new { message = "Caption tối đa 2200 ký tự" });
 
-            // ✅ KIỂM TRA TOXIC KHI SỬA CAPTION
+            // ✅ LƯU KẾT QUẢ AI - KHÔNG CHẶN
             if (!string.IsNullOrWhiteSpace(caption))
             {
                 try
                 {
                     var moderationResult = await _moderationService.AnalyzeTextAsync(caption);
 
-                    if (moderationResult.RiskLevel == "high_risk")
+                    // Tính status dựa trên risk level
+                    string status = moderationResult.RiskLevel switch
                     {
-                        return BadRequest(new { message = $"Caption bị chặn do vi phạm: {moderationResult.Label}" });
-                    }
+                        "high_risk" => "flagged",
+                        "medium_risk" => "review",
+                        "low_risk" => "approved",
+                        _ => "approved"
+                    };
 
-                    // Lưu kết quả moderation
+                    // Lưu kết quả moderation - CHỈ GHI LOG
                     var moderation = new ContentModeration
                     {
                         ContentType = "Post",
@@ -733,16 +736,12 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                         CommentId = null,
                         AIConfidence = moderationResult.Confidence,
                         ToxicLabel = moderationResult.Label,
-                        Status = moderationResult.RiskLevel switch
-                        {
-                            "high_risk" => "blocked",
-                            "medium_risk" => "pending",
-                            "low_risk" => "approved",
-                            _ => "approved"
-                        },
+                        Status = status,
                         CreatedAt = DateTime.UtcNow
                     };
                     await _moderationRepository.CreateAsync(moderation);
+                    
+                    Console.WriteLine($"[UpdateCaption] Post {id} - AI Status: {status}, Label: {moderationResult.Label}");
                 }
                 catch (Exception ex)
                 {
