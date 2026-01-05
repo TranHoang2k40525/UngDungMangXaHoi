@@ -54,6 +54,8 @@ export default function UserProfilePublic() {
         ]);
         
         console.log('[UserProfilePublic] Profile data:', profileData);
+        console.log('[UserProfilePublic] accountType:', profileData?.accountType);
+        console.log('[UserProfilePublic] Is Business?', profileData?.accountType?.toLowerCase() === 'business');
         console.log('[UserProfilePublic] Posts data:', postsData);
         
         setProfile(profileData || null);
@@ -203,7 +205,7 @@ export default function UserProfilePublic() {
         </button>
         <div className="header-center">
           <span className="header-username">{profile?.username || 'user'}</span>
-          {profile?.accountType === "Business" && (
+          {(profile?.accountType?.toLowerCase() === "business" || profile?.AccountType?.toLowerCase() === "business") && (
             <span className="verified-badge">✓</span>
           )}
         </div>
@@ -244,7 +246,7 @@ export default function UserProfilePublic() {
           <div className="bio-section">
             <div className="display-name">
               {profile?.fullName || profile?.username || ''}
-              {profile?.accountType === "Business" && (
+              {(profile?.accountType?.toLowerCase() === "business" || profile?.AccountType?.toLowerCase() === "business") && (
                 <span className="verified-badge-inline">✓</span>
               )}
             </div>

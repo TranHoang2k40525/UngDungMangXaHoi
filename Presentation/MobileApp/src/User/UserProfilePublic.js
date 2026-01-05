@@ -73,6 +73,9 @@ export default function UserProfilePublic() {
           getUserPostsById(userId),
         ]);
         if (alive) {
+          console.log('[UserProfilePublic] Loaded profile data:', JSON.stringify(profileData, null, 2));
+          console.log('[UserProfilePublic] accountType:', profileData?.accountType);
+          console.log('[UserProfilePublic] Is Business?', profileData?.accountType?.toLowerCase() === 'business');
           setProfile(profileData || null);
           setPosts(Array.isArray(postsData) ? postsData : []);
           // Đồng bộ với global context
@@ -291,7 +294,7 @@ export default function UserProfilePublic() {
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Text style={styles.headerUsername}>{profile?.username || 'user'}</Text>
             {/* Verified badge cho Business accounts */}
-            {profile?.accountType === "Business" && (
+            {(profile?.accountType?.toLowerCase() === "business" || profile?.AccountType?.toLowerCase() === "business") && (
               <Ionicons name="checkmark-circle" size={16} color="#0095f6" style={{ marginLeft: 4 }} />
             )}
           </View>
@@ -376,7 +379,7 @@ export default function UserProfilePublic() {
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={styles.displayName}>{profile?.fullName || profile?.username || ''}</Text>
               {/* Verified badge for Business accounts */}
-              {profile?.accountType === "Business" && (
+              {(profile?.accountType?.toLowerCase() === "business" || profile?.AccountType?.toLowerCase() === "business") && (
                 <Ionicons name="checkmark-circle" size={18} color="#0095f6" style={{ marginLeft: 6 }} />
               )}
             </View>

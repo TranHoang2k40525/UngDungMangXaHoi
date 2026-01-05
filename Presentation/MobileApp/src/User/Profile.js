@@ -321,7 +321,7 @@ const Profile = () => {
             <Ionicons name="lock-closed" size={16} color="#000" />
           ) : null}
           <Text style={styles.username}>{profile?.username || 'username'}</Text>
-          {profile?.accountType === "Business" && (
+          {(profile?.accountType?.toLowerCase() === "business" || profile?.AccountType?.toLowerCase() === "business") && (
             <Ionicons name="checkmark-circle" size={16} color="#0095f6" style={{ marginLeft: 4 }} />
           )}
           <Ionicons name="chevron-down" size={16} color="#000" style={styles.chevron} />
@@ -513,7 +513,7 @@ const Profile = () => {
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={styles.bioName}>{profile?.fullName || ''}</Text>
               {/* Verified badge for Business accounts */}
-              {profile?.accountType === "Business" && (
+              {(profile?.accountType?.toLowerCase() === "business" || profile?.AccountType?.toLowerCase() === "business") && (
                 <Ionicons name="checkmark-circle" size={18} color="#0095f6" style={{ marginLeft: 6 }} />
               )}
             </View>

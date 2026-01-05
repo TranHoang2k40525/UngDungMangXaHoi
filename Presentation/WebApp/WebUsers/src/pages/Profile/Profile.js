@@ -175,7 +175,7 @@ export default function Profile() {
         <div className="profile-header-left">
           {profile?.isPrivate && <span className="lock-icon"><MdLock size={16} /></span>}
           <span className="profile-username">{profile?.username || 'username'}</span>
-          {profile?.accountType === 'Business' && <span className="verified-badge">✓</span>}
+          {(profile?.accountType?.toLowerCase() === 'business' || profile?.AccountType?.toLowerCase() === 'business') && <span className="verified-badge">✓</span>}
           <span className="chevron-down">▼</span>
         </div>
       </div>

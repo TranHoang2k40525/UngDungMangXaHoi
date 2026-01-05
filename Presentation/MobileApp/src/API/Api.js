@@ -335,6 +335,9 @@ export const getProfile = async () => {
     method: "GET",
     headers,
   });
+  console.log('[API] getProfile RAW result:', JSON.stringify(result, null, 2));
+  console.log('[API] getProfile result.data:', JSON.stringify(result?.data, null, 2));
+  console.log('[API] getProfile accountType:', result?.data?.accountType);
   // API trả { message, data }
   return result?.data || null;
 };
