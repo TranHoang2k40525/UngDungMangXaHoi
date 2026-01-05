@@ -112,6 +112,7 @@ pipeline {
               GIT_SSH_COMMAND='ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no' \
                 git clone git@github.com:TranHoang2k40525/UngDungMangXaHoi.git deploy-temp
               
+              # Move to deployment directory FIRST
               cd deploy-temp
               git reset --hard
               GIT_SSH_COMMAND='ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no' \
