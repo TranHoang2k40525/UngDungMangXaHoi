@@ -267,8 +267,13 @@ export default function Search() {
     if (type === 'user') {
       navigate(`/user/${item.userId || item.UserId}`);
     } else if (type === 'post') {
-      // Navigate to home
-      navigate('/');
+      // Navigate to specific post detail
+      const postId = item.postId || item.PostId;
+      if (postId) {
+        navigate(`/post/${postId}`);
+      } else {
+        navigate('/');
+      }
     }
 
     const searchQuery = type === 'user' 
@@ -412,7 +417,12 @@ export default function Search() {
               <SearchPostItem
                 key={post.postId || post.PostId || index}
                 post={post}
-                onPress={() => navigate('/')}
+                onPress={() => {
+                  const postId = post.postId || post.PostId;
+                  if (postId) {
+                    navigate(`/post/${postId}`);
+                  }
+                }}
               />
             ))}
           </div>

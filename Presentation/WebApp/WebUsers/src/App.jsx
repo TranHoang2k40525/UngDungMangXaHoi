@@ -251,15 +251,7 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/profile/following/:userId"
-        element={
-          <ProtectedRoute>
-            <FollowList />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/profile/followers/:userId"
+        path="/profile/:type/:userId"
         element={
           <ProtectedRoute>
             <FollowList />

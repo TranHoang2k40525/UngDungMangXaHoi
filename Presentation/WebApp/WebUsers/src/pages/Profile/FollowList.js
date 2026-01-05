@@ -1,15 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getFollowers, getFollowing, followUser, unfollowUser, API_BASE_URL } from '../../api/Api';
+import { getFollowers, getFollowing, API_BASE_URL } from '../../api/Api';
 import { MdGroup, MdPerson, MdArrowBack } from 'react-icons/md';
 import './FollowList.css';
 
 export default function FollowList() {
-  const { userId, type } = useParams(); // type: 'followers' or 'following'
+  const { type, userId } = useParams(); // type: 'followers' or 'following'
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [username, setUsername] = useState('');
+
+  // Debug: Log URL and params on mount
+  useEffect(() => {
+    console.log('[FollowList] Component mounted');
+    console.log('[FollowList] window.location.pathname:', window.location.pathname);
+    console.log('[FollowList] useParams() type:', type);
+    console.log('[FollowList] useParams() userId:', userId);
+  }, []);
 
   useEffect(() => {
     loadUsers();
@@ -17,38 +25,17 @@ export default function FollowList() {
 
   const loadUsers = async () => {
     setLoading(true);
+    console.log('[FollowList] Loading users - type:', type, 'userId:', userId);
     try {
       const data = type === 'followers' 
         ? await getFollowers(userId)
         : await getFollowing(userId);
+      console.log('[FollowList] Received data for type', type, ':', data);
       setUsers(Array.isArray(data) ? data : []);
     } catch (e) {
       console.warn('Load follow list error', e);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleFollowToggle = async (user) => {
-    try {
-      if (user.isFollowing) {
-        await unfollowUser(user.userId || user.UserId);
-        setUsers(prev => prev.map(u => 
-          (u.userId || u.UserId) === (user.userId || user.UserId)
-            ? { ...u, isFollowing: false }
-            : u
-        ));
-      } else {
-        await followUser(user.userId || user.UserId);
-        setUsers(prev => prev.map(u => 
-          (u.userId || u.UserId) === (user.userId || user.UserId)
-            ? { ...u, isFollowing: true }
-            : u
-        ));
-      }
-    } catch (e) {
-      console.warn('Follow toggle error', e);
-      alert('Không thể thực hiện thao tác');
     }
   };
 
@@ -71,7 +58,6 @@ export default function FollowList() {
         <h1 className="follow-list-title">
           {type === 'followers' ? 'Người theo dõi' : 'Đang theo dõi'}
         </h1>
-        <div className="header-spacer"></div>
       </div>
 
       <div className="follow-list-content">
@@ -117,15 +103,6 @@ export default function FollowList() {
                       )}
                     </div>
                   </div>
-                  
-                  {!user.isCurrentUser && (
-                    <button
-                      className={`follow-button ${user.isFollowing ? 'following' : ''}`}
-                      onClick={() => handleFollowToggle(user)}
-                    >
-                      {user.isFollowing ? 'Đang theo dõi' : 'Theo dõi'}
-                    </button>
-                  )}
                 </div>
               );
             })}

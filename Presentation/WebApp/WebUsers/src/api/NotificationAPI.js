@@ -40,7 +40,7 @@ const NotificationAPI = {
   // Đánh dấu notification đã đọc
   markAsRead: async (notificationId) => {
     try {
-      const response = await apiClient.put(`/notifications/${notificationId}/read`);
+      const response = await apiClient.patch(`/notifications/${notificationId}/read`);
       return response.data;
     } catch (error) {
       console.error("[NotificationAPI] Mark as read error:", error);

@@ -209,11 +209,11 @@ export default function UserProfilePublic() {
                 <div className="stat-number">{formattedStats.posts}</div>
                 <div className="stat-label">bài viết</div>
               </div>
-              <div className="stat-item" onClick={() => navigate(`/profile/${userId}/followers`)}>
+              <div className="stat-item" onClick={() => navigate(`/profile/followers/${userId}`)}>
                 <div className="stat-number">{formattedStats.followers}</div>
                 <div className="stat-label">người theo dõi</div>
               </div>
-              <div className="stat-item" onClick={() => navigate(`/profile/${userId}/following`)}>
+              <div className="stat-item" onClick={() => navigate(`/profile/following/${userId}`)}>
                 <div className="stat-number">{formattedStats.following}</div>
                 <div className="stat-label">đang theo dõi</div>
               </div>
