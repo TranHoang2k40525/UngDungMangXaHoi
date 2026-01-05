@@ -179,6 +179,7 @@ DEPLOY_SCRIPT_EOF
               
               # Run deployment via Docker container with WSL2 path mounted
               # This works because Docker Desktop can access WSL2 via //wsl.localhost
+              echo "Starting deployment container..."
               docker run --rm \
                 -v /var/run/docker.sock:/var/run/docker.sock \
                 -v //wsl.localhost/${WSL_DISTRO}${PROD_DIR}:/workspace \
@@ -191,7 +192,12 @@ DEPLOY_SCRIPT_EOF
                 -e "COMPOSE_FILES=${COMPOSE_FILES}" \
                 -w /workspace \
                 docker/compose:debian-1.29.2 \
-                sh /deploy.sh
+                bash /deploy.sh || {
+                  echo "ERROR: Deployment script failed!"
+                  echo "Checking WSL2 mount accessibility..."
+                  docker run --rm -v //wsl.localhost/${WSL_DISTRO}${PROD_DIR}:/workspace alpine ls -la /workspace | head -20
+                  exit 1
+                }
               
               # Cleanup sensitive files
               rm -f /tmp/deploy-wsl2.sh /tmp/ssh_key ~/.ssh/id_rsa
