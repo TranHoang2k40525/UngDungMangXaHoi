@@ -48,6 +48,7 @@ const Profile = () => {
   const getAvatarUri = useMemo(() => {
     return (p) => {
       const raw = p?.avatarUrl;
+      console.log('[Profile] getAvatarUri - raw avatarUrl:', raw, 'type:', typeof raw);
       if (!raw) return null;
       // ✅ FIX: Handle object avatarUrl
       if (typeof raw === 'object') {
@@ -55,11 +56,18 @@ const Profile = () => {
         if (!extracted) return null;
         const str = String(extracted);
         if (str.startsWith('http')) return str;
-        return `${API_BASE_URL}${str}`;
+        const fullUrl = `${API_BASE_URL}${str}`;
+        console.log('[Profile] Object avatarUrl converted to:', fullUrl);
+        return fullUrl;
       }
       const rawStr = String(raw);
-      if (rawStr.startsWith('http')) return rawStr;
-      return `${API_BASE_URL}${rawStr}`;
+      if (rawStr.startsWith('http')) {
+        console.log('[Profile] Already full URL:', rawStr);
+        return rawStr;
+      }
+      const fullUrl = `${API_BASE_URL}${rawStr}`;
+      console.log('[Profile] Relative URL converted to:', fullUrl);
+      return fullUrl;
     };
   }, []);
 
@@ -124,6 +132,7 @@ const Profile = () => {
           getMyPosts(),
           getProfile(),
         ]);
+        console.log('[Profile] Loaded profile data:', JSON.stringify(me, null, 2));
         if (mounted) {
           setPosts(Array.isArray(p) ? p : []);
           setProfile(me || null);

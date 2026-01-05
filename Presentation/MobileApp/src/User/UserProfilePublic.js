@@ -403,8 +403,8 @@ export default function UserProfilePublic() {
                 </Text>
               </TouchableOpacity>
             )}
-            {/* Chỉ hiện nút Nhắn tin khi 2 người follow lẫn nhau (mutual follow) */}
-            {isFollowing && isFollowingMe && (
+            {/* Hiện nút Nhắn tin cho tất cả người dùng (không cần mutual follow) */}
+            {!isBlocked && (
               <TouchableOpacity 
                 style={[styles.actionButton, styles.messageButton]} 
                 onPress={handleMessage}

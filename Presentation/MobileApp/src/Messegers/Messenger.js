@@ -57,9 +57,9 @@ export default function Messenger() {
     try {
       setLoading(true);
       
-      // Lấy danh sách conversations từ backend (không cần follow requirement nữa)
-      const mutualResponse = await MessageAPI.getMutualFollowers();
-      console.log('[Messenger] Conversations response:', mutualResponse);
+      // Get ALL 1:1 conversations (including with strangers)
+      const conversationsResponse = await MessageAPI.getConversations();
+      console.log('[Messenger] Conversations response:', conversationsResponse);
       
       // Load all following users for avatar bar (Facebook Messenger style)
       if (currentUserId) {
@@ -98,8 +98,8 @@ export default function Messenger() {
       }
       
       let oneToOneConversations = [];
-      if (mutualResponse.success && mutualResponse.data) {
-        oneToOneConversations = mutualResponse.data.map(conv => {
+      if (conversationsResponse.success && conversationsResponse.data) {
+        oneToOneConversations = conversationsResponse.data.map(conv => {
           let avatarUrl = conv.other_user_avatar_url;
           if (avatarUrl && !avatarUrl.startsWith('http')) {
             avatarUrl = `${API_BASE_URL}${avatarUrl}`;
