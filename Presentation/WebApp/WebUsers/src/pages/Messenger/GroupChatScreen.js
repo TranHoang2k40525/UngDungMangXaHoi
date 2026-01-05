@@ -7,7 +7,7 @@ import {
   API_BASE_URL,
 } from '../../api/Api';
 import ImageViewer from '../../Components/ImageViewer';
-import { MdArrowBack, MdClose } from 'react-icons/md';
+import { MdArrowBack, MdClose, MdInfo, MdSchedule, MdAttachFile, MdSend } from 'react-icons/md';
 import './GroupChatScreen.css';
 
 const EMOJI_LIST = [
@@ -632,7 +632,7 @@ export default function GroupChatScreen() {
           <p className="members-count">{members.length} thành viên</p>
         </div>
         <button className="info-button" onClick={() => navigate(`/messenger/group/${conversationId}/details`)}>
-          ℹ️
+          <MdInfo size={24} />
         </button>
       </div>
 
@@ -672,27 +672,27 @@ export default function GroupChatScreen() {
               {msg.messageType === 'text' && (
                 <div className={`message-bubble ${isEmojiOnly(msg.message) ? 'emoji-only' : ''}`}>
                   {msg.message}
-                  {msg.pending && <span className="pending-indicator">⏳</span>}
+                  {msg.pending && <span className="pending-indicator"><MdSchedule size={16} /></span>}
                 </div>
               )}
 
               {msg.messageType === 'image' && (
                 <div className="message-media" onClick={() => handleImageClick(msg)}>
                   <img src={getMediaUri(msg.mediaUri)} alt="Message" />
-                  {msg.pending && <span className="pending-indicator">⏳</span>}
+                  {msg.pending && <span className="pending-indicator"><MdSchedule size={16} /></span>}
                 </div>
               )}
 
               {msg.messageType === 'video' && (
                 <div className="message-media">
                   <video controls src={getMediaUri(msg.mediaUri)} />
-                  {msg.pending && <span className="pending-indicator">⏳</span>}
+                  {msg.pending && <span className="pending-indicator"><MdSchedule size={16} /></span>}
                 </div>
               )}
 
               {msg.messageType === 'file' && (
                 <div className="message-file">
-                  <span>📎 File đính kèm</span>
+                  <span><MdAttachFile size={20} /> File đính kèm</span>
                   <a href={getMediaUri(msg.mediaUri)} target="_blank" rel="noopener noreferrer">
                     Tải xuống
                   </a>
@@ -793,7 +793,7 @@ export default function GroupChatScreen() {
         />
 
         <button className="send-button" onClick={() => handleSend()} disabled={!message.trim()}>
-          ➤
+          <MdSend size={24} />
         </button>
       </div>
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getFollowing, createGroup } from '../../api/Api';
-import { MdGroup, MdSearch } from 'react-icons/md';
+import { MdGroup, MdSearch, MdPerson, MdCheck, MdClose } from 'react-icons/md';
 import './CreateGroupScreen.css';
 
 export default function CreateGroupScreen() {
@@ -145,7 +145,7 @@ export default function CreateGroupScreen() {
             <img src={avatarUrl} alt={item.fullName} className="create-group-avatar" />
           ) : (
             <div className="create-group-avatar-placeholder">
-              <i className="icon-person">👤</i>
+              <MdPerson size={24} color="#FFFFFF" />
             </div>
           )}
           <div className="create-group-user-info">
@@ -155,7 +155,7 @@ export default function CreateGroupScreen() {
         </div>
         
         <div className={`create-group-checkbox ${isSelected ? 'selected' : ''}`}>
-          {isSelected && <span>✓</span>}
+          {isSelected && <MdCheck size={18} color="#FFFFFF" />}
         </div>
       </div>
     );
@@ -170,7 +170,7 @@ export default function CreateGroupScreen() {
           onClick={() => toggleMember(member)}
           className="create-group-remove-chip"
         >
-          ✕
+          <MdClose size={16} />
         </button>
       </div>
     );
@@ -235,7 +235,7 @@ export default function CreateGroupScreen() {
         />
         {searchQuery.length > 0 && (
           <button onClick={() => setSearchQuery('')} className="create-group-clear-button">
-            ✕
+            <MdClose size={20} />
           </button>
         )}
       </div>

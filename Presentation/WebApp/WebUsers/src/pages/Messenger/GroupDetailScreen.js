@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { getGroupInfo, getGroupMembers, API_BASE_URL } from '../../api/Api';
 import signalRService from '../../Services/signalRService';
-import { MdArrowBack } from 'react-icons/md';
+import { MdArrowBack, MdCameraAlt, MdPersonAdd, MdShield, MdPeople, MdPushPin, MdDelete, MdExitToApp } from 'react-icons/md';
 import './GroupDetailScreen.css';
 
 export default function GroupDetailScreen() {
@@ -356,14 +356,14 @@ export default function GroupDetailScreen() {
               src={getMediaUri(groupInfo?.avatarUrl)}
               alt={groupInfo?.name}
             />
-            <div className="camera-icon-badge">📷</div>
+            <div className="camera-icon-badge"><MdCameraAlt size={20} /></div>
           </div>
 
           <h2 className="group-name">{groupInfo?.name || groupName}</h2>
 
           <div className="group-actions-row">
             <button className="add-member-button" onClick={handleInviteMember}>
-              <span>👤+</span>
+              <span><MdPersonAdd size={24} /></span>
               <span>Thêm thành viên</span>
             </button>
 
@@ -392,7 +392,7 @@ export default function GroupDetailScreen() {
           </div>
 
           <div className="permission-info">
-            <span>{groupInfo?.invitePermission === 'admin' ? '🛡️' : '👥'}</span>
+            <span>{groupInfo?.invitePermission === 'admin' ? <MdShield size={24} /> : <MdPeople size={24} />}</span>
             <p>
               {groupInfo?.invitePermission === 'admin'
                 ? 'Chỉ admin mới có thể mời thành viên'
@@ -430,7 +430,7 @@ export default function GroupDetailScreen() {
             }
           >
             <div className="menu-icon-container" style={{ backgroundColor: '#D1FAE5' }}>
-              <span style={{ color: '#10B981' }}>📌</span>
+              <span style={{ color: '#10B981' }}><MdPushPin size={24} /></span>
             </div>
             <div className="menu-text-container">
               <p className="menu-title">Tin nhắn đã ghim</p>
@@ -461,7 +461,7 @@ export default function GroupDetailScreen() {
         {/* Leave/Delete Group Button */}
         <div className="danger-section">
           <button className="leave-button" onClick={handleLeaveGroup}>
-            <span>{isCreator ? '🗑️' : '🚪'}</span>
+            <span>{isCreator ? <MdDelete size={24} /> : <MdExitToApp size={24} />}</span>
             <span>{isCreator ? 'Xóa nhóm' : 'Rời khỏi nhóm'}</span>
           </button>
         </div>
