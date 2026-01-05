@@ -25,6 +25,7 @@ import {
 } from '../../api/Api';
 import { getRelativeTime } from '../../Utils/timeUtils';
 import NavigationBar from '../../Components/NavigationBar';
+import ReportModal from '../../Components/ReportModal';
 import './Home.css';
 
 // Story Components
@@ -224,6 +225,12 @@ export default function Home() {
   const [captionDraft, setCaptionDraft] = useState('');
   const [showReactionPicker, setShowReactionPicker] = useState(null);
   const [reactionPickerPosition, setReactionPickerPosition] = useState({ top: 0, left: 0 });
+  const [reportModal, setReportModal] = useState({
+    visible: false,
+    contentType: null,
+    contentId: null,
+    reportedUserId: null,
+  });
   const likeButtonRefs = useRef({});
   const postRefs = useRef({});
 
@@ -1350,7 +1357,18 @@ export default function Home() {
               }
               return (
                 <>
-                  <button className="sheet-item" onClick={closeAllOverlays}>Báo cáo</button>
+                  <button className="sheet-item" onClick={() => {
+                    const post = posts.find((p) => p.id === optionsPostId);
+                    if (post) {
+                      setReportModal({
+                        visible: true,
+                        contentType: "post",
+                        contentId: post.id,
+                        reportedUserId: post.user?.id || null,
+                      });
+                    }
+                    closeAllOverlays();
+                  }}>Báo cáo</button>
                   <button className="sheet-item" onClick={() => {
                     setPosts(prev => prev.filter(p => p.id !== optionsPostId));
                     closeAllOverlays();
@@ -1456,6 +1474,20 @@ export default function Home() {
           }}
         />
       )}
+
+      {/* Report Modal */}
+      <ReportModal
+        visible={reportModal.visible}
+        onClose={() => setReportModal({
+          visible: false,
+          contentType: null,
+          contentId: null,
+          reportedUserId: null,
+        })}
+        contentType={reportModal.contentType}
+        contentId={reportModal.contentId}
+        reportedUserId={reportModal.reportedUserId}
+      />
 
       <NavigationBar />
     </div>

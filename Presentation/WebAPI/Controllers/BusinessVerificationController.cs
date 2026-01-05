@@ -104,7 +104,7 @@ public class BusinessVerificationController : ControllerBase
                     gender = r.Accounts.User?.gender,
                     bio = r.Accounts.User?.bio,
                     avatarUrl = r.Accounts.User?.avatar_url,
-                    accountType = r.Accounts.account_type.ToString()
+                    accountType = "User"
                 },
                 // Thời hạn nâng quyền
                 upgrade = new
@@ -250,7 +250,6 @@ public class BusinessVerificationController : ControllerBase
             request.reviewed_notes = dto.AdminNote ?? "Đã phê duyệt";
 
             // Update account - set business verified
-            request.Accounts.account_type = AccountType.Business;
             request.Accounts.business_verified_at = DateTime.UtcNow;
             request.Accounts.business_expires_at = DateTime.UtcNow.AddYears(1); // Valid for 1 year
 

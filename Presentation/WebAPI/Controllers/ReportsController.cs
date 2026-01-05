@@ -351,7 +351,8 @@ public class ReportsController : ControllerBase
 
     /// <summary>
     /// [ADMIN] Reject a report (no violation found)
-    /// </summary>    [HttpPost("{id}/reject")]
+    /// </summary>
+    [HttpPost("{id}/reject")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> RejectReport(int id, [FromBody] RejectReportRequest request)
     {

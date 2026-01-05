@@ -230,7 +230,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
                 gender = user.gender.ToString(),
                 dateOfBirth = user.date_of_birth,
                 status = user.Account?.status ?? "Unknown",
-                accountType = user.Account?.account_type.ToString() ?? "User",
+                accountType = "User",
                 createdAt = user.Account?.created_at,
                 lastSeen = user.last_seen,
                 bio = user.bio,

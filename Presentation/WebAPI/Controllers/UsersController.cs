@@ -41,7 +41,8 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
             try
             {                var query = _context.Accounts
                     .Include(a => a.User)
-                    .Where(a => a.account_type != AccountType.Admin) // Exclude admin accounts
+                    .Include(a => a.Admin)
+                    .Where(a => a.Admin == null) // Exclude admin accounts
                     .AsQueryable();
 
                 // Status filter (apply in database)
@@ -114,7 +115,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
                     fullName = a.User?.full_name ?? "N/A",
                     status = a.status == "locked" ? "banned" : "active",
                     createdAt = a.created_at,
-                    accountType = a.account_type.ToString()
+                    accountType = "User"
                 }).ToList();
 
                 return Ok(new
@@ -157,7 +158,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
                     });
                 }
 
-                if (account.account_type == AccountType.Admin)
+                if (account.Admin != null)
                 {
                     return BadRequest(new
                     {
@@ -321,7 +322,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
                         fullName = account.User?.full_name ?? "N/A",
                         status = account.status == "locked" ? "banned" : "active",
                         createdAt = account.created_at,
-                        accountType = account.account_type.ToString(),
+                        accountType = "User",
                         bio = account.User?.bio,
                         dateOfBirth = account.User?.date_of_birth,
                         gender = account.User?.gender,
