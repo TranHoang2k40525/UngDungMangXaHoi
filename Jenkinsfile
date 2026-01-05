@@ -3,9 +3,7 @@ pipeline {
 
   parameters {
     string(name: 'DOCKER_NAMESPACE', defaultValue: 'minhvu0809', description: 'Docker Hub username')
-    string(name: 'PROD_HOST', defaultValue: 'host.docker.internal', description: 'Production server IP/hostname')
-    string(name: 'PROD_DIR', defaultValue: '/home/minhvu/ungdungmxh', description: 'Production deployment directory in WSL2')
-    string(name: 'WSL_DISTRO', defaultValue: 'Ubuntu', description: 'WSL2 distribution name')
+    string(name: 'PROD_DIR', defaultValue: '/home/minhvu/ungdungmxh', description: 'Production deployment directory (for reference only)')
     booleanParam(name: 'USE_CLOUDFLARE_TUNNEL', defaultValue: true, description: 'Deploy with Cloudflare Tunnel')
   }
 
@@ -81,9 +79,7 @@ pipeline {
     stage('Deploy to production') {
       steps {
         script {
-          def PROD_HOST = params.PROD_HOST
           def PROD_DIR = params.PROD_DIR
-          def WSL_DISTRO = params.WSL_DISTRO
           def USE_TUNNEL = params.USE_CLOUDFLARE_TUNNEL
           
           // Compose files to use
@@ -92,40 +88,29 @@ pipeline {
             COMPOSE_FILES = "${COMPOSE_FILES} -f docker-compose.tunnel.yml"
           }
           
-          echo "Deploying to ${PROD_HOST}:${PROD_DIR}"
+          echo "Deploying to WSL2:${PROD_DIR}"
           echo "Using Cloudflare Tunnel: ${USE_TUNNEL}"
           
-          // Build deployment command for WSL2
-          def DEPLOY_CMD = """
-            wsl -d ${WSL_DISTRO} -- bash -lc '
-              cd ${PROD_DIR} &&
-              git reset --hard &&
-              git pull origin main &&
-              export WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE} &&
-              export WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE} &&
-              export WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE} &&
-              docker-compose ${COMPOSE_FILES} pull &&
-              docker-compose ${COMPOSE_FILES} up -d --remove-orphans &&
-              docker-compose ${COMPOSE_FILES} ps
-            '
-          """.trim()
-          
-          // Execute deployment
-          // If Jenkins runs on the same Windows machine, execute directly
-          // Otherwise, SSH to Windows host first
-          if (PROD_HOST == 'host.docker.internal' || PROD_HOST == 'localhost') {
-            // Direct execution (Jenkins on same machine)
-            echo "Executing deployment directly on local WSL2..."
-            bat DEPLOY_CMD
-          } else {
-            // SSH to remote Windows host and execute WSL command
-            withCredentials([sshUserPrivateKey(credentialsId: 'prod-ssh-key', keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER')]) {
-              echo "Executing deployment via SSH to ${PROD_HOST}..."
-              sh """
-                ssh -i \${SSH_KEY} -o StrictHostKeyChecking=no \${SSH_USER}@${PROD_HOST} '${DEPLOY_CMD}'
-              """
-            }
-          }
+          // Execute deployment commands directly in WSL2 via shared Docker socket
+          // Jenkins container can communicate with WSL2 Docker via mounted socket
+          sh """
+            cd /tmp
+            git clone https://github.com/TranHoang2k40525/UngDungMangXaHoi.git deploy-temp || true
+            cd deploy-temp
+            git reset --hard
+            git pull origin main
+            
+            export WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE}
+            export WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE}
+            export WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE}
+            
+            docker-compose ${COMPOSE_FILES} pull
+            docker-compose ${COMPOSE_FILES} up -d --remove-orphans
+            docker-compose ${COMPOSE_FILES} ps
+            
+            cd /tmp
+            rm -rf deploy-temp
+          """
         }
       }
     }
