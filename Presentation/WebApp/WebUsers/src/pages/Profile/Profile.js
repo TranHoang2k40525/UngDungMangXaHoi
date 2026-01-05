@@ -88,6 +88,8 @@ export default function Profile() {
       
       console.log('[Profile] Posts data:', p);
       console.log('[Profile] Profile data:', me);
+      console.log('[Profile] accountType:', me?.accountType);
+      console.log('[Profile] Is Business?', me?.accountType?.toLowerCase() === 'business');
       
       setPosts(Array.isArray(p) ? p : []);
       setProfile(me || null);
@@ -173,7 +175,7 @@ export default function Profile() {
         <div className="profile-header-left">
           {profile?.isPrivate && <span className="lock-icon"><MdLock size={16} /></span>}
           <span className="profile-username">{profile?.username || 'username'}</span>
-          {profile?.accountType === 'Business' && <span className="verified-badge">✓</span>}
+          {(profile?.accountType?.toLowerCase() === 'business' || profile?.AccountType?.toLowerCase() === 'business') && <span className="verified-badge">✓</span>}
           <span className="chevron-down">▼</span>
         </div>
       </div>
@@ -184,7 +186,7 @@ export default function Profile() {
           <div className="menu-sheet" onClick={(e) => e.stopPropagation()}>
             <button className="menu-item" onClick={() => { setMenuOpen(false); navigate('/profile/edit'); }}>Xem/Chỉnh sửa thông tin</button>
             <button className="menu-item" onClick={() => { setMenuOpen(false); navigate('/change-password'); }}>Đổi mật khẩu</button>
-            {profile?.accountType !== 'Business' && (
+            {profile?.accountType?.toLowerCase() !== 'business' && (
               <button className="menu-item" onClick={() => { setMenuOpen(false); }}>Đăng ký tài khoản doanh nghiệp</button>
             )}
             <button className="menu-item" onClick={() => { setMenuOpen(false); setBlockedListVisible(true); }}>Danh sách chặn</button>

@@ -1224,10 +1224,20 @@ export default function Reels() {
                     });
                   }
                 }}
+                style={{ flexDirection: 'row', alignItems: 'center' }}
               >
                 <Text style={styles.username}>
                   @{item?.user?.username || "user"}
                 </Text>
+                {/* Verified badge for Business accounts */}
+                {(item?.isSponsored || item?.user?.accountType === "Business") && (
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={16}
+                    color="#0095f6"
+                    style={{ marginLeft: 4 }}
+                  />
+                )}
               </TouchableOpacity>
 
               {/* Tagged Users */}

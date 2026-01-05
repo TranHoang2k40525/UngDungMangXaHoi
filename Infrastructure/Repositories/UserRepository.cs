@@ -26,6 +26,8 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         {
             return await _context.Users
                 .Include(u => u.Account)
+                    .ThenInclude(a => a.AccountRoles)
+                        .ThenInclude(ar => ar.Role)
                 .FirstOrDefaultAsync(u => u.user_id == id);
         }
 
@@ -33,6 +35,8 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         {
             return await _context.Users
                 .Include(u => u.Account)
+                    .ThenInclude(a => a.AccountRoles)
+                        .ThenInclude(ar => ar.Role)
                 .FirstOrDefaultAsync(u => u.account_id == accountId);
         }
 
@@ -40,6 +44,8 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         {
             return await _context.Users
                 .Include(u => u.Account)
+                    .ThenInclude(a => a.AccountRoles)
+                        .ThenInclude(ar => ar.Role)
                 .FirstOrDefaultAsync(u => u.Account.email != null && u.Account.email!.Value.ToLower() == email!.Value.ToLower());
         }
 
@@ -47,6 +53,8 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         {
             return await _context.Users
                 .Include(u => u.Account)
+                    .ThenInclude(a => a.AccountRoles)
+                        .ThenInclude(ar => ar.Role)
                 .FirstOrDefaultAsync(u => u.username.Value == userName.Value);
         }
 
@@ -54,6 +62,8 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         {
             return await _context.Users
                 .Include(u => u.Account)
+                    .ThenInclude(a => a.AccountRoles)
+                        .ThenInclude(ar => ar.Role)
                 .FirstOrDefaultAsync(u => u.username != null && u.username.Value.ToLower() == username.ToLower());
         }
 
@@ -61,6 +71,8 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         {
             return await _context.Users
                 .Include(u => u.Account)
+                    .ThenInclude(a => a.AccountRoles)
+                        .ThenInclude(ar => ar.Role)
                 .Where(u => u.Account.status == "active")
                 .OrderBy(u => u.Account.created_at)
                 .ToListAsync();
@@ -70,6 +82,8 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         {
             return await _context.Users
                 .Include(u => u.Account)
+                    .ThenInclude(a => a.AccountRoles)
+                        .ThenInclude(ar => ar.Role)
                 .Where(u => userIds.Contains(u.user_id) && u.Account.status == "active")
                 .ToListAsync();
         }

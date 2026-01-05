@@ -7,7 +7,7 @@ import { Platform } from "react-native";
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
 // Nếu test trên máy tính: dùng localhost
 // Nếu test trên điện thoại thật: dùng IP của máy tính (xem bằng ipconfig)
-export const API_BASE_URL = "http://10.62.201.105:5297"; // Backend đang chạy trên IP máy tính
+export const API_BASE_URL = "http://192.168.1.101:5297"; // Backend đang chạy trên IP máy tính
 
 // Hàm helper để gọi API
 const apiCall = async (endpoint, options = {}) => {
@@ -335,6 +335,9 @@ export const getProfile = async () => {
     method: "GET",
     headers,
   });
+  console.log('[API] getProfile RAW result:', JSON.stringify(result, null, 2));
+  console.log('[API] getProfile result.data:', JSON.stringify(result?.data, null, 2));
+  console.log('[API] getProfile accountType:', result?.data?.accountType);
   // API trả { message, data }
   return result?.data || null;
 };
@@ -1722,3 +1725,104 @@ export const deleteShare = async (shareId) => {
     throw error;
   }
 };
+
+// ==================== REPORT APIs ====================
+
+/**
+ * Create a new report
+ * @param {Object} reportData - Report data
+ * @param {number} reportData.reportedUserId - ID of reported user (optional)
+ * @param {string} reportData.contentType - Type: "post", "comment", "user", "message"
+ * @param {number} reportData.contentId - ID of content (optional)
+ * @param {string} reportData.reason - Reason for report
+ * @param {string} reportData.description - Additional description (optional)
+ * @returns {Promise<Object>} Report response
+ */
+export const createReport = async (reportData) => {
+  try {
+    const headers = await getAuthHeaders();
+    
+    console.log("[API] createReport request:", reportData);
+
+    const response = await fetch(`${API_BASE_URL}/api/reports`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        ReportedUserId: reportData.reportedUserId || null,
+        ContentType: reportData.contentType,
+        ContentId: reportData.contentId || null,
+        Reason: reportData.reason,
+        Description: reportData.description || null,
+      }),
+    });
+
+    const responseText = await response.text();
+    let result = null;
+
+    try {
+      result = responseText ? JSON.parse(responseText) : null;
+    } catch (parseError) {
+      console.warn("[API] createReport parse error:", parseError);
+      throw new Error("Server trả về dữ liệu không hợp lệ");
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        result?.message || `HTTP error! status: ${response.status}`
+      );
+    }
+
+    console.log("[API] createReport success:", result);
+    return result;
+  } catch (error) {
+    console.log("[API] createReport error:", error);
+    throw error;
+  }
+};
+
+/**
+ * Get user violation statistics
+ * @param {number} userId - User ID
+ * @returns {Promise<Object>} User stats
+ */
+export const getUserViolationStats = async (userId) => {
+  try {
+    const headers = await getAuthHeaders();
+
+    const response = await fetch(
+      `${API_BASE_URL}/api/reports/user/${userId}/stats`,
+      {
+        method: "GET",
+        headers: {
+          ...headers,
+          Accept: "application/json",
+        },
+      }
+    );
+
+    const responseText = await response.text();
+    let result = null;
+
+    try {
+      result = responseText ? JSON.parse(responseText) : null;
+    } catch (parseError) {
+      console.warn("[API] getUserViolationStats parse error:", parseError);
+      return null;
+    }
+
+    if (!response.ok) {
+      console.warn("[API] getUserViolationStats failed:", response.status);
+      return null;
+    }
+
+    return result?.data || null;
+  } catch (error) {
+    console.log("[API] getUserViolationStats error:", error);
+    return null;
+  }
+};
+

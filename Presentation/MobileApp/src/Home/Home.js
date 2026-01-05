@@ -1,20 +1,20 @@
 // Home.js (Fixed: No duplicate friends, proper mutual follow detection)
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
-  View,
-  Text,
-  Image,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  FlatList,
-  Platform,
-  PermissionsAndroid,
-  Share,
-  KeyboardAvoidingView,
-  Modal,
-  Alert,
-  ScrollView,
+    View,
+    Text,
+    Image,
+    TextInput,
+    TouchableOpacity,
+    StyleSheet,
+    FlatList,
+    Platform,
+    PermissionsAndroid,
+    Share,
+    KeyboardAvoidingView,
+    Modal,
+    Alert,
+    ScrollView,
 } from "react-native";
 import { RefreshControl } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -28,27 +28,30 @@ import CommentsModal from "./CommentsModal";
 import ReactionPicker, { getReactionEmoji } from "./ReactionPicker";
 import ReactionsListModal from "./ReactionsListModal";
 import SharePostModal from "./SharePostModal";
+
+import ReportModal from "../Components/ReportModal";
+
 import ImageViewer from "react-native-image-zoom-viewer";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import {
-  getFeed,
-  updatePostPrivacy,
-  updatePostCaption,
-  deletePost,
-  getProfile,
-  getFollowing,
-  getFollowers,
-  updatePostTags,
-  followUser,
-  unfollowUser,
-  addReaction,
-  getReactionSummary,
-  getCommentCount,
-  API_BASE_URL,
-  getFeedStories,
+    getFeed,
+    updatePostPrivacy,
+    updatePostCaption,
+    deletePost,
+    getProfile,
+    getFollowing,
+    getFollowers,
+    updatePostTags,
+    followUser,
+    unfollowUser,
+    addReaction,
+    getReactionSummary,
+    getCommentCount,
+    API_BASE_URL,
+    getFeedStories,
 } from "../API/Api";
 import { Ionicons } from "@expo/vector-icons";
 import { VideoView, useVideoPlayer } from "expo-video";
@@ -57,32 +60,32 @@ import notificationSignalRService from "../ServicesSingalR/notificationService";
 
 // Component wrapper cho video thumbnail trong feed
 const VideoThumbnail = React.memo(({ videoUrl, style, onPress }) => {
-  const player = useVideoPlayer(videoUrl, (p) => {
-    if (p) {
-      p.muted = true;
-      p.loop = false;
-    }
-  });
-  return (
-    <TouchableOpacity activeOpacity={0.9} onPress={onPress}>
-      <VideoView
-        style={style}
-        player={player}
-        contentFit="cover"
-        nativeControls={false}
-      />
-      <View style={styles.playOverlay} pointerEvents="none">
-        <Ionicons name="play" size={36} color="#fff" />
-      </View>
-    </TouchableOpacity>
-  );
+    const player = useVideoPlayer(videoUrl, (p) => {
+        if (p) {
+            p.muted = true;
+            p.loop = false;
+        }
+    });
+    return (
+        <TouchableOpacity activeOpacity={0.9} onPress={onPress}>
+            <VideoView
+                style={style}
+                player={player}
+                contentFit="cover"
+                nativeControls={false}
+            />
+            <View style={styles.playOverlay} pointerEvents="none">
+                <Ionicons name="play" size={36} color="#fff" />
+            </View>
+        </TouchableOpacity>
+    );
 });
-
 const PostImagesCarousel = ({ images = [] }) => {
   const [index, setIndex] = useState(0);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const imageWidth = 400;
+  
   const openViewer = (idx) => {
     setViewerIndex(idx);
     setViewerVisible(true);
@@ -132,17 +135,25 @@ const PostImagesCarousel = ({ images = [] }) => {
           setIndex(Math.max(0, Math.round(x / w)));
         }}
       />
+      
+      {/* Image counter overlay */}
       <View style={styles.imageCounter}>
         <Text style={styles.imageCounterText}>
           {index + 1}/{images.length}
         </Text>
       </View>
+      
+      {/* Dots indicator */}
       <View style={styles.dotsContainer}>
         {images.map((_, i) => (
-          <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
+          <View 
+            key={i} 
+            style={[styles.dot, i === index && styles.dotActive]} 
+          />
         ))}
       </View>
-      {/* ImageViewer modal */}
+      
+      {/* ImageViewer modal for fullscreen view */}
       {viewerVisible && (
         <Modal
           visible={viewerVisible}
@@ -186,14 +197,14 @@ const PostImagesCarousel = ({ images = [] }) => {
 };
 
 export default function Home() {
-  const insets = useSafeAreaInsets();
-  const BOTTOM_NAV_HEIGHT = 0;
-  const { markAsFollowed, markAsUnfollowed, isFollowed } = useFollow();
-  // Per-post local UI state (likes/shares/comments counts)
-  const [postStates, setPostStates] = useState({}); // { [postId]: { liked, likes, shares, comments } }
+    const insets = useSafeAreaInsets();
+    const BOTTOM_NAV_HEIGHT = 0;
+    const { markAsFollowed, markAsUnfollowed, isFollowed } = useFollow();
+    // Per-post local UI state (likes/shares/comments counts)
+    const [postStates, setPostStates] = useState({}); // { [postId]: { liked, likes, shares, comments } }
 
-  // Track posts that recently had reaction changes (to prevent refresh overwrite)
-  const recentReactionChanges = useRef({});
+    // Track posts that recently had reaction changes (to prevent refresh overwrite)
+    const recentReactionChanges = useRef({});
 
   const renderSingleImageViewer = () =>
     singleViewerVisible && singleViewerUrl ? (
@@ -280,6 +291,12 @@ export default function Home() {
   const [sharePost, setSharePost] = useState(null);
   const [singleViewerVisible, setSingleViewerVisible] = useState(false);
   const [singleViewerUrl, setSingleViewerUrl] = useState(null);
+  const [reportModal, setReportModal] = useState({
+        visible: false,
+        contentType: null,
+        contentId: null,
+        reportedUserId: null,
+    });
   const longPressTimer = useRef(null);
   const navigation = useNavigation();
   const route = useRoute();
@@ -2453,7 +2470,16 @@ export default function Home() {
                   <TouchableOpacity
                     style={styles.sheetItem}
                     onPress={() => {
-                      /* TODO: report */ closeAllOverlays();
+                      const post = posts.find((p) => p.id === optionsPostId);
+                      if (post) {
+                        setReportModal({
+                          visible: true,
+                          contentType: "post",
+                          contentId: post.id,
+                          reportedUserId: post.user?.id || null,
+                        });
+                      }
+                      closeAllOverlays();
                     }}
                   >
                     <Text style={styles.sheetItemText}>Báo cáo</Text>
@@ -2543,6 +2569,21 @@ export default function Home() {
         post={sharePost}
         onShareSuccess={handleShareSuccess}
       />
+      
+      {/* Report Modal */}
+      <ReportModal
+        visible={reportModal.visible}
+        onClose={() => setReportModal({
+          visible: false,
+          contentType: null,
+          contentId: null,
+          reportedUserId: null,
+        })}
+        contentType={reportModal.contentType}
+        contentId={reportModal.contentId}
+        reportedUserId={reportModal.reportedUserId}
+      />
+      
       {renderSingleImageViewer()}
     </SafeAreaView>
   );

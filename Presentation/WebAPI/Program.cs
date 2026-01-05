@@ -11,6 +11,7 @@ using UngDungMangXaHoi.Application.Services;
 using UngDungMangXaHoi.WebAPI.Services;
 using UngDungMangXaHoi.Application.UseCases.Users;
 using UngDungMangXaHoi.Domain.Interfaces;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.FileProviders;
 using UngDungMangXaHoi.Presentation.WebAPI.Hubs;
@@ -37,11 +38,13 @@ catch (Exception)
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
+        // Convert property names to camelCase for frontend (logs, totalActions, etc.)
+        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         // Allow enums to be (de)serialized from/to strings so frontend can send 'Nam'/'Nữ'/'Khác'
         // options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-        // Use camelCase naming so frontend JS can access properties with conventional camelCase keys
-        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        // ✅ FIX VIETNAMESE ENCODING: Ensure UTF-8 encoding for Vietnamese characters
+        options.JsonSerializerOptions.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
     });
 //
 builder.Services.AddEndpointsApiExplorer();
@@ -261,6 +264,7 @@ builder.Services.AddScoped<IBusinessUpgradeService, BusinessUpgradeService>();
 builder.Services.AddScoped<UngDungMangXaHoi.Application.Services.PostsService>();
 builder.Services.AddScoped<UngDungMangXaHoi.Application.Services.UserService>();
 builder.Services.AddScoped<UngDungMangXaHoi.Application.Services.AdminService>();
+builder.Services.AddScoped<IAdminActivityLogService, AdminActivityLogService>(); // ✅ Admin Activity Log Service
 builder.Services.AddHttpClient<IMoMoPaymentService, MoMoPaymentService>();
 
 // Dịch vụ chạy nền để dọn Story hết hạn

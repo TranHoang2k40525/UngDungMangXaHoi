@@ -602,6 +602,10 @@ export default function Video() {
                             </div>
                           )}
                           <span className="video-user-name">{reel.user?.username || 'Unknown'}</span>
+                          {/* Verified badge for Business accounts */}
+                          {(reel?.isSponsored || reel?.user?.accountType === "Business") && (
+                            <span className="verified-badge-inline">✓</span>
+                          )}
                         </div>
                         {reel.caption && (
                           <p className="video-caption">{reel.caption}</p>

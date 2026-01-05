@@ -12,12 +12,23 @@ namespace UngDungMangXaHoi.Domain.Entities
             Approved,
             Rejected,
             Expired
-        }
-    public class BusinessVerificationRequest
+        }    public class BusinessVerificationRequest
     {
         
         public int request_id { get; set; }
         public int account_id { get; set; }
+        
+        // ✅ Business Information Fields
+        public string? business_name { get; set; }
+        public string? owner_name { get; set; }
+        public string? tax_code { get; set; }
+        public string? business_type { get; set; }
+        public string? phone_number { get; set; }
+        public string? address { get; set; }
+        public string? website { get; set; }
+        public string? description { get; set; }
+        
+        // Verification Fields
         public DateTime submitted_at { get; set; }
         public VerificationStatus status { get; set; } = VerificationStatus.Pending;
         public string? documents_url { get; set; } // URL to uploaded verification documents
@@ -25,6 +36,8 @@ namespace UngDungMangXaHoi.Domain.Entities
         public DateTime? reviewed_at { get; set; } // When the admin reviewed the request
         public string? reviewed_notes { get; set; } // Admin notes on the verification
         public DateTime? expires_at { get; set; } // When the verification expires
+        
+        // Navigation Properties
         public Account Accounts { get; set; } = null!;
         public Admin? AssignedAdmin { get; set; }
     }

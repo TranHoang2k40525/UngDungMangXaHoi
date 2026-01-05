@@ -1105,3 +1105,47 @@ export const uploadGroupAvatar = async (conversationId, file) => {
 
   return json;
 };
+
+// ==================== REPORT APIs ====================
+/**
+ * Create a new report
+ * @param {Object} reportData - Report data
+ * @param {number} reportData.reportedUserId - ID of reported user (optional)
+ * @param {string} reportData.contentType - Type: "post", "comment", "user", "message"
+ * @param {number} reportData.contentId - ID of content (optional)
+ * @param {string} reportData.reason - Reason for report
+ * @param {string} reportData.description - Additional description (optional)
+ * @returns {Promise<Object>} Report response
+ */
+export const createReport = async (reportData) => {
+  const headers = getAuthHeaders();
+  console.log("[API] createReport request:", reportData);
+
+  return await apiCall("/api/reports", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      ReportedUserId: reportData.reportedUserId || null,
+      ContentType: reportData.contentType,
+      ContentId: reportData.contentId || null,
+      Reason: reportData.reason,
+      Description: reportData.description || null,
+    }),
+  });
+};
+
+/**
+ * Get user violation statistics
+ * @param {number} userId - User ID
+ * @returns {Promise<Object>} Violation stats
+ */
+export const getUserViolationStats = async (userId) => {
+  const headers = getAuthHeaders();
+  console.log("[API] getUserViolationStats for user:", userId);
+
+  return await apiCall(`/api/reports/user/${userId}/stats`, {
+    method: "GET",
+    headers,
+  });
+};
+
