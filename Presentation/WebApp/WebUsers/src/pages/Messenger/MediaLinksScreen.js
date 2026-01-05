@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { MdClose } from 'react-icons/md';
+import { MdClose, MdPlayCircle, MdLink } from 'react-icons/md';
 import './MediaLinksScreen.css';
 // import * as groupChatService from '../../Services/groupChatService';
 
@@ -191,7 +191,7 @@ export default function MediaLinksScreen() {
         className="media-thumb"
       />
       <div className="video-overlay">
-        <span className="play-icon">▶️</span>
+        <span className="play-icon"><MdPlayCircle size={32} /></span>
       </div>
     </div>
   );
@@ -203,7 +203,7 @@ export default function MediaLinksScreen() {
       onClick={() => handleLinkPress(linkItem.url)}
     >
       <div className="link-icon-container">
-        <span className="link-icon">🔗</span>
+        <span className="link-icon"><MdLink size={24} /></span>
       </div>
       
       <div className="link-info">
@@ -274,7 +274,7 @@ export default function MediaLinksScreen() {
         if (links.length === 0) {
           return (
             <div className="empty-container">
-              <div className="empty-icon">🔗</div>
+              <div className="empty-icon"><MdLink size={48} /></div>
               <div className="empty-text">Chưa có liên kết nào</div>
             </div>
           );
@@ -339,7 +339,7 @@ export default function MediaLinksScreen() {
           className={`tab ${activeTab === 'links' ? 'active-tab' : ''}`}
           onClick={() => setActiveTab('links')}
         >
-          <span className="tab-icon">🔗</span>
+          <span className="tab-icon"><MdLink size={20} /></span>
           <span className="tab-text">Liên kết</span>
           {links.length > 0 && (
             <span className="badge">{links.length}</span>

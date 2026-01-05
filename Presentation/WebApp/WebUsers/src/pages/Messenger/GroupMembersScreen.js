@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { getGroupMembers, API_BASE_URL, getGroupInfo } from '../../api/Api';
-import { MdArrowBack, MdClose, MdGroup, MdSearch } from 'react-icons/md';
+import { MdArrowBack, MdClose, MdGroup, MdSearch, MdShield } from 'react-icons/md';
 import './GroupMembersScreen.css';
 
 export default function GroupMembersScreen() {
@@ -271,7 +271,7 @@ export default function GroupMembersScreen() {
                 <img src={getAvatarUri(member.avatar)} alt={member.fullName} />
                 {member.role === 'admin' && (
                   <div className="admin-badge">
-                    <span>🛡️</span>
+                    <span><MdShield size={16} /></span>
                   </div>
                 )}
               </div>

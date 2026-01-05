@@ -574,8 +574,8 @@ export default function Messenger() {
           </button>
           <h1 className="header-title">{currentUserName || 'Messages'}</h1>
           <div className="header-actions">
-            <button className="group-button" onClick={() => navigate('/group-list')}>
-              👥
+            <button className="group-button" onClick={() => navigate('/messenger/create-group')} title="Tạo nhóm chat">
+              <MdGroup size={24} />
             </button>
             <button className="compose-button"></button>
           </div>
