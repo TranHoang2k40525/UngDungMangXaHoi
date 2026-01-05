@@ -106,15 +106,17 @@ pipeline {
               chmod 600 ~/.ssh/id_rsa
               ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
               
-              # Deploy directly to WSL2 path (Docker-accessible)
-              cd /home/minhvu/ungdungmxh
-              git reset --hard
-              GIT_SSH_COMMAND='ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no' \
-                git pull origin main
+              # Use Jenkins WORKSPACE (mounted to host, Docker can access)
+              # This avoids the "bind source path does not exist" error
+              cd \${WORKSPACE}
+              
+              # Already checked out by Jenkins, just ensure we're on latest
+              git reset --hard HEAD
               
               # Create secrets directory with db_password from Jenkins Credentials
-              # Note: SQL Server container 'ungdungmxh-sqlserver-prod' already running in WSL2
-              # Only deploying application containers: webapi, webapp, webadmins
+              # SQL Server container 'ungdungmxh-sqlserver-prod' uses volume 'sqlserver-prod-data'
+              # Applications connect via service name 'sqlserver' in Docker network
+              # Only deploying application containers: webapi, webapp, webadmins, cloudflared
               echo "Creating db_password secret for deployment..."
               mkdir -p secrets
               echo "\${DB_PASSWORD}" > secrets/db_password.txt
@@ -136,14 +138,14 @@ pipeline {
               # Create network if not exists
               docker network create app-network 2>/dev/null || true
               
-              # Deploy only application containers (exclude SQL Server - already running)
-              docker-compose ${COMPOSE_FILES} pull webapi webapp webadmins cloudflared
-              docker-compose ${COMPOSE_FILES} up -d --remove-orphans webapi webapp webadmins cloudflared
+              # Deploy all services including SQL Server
+              # SQL Server will use existing volume 'sqlserver-prod-data' if available
+              docker-compose ${COMPOSE_FILES} pull sqlserver webapi webapp webadmins cloudflared
+              docker-compose ${COMPOSE_FILES} up -d --remove-orphans sqlserver webapi webapp webadmins cloudflared
               docker-compose ${COMPOSE_FILES} ps
               
-              # Cleanup
-              cd /tmp
-              rm -rf deploy-temp ~/.ssh/id_rsa
+              # Cleanup sensitive files only
+              rm -f ~/.ssh/id_rsa
             """
           }
         }
