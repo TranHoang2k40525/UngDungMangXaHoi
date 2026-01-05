@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
+import { getProfile } from '../api/Api';
 import { 
   IoHomeOutline, IoHome,
   IoSearchOutline, IoSearch,
@@ -16,8 +17,25 @@ import './NavigationBar.css';
 export default function NavigationBar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useUser();
+  const { logout, user } = useUser();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profile, setProfile] = useState(null);
+
+  useEffect(() => {
+    loadProfile();
+  }, [user]);
+
+  const loadProfile = async () => {
+    try {
+      const data = await getProfile();
+      console.log('[NavigationBar] Profile loaded:', data);
+      console.log('[NavigationBar] accountType:', data?.accountType);
+      console.log('[NavigationBar] Is Business?', data?.accountType?.toLowerCase() === 'business');
+      setProfile(data);
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    }
+  };
 
   return (
     <div className="left-nav-bar">
@@ -99,7 +117,9 @@ export default function NavigationBar() {
           <div className="menu-sheet" onClick={(e) => e.stopPropagation()}>
             <button className="menu-item" onClick={() => { setMenuOpen(false); navigate('/profile/edit'); }}>Xem/Chỉnh sửa thông tin</button>
             <button className="menu-item" onClick={() => { setMenuOpen(false); navigate('/change-password'); }}>Đổi mật khẩu</button>
-            <button className="menu-item" onClick={() => { setMenuOpen(false); }}>Đăng ký tài khoản doanh nghiệp</button>
+            {profile?.accountType?.toLowerCase() !== 'business' && (
+              <button className="menu-item" onClick={() => { setMenuOpen(false); }}>Đăng ký tài khoản doanh nghiệp</button>
+            )}
             <button className="menu-item" onClick={() => { setMenuOpen(false); navigate('/blocked-users'); }}>Danh sách chặn</button>
             <button className="menu-item danger" onClick={() => { setMenuOpen(false); logout(); }}>Đăng xuất</button>
           </div>

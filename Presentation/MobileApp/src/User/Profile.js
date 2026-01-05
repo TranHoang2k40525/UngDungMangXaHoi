@@ -141,6 +141,8 @@ const Profile = () => {
           getProfile(),
         ]);
         console.log('[Profile] Loaded profile data:', JSON.stringify(me, null, 2));
+        console.log('[Profile] accountType:', me?.accountType);
+        console.log('[Profile] Is Business?', me?.accountType?.toLowerCase() === 'business');
         if (mounted) {
           setPosts(Array.isArray(p) ? p : []);
           setProfile(me || null);
@@ -341,7 +343,7 @@ const Profile = () => {
               <Text style={styles.menuText}>Đổi mật khẩu</Text>
             </TouchableOpacity>
             {/* CHỈ hiển thị nút đăng ký Business nếu tài khoản hiện tại là User */}
-            {profile?.accountType !== "Business" && (
+            {profile?.accountType?.toLowerCase() !== "business" && (
               <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); navigation.navigate('BusinessUpgradeTerms'); }}>
                 <Text style={styles.menuText}>Đăng ký tài khoản doanh nghiệp</Text>
               </TouchableOpacity>

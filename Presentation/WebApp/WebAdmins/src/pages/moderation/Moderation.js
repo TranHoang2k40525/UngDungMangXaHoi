@@ -6,7 +6,7 @@ export default function Moderation() {
     const [content, setContent] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState("post"); // 'post' or 'comment'
-    const [status, setStatus] = useState("pending");
+    const [status, setStatus] = useState("approved");
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [modalData, setModalData] = useState(null);
@@ -112,7 +112,6 @@ export default function Moderation() {
                         }}
                         className="input"
                     >
-                        <option value="pending">Chờ duyệt</option>
                         <option value="approved">Đã duyệt</option>
                         <option value="rejected">Đã từ chối</option>
                     </select>
@@ -143,9 +142,7 @@ export default function Moderation() {
                                 </p>
                                 <p>
                                     Không có nội dung nào{" "}
-                                    {status === "pending"
-                                        ? "chờ duyệt"
-                                        : status === "approved"
+                                    {status === "approved"
                                         ? "đã duyệt"
                                         : "bị từ chối"}
                                 </p>

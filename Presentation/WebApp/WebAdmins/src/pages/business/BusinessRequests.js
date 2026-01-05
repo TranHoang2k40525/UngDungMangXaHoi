@@ -53,10 +53,14 @@ export default function BusinessRequests() {
             );
 
             if (response.success) {
-                setAllRequests(response.data);
-                setRequests(response.data);
+                // Chỉ hiển thị đã duyệt và đã từ chối
+                const filteredData = response.data.filter(
+                    (req) => req.status === "approved" || req.status === "rejected"
+                );
+                setAllRequests(filteredData);
+                setRequests(filteredData);
                 setTotalPages(response.totalPages);
-                setTotalCount(response.totalCount);
+                setTotalCount(filteredData.length);
             }
         } catch (error) {
             console.error("Error loading requests:", error);
@@ -131,6 +135,7 @@ export default function BusinessRequests() {
                                     <th>Tên doanh nghiệp</th>
                                     <th>Chủ sở hữu</th>
                                     <th>Loại hình</th>
+                                    <th>Trạng thái</th>
                                     <th>Ngày gửi</th>
                                     <th>Hành động</th>
                                 </tr>
@@ -154,6 +159,19 @@ export default function BusinessRequests() {
                                             </div>
                                         </td>
                                         <td>{request.businessType}</td>
+                                        <td>
+                                            <span
+                                                className={`status-badge ${
+                                                    request.status === "approved"
+                                                        ? "approved"
+                                                        : "rejected"
+                                                }`}
+                                            >
+                                                {request.status === "approved"
+                                                    ? "✅ Đã duyệt"
+                                                    : "❌ Đã từ chối"}
+                                            </span>
+                                        </td>
                                         <td>
                                             {new Date(
                                                 request.submittedAt
