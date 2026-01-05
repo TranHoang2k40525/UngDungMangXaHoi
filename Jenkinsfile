@@ -93,8 +93,11 @@ pipeline {
           echo "Deploying to WSL2:${PROD_DIR}"
           echo "Using Cloudflare Tunnel: ${USE_TUNNEL}"
           
-          // Use SSH key to clone repository
-          withCredentials([sshUserPrivateKey(credentialsId: 'prod-ssh-key', keyFileVariable: 'SSH_KEY')]) {
+          // Use SSH key and DB password from Jenkins Credentials
+          withCredentials([
+            sshUserPrivateKey(credentialsId: 'prod-ssh-key', keyFileVariable: 'SSH_KEY'),
+            string(credentialsId: 'db-password', variable: 'DB_PASSWORD')
+          ]) {
             sh """
               # Setup SSH for git clone
               mkdir -p ~/.ssh
@@ -114,24 +117,21 @@ pipeline {
               GIT_SSH_COMMAND='ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no' \
                 git pull origin main
               
-              # Copy secrets from persistent location
-              echo "Copying secrets from ${PROD_DIR}/secrets/ to deployment directory..."
-              if [ ! -d "${PROD_DIR}/secrets" ]; then
-                echo "ERROR: Secrets directory not found at ${PROD_DIR}/secrets/"
-                echo "Please ensure secrets files exist before deployment."
+              # Create secrets directory with db_password from Jenkins Credentials
+              # Note: SQL Server container 'ungdungmxh-sqlserver-prod' already running in WSL2
+              # Only deploying application containers: webapi, webapp, webadmins
+              echo "Creating db_password secret for deployment..."
+              mkdir -p secrets
+              echo "\${DB_PASSWORD}" > secrets/db_password.txt
+              chmod 600 secrets/db_password.txt
+              
+              # Verify secret file was created (without exposing password)
+              if [ -f "secrets/db_password.txt" ]; then
+                echo "✓ db_password.txt created (size: \$(wc -c < secrets/db_password.txt) bytes)"
+              else
+                echo "✗ ERROR: Failed to create db_password.txt"
                 exit 1
               fi
-              
-              # Create secrets directory and copy all secret files
-              mkdir -p secrets
-              cp ${PROD_DIR}/secrets/*.txt secrets/ 2>/dev/null || true
-              
-              # Verify required secrets exist
-              for secret in db_password jwt_access_secret jwt_refresh_secret cloudinary_api_secret email_password; do
-                if [ ! -f "secrets/\${secret}.txt" ]; then
-                  echo "WARNING: Missing secret file: secrets/\${secret}.txt"
-                fi
-              done
               
               # Deploy with docker-compose (V1 syntax for compatibility)
               export WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE}
@@ -141,8 +141,9 @@ pipeline {
               # Create network if not exists
               docker network create app-network 2>/dev/null || true
               
-              docker-compose ${COMPOSE_FILES} pull
-              docker-compose ${COMPOSE_FILES} up -d --remove-orphans
+              # Deploy only application containers (exclude SQL Server - already running)
+              docker-compose ${COMPOSE_FILES} pull webapi webapp webadmins cloudflared
+              docker-compose ${COMPOSE_FILES} up -d --remove-orphans webapi webapp webadmins cloudflared
               docker-compose ${COMPOSE_FILES} ps
               
               # Cleanup
