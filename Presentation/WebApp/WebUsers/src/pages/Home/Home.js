@@ -463,18 +463,24 @@ export default function Home() {
 
   // Scroll to specific post when returning from PostDetail
   useEffect(() => {
-    const scrollToPostId = location.state?.scrollToPostId;
-    if (scrollToPostId && posts.length > 0 && !loading) {
+    const scrollToPostIdStr = sessionStorage.getItem('scrollToPostId');
+    console.log('[Home] Scroll check - scrollToPostIdStr:', scrollToPostIdStr, 'posts.length:', posts.length, 'loading:', loading);
+    if (scrollToPostIdStr && posts.length > 0 && !loading) {
+      const scrollToPostId = parseInt(scrollToPostIdStr, 10);
       const postRef = postRefs.current[scrollToPostId];
+      console.log('[Home] postRefs.current:', Object.keys(postRefs.current), 'Looking for:', scrollToPostId);
       if (postRef) {
+        console.log('[Home] ✅ Scrolling to post:', scrollToPostId);
         setTimeout(() => {
           postRef.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          // Clear the state to prevent re-scrolling
-          navigate(location.pathname, { replace: true, state: {} });
-        }, 300);
+          // Clear sessionStorage after scrolling
+          sessionStorage.removeItem('scrollToPostId');
+        }, 500);
+      } else {
+        console.log('[Home] ❌ Post ref not found for ID:', scrollToPostId);
       }
     }
-  }, [posts, location.state, loading]);
+  }, [posts, loading]);
 
   // Scroll to specific post if navigated from external source
   useEffect(() => {
@@ -926,7 +932,16 @@ export default function Home() {
             <p className="empty-feed">Chưa có bài viết nào</p>
           ) : (
             posts.map(p => (
-              <div key={p.id} className="post">
+              <div 
+                key={p.id} 
+                className="post"
+                ref={el => {
+                  if (el) {
+                    postRefs.current[p.id] = el;
+                    console.log('[Home] Set ref for post:', p.id);
+                  }
+                }}
+              >
                 <div className="post-header">
                   <div className="post-header-left" onClick={() => {
                     const uid = getOwnerId();
@@ -1086,9 +1101,6 @@ export default function Home() {
                     <button className="action-btn comment-btn" onClick={() => onOpenComments(p.id)}>
                       <IoChatbubbleOutline className="icon" size={24} />
                       <span className="count">{postStates[p.id]?.comments ?? 0}</span>
-                    </button>
-                    <button className="action-btn repost-btn" onClick={() => onRepost(p.id)}>
-                      <IoRepeatOutline className="icon" size={24} />
                     </button>
                     <button className="action-btn share-btn" onClick={() => onShare(p)}>
                       <IoSendOutline className="icon" size={24} />
@@ -1418,18 +1430,29 @@ export default function Home() {
           posts={posts}
           initialIndex={selectedPostIndex}
           onClose={() => {
-            setShowPostModal(false);
-            // Scroll to the post after modal closes
+            console.log('[Home] PostDetail onClose - selectedPostIndex:', selectedPostIndex);
             const postId = posts[selectedPostIndex]?.id;
-            if (postId && postRefs.current[postId]) {
-              setTimeout(() => {
-                postRefs.current[postId].scrollIntoView({ 
-                  behavior: 'smooth', 
-                  block: 'start' 
-                });
-              }, 100);
-            }
+            console.log('[Home] postId:', postId, 'postRef exists:', !!postRefs.current[postId]);
+            
+            setShowPostModal(false);
             setSelectedPostIndex(null);
+            
+            // Scroll to the post after modal closes
+            if (postId && postRefs.current[postId]) {
+              console.log('[Home] Scheduling scroll to post:', postId);
+              setTimeout(() => {
+                const ref = postRefs.current[postId];
+                if (ref) {
+                  console.log('[Home] ✅ Scrolling now to post:', postId);
+                  ref.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'start' 
+                  });
+                } else {
+                  console.log('[Home] ❌ Ref disappeared for post:', postId);
+                }
+              }, 300);
+            }
           }}
         />
       )}

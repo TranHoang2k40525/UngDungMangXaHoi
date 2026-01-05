@@ -391,16 +391,17 @@ const PostDetail = ({ posts: propsPosts, initialIndex: propsInitialIndex, userId
   const hasNextPost = currentPostIndex < posts.length - 1;
 
   const handleCloseModal = () => {
+    console.log('[PostDetail] handleCloseModal - isModalMode:', isModalMode, 'currentPost:', currentPost);
     if (isModalMode) {
       propsOnClose();
     } else {
-      // Pass current post ID to scroll to it when going back
+      // Save current post ID to sessionStorage for scrolling after navigation
       const currentPostId = currentPost?.id;
+      console.log('[PostDetail] Saving scrollToPostId to sessionStorage:', currentPostId);
       if (currentPostId) {
-        navigate(-1, { state: { scrollToPostId: currentPostId } });
-      } else {
-        navigate(-1);
+        sessionStorage.setItem('scrollToPostId', currentPostId.toString());
       }
+      navigate(-1);
     }
   };
 

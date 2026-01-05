@@ -66,18 +66,20 @@ export default function Profile() {
 
   // Scroll to specific post when returning from PostDetail
   useEffect(() => {
-    const scrollToPostId = location.state?.scrollToPostId;
-    if (scrollToPostId && posts.length > 0 && !loading) {
+    const scrollToPostIdStr = sessionStorage.getItem('scrollToPostId');
+    if (scrollToPostIdStr && posts.length > 0 && !loading) {
+      const scrollToPostId = parseInt(scrollToPostIdStr, 10);
       const postRef = postRefs.current[scrollToPostId];
       if (postRef) {
+        console.log('[Profile] Scrolling to post:', scrollToPostId);
         setTimeout(() => {
           postRef.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          // Clear the state to prevent re-scrolling
-          navigate(location.pathname, { replace: true, state: {} });
-        }, 300);
+          // Clear sessionStorage after scrolling
+          sessionStorage.removeItem('scrollToPostId');
+        }, 500);
       }
     }
-  }, [posts, location.state, loading]);
+  }, [posts, loading]);
 
   const loadProfile = async () => {
     try {

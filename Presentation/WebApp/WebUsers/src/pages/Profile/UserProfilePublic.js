@@ -82,19 +82,22 @@ export default function UserProfilePublic() {
     })();
   }, [userId, isFollowedGlobal, markAsFollowed]);
 
+  // Scroll to specific post when returning from PostDetail
   useEffect(() => {
-    const scrollToPostId = location.state?.scrollToPostId;
-    if (scrollToPostId && posts.length > 0) {
+    const scrollToPostIdStr = sessionStorage.getItem('scrollToPostId');
+    if (scrollToPostIdStr && posts.length > 0) {
+      const scrollToPostId = parseInt(scrollToPostIdStr, 10);
       const postRef = postRefs.current[scrollToPostId];
       if (postRef) {
+        console.log('[UserProfilePublic] Scrolling to post:', scrollToPostId);
         setTimeout(() => {
           postRef.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          // Clear the state to prevent re-scrolling
-          navigate(location.pathname, { replace: true, state: {} });
-        }, 300);
+          // Clear sessionStorage after scrolling
+          sessionStorage.removeItem('scrollToPostId');
+        }, 500);
       }
     }
-  }, [posts, location.state]);
+  }, [posts]);
 
   const handleFollow = async () => {
     try {
