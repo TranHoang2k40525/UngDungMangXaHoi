@@ -29,7 +29,7 @@ namespace UngDungMangXaHoi.Application.Services
             _context = context;
         }
 
-        // Lấy danh sách conversations của user (chỉ những người theo dõi lẫn nhau)
+        // Lấy danh sách conversations của user (không cần follow requirement)
         public async Task<List<ConversationDto>> GetUserConversationsAsync(int userId)
         {
             var conversations = await _conversationRepository.GetUserConversationsAsync(userId);
@@ -41,12 +41,7 @@ namespace UngDungMangXaHoi.Application.Services
                 var lastMessage = await _messageRepository.GetLastMessageAsync(conv.conversation_id);
                 var unreadCount = await _messageRepository.GetUnreadCountAsync(conv.conversation_id, userId);
 
-                // Kiểm tra mutual follow (theo dõi lẫn nhau)
-                var isMutualFollow = await CheckMutualFollowAsync(userId, otherUser.user_id);
-                
-                if (!isMutualFollow)
-                    continue; // Bỏ qua nếu không follow lẫn nhau
-
+                // Không cần check mutual follow - bất kỳ ai cũng có thể nhắn tin
                 result.Add(new ConversationDto
                 {
                     conversation_id = conv.conversation_id,
@@ -55,6 +50,7 @@ namespace UngDungMangXaHoi.Application.Services
                     other_user_full_name = otherUser.full_name,
                     other_user_avatar_url = otherUser.avatar_url?.Value,
                     other_user_bio = otherUser.bio,
+                    other_user_last_seen = otherUser.last_seen,
                     last_message = lastMessage != null ? MapToMessageDto(lastMessage) : null,
                     unread_count = unreadCount,
                     created_at = conv.created_at,
@@ -68,10 +64,8 @@ namespace UngDungMangXaHoi.Application.Services
         // Lấy chi tiết conversation và messages
         public async Task<ConversationDetailDto?> GetConversationDetailAsync(int userId, int otherUserId, int page = 1, int pageSize = 50)
         {
-            // Kiểm tra mutual follow
-            var isMutualFollow = await CheckMutualFollowAsync(userId, otherUserId);
-            if (!isMutualFollow)
-                return null;
+            // Không cần check follow - bất kỳ ai cũng có thể nhắn tin cho nhau
+            Console.WriteLine($"[MessageService] GetConversationDetail - User {userId} with User {otherUserId}");
 
             var conversation = await _conversationRepository.GetConversationBetweenUsersAsync(userId, otherUserId);
             
@@ -119,10 +113,8 @@ namespace UngDungMangXaHoi.Application.Services
         // Gửi tin nhắn
         public async Task<MessageDto?> SendMessageAsync(int senderId, SendMessageDto dto)
         {
-            // Kiểm tra mutual follow
-            var isMutualFollow = await CheckMutualFollowAsync(senderId, dto.receiver_id);
-            if (!isMutualFollow)
-                throw new UnauthorizedAccessException("Chỉ có thể nhắn tin với người theo dõi lẫn nhau");
+            // Không cần check follow - bất kỳ ai cũng có thể nhắn tin cho nhau
+            Console.WriteLine($"[MessageService] SendMessage - From User {senderId} to User {dto.receiver_id}");
 
             var conversation = await _conversationRepository.GetConversationBetweenUsersAsync(senderId, dto.receiver_id);
             

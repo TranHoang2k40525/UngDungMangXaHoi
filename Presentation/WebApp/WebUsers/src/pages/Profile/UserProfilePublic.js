@@ -122,7 +122,28 @@ export default function UserProfilePublic() {
   };
 
   const handleMessage = () => {
-    navigate('/messenger');
+    // Navigate directly to chat screen with this user (like MobileApp)
+    const fullAvatarUrl = profile?.avatarUrl 
+      ? (profile.avatarUrl.startsWith('http') 
+          ? profile.avatarUrl 
+          : `${API_BASE_URL}${profile.avatarUrl}`)
+      : null;
+      
+    console.log('[UserProfilePublic] Navigate to chat with:', {
+      userId,
+      userName: profile?.username || profile?.fullName || 'User',
+      userAvatar: fullAvatarUrl,
+      username: profile?.username || '@user'
+    });
+      
+    navigate(`/messenger/chat/${userId}`, { 
+      state: {
+        userId: parseInt(userId),
+        userName: profile?.username || profile?.fullName || 'User',
+        userAvatar: fullAvatarUrl,
+        username: profile?.username || '@user'
+      }
+    });
   };
 
   const handleBlock = () => {

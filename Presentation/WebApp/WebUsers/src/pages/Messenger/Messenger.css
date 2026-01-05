@@ -132,6 +132,82 @@
   color: #6B7280;
 }
 
+/* Avatar Bar - Facebook Messenger style */
+.avatar-bar-container {
+  padding: 12px 16px;
+  border-bottom: 1px solid #dbdbdb;
+  background-color: #FFFFFF;
+}
+
+.avatar-bar {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.avatar-bar::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+.avatar-bar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 60px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.avatar-bar-item:hover {
+  opacity: 0.7;
+}
+
+.avatar-bar-avatar-wrapper {
+  position: relative;
+}
+
+.avatar-bar-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #0095F6;
+}
+
+.avatar-bar-online-indicator {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: #10B981;
+  border: 2px solid #FFFFFF;
+}
+
+.avatar-bar-avatar.default-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.avatar-bar-name {
+  font-size: 12px;
+  color: #262626;
+  text-align: center;
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .conversations-list {
   flex: 1;
   overflow-y: auto;

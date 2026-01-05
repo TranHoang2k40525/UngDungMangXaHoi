@@ -44,7 +44,7 @@ export default function Messenger() {
     try {
       setLoading(true);
       
-      // Get 1:1 conversations (mutual followers)
+      // Get 1:1 conversations (all conversations with last message)
       const mutualResponse = await MessageAPI.getMutualFollowers();
       console.log('[Messenger] Mutual followers response:', mutualResponse);
       
@@ -73,15 +73,39 @@ export default function Messenger() {
 
       console.log('[Messenger] Loaded 1:1 conversations:', oneToOneConversations.length);
 
-      // Load all following users for "Start new chat" section
+      // Load mutual followers for avatar bar (people who follow each other)
       if (!currentUserId) {
-        console.warn('[Messenger] Cannot load following - currentUserId is null');
+        console.warn('[Messenger] Cannot load mutual followers - currentUserId is null');
         setAllFollowing([]);
       } else {
         try {
+          // Get all mutual followers regardless of conversation status
           const followingData = await getFollowing(currentUserId);
-          console.log('[Messenger] Loaded following users:', followingData?.length || 0);
-          setAllFollowing(followingData || []);
+          console.log('[Messenger] Raw following data:', followingData?.slice(0, 2));
+          
+          // Normalize field names for each user
+          // Backend returns: userId, username, fullName, avatarUrl
+          const normalizedFollowing = (followingData || []).map(user => {
+            const userId = user.userId ?? user.user_id ?? user.id;
+            const fullName = user.fullName ?? user.full_name ?? user.name ?? user.username;
+            const avatarUrl = user.avatarUrl ?? user.avatar_url ?? user.avatar;
+            const username = user.username ?? user.userName;
+            
+            console.log('[Messenger] User normalized:', {
+              original: user,
+              normalized: { userId, fullName, avatarUrl, username }
+            });
+            
+            return {
+              user_id: userId,
+              full_name: fullName,
+              avatar_url: avatarUrl,
+              username: username
+            };
+          }).filter(user => user.user_id);
+          
+          console.log('[Messenger] Normalized following users:', normalizedFollowing.length);
+          setAllFollowing(normalizedFollowing);
         } catch (err) {
           console.error('[Messenger] Error loading following:', err);
           setAllFollowing([]);
@@ -574,66 +598,65 @@ export default function Messenger() {
           )}
         </div>
 
+        {/* Avatar Bar - Mutual Followers (Facebook style) */}
+        {allFollowing.length > 0 && !searchText && (
+          <div className="avatar-bar-container">
+            <div className="avatar-bar">
+              {allFollowing.slice(0, 10).map((user, index) => (
+                <div
+                  key={user.user_id || `user-${index}`}
+                  className="avatar-bar-item"
+                  onClick={() => {
+                    console.log('[Messenger] Avatar bar click - navigating with:', {
+                      userId: user.user_id,
+                      userName: user.full_name,
+                      userAvatar: user.avatar_url,
+                      username: user.username
+                    });
+                    
+                    if (!user.user_id) {
+                      console.error('[Messenger] Cannot navigate - user.user_id is undefined!');
+                      return;
+                    }
+                    
+                    navigate('/messenger/chat/' + user.user_id, {
+                      state: {
+                        userId: user.user_id,
+                        userName: user.full_name || user.username || 'User',
+                        userAvatar: user.avatar_url,
+                        username: user.username
+                      }
+                    });
+                  }}
+                  title={user.full_name}
+                >
+                  <div className="avatar-bar-avatar-wrapper">
+                    {user.avatar_url ? (
+                      <img 
+                        src={user.avatar_url.startsWith('http') ? user.avatar_url : `${API_BASE_URL}${user.avatar_url}`} 
+                        alt={user.full_name} 
+                        className="avatar-bar-avatar" 
+                      />
+                    ) : (
+                      <div className="avatar-bar-avatar default-avatar">
+                        {user.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
+                      </div>
+                    )}
+                    {/* Online indicator for avatar bar */}
+                    {isUserOnline(user.user_id) && (
+                      <div className="avatar-bar-online-indicator"></div>
+                    )}
+                  </div>
+                  <span className="avatar-bar-name">{user.full_name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Conversations List */}
         <div className="conversations-list">
-          {/* Show all following section */}
-          {allFollowing.length > 0 && conversations.length === 0 && !searchText && (
-            <div className="all-following-section">
-              <div className="section-header">
-                <h3 className="section-title">Bạn bè đang theo dõi ({allFollowing.length})</h3>
-                <p className="section-subtitle">Bắt đầu cuộc trò chuyện với người bạn follow</p>
-              </div>
-              <div className="following-list">
-                {allFollowing.slice(0, showAllFollowing ? allFollowing.length : 5).map((user) => (
-                  <div
-                    key={user.user_id}
-                    className="following-item"
-                    onClick={() => {
-                      navigate('/messenger/chat/' + user.user_id, {
-                        state: {
-                          userId: user.user_id,
-                          userName: user.full_name,
-                          userAvatar: user.avatar_url,
-                          username: user.username
-                        }
-                      });
-                    }}
-                  >
-                    <div className="avatar-container">
-                      {user.avatar_url ? (
-                        <img 
-                          src={user.avatar_url.startsWith('http') ? user.avatar_url : `${API_BASE_URL}${user.avatar_url}`} 
-                          alt={user.full_name} 
-                          className="avatar" 
-                        />
-                      ) : (
-                        <div className="avatar default-avatar">
-                          <span className="default-avatar-text">
-                            {user.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="following-info">
-                      <span className="following-name">{user.full_name}</span>
-                      <span className="following-username">@{user.username}</span>
-                    </div>
-                    <button className="chat-button">
-                      <MdChatBubbleOutline size={20} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              {allFollowing.length > 5 && (
-                <button 
-                  className="show-more-button" 
-                  onClick={() => setShowAllFollowing(!showAllFollowing)}
-                >
-                  {showAllFollowing ? 'Thu gọn' : `Xem thêm ${allFollowing.length - 5} người`}
-                </button>
-              )}
-            </div>
-          )}
+          {/* Show all following section - removed, now using avatar bar instead */}
 
           {/* Active conversations */}
           {!searchText && conversations.length > 0 && (
