@@ -517,16 +517,25 @@ export default function GroupDetailScreen() {
             onPress={handleChangeAvatar}
             activeOpacity={0.7}
           >
-            {groupInfo?.avatarUrl ? (
-              <Image 
-                source={{ uri: groupInfo.avatarUrl }} 
-                style={styles.groupAvatarImage}
-              />
-            ) : (
-              <View style={styles.defaultGroupAvatar}>
-                <Ionicons name="people" size={48} color="#ffffff" />
-              </View>
-            )}
+            {(() => {
+              // ✅ FIX: Handle object avatarUrl
+              let avatarValue = groupInfo?.avatarUrl;
+              if (avatarValue && typeof avatarValue === 'object') {
+                avatarValue = avatarValue.uri || avatarValue.url || null;
+              }
+              const avatarStr = avatarValue ? String(avatarValue) : null;
+              
+              return avatarStr ? (
+                <Image 
+                  source={{ uri: avatarStr }} 
+                  style={styles.groupAvatarImage}
+                />
+              ) : (
+                <View style={styles.defaultGroupAvatar}>
+                  <Ionicons name="people" size={48} color="#ffffff" />
+                </View>
+              );
+            })()}
             <View style={styles.cameraIconBadge}>
               <Ionicons name="camera" size={18} color="#FFFFFF" />
             </View>

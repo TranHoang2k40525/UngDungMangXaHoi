@@ -104,6 +104,11 @@ const CommentsModal = ({
   onCommentAdded,
   highlightCommentId,
   embedded = false, // New prop for embedded mode
+  inputRef: externalInputRef, // External ref from PostDetail
+  externalCommentText, // Comment text from PostDetail
+  onCommentTextChange, // Callback to update PostDetail's text
+  onCommentCountChange, // Callback to update total comment count
+  onSubmitCallback, // Callback to expose submit function
 }) => {
   const navigate = useNavigate();
   const [comments, setComments] = useState([]);
@@ -184,6 +189,20 @@ const CommentsModal = ({
       loadComments();
     }
   }, [visible, postId]);
+
+  // Sync with external comment text in embedded mode
+  useEffect(() => {
+    if (embedded && externalCommentText !== undefined) {
+      setNewComment(externalCommentText);
+    }
+  }, [embedded, externalCommentText]);
+
+  // Expose submit function to parent via callback
+  useEffect(() => {
+    if (embedded && onSubmitCallback) {
+      onSubmitCallback(() => handleSubmit);
+    }
+  }, [embedded, onSubmitCallback, newComment]);
 
   // Scroll to highlighted comment
   useEffect(() => {
@@ -413,6 +432,11 @@ const CommentsModal = ({
 
       setComments(mappedComments);
       console.log('[CommentsModal] ✅ Comments loaded successfully');
+      
+      // Update comment count in PostDetail
+      if (onCommentCountChange) {
+        onCommentCountChange(mappedComments.length);
+      }
     } catch (error) {
       console.error('[CommentsModal] ❌ Load comments error:', error);
       console.error('[CommentsModal] Error details:', error.message);
@@ -522,6 +546,16 @@ const CommentsModal = ({
 
         setComments([newCommentData, ...comments]);
         setNewComment('');
+        
+        // Clear external comment text in PostDetail
+        if (embedded && onCommentTextChange) {
+          onCommentTextChange('');
+        }
+        
+        // Update comment count
+        if (onCommentCountChange) {
+          onCommentCountChange(comments.length + 1);
+        }
       }
 
       // Callback to update comment count (only when adding new, not editing)
@@ -630,8 +664,9 @@ const CommentsModal = ({
     setNewComment(`@${rootParentUsername} `);
     setEditingComment(null);
 
-    if (inputRef.current) {
-      inputRef.current.focus();
+    const targetRef = embedded ? externalInputRef : inputRef;
+    if (targetRef?.current) {
+      targetRef.current.focus();
     }
   };
 
@@ -782,7 +817,11 @@ const CommentsModal = ({
 
   // Handle input change
   const handleInputChange = (e) => {
-    setNewComment(e.target.value);
+    const text = e.target.value;
+    setNewComment(text);
+    if (embedded && onCommentTextChange) {
+      onCommentTextChange(text);
+    }
   };
 
   // Handle key press (Enter to submit)
@@ -924,16 +963,6 @@ const CommentsModal = ({
                   </span>
                   <span className="comment-time">{getRelativeTime(item.createdAt)}</span>
                 </div>
-
-                <button
-                  className="more-button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleCommentMenu(item.id);
-                  }}
-                >
-                  <IoEllipsisHorizontal size={18} />
-                </button>
               </div>
 
               <MentionText text={item.comment} onMentionPress={handleMentionPress} />
@@ -956,10 +985,22 @@ const CommentsModal = ({
             )}
           </div>
 
-          <button className="like-button" onClick={() => handleLikeToggle(item.id)}>
-            <HeartIcon isLiked={item.isLiked} size={20} />
-            {item.likes > 0 && <span className="like-count">{item.likes}</span>}
-          </button>
+          <div className="comment-right-actions">
+            <button
+              className="more-button"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleCommentMenu(item.id);
+              }}
+            >
+              <IoEllipsisHorizontal size={18} />
+            </button>
+            
+            <button className="like-button" onClick={() => handleLikeToggle(item.id)}>
+              <HeartIcon isLiked={item.isLiked} size={20} />
+              {item.likes > 0 && <span className="like-count">{item.likes}</span>}
+            </button>
+          </div>
         </div>
 
         {isExpanded && replies.length > 0 && (
@@ -992,7 +1033,8 @@ const CommentsModal = ({
           </div>
         )}
 
-        {/* Comment Input */}
+        {/* Comment Input - Hidden in embedded mode because PostDetail has its own */}
+        {!embedded && (
         <div className="input-container-embed">
           {replyingTo && (
             <div className="replying-indicator-embed">
@@ -1028,6 +1070,7 @@ const CommentsModal = ({
             )}
           </div>
         </div>
+        )}
 
         {/* Global Menu */}
         {showMenuForComment &&
