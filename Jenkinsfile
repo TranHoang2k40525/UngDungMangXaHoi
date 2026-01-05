@@ -3,8 +3,10 @@ pipeline {
 
   parameters {
     string(name: 'DOCKER_NAMESPACE', defaultValue: 'minhvu0809', description: 'Docker Hub username')
-    string(name: 'PROD_HOST', defaultValue: '192.168.0.103', description: 'Production server IP')
-    string(name: 'PROD_DIR', defaultValue: '/root/ungdungmxh', description: 'Production deployment directory')
+    string(name: 'PROD_HOST', defaultValue: 'host.docker.internal', description: 'Production server IP/hostname')
+    string(name: 'PROD_DIR', defaultValue: '/home/minhvu/ungdungmxh', description: 'Production deployment directory in WSL2')
+    string(name: 'WSL_DISTRO', defaultValue: 'Ubuntu', description: 'WSL2 distribution name')
+    booleanParam(name: 'USE_CLOUDFLARE_TUNNEL', defaultValue: true, description: 'Deploy with Cloudflare Tunnel')
   }
 
   environment {
@@ -78,20 +80,51 @@ pipeline {
 
     stage('Deploy to production') {
       steps {
-        // Two common deployment options are described below. The pipeline uses SSH to run commands on the prod host.
-        withCredentials([sshUserPrivateKey(credentialsId: 'prod-ssh-key', keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER')]) {
-          script {
-            // These target variables should be configured in Jenkins (or set as pipeline params)
-            def PROD_HOST = env.PROD_HOST ?: 'your.prod.host'
-            def PROD_DIR = env.PROD_DIR ?: '/opt/ungdungmxh' // path on prod host where docker-compose files live
-
-            // Option A: If repository is already present on prod host, do a git pull then docker-compose pull/up
-            sh "ssh -i ${SSH_KEY} -o StrictHostKeyChecking=no ${SSH_USER}@${PROD_HOST} \"cd ${PROD_DIR} && git reset --hard && git pull origin main && export WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE} && export WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE} && export WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE} && docker-compose -f docker-compose.yml -f docker-compose.prod.yml pull && docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d\""
-
-            // Option B (alternative): scp compose files to host and run docker-compose there. Uncomment and adapt if preferred.
-            // sh "scp -i ${SSH_KEY} docker-compose.yml ${SSH_USER}@${PROD_HOST}:${PROD_DIR}/docker-compose.yml"
-            // sh "scp -i ${SSH_KEY} docker-compose.prod.yml ${SSH_USER}@${PROD_HOST}:${PROD_DIR}/docker-compose.prod.yml"
-            // sh "ssh -i ${SSH_KEY} ${SSH_USER}@${PROD_HOST} 'cd ${PROD_DIR} && docker-compose -f docker-compose.yml -f docker-compose.prod.yml pull && docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d'"
+        script {
+          def PROD_HOST = params.PROD_HOST
+          def PROD_DIR = params.PROD_DIR
+          def WSL_DISTRO = params.WSL_DISTRO
+          def USE_TUNNEL = params.USE_CLOUDFLARE_TUNNEL
+          
+          // Compose files to use
+          def COMPOSE_FILES = "-f docker-compose.yml -f docker-compose.prod.yml"
+          if (USE_TUNNEL) {
+            COMPOSE_FILES = "${COMPOSE_FILES} -f docker-compose.tunnel.yml"
+          }
+          
+          echo "Deploying to ${PROD_HOST}:${PROD_DIR}"
+          echo "Using Cloudflare Tunnel: ${USE_TUNNEL}"
+          
+          // Build deployment command for WSL2
+          def DEPLOY_CMD = """
+            wsl -d ${WSL_DISTRO} -- bash -lc '
+              cd ${PROD_DIR} &&
+              git reset --hard &&
+              git pull origin main &&
+              export WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE} &&
+              export WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE} &&
+              export WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE} &&
+              docker-compose ${COMPOSE_FILES} pull &&
+              docker-compose ${COMPOSE_FILES} up -d --remove-orphans &&
+              docker-compose ${COMPOSE_FILES} ps
+            '
+          """.trim()
+          
+          // Execute deployment
+          // If Jenkins runs on the same Windows machine, execute directly
+          // Otherwise, SSH to Windows host first
+          if (PROD_HOST == 'host.docker.internal' || PROD_HOST == 'localhost') {
+            // Direct execution (Jenkins on same machine)
+            echo "Executing deployment directly on local WSL2..."
+            bat DEPLOY_CMD
+          } else {
+            // SSH to remote Windows host and execute WSL command
+            withCredentials([sshUserPrivateKey(credentialsId: 'prod-ssh-key', keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER')]) {
+              echo "Executing deployment via SSH to ${PROD_HOST}..."
+              sh """
+                ssh -i \${SSH_KEY} -o StrictHostKeyChecking=no \${SSH_USER}@${PROD_HOST} '${DEPLOY_CMD}'
+              """
+            }
           }
         }
       }
