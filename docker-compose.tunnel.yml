@@ -9,13 +9,9 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: ungdungmxh-cloudflared
     
-    # Run tunnel with token from secrets file mounted at /run/secrets/
-    # Read token and pass to cloudflared command
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        TOKEN=$$(cat /run/secrets/cloudflare_tunnel_token)
-        cloudflared tunnel --no-autoupdate run --token "$$TOKEN"
+    # Run tunnel with token from file
+    # Docker secrets mounts file to /run/secrets/cloudflare_tunnel_token
+    command: tunnel --no-autoupdate run --token-file /run/secrets/cloudflare_tunnel_token
     
     # Read token from secrets file
     # Create this file: echo "YOUR_TUNNEL_TOKEN" > secrets/cloudflare_tunnel_token.txt
