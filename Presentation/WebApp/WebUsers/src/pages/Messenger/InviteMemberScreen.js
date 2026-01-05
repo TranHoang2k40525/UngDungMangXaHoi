@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import './InviteMemberScreen.css';
 import { getFollowing, inviteToGroup, getProfile, API_BASE_URL } from '../../api/Api';
-import { MdClose, MdGroup } from 'react-icons/md';
+import { MdClose, MdGroup, MdPersonAdd } from 'react-icons/md';
 
 export default function InviteMemberScreen() {
   const navigate = useNavigate();
@@ -215,7 +215,7 @@ export default function InviteMemberScreen() {
             className="invite-btn"
             onClick={() => handleInviteUser(item)}
           >
-            <span className="invite-icon">👤+</span>
+            <span className="invite-icon"><MdPersonAdd size={20} /></span>
             <span className="invite-btn-text">Mời</span>
           </button>
         )}

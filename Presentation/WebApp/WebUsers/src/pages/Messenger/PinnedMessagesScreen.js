@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { MdClose } from 'react-icons/md';
+import { MdClose, MdPlayCircle, MdPushPin, MdRefresh } from 'react-icons/md';
 import './PinnedMessagesScreen.css';
 // import * as groupChatService from '../../Services/groupChatService';
 
@@ -170,7 +170,7 @@ export default function PinnedMessagesScreen() {
               />
             ) : (
               <div className="video-placeholder">
-                <span className="play-icon">▶️</span>
+                <span className="play-icon"><MdPlayCircle size={32} /></span>
               </div>
             )}
           </div>
@@ -184,7 +184,7 @@ export default function PinnedMessagesScreen() {
       </div>
 
       <div className="message-footer">
-        <span className="pin-icon">📌</span>
+        <span className="pin-icon"><MdPushPin size={16} /></span>
         <span className="pinned-label">Đã ghim</span>
       </div>
     </div>
@@ -227,7 +227,7 @@ export default function PinnedMessagesScreen() {
       {/* Pinned Count */}
       {pinnedMessages.length > 0 && (
         <div className="count-container">
-          <span className="count-icon">📌</span>
+          <span className="count-icon"><MdPushPin size={20} /></span>
           <span className="count-text">
             {pinnedMessages.length} tin nhắn được ghim
           </span>
@@ -240,7 +240,7 @@ export default function PinnedMessagesScreen() {
         onClick={onRefresh}
         disabled={refreshing}
       >
-        <span className={`refresh-icon ${refreshing ? 'spinning' : ''}`}>🔄</span>
+        <span className={`refresh-icon ${refreshing ? 'spinning' : ''}`}><MdRefresh size={20} /></span>
       </button>
 
       <div className="content">
@@ -248,7 +248,7 @@ export default function PinnedMessagesScreen() {
           pinnedMessages.map((message, index) => renderMessageItem(message, index))
         ) : (
           <div className="empty-container">
-            <div className="empty-icon">📌</div>
+            <div className="empty-icon"><MdPushPin size={48} /></div>
             <div className="empty-title">Chưa có tin nhắn được ghim</div>
             <div className="empty-text">
               Nhấn giữ vào tin nhắn trong nhóm và chọn "Ghim" để ghim tin nhắn quan trọng
