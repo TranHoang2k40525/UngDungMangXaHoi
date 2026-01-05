@@ -46,13 +46,12 @@ const Profile = () => {
   // Build full URL for avatar when API returns relative path
   // Return null when missing so callers can render a consistent placeholder
   const getAvatarUri = useMemo(() => {
-    return (p) => {
-      const raw = p?.avatarUrl;
-      console.log('[Profile] getAvatarUri - raw avatarUrl:', raw, 'type:', typeof raw);
-      if (!raw) return null;
+    return (avatarUrl) => {
+      console.log('[Profile] getAvatarUri - raw avatarUrl:', avatarUrl, 'type:', typeof avatarUrl);
+      if (!avatarUrl) return null;
       // ✅ FIX: Handle object avatarUrl
-      if (typeof raw === 'object') {
-        const extracted = raw.uri || raw.url || null;
+      if (typeof avatarUrl === 'object') {
+        const extracted = avatarUrl.uri || avatarUrl.url || null;
         if (!extracted) return null;
         const str = String(extracted);
         if (str.startsWith('http')) return str;
@@ -60,7 +59,7 @@ const Profile = () => {
         console.log('[Profile] Object avatarUrl converted to:', fullUrl);
         return fullUrl;
       }
-      const rawStr = String(raw);
+      const rawStr = String(avatarUrl);
       if (rawStr.startsWith('http')) {
         console.log('[Profile] Already full URL:', rawStr);
         return rawStr;
@@ -72,7 +71,16 @@ const Profile = () => {
   }, []);
 
   // Memoize avatar URI để tránh tính toán lại mỗi lần render
-  const avatarUri = useMemo(() => getAvatarUri(profile), [profile, getAvatarUri]);
+  const avatarUri = useMemo(() => {
+    let result = getAvatarUri(profile?.avatarUrl);
+    // ✅ FIX: Replace localhost with actual IP for Expo Go
+    if (result && result.includes('localhost')) {
+      result = result.replace('localhost', API_BASE_URL.replace('http://', '').replace(':5297', '').split(':')[0]);
+      console.log('[Profile] Replaced localhost with IP:', result);
+    }
+    console.log('[Profile] Final avatarUri computed:', result);
+    return result;
+  }, [profile?.avatarUrl, getAvatarUri]);
 
   // Check user story from AsyncStorage
   const checkUserStory = async (userId) => {
@@ -441,16 +449,26 @@ const Profile = () => {
                 hasStory && styles.avatarRingActive,
                 hasStory && !isStoryViewed && styles.avatarRingUnviewed
               ]}>
-                {avatarUri ? (
-                  <Image
-                    source={{ uri: avatarUri }}
-                    style={styles.profileImage}
-                  />
-                ) : (
-                  <View style={[styles.profileImage, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#e5e7eb' }]}>
-                    <Ionicons name="person" size={40} color="#9ca3af" />
-                  </View>
-                )}
+                {(() => {
+                  console.log('[Profile] Rendering avatar - avatarUri:', avatarUri);
+                  if (avatarUri) {
+                    return (
+                      <Image
+                        source={{ uri: avatarUri }}
+                        style={styles.profileImage}
+                        onError={(e) => console.error('[Profile] Image load error:', e.nativeEvent.error)}
+                        onLoad={() => console.log('[Profile] Image loaded successfully')}
+                      />
+                    );
+                  } else {
+                    console.log('[Profile] No avatarUri - showing placeholder');
+                    return (
+                      <View style={[styles.profileImage, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#e5e7eb' }]}>
+                        <Ionicons name="person" size={40} color="#9ca3af" />
+                      </View>
+                    );
+                  }
+                })()}
               </View>
               
               {/* Story indicator dot */}
