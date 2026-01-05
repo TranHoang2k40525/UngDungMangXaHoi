@@ -136,35 +136,25 @@ export const authAPI = {
             result?.refreshToken ||
             result?.refresh ||
             null;
-
         if (access && refresh) {
             localStorage.setItem("accessToken", access);
             localStorage.setItem("refreshToken", refresh);
 
-      // Kiểm tra account type inside token
-      try {
-        const payload = JSON.parse(atob(access.split('.')[1]));
-        // Backend RBAC giờ dùng "role" array và "primary_role"
-        const roles = payload.role || [];
-        const primaryRole = payload.primary_role;
-        const isAdmin = roles.includes('Admin') || primaryRole === 'Admin';
-        if (!isAdmin) {
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
-          throw new Error('Chỉ tài khoản Admin mới có thể đăng nhập');
-        }
-      } catch (e) {
-        // If token parsing fails, clear tokens to force re-login
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        throw new Error('Token không hợp lệ');
-      }
-    }
             // Kiểm tra account type inside token
+            // Backend RBAC giờ dùng "role" array và "primary_role"
             try {
                 const payload = JSON.parse(atob(access.split(".")[1]));
+                const roles = payload.role || [];
+                const primaryRole = payload.primary_role;
                 const accountType = payload.account_type || payload.role;
-                if (accountType !== "Admin") {
+
+                // Kiểm tra cả role mới (array) và account_type cũ để backward compatible
+                const isAdmin =
+                    roles.includes("Admin") ||
+                    primaryRole === "Admin" ||
+                    accountType === "Admin";
+
+                if (!isAdmin) {
                     localStorage.removeItem("accessToken");
                     localStorage.removeItem("refreshToken");
                     throw new Error("Chỉ tài khoản Admin mới có thể đăng nhập");
@@ -194,16 +184,12 @@ export const authAPI = {
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
     },
-
-  async forgotPassword(email) {
-    return apiClient.post('/api/auth/forgot-password', { Email: email });
-  },
-
-  async verifyForgotPasswordOtp(data) {
-    return apiClient.post('/api/auth/verify-forgot-password-otp', data);
-  },
     async forgotPassword(email) {
         return apiClient.post("/api/auth/forgot-password", { Email: email });
+    },
+
+    async verifyForgotPasswordOtp(data) {
+        return apiClient.post("/api/auth/verify-forgot-password-otp", data);
     },
 
     async resetPassword(data) {
@@ -295,18 +281,6 @@ export const dashboardAPI = {
             `/api/DashBoard/keyword-top?topN=${topN}&startDate=${from}&endDate=${to}`
         );
     },
-
-  // ✅ API thật từ backend
-  async getTopPosts(fromDate, toDate, topN = 10) {
-    const from = fromDate.toISOString().split('T')[0];
-    const to = toDate.toISOString().split('T')[0];
-    return apiClient.get(`/api/DashBoard/posts-top?topN=${topN}&startDate=${from}&endDate=${to}`);
-  },
-
-  // Lấy chi tiết bài đăng (dùng khi Admin click xem chi tiết trong dashboard)
-  async getPostDetail(postId) {
-    return apiClient.get(`/api/posts/${postId}`);
-  },
     // ✅ API thật từ backend
     async getTopPosts(fromDate, toDate, topN = 10) {
         const from = fromDate.toISOString().split("T")[0];
@@ -314,6 +288,11 @@ export const dashboardAPI = {
         return apiClient.get(
             `/api/DashBoard/posts-top?topN=${topN}&startDate=${from}&endDate=${to}`
         );
+    },
+
+    // Lấy chi tiết bài đăng (dùng khi Admin click xem chi tiết trong dashboard)
+    async getPostDetail(postId) {
+        return apiClient.get(`/api/posts/${postId}`);
     },
 
     // ✅ API thật từ backend - Dashboard summary endpoint
@@ -474,12 +453,12 @@ export const aiModerationAPI = {
 
 // ============= REACTIONS API =============
 export const reactionsAPI = {
-  async getSummary(postId) {
-    return apiClient.get(`/api/reactions/post/${postId}/summary`);
-  },
-  async getByPost(postId) {
-    return apiClient.get(`/api/reactions/post/${postId}`);
-  }
+    async getSummary(postId) {
+        return apiClient.get(`/api/reactions/post/${postId}/summary`);
+    },
+    async getByPost(postId) {
+        return apiClient.get(`/api/reactions/post/${postId}`);
+    },
 };
 
 // ============= REPORTS API (Mock) =============
