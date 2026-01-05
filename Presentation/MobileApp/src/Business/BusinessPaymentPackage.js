@@ -72,22 +72,14 @@ export default function BusinessPaymentPackage({ navigation }) {
               <Text style={styles.benefitText}>Ưu tiên hiển thị nội dung</Text>
             </View>
 
-            <View style={styles.benefitItem}>
-              <Ionicons name="checkmark-circle" size={20} color="#10b981" />
-              <Text style={styles.benefitText}>Thống kê chi tiết</Text>
-            </View>
-
-            <View style={styles.benefitItem}>
-              <Ionicons name="checkmark-circle" size={20} color="#10b981" />
-              <Text style={styles.benefitText}>Hỗ trợ khách hàng ưu tiên</Text>
-            </View>
+            
           </View>
 
           <View style={styles.divider} />
 
           <View style={styles.durationContainer}>
             <Ionicons name="time-outline" size={20} color="#6b7280" />
-            <Text style={styles.durationText}>Thời gian hiệu lực: 365 ngày</Text>
+            <Text style={styles.durationText}>Thời gian hiệu lực: 1 tháng</Text>
           </View>
         </View>
 

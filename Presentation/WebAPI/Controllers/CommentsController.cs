@@ -55,8 +55,8 @@ public class CommentsController : ControllerBase
                 username = c.AuthorName,
                 userAvatar = c.AuthorAvatar,
                 parentCommentId = c.ParentCommentId, // Quan trọng: Để frontend phân biệt reply vs comment
-                likesCount = c.ReactionCounts.Values.Sum(),
-                isLiked = false, // TODO: Check if current user reacted
+                likesCount = c.ReactionCounts.Count, // Total reactions count
+                isLiked = c.ReactionCounts.Any(kvp => kvp.Key.EndsWith($"_{currentAccountId}")), // Check if current user liked
                 isEdited = c.IsEdited
             });
             
@@ -81,42 +81,12 @@ public class CommentsController : ControllerBase
     {
         try
         {
-            var comments = await _commentService.GetCommentsByPostIdAsync(postId);
-            return Ok(new { count = comments.Count() });
+            var count = await _commentService.GetCommentCountAsync(postId);
+            return Ok(new { count });
         }
         catch (Exception ex)
         {
             return StatusCode(500, new { message = "Error retrieving comment count", error = ex.Message });
-        }
-    }
-
-    // GET: api/Comments/post/{postId}
-    [HttpGet("post/{postId}")]
-    public async Task<ActionResult<IEnumerable<CommentDto>>> GetCommentsByPost(int postId)
-    {
-        try
-        {
-            var comments = await _commentService.GetCommentsByPostIdAsync(postId);
-            return Ok(comments);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = "Error retrieving comments", error = ex.Message });
-        }
-    }
-
-    // GET: api/Comments/{commentId}/replies
-    [HttpGet("{commentId}/replies")]
-    public async Task<ActionResult<IEnumerable<CommentDto>>> GetReplies(int commentId)
-    {
-        try
-        {
-            var replies = await _commentService.GetRepliesAsync(commentId);
-            return Ok(replies);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = "Error retrieving replies", error = ex.Message });
         }
     }
 
@@ -163,7 +133,7 @@ public class CommentsController : ControllerBase
             }
             catch { /* don't let realtime errors block API response */ }
 
-            return CreatedAtAction(nameof(GetCommentsByPost), new { postId = dto.PostId }, response);
+            return CreatedAtAction(nameof(GetCommentsByPostId), new { postId = dto.PostId }, response);
         }
         catch (Exception ex)
         {
@@ -179,6 +149,27 @@ public class CommentsController : ControllerBase
         {
             var accountId = GetCurrentAccountId();
             await _commentService.AddReactionAsync(dto.CommentId, accountId, dto.ReactionType);
+            
+            // Get updated comment to get postId and new reaction count
+            var updatedComment = await _commentService.GetCommentByIdAsync(dto.CommentId);
+            
+            if (updatedComment != null)
+            {
+                // Broadcast reaction event (not full comment) to avoid overriding isLiked for other users
+                try
+                {
+                    await _commentHubContext.Clients.Group($"post_{updatedComment.PostId}").SendAsync("CommentReactionChanged", new
+                    {
+                        commentId = dto.CommentId,
+                        accountId = accountId,
+                        reactionType = dto.ReactionType,
+                        newLikesCount = updatedComment.ReactionCounts.Count,
+                        isAdded = true
+                    });
+                }
+                catch { /* Ignore broadcast errors */ }
+            }
+            
             return Ok(new { message = "Reaction added successfully" });
         }
         catch (Exception ex)
@@ -249,38 +240,6 @@ public class CommentsController : ControllerBase
         }
     }
 
-    // GET: api/Comments/{commentId}/history
-    // TODO: Implement edit history tracking
-    /*[HttpGet("{commentId}/history")]
-    public async Task<ActionResult<IEnumerable<CommentEditHistoryDto>>> GetEditHistory(int commentId)
-    {
-        try
-        {
-            var history = await _commentService.GetEditHistoryAsync(commentId);
-            return Ok(history);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = "Error retrieving edit history", error = ex.Message });
-        }
-    }*/
-
-    // POST: api/Comments/{commentId}/react
-    [HttpPost("{commentId}/react")]
-    public async Task<ActionResult> AddReaction(int commentId, [FromBody] CommentReactionDto dto)
-    {
-        try
-        {
-            var accountId = GetCurrentAccountId();
-            await _commentService.AddReactionAsync(commentId, accountId, dto.ReactionType);
-            return Ok(new { message = "Reaction added successfully" });
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = "Error adding reaction", error = ex.Message });
-        }
-    }
-
     // DELETE: api/Comments/{commentId}/react
     [HttpDelete("{commentId}/react")]
     public async Task<ActionResult> RemoveReaction(int commentId)
@@ -289,6 +248,27 @@ public class CommentsController : ControllerBase
         {
             var accountId = GetCurrentAccountId();
             await _commentService.RemoveReactionAsync(commentId, accountId);
+            
+            // Get updated comment to get postId and new reaction count
+            var updatedComment = await _commentService.GetCommentByIdAsync(commentId);
+            
+            if (updatedComment != null)
+            {
+                // Broadcast reaction event (not full comment) to avoid overriding isLiked for other users
+                try
+                {
+                    await _commentHubContext.Clients.Group($"post_{updatedComment.PostId}").SendAsync("CommentReactionChanged", new
+                    {
+                        commentId = commentId,
+                        accountId = accountId,
+                        reactionType = "Like",
+                        newLikesCount = updatedComment.ReactionCounts.Count,
+                        isAdded = false
+                    });
+                }
+                catch { /* Ignore broadcast errors */ }
+            }
+            
             return Ok(new { message = "Reaction removed successfully" });
         }
         catch (Exception ex)
@@ -297,33 +277,4 @@ public class CommentsController : ControllerBase
         }
     }
 
-    // GET: api/Comments/{commentId}/reactions
-    [HttpGet("{commentId}/reactions")]
-    public async Task<ActionResult<Dictionary<string, int>>> GetReactionCounts(int commentId)
-    {
-        try
-        {
-            var counts = await _commentService.GetReactionCountsAsync(commentId);
-            return Ok(counts);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = "Error retrieving reaction counts", error = ex.Message });
-        }
-    }
-
-    // GET: api/Comments/search?query=text&postId=1
-    [HttpGet("search")]
-    public async Task<ActionResult<IEnumerable<CommentDto>>> SearchComments([FromQuery] string query, [FromQuery] int? postId = null)
-    {
-        try
-        {
-            // This would need to be implemented in CommentService
-            return Ok(new List<CommentDto>());
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = "Error searching comments", error = ex.Message });
-        }
-    }
 }

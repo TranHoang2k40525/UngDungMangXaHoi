@@ -38,11 +38,6 @@ namespace UngDungMangXaHoi.Infrastructure.Configurations
                    .IsRequired();
             });
 
-            builder.Property(a => a.account_type)
-                   .HasMaxLength(20)
-                   .IsRequired()
-                   .HasConversion(v => v.ToString(), v => (AccountType)Enum.Parse(typeof(AccountType), v));
-
             builder.Property(a => a.status)
                    .HasMaxLength(20)
                    .IsRequired()
@@ -69,8 +64,6 @@ namespace UngDungMangXaHoi.Infrastructure.Configurations
                    .WithOne(a => a.Account)
                    .HasForeignKey<Admin>(a => a.account_id)
                    .OnDelete(DeleteBehavior.Cascade);
-
-            builder.HasIndex(a => a.account_type);
         }
     }
 }

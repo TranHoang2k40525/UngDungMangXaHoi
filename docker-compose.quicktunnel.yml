@@ -1,0 +1,86 @@
+version: '3.8'
+
+# Cloudflare Quick Tunnel - Temporary Public URLs
+# Auto-generates 2 random URLs on each restart:
+#   - quick-tunnel: WebApp (User)
+#   - quick-tunnel-admin: WebAdmin
+#
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.quicktunnel.yml up -d
+#
+# Get URLs:
+#   docker logs quick-tunnel 2>&1 | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com'
+#   docker logs quick-tunnel-admin 2>&1 | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com'
+#
+# Or use PowerShell script: .\get-tunnel-url.ps1
+
+services:
+  quick-tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: quick-tunnel
+    
+    # Quick Tunnel auto-generates URL and routes ALL traffic to webapp
+    command: tunnel --url http://webapp:80
+    
+    networks:
+      - app-network
+    
+    restart: unless-stopped
+    
+    # Start after webapp is ready
+    depends_on:
+      - webapp
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "cloudflared"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  quick-tunnel-admin:
+    image: cloudflare/cloudflared:latest
+    container_name: quick-tunnel-admin
+    
+    # Quick Tunnel for WebAdmin - generates separate URL
+    command: tunnel --url http://webadmins:80
+    
+    networks:
+      - app-network
+    
+    restart: unless-stopped
+    
+    # Start after webadmins is ready
+    depends_on:
+      - webadmins
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "cloudflared"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# Use existing network from base compose
+networks:
+  app-network:
+    external: true

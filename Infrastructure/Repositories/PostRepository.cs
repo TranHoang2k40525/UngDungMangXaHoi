@@ -56,12 +56,61 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
 
         public async Task DeleteAsync(int postId)
         {
-            var post = await GetByIdAsync(postId);
-            if (post != null)
+            var post = await _context.Posts
+                .Include(p => p.Media)
+                .Include(p => p.Comments)
+                    .ThenInclude(c => c.Reactions)
+                .Include(p => p.Comments)
+                    .ThenInclude(c => c.Mentions)
+                .FirstOrDefaultAsync(p => p.post_id == postId);
+            
+            if (post == null) return;
+
+            // Step 1: Delete all comment-related data first (to avoid FK constraint violations)
+            if (post.Comments != null && post.Comments.Any())
             {
-                _context.Posts.Remove(post);
-                await _context.SaveChangesAsync();
+                foreach (var comment in post.Comments.ToList())
+                {
+                    // Delete comment reactions
+                    if (comment.Reactions != null && comment.Reactions.Any())
+                    {
+                        _context.CommentReactions.RemoveRange(comment.Reactions);
+                    }
+                    
+                    // Delete comment mentions
+                    if (comment.Mentions != null && comment.Mentions.Any())
+                    {
+                        _context.CommentMentions.RemoveRange(comment.Mentions);
+                    }
+                    
+                    // Delete the comment itself
+                    _context.Comments.Remove(comment);
+                }
             }
+
+            // Step 2: Delete post media records (database records)
+            if (post.Media != null && post.Media.Any())
+            {
+                _context.PostMedia.RemoveRange(post.Media);
+            }
+
+            // Step 3: Delete ContentModeration records related to this post (SetNull behavior)
+            var moderations = await _context.ContentModerations
+                .Where(cm => cm.PostId == postId)
+                .ToListAsync();
+            if (moderations.Any())
+            {
+                foreach (var mod in moderations)
+                {
+                    mod.PostId = null; // Set to null instead of deleting
+                }
+            }
+
+            // Step 4: Finally delete the post
+            _context.Posts.Remove(post);
+            
+            // Save all changes
+            await _context.SaveChangesAsync();
         }
 
         public async Task<IEnumerable<Post>> GetFeedAsync(int? currentUserId, int pageNumber, int pageSize)
@@ -74,10 +123,12 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .AsNoTracking()
                 .Include(p => p.User)
                     .ThenInclude(u => u.Account)
+                        .ThenInclude(a => a.AccountRoles)
+                            .ThenInclude(ar => ar.Role)
                 .Include(p => p.Media)
                 .Where(p => p.is_visible &&
-                    // CHỈ lấy User posts (account_type == User)
-                    p.User.Account.account_type == AccountType.User &&
+                    // CHỈ lấy User posts (RBAC User role)
+                    p.User.Account.AccountRoles.Any(ar => ar.is_active && ar.Role.role_name == "User") &&
                     (p.privacy.ToLower() == "public"
                         || (currentUserId != null && p.user_id == currentUserId)
                         || (p.privacy.ToLower() == "followers" && currentUserId != null &&
@@ -166,10 +217,12 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .AsNoTracking()
                 .Include(p => p.User)
                     .ThenInclude(u => u.Account)
+                        .ThenInclude(a => a.AccountRoles)
+                            .ThenInclude(ar => ar.Role)
                 .Include(p => p.Media)
                 .Where(p => p.is_visible
-                    // CHỈ lấy User video posts (account_type == User)
-                    && p.User.Account.account_type == AccountType.User
+                    // CHỈ lấy User video posts (RBAC User role)
+                    && p.User.Account.AccountRoles.Any(ar => ar.is_active && ar.Role.role_name == "User")
                     && p.Media.Any(m => m.media_type.ToLower() == "video")
                     && (p.privacy.ToLower() == "public"
                         || (currentUserId != null && p.user_id == currentUserId)
@@ -212,10 +265,12 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .AsNoTracking()
                 .Include(p => p.User)
                     .ThenInclude(u => u.Account)
+                        .ThenInclude(a => a.AccountRoles)
+                            .ThenInclude(ar => ar.Role)
                 .Include(p => p.Media)
                 .Where(p => p.is_visible
-                    // CHỈ lấy User video posts (account_type == User)
-                    && p.User.Account.account_type == AccountType.User
+                    // CHỈ lấy User video posts (RBAC User role)
+                    && p.User.Account.AccountRoles.Any(ar => ar.is_active && ar.Role.role_name == "User")
                     && p.Media.Any(m => m.media_type.ToLower() == "video")
                     && (p.privacy.ToLower() == "public"
                         || (currentUserId != null && p.user_id == currentUserId)
@@ -294,10 +349,12 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .AsNoTracking()
                 .Include(p => p.User)
                     .ThenInclude(u => u.Account)
+                        .ThenInclude(a => a.AccountRoles)
+                            .ThenInclude(ar => ar.Role)
                 .Include(p => p.Media)
                 .Where(p => p.is_visible 
                     && p.privacy.ToLower() == "public"
-                    && p.User.Account.account_type == AccountType.Business)
+                    && p.User.Account.AccountRoles.Any(ar => ar.is_active && ar.Role.role_name == "Business"))
                 .Where(p => currentUserId == null || !_context.Blocks.Any(b => b.blocker_id == currentUserId && b.blocked_id == p.user_id))
                 .OrderByDescending(p => p.User.Account.business_verified_at)
                 .ThenByDescending(p => p.created_at)
@@ -311,10 +368,12 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .AsNoTracking()
                 .Include(p => p.User)
                     .ThenInclude(u => u.Account)
+                        .ThenInclude(a => a.AccountRoles)
+                            .ThenInclude(ar => ar.Role)
                 .Include(p => p.Media)
                 .Where(p => p.is_visible 
                     && p.privacy.ToLower() == "public"
-                    && p.User.Account.account_type == AccountType.Business
+                    && p.User.Account.AccountRoles.Any(ar => ar.is_active && ar.Role.role_name == "Business")
                     && p.Media.Any(m => m.media_type.ToLower() == "video")) // CHỈ VIDEO
                 .Where(p => currentUserId == null || !_context.Blocks.Any(b => b.blocker_id == currentUserId && b.blocked_id == p.user_id))
                 .OrderByDescending(p => p.User.Account.business_verified_at)
@@ -340,7 +399,7 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .Where(p => p.is_visible 
                     && p.privacy.ToLower() == "public"
                     && followingUserIds.Contains(p.user_id)
-                    && p.User.Account.account_type == AccountType.Business)
+                    && p.User.Account.AccountRoles.Any(ar => ar.is_active && ar.Role.role_name == "Business"))
                 .GroupBy(p => p.user_id)
                 .Select(g => g.OrderByDescending(p => p.created_at).Select(p => p.post_id).FirstOrDefault())
                 .ToListAsync();
@@ -350,6 +409,8 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .AsNoTracking()
                 .Include(p => p.User)
                     .ThenInclude(u => u.Account)
+                        .ThenInclude(a => a.AccountRoles)
+                            .ThenInclude(ar => ar.Role)
                 .Include(p => p.Media)
                 .Where(p => latestPostIds.Contains(p.post_id))
                 .OrderByDescending(p => p.created_at)
@@ -376,7 +437,7 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .Where(p => p.is_visible 
                     && p.privacy.ToLower() == "public"
                     && followingUserIds.Contains(p.user_id)
-                    && p.User.Account.account_type == AccountType.Business
+                    && p.User.Account.AccountRoles.Any(ar => ar.is_active && ar.Role.role_name == "Business")
                     && p.Media.Any(m => m.media_type.ToLower() == "video")) // CHỈ VIDEO
                 .GroupBy(p => p.user_id)
                 .Select(g => g.OrderByDescending(p => p.created_at).Select(p => p.post_id).FirstOrDefault())
@@ -387,6 +448,8 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .AsNoTracking()
                 .Include(p => p.User)
                     .ThenInclude(u => u.Account)
+                        .ThenInclude(a => a.AccountRoles)
+                            .ThenInclude(ar => ar.Role)
                 .Include(p => p.Media)
                 .Where(p => latestVideoIds.Contains(p.post_id))
                 .OrderByDescending(p => p.created_at)
@@ -404,10 +467,12 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .AsNoTracking()
                 .Include(p => p.User)
                     .ThenInclude(u => u.Account)
+                        .ThenInclude(a => a.AccountRoles)
+                            .ThenInclude(ar => ar.Role)
                 .Include(p => p.Media)
                 .Where(p => p.is_visible 
                     && p.privacy.ToLower() == "public"
-                    && p.User.Account.account_type == AccountType.Business);
+                    && p.User.Account.AccountRoles.Any(ar => ar.is_active && ar.Role.role_name == "Business"));
 
             // Filter by keywords in caption
             var lowerKeywords = keywords.Select(k => k.ToLower()).ToList();
@@ -435,10 +500,12 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 .AsNoTracking()
                 .Include(p => p.User)
                     .ThenInclude(u => u.Account)
+                        .ThenInclude(a => a.AccountRoles)
+                            .ThenInclude(ar => ar.Role)
                 .Include(p => p.Media)
                 .Where(p => p.is_visible 
                     && p.privacy.ToLower() == "public"
-                    && p.User.Account.account_type == AccountType.Business
+                    && p.User.Account.AccountRoles.Any(ar => ar.is_active && ar.Role.role_name == "Business")
                     && p.Media.Any(m => m.media_type.ToLower() == "video")); // CHỈ VIDEO
 
             // Filter by keywords in caption

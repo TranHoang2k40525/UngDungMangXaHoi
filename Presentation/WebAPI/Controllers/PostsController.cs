@@ -22,6 +22,8 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         private readonly IPostRepository _postRepository;
         private readonly IUserRepository _userRepository;
         private readonly ICommentRepository _commentRepository;
+            private readonly IAdminRepository _adminRepository;
+        private readonly IShareRepository _shareRepository;
 
         private readonly PostsService _postsService;
         private readonly BusinessPostInjectionService _businessPostInjectionService;
@@ -36,6 +38,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             IPostRepository postRepository,
             IUserRepository userRepository,
             ICommentRepository commentRepository,
+            IShareRepository shareRepository,
 
             Application.Services.PostsService postsService,
             BusinessPostInjectionService businessPostInjectionService,
@@ -43,12 +46,16 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             VideoTranscodeService videoTranscoder,
             IContentModerationService moderationService,
-            IContentModerationRepository moderationRepository)
+            IContentModerationRepository moderationRepository,
+            IAdminRepository adminRepository)
 
         {
             _postRepository = postRepository;
             _userRepository = userRepository;
             _commentRepository = commentRepository;
+            _shareRepository = shareRepository;
+
+            _adminRepository = adminRepository;
 
             _postsService = postsService;
             _businessPostInjectionService = businessPostInjectionService;
@@ -311,19 +318,21 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 prioritizedUserPosts,
                 currentUserId);
 
-            // Load comment counts for all posts
+            // Load comment counts for all posts in single query
             var postIds = mergedFeed.Select(p => p.post_id).ToList();
-            var commentCounts = new Dictionary<int, int>();
+            var commentCounts = await _commentRepository.GetCommentCountsByPostIdsAsync(postIds);
+            
+            // Load share counts for all posts
+            var shareCounts = new Dictionary<int, int>();
             foreach (var postId in postIds)
             {
-                var count = await _commentRepository.GetCommentCountByPostIdAsync(postId);
-                commentCounts[postId] = count;
+                shareCounts[postId] = await _shareRepository.GetShareCountByPostIdAsync(postId);
             }
 
             var dtoList = new List<object>();
             foreach (var pp in mergedFeed)
             {
-                dtoList.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
+                dtoList.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0), shareCounts.GetValueOrDefault(pp.post_id, 0)));
             }
             return Ok(dtoList);
         }
@@ -357,19 +366,21 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 prioritizedUserPosts,
                 currentUserId);
 
-            // Load comment counts
+            // Load comment counts in single query
             var postIds = mergedReels.Select(p => p.post_id).ToList();
-            var commentCounts = new Dictionary<int, int>();
+            var commentCounts = await _commentRepository.GetCommentCountsByPostIdsAsync(postIds);
+            
+            // Load share counts for all posts
+            var shareCounts = new Dictionary<int, int>();
             foreach (var postId in postIds)
             {
-                var count = await _commentRepository.GetCommentCountByPostIdAsync(postId);
-                commentCounts[postId] = count;
+                shareCounts[postId] = await _shareRepository.GetShareCountByPostIdAsync(postId);
             }
 
             var dtoList2 = new List<object>();
             foreach (var pp in mergedReels)
             {
-                dtoList2.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
+                dtoList2.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0), shareCounts.GetValueOrDefault(pp.post_id, 0)));
             }
             return Ok(dtoList2);
         }
@@ -402,19 +413,21 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 prioritizedUserPosts,
                 currentUserId);
 
-            // Load comment counts
+            // Load comment counts in single query
             var postIds = mergedReels.Select(p => p.post_id).ToList();
-            var commentCounts = new Dictionary<int, int>();
+            var commentCounts = await _commentRepository.GetCommentCountsByPostIdsAsync(postIds);
+            
+            // Load share counts for all posts
+            var shareCounts = new Dictionary<int, int>();
             foreach (var postId in postIds)
             {
-                var count = await _commentRepository.GetCommentCountByPostIdAsync(postId);
-                commentCounts[postId] = count;
+                shareCounts[postId] = await _shareRepository.GetShareCountByPostIdAsync(postId);
             }
 
             var dtoList3 = new List<object>();
             foreach (var pp in mergedReels)
             {
-                dtoList3.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
+                dtoList3.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0), shareCounts.GetValueOrDefault(pp.post_id, 0)));
             }
             return Ok(dtoList3);
         }
@@ -436,19 +449,21 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             var posts = await _postRepository.GetFollowingVideoPostsAsync(currentUser.user_id, Math.Max(1, page), Math.Clamp(pageSize, 1, 50));
 
-            // Load comment counts
+            // Load comment counts in single query
             var postIds = posts.Select(p => p.post_id).ToList();
-            var commentCounts = new Dictionary<int, int>();
+            var commentCounts = await _commentRepository.GetCommentCountsByPostIdsAsync(postIds);
+            
+            // Load share counts
+            var shareCounts = new Dictionary<int, int>();
             foreach (var postId in postIds)
             {
-                var count = await _commentRepository.GetCommentCountByPostIdAsync(postId);
-                commentCounts[postId] = count;
+                shareCounts[postId] = await _shareRepository.GetShareCountByPostIdAsync(postId);
             }
 
             var dtoList4 = new List<object>();
             foreach (var pp in posts)
             {
-                dtoList4.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
+                dtoList4.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0), shareCounts.GetValueOrDefault(pp.post_id, 0)));
             }
             return Ok(dtoList4);
         }
@@ -466,19 +481,21 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             var posts = await _postRepository.GetUserPostsAsync(user.user_id, Math.Max(1, page), Math.Clamp(pageSize, 1, 50));
 
-            // Load comment counts
+            // Load comment counts in single query
             var postIds = posts.Select(p => p.post_id).ToList();
-            var commentCounts = new Dictionary<int, int>();
+            var commentCounts = await _commentRepository.GetCommentCountsByPostIdsAsync(postIds);
+            
+            // Load share counts
+            var shareCounts = new Dictionary<int, int>();
             foreach (var postId in postIds)
             {
-                var count = await _commentRepository.GetCommentCountByPostIdAsync(postId);
-                commentCounts[postId] = count;
+                shareCounts[postId] = await _shareRepository.GetShareCountByPostIdAsync(postId);
             }
 
             var dtoList5 = new List<object>();
             foreach (var pp in posts)
             {
-                dtoList5.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
+                dtoList5.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0), shareCounts.GetValueOrDefault(pp.post_id, 0)));
             }
             return Ok(dtoList5);
         }
@@ -508,16 +525,31 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                     return NotFound(new { message = "Post not found" });
                 }
 
-                // Kiểm tra quyền xem post
-                if (post.privacy == "private" && currentUserId != post.user_id)
+                // Kiểm tra quyền xem post: cho phép owner hoặc admin xem private post
+                var isAdmin = false;
+                try
+                {
+                    var accountIdStr2 = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                    if (!string.IsNullOrEmpty(accountIdStr2) && int.TryParse(accountIdStr2, out var accountId2))
+                    {
+                        var admin = await _adminRepository.GetByAccountIdAsync(accountId2);
+                        if (admin != null) isAdmin = true;
+                    }
+                }
+                catch { }
+
+                if (post.privacy == "private" && currentUserId != post.user_id && !isAdmin)
                 {
                     return Forbid();
                 }
 
                 // Load comment count
                 var commentsCount = await _commentRepository.GetCommentCountByPostIdAsync(id);
+                
+                // Load share count
+                var sharesCount = await _shareRepository.GetShareCountByPostIdAsync(id);
 
-                var postDto = await MapPostToDtoAsync(post, commentsCount);
+                var postDto = await MapPostToDtoAsync(post, commentsCount, sharesCount);
                 return Ok(postDto);
             }
             catch (Exception ex)
@@ -544,26 +576,28 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             var posts = await _postRepository.GetUserPostsForViewerAsync(userId, currentUserId, Math.Max(1, page), Math.Clamp(pageSize, 1, 50));
 
-            // Load comment counts
+            // Load comment counts in single query
             var postIds = posts.Select(p => p.post_id).ToList();
-            var commentCounts = new Dictionary<int, int>();
+            var commentCounts = await _commentRepository.GetCommentCountsByPostIdsAsync(postIds);
+            
+            // Load share counts
+            var shareCounts = new Dictionary<int, int>();
             foreach (var postId in postIds)
             {
-                var count = await _commentRepository.GetCommentCountByPostIdAsync(postId);
-                commentCounts[postId] = count;
+                shareCounts[postId] = await _shareRepository.GetShareCountByPostIdAsync(postId);
             }
 
             var dtoList6 = new List<object>();
             foreach (var pp in posts)
             {
-                dtoList6.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0)));
+                dtoList6.Add(await MapPostToDtoAsync(pp, commentCounts.GetValueOrDefault(pp.post_id, 0), shareCounts.GetValueOrDefault(pp.post_id, 0)));
             }
             return Ok(dtoList6);
         }
 
 
 
-        private async Task<object> MapPostToDtoAsync(Post p, int commentsCount = 0)
+        private async Task<object> MapPostToDtoAsync(Post p, int commentsCount = 0, int sharesCount = 0)
         {
             string BaseUrl(string path) => $"{Request.Scheme}://{Request.Host}{path}";
 
@@ -640,7 +674,10 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 }
             }
             catch { }
-            bool isSponsored = p.User?.Account?.account_type == AccountType.Business;
+            // ✅ Check if user has Business role (RBAC)
+            bool hasBusinessRole = p.User?.Account?.AccountRoles
+                .Any(ar => ar.is_active && ar.Role.role_name == "Business") ?? false;
+            bool isSponsored = hasBusinessRole;
 
             return new
             {
@@ -650,6 +687,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 privacy = p.privacy,
                 createdAt = p.created_at,
                 commentsCount = commentsCount,
+                sharesCount = sharesCount,
                 isSponsored = isSponsored,
 
                 user = new
@@ -657,8 +695,12 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                     id = p.User?.user_id,
                     username = p.User?.username.Value,
                     avatarUrl = p.User?.avatar_url?.Value != null ? BaseUrl(p.User.avatar_url.Value) : null,
-                    accountType = p.User?.Account?.account_type.ToString(),
-
+                    // ✅ Get account type from RBAC roles
+                    accountType = p.User?.Account?.AccountRoles
+                        .Where(ar => ar.is_active)
+                        .OrderByDescending(ar => ar.Role.priority)
+                        .Select(ar => ar.Role.role_name)
+                        .FirstOrDefault()
                 },
                 media = media,
                 mentions = mentions,
@@ -691,7 +733,8 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             // return latest with media for client update
             var updated = await _postRepository.GetByIdWithMediaAsync(id) ?? post;
             var commentsCount = await _commentRepository.GetCommentCountByPostIdAsync(id);
-            return Ok(await MapPostToDtoAsync(updated, commentsCount));
+            var sharesCount = await _shareRepository.GetShareCountByPostIdAsync(id);
+            return Ok(await MapPostToDtoAsync(updated, commentsCount, sharesCount));
         }
 
         [HttpPatch("{id:int}/caption")]
@@ -754,7 +797,8 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             var updated = await _postRepository.GetByIdWithMediaAsync(id) ?? post;
             var commentsCount = await _commentRepository.GetCommentCountByPostIdAsync(id);
-            return Ok(await MapPostToDtoAsync(updated, commentsCount));
+            var sharesCount = await _shareRepository.GetShareCountByPostIdAsync(id);
+            return Ok(await MapPostToDtoAsync(updated, commentsCount, sharesCount));
         }
 
         [HttpPatch("{id:int}/tags")]
@@ -778,7 +822,8 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
             var updated = await _postRepository.GetByIdWithMediaAsync(id) ?? post;
             var commentsCount = await _commentRepository.GetCommentCountByPostIdAsync(id);
-            return Ok(await MapPostToDtoAsync(updated, commentsCount));
+            var sharesCount = await _shareRepository.GetShareCountByPostIdAsync(id);
+            return Ok(await MapPostToDtoAsync(updated, commentsCount, sharesCount));
         }
 
         [HttpDelete("{id:int}")]

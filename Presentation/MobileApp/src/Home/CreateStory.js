@@ -20,7 +20,7 @@ export default function CreateStory() {
     const media = route?.params?.media || null;
     const insets = useSafeAreaInsets();
 
-    const [privacy, setPrivacy] = useState("public"); // public | followers | private
+    const [privacy, setPrivacy] = useState("public"); // public | private (đã bỏ followers)
     const [uploading, setUploading] = useState(false);
 
     const isVideo =
@@ -169,22 +169,6 @@ export default function CreateStory() {
                         ]}
                     >
                         Công khai
-                    </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[
-                        styles.privacyBtn,
-                        privacy === "followers" && styles.privacyBtnActive,
-                    ]}
-                    onPress={() => setPrivacy("followers")}
-                >
-                    <Text
-                        style={[
-                            styles.privacyText,
-                            privacy === "followers" && styles.privacyTextActive,
-                        ]}
-                    >
-                        Người theo dõi
                     </Text>
                 </TouchableOpacity>
                 <TouchableOpacity

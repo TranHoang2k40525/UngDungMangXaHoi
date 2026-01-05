@@ -21,6 +21,7 @@ export const onReceiveComment = (cb) => signalRService.onReceiveComment(cb);
 export const onCommentUpdated = (cb) => signalRService.onCommentUpdated(cb);
 export const onCommentDeleted = (cb) => signalRService.onCommentDeleted(cb);
 export const onCommentReplyAdded = (cb) => signalRService.onCommentReplyAdded(cb);
+export const onCommentReactionChanged = (cb) => signalRService.onCommentReactionChanged?.(cb);
 export const onReactionAdded = (cb) => signalRService.onReactionAdded(cb);
 export const onReactionRemoved = (cb) => signalRService.onReactionRemoved(cb);
 
@@ -52,6 +53,7 @@ export default {
   onCommentUpdated,
   onCommentDeleted,
   onCommentReplyAdded,
+  onCommentReactionChanged,
   onReactionAdded,
   onReactionRemoved,
   removeAllListeners,

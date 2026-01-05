@@ -88,7 +88,7 @@ namespace UngDungMangXaHoi.Application.Services
 
             // QUAN TRỌNG: Nếu còn Business posts chưa chèn, thêm vào cuối feed
             // Đảm bảo tất cả Business posts đều có cơ hội hiển thị, không bị giới hạn bởi số lượng User posts
-            while (businessIndex < businessPosts.Count && businessIndex < 10) // Giới hạn thêm tối đa 10 Business posts ở cuối
+            while (businessIndex < businessPosts.Count && businessIndex < 3) // Giới hạn thêm tối đa 3 Business posts ở cuối
             {
                 var businessPost = businessPosts[businessIndex];
                 

@@ -46,7 +46,47 @@ Module Authentication quản lý toàn bộ quy trình xác thực người dùn
 
 ---
 
-## 🔐 Luồng Đăng Ký (Registration)
+## � Sơ Đồ Tổng Quan
+
+### Sequence Diagram - Complete Authentication Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API
+    participant BCrypt
+    participant DB
+    participant Email
+    participant JWT
+
+    Note over User,JWT: REGISTRATION FLOW
+    User->>API: POST /api/auth/register
+    API->>API: Validate Input
+    API->>DB: Check Email Exists
+    API->>BCrypt: Hash Password
+    API->>DB: Create Account + User
+    API->>API: Generate OTP
+    API->>Email: Send OTP
+    API-->>User: Success
+
+    Note over User,JWT: OTP VERIFICATION
+    User->>API: POST /api/auth/verify-otp
+    API->>BCrypt: Verify OTP
+    API->>DB: Activate Account
+    API->>JWT: Generate Tokens
+    API-->>User: {accessToken, refreshToken}
+
+    Note over User,JWT: LOGIN FLOW
+    User->>API: POST /api/auth/login
+    API->>DB: Get Account
+    API->>BCrypt: Verify Password
+    API->>JWT: Generate Tokens
+    API-->>User: {tokens, user}
+```
+
+---
+
+## �🔐 Luồng Đăng Ký (Registration)
 
 ### 📊 Sơ đồ luồng User Registration
 
@@ -84,6 +124,29 @@ sequenceDiagram
     AuthController->>AuthService: Generate JWT tokens
     
     AuthController-->>Client: Access Token + Refresh Token
+```
+
+### 🔁 Sơ đồ tuần tự (Mermaid)
+
+```mermaid
+sequenceDiagram
+  participant Mobile
+  participant WebAPI
+  participant AuthService
+  participant UserRepo
+  participant DB
+
+  Mobile->>WebAPI: POST /api/auth/login {username,password}
+  WebAPI->>AuthService: ValidateCredentials(dto)
+  AuthService->>UserRepo: GetByUsername(username)
+  UserRepo->>DB: SELECT user
+  DB-->>UserRepo: user record
+  UserRepo-->>AuthService: user entity
+  AuthService->>AuthService: Verify password (BCrypt)
+  AuthService->>WebAPI: GenerateAccessToken + RefreshToken
+  WebAPI-->>Mobile: 200 {accessToken, refreshToken}
+
+  Note over AuthService: store refresh token in DB or cache
 ```
 
 ### 📝 Chi tiết các bước

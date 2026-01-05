@@ -46,17 +46,6 @@ public class CommentRepository : ICommentRepository
             .ToListAsync(); // Không dùng pagination để lấy hết tất cả comments
     }
 
-    public async Task<IEnumerable<Comment>> GetRepliesByCommentIdAsync(int parentCommentId)
-    {
-        return await _context.Comments
-            .Include(c => c.User)
-            .Include(c => c.Mentions).ThenInclude(m => m.MentionedAccount).ThenInclude(a => a.User)
-            .Include(c => c.Reactions)
-            .Where(c => c.ParentCommentId == parentCommentId && !c.IsDeleted)
-            .OrderBy(c => c.CreatedAt)
-            .ToListAsync();
-    }
-
     public async Task<int> GetCommentCountByPostIdAsync(int postId)
     {
         return await _context.Comments
@@ -64,11 +53,14 @@ public class CommentRepository : ICommentRepository
             .CountAsync();
     }
 
-    public async Task<int> GetReplyCountByCommentIdAsync(int commentId)
+    public async Task<Dictionary<int, int>> GetCommentCountsByPostIdsAsync(IEnumerable<int> postIds)
     {
+        // Batch load comment counts for multiple posts in single query
         return await _context.Comments
-            .Where(c => c.ParentCommentId == commentId && !c.IsDeleted)
-            .CountAsync();
+            .Where(c => postIds.Contains(c.PostId) && !c.IsDeleted)
+            .GroupBy(c => c.PostId)
+            .Select(g => new { PostId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.PostId, x => x.Count);
     }
 
     // Update
@@ -98,32 +90,6 @@ public class CommentRepository : ICommentRepository
         comment.IsDeleted = true;
         await _context.SaveChangesAsync();
         return true;
-    }
-
-    // Mentions
-    public async Task<IEnumerable<CommentMention>> GetMentionsByCommentIdAsync(int commentId)
-    {
-        return await _context.CommentMentions
-            .Include(m => m.MentionedAccount).ThenInclude(a => a.User)
-            .Where(m => m.CommentId == commentId)
-            .ToListAsync();
-    }
-
-    public async Task<IEnumerable<Comment>> GetCommentsByMentionedUserAsync(int accountId, int pageNumber = 1, int pageSize = 20)
-    {
-        var mentionedCommentIds = await _context.CommentMentions
-            .Where(m => m.MentionedAccountId == accountId)
-            .Select(m => m.CommentId)
-            .ToListAsync();
-
-        return await _context.Comments
-            .Include(c => c.User)
-            .Include(c => c.Post)
-            .Where(c => mentionedCommentIds.Contains(c.CommentId) && !c.IsDeleted)
-            .OrderByDescending(c => c.CreatedAt)
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
     }
 
     // Reactions
@@ -170,36 +136,4 @@ public class CommentRepository : ICommentRepository
         return true;
     }
 
-    public async Task<Dictionary<string, int>> GetReactionCountsAsync(int commentId)
-    {
-        return await _context.CommentReactions
-            .Where(r => r.CommentId == commentId)
-            .GroupBy(r => r.ReactionType)
-            .Select(g => new { ReactionType = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.ReactionType, x => x.Count);
-    }
-
-    // Search
-    public async Task<IEnumerable<Comment>> SearchByHashtagAsync(string hashtag, int pageNumber = 1, int pageSize = 20)
-    {
-        return await _context.Comments
-            .Include(c => c.User)
-            .Where(c => !c.IsDeleted && c.Hashtags != null && c.Hashtags.Contains(hashtag))
-            .OrderByDescending(c => c.CreatedAt)
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
-    }
-
-    public async Task<IEnumerable<Comment>> GetCommentsByUserAsync(int accountId, int pageNumber = 1, int pageSize = 20)
-    {
-        return await _context.Comments
-            .Include(c => c.Post)
-            .Include(c => c.User)
-            .Where(c => c.User!.account_id == accountId && !c.IsDeleted)
-            .OrderByDescending(c => c.CreatedAt)
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
-    }
 }

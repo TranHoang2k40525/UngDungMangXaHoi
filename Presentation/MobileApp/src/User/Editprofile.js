@@ -14,7 +14,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getProfile, updateProfile, API_BASE_URL } from '../API/Api';
+import { getProfile, updateProfile, updateAvatar, API_BASE_URL } from '../API/Api';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function Editprofile() {
@@ -129,11 +129,48 @@ export default function Editprofile() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 1,
+      quality: 0.9,
     });
 
-    if (!result.cancelled) {
-      setAvatar(result.uri);
+    if (result.cancelled || !result.assets?.[0]?.uri) return;
+    
+    const asset = result.assets[0];
+    
+    try {
+      // Show loading state
+      const tempUri = asset.uri;
+      setAvatar(tempUri);
+      
+      // Upload avatar to server
+      const res = await updateAvatar({ 
+        uri: asset.uri, 
+        name: 'avatar.jpg', 
+        type: 'image/jpeg', 
+        createPost: false 
+      });
+      
+      const newAvatarUrl = res?.data?.avatarUrl;
+      if (newAvatarUrl) {
+        // Convert to full URL if needed
+        const fullUrl = newAvatarUrl.startsWith('http') 
+          ? newAvatarUrl 
+          : `${API_BASE_URL}${newAvatarUrl}`;
+        setAvatar(fullUrl);
+        console.log('[Editprofile] Avatar updated successfully:', fullUrl);
+      }
+    } catch (e) {
+      console.warn('[Editprofile] Update avatar error:', e);
+      alert('Đổi avatar thất bại. Vui lòng thử lại.');
+      // Reload avatar from server
+      try {
+        const me = await getProfile();
+        if (me?.avatarUrl) {
+          const avatarUri = me.avatarUrl.startsWith('http') 
+            ? me.avatarUrl 
+            : `${API_BASE_URL}${me.avatarUrl}`;
+          setAvatar(avatarUri);
+        }
+      } catch {}
     }
   };
 
@@ -183,13 +220,25 @@ export default function Editprofile() {
         >
           {/* Avatar */}
           <View style={styles.profileSection}>
-            {avatar ? (
-              <Image source={{ uri: avatar }} style={styles.profileImage} />
-            ) : (
-              <View style={[styles.profileImage, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#e5e7eb' }]}>
-                <Ionicons name="person" size={40} color="#9ca3af" />
-              </View>
-            )}
+            {(() => {
+              console.log('[Editprofile] Rendering avatar, uri:', avatar);
+              if (avatar) {
+                return (
+                  <Image 
+                    source={{ uri: avatar }} 
+                    style={styles.profileImage}
+                    onError={(e) => console.error('[Editprofile] Image load error:', e.nativeEvent.error)}
+                    onLoad={() => console.log('[Editprofile] Image loaded successfully')}
+                  />
+                );
+              } else {
+                return (
+                  <View style={[styles.profileImage, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#e5e7eb' }]}>
+                    <Ionicons name="person" size={40} color="#9ca3af" />
+                  </View>
+                );
+              }
+            })()}
             <TouchableOpacity onPress={pickImage}>
               <Text style={styles.changePhoto}>Tải ảnh từ thiết bị</Text>
             </TouchableOpacity>

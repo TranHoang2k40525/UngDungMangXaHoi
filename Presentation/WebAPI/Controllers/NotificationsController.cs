@@ -9,7 +9,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Policy = "UserOnly")]
+    [Authorize] // All authenticated users
     public class NotificationsController : ControllerBase
     {
         private readonly NotificationManagementService _notificationService;

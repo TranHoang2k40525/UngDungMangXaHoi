@@ -194,7 +194,7 @@ export default function StoryViewer() {
                         ref={videoRef}
                         source={{ uri: currentStory.mediaUrl }}
                         style={styles.storyImage}
-                        resizeMode="cover"
+                        resizeMode="contain"
                         shouldPlay={!isPaused}
                         isLooping={false}
                         onLoad={() => setIsLoading(false)}
@@ -209,7 +209,7 @@ export default function StoryViewer() {
                     <Image
                         source={{ uri: currentStory.mediaUrl }}
                         style={styles.storyImage}
-                        resizeMode="cover"
+                        resizeMode="contain"
                         onLoadEnd={() => setIsLoading(false)}
                     />
                 )}
@@ -300,10 +300,12 @@ const styles = StyleSheet.create({
     },
     storyContainer: {
         flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     storyImage: {
-        width: width,
-        height: height,
+        width: '100%',
+        height: '100%',
     },
     loadingContainer: {
         position: "absolute",

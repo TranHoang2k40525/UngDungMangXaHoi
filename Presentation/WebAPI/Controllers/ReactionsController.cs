@@ -10,7 +10,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Policy = "UserOnly")]
+    [Authorize] // All authenticated users
     public class ReactionsController : ControllerBase
     {
         private readonly ReactionService _reactionService;
@@ -28,8 +28,8 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
         {
             try
             {
-                var userId = GetCurrentUserId();
-                var result = await _reactionService.AddOrUpdateReactionAsync(userId, dto);
+                var accountId = GetCurrentAccountId(); // Get account_id from token
+                var result = await _reactionService.AddOrUpdateReactionAsync(accountId, dto);
 
                 if (result == null)
                 {
@@ -57,13 +57,13 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
         {
             try
             {
-                int? currentUserId = null;
+                int? currentAccountId = null;
                 if (User.Identity?.IsAuthenticated == true)
                 {
-                    currentUserId = GetCurrentUserId();
+                    currentAccountId = GetCurrentAccountId();
                 }
 
-                var summary = await _reactionService.GetReactionSummaryAsync(postId, currentUserId);
+                var summary = await _reactionService.GetReactionSummaryAsync(postId, currentAccountId);
                 return Ok(new { data = summary });
             }
             catch (Exception ex)
@@ -90,14 +90,16 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
             }
         }
 
-        private int GetCurrentUserId()
+        private int GetCurrentAccountId()
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            var accountIdClaim = User.FindFirst("AccountId")?.Value 
+                ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            
+            if (string.IsNullOrEmpty(accountIdClaim) || !int.TryParse(accountIdClaim, out int accountId))
             {
                 throw new UnauthorizedAccessException("Không tìm thấy thông tin người dùng");
             }
-            return userId;
+            return accountId;
         }
     }
 }

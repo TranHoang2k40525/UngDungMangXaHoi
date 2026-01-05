@@ -17,7 +17,8 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
     {
         private readonly MessageService _messageService;
         private readonly AppDbContext _context;
-        private static readonly ConcurrentDictionary<int, string> _userConnections = new();
+        // Sử dụng ConcurrentDictionary với HashSet để hỗ trợ multiple connections
+        private static readonly ConcurrentDictionary<int, HashSet<string>> _userConnections = new();
 
         public MessageHub(MessageService messageService, AppDbContext context)
         {
@@ -25,20 +26,36 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
             _context = context;
         }
 
+        private int? GetCurrentUserId()
+        {
+            // CRITICAL: Use "user_id" claim first (actual user_id in database)
+            var userIdClaim = Context.User?.FindFirst("user_id")?.Value
+                              ?? Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+                              ?? Context.User?.FindFirst("nameid")?.Value;
+            
+            return int.TryParse(userIdClaim, out int userId) ? userId : null;
+        }
+
         public override async Task OnConnectedAsync()
         {
-            // JWT sử dụng "nameid" cho user ID, không phải "user_id"
-            var userIdClaim = Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
-                              ?? Context.User?.FindFirst("nameid")?.Value 
-                              ?? Context.User?.FindFirst("user_id")?.Value;
+            var userId = GetCurrentUserId();
             
-            if (int.TryParse(userIdClaim, out int userId))
+            if (userId.HasValue)
             {
-                _userConnections.TryAdd(userId, Context.ConnectionId);
-                Console.WriteLine($"[MessageHub] User {userId} connected with ConnectionId: {Context.ConnectionId}");
+                // Thêm connection vào danh sách của user
+                _userConnections.AddOrUpdate(
+                    userId.Value,
+                    new HashSet<string> { Context.ConnectionId },
+                    (key, existingSet) =>
+                    {
+                        existingSet.Add(Context.ConnectionId);
+                        return existingSet;
+                    });
+                
+                Console.WriteLine($"[MessageHub] User {userId.Value} connected with ConnectionId: {Context.ConnectionId}");
                 
                 // Thông báo cho user đã online
-                await Clients.Others.SendAsync("UserOnline", userId);
+                await Clients.Others.SendAsync("UserOnline", userId.Value);
             }
             else
             {
@@ -50,31 +67,39 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
 
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
-            // JWT sử dụng "nameid" cho user ID, không phải "user_id"
-            var userIdClaim = Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
-                              ?? Context.User?.FindFirst("nameid")?.Value 
-                              ?? Context.User?.FindFirst("user_id")?.Value;
+            var userId = GetCurrentUserId();
             
-            if (int.TryParse(userIdClaim, out int userId))
+            if (userId.HasValue)
             {
-                _userConnections.TryRemove(userId, out _);
-                Console.WriteLine($"[MessageHub] User {userId} disconnected");
-                
-                // Lưu thời điểm offline vào database
-                try
+                // Xóa connection khỏi danh sách của user
+                if (_userConnections.TryGetValue(userId.Value, out var connections))
                 {
-                    await _context.Users
-                        .Where(u => u.user_id == userId)
-                        .ExecuteUpdateAsync(u => u.SetProperty(x => x.last_seen, DateTime.UtcNow));
-                    Console.WriteLine($"[MessageHub] Updated last_seen for user {userId}");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[MessageHub] Error updating last_seen: {ex.Message}");
+                    connections.Remove(Context.ConnectionId);
+                    
+                    // Nếu user không còn connection nào, xóa khỏi dictionary
+                    if (connections.Count == 0)
+                    {
+                        _userConnections.TryRemove(userId.Value, out _);
+                        
+                        // Lưu thời điểm offline vào database
+                        try
+                        {
+                            await _context.Users
+                                .Where(u => u.user_id == userId.Value)
+                                .ExecuteUpdateAsync(u => u.SetProperty(x => x.last_seen, DateTime.UtcNow));
+                            Console.WriteLine($"[MessageHub] Updated last_seen for user {userId.Value}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[MessageHub] Error updating last_seen: {ex.Message}");
+                        }
+                        
+                        // Thông báo cho user đã offline
+                        await Clients.Others.SendAsync("UserOffline", userId.Value);
+                    }
                 }
                 
-                // Thông báo cho user đã offline
-                await Clients.Others.SendAsync("UserOffline", userId);
+                Console.WriteLine($"[MessageHub] User {userId.Value} disconnected");
             }
 
             await base.OnDisconnectedAsync(exception);
@@ -85,22 +110,19 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
         {
             try
             {
-                // JWT sử dụng "nameid" cho user ID, không phải "user_id"
-                var userIdClaim = Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
-                                  ?? Context.User?.FindFirst("nameid")?.Value 
-                                  ?? Context.User?.FindFirst("user_id")?.Value;
+                var senderId = GetCurrentUserId();
                 
-                if (!int.TryParse(userIdClaim, out int senderId))
+                if (!senderId.HasValue)
                 {
                     Console.WriteLine($"[MessageHub] SendMessage - Unauthorized. Claims: {string.Join(", ", Context.User?.Claims.Select(c => $"{c.Type}={c.Value}") ?? new string[0])}");
                     await Clients.Caller.SendAsync("Error", "Unauthorized");
                     return;
                 }
 
-                Console.WriteLine($"[MessageHub] SendMessage - senderId: {senderId}, receiverId: {dto.receiver_id}, content: {dto.content}");
+                Console.WriteLine($"[MessageHub] SendMessage - senderId: {senderId.Value}, receiverId: {dto.receiver_id}, content: {dto.content}");
 
                 // Gửi tin nhắn qua service
-                var message = await _messageService.SendMessageAsync(senderId, dto);
+                var message = await _messageService.SendMessageAsync(senderId.Value, dto);
 
                 if (message == null)
                 {
@@ -111,10 +133,13 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
                 // Gửi tin nhắn cho người gửi (confirmation)
                 await Clients.Caller.SendAsync("MessageSent", message);
 
-                // Gửi tin nhắn cho người nhận nếu họ đang online
-                if (_userConnections.TryGetValue(dto.receiver_id, out string? receiverConnectionId))
+                // Gửi tin nhắn cho người nhận nếu họ đang online (gửi cho tất cả connections)
+                if (_userConnections.TryGetValue(dto.receiver_id, out var receiverConnections))
                 {
-                    await Clients.Client(receiverConnectionId).SendAsync("ReceiveMessage", message);
+                    foreach (var connectionId in receiverConnections)
+                    {
+                        await Clients.Client(connectionId).SendAsync("ReceiveMessage", message);
+                    }
                 }
 
                 Console.WriteLine($"[MessageHub] Message sent from {senderId} to {dto.receiver_id}");
@@ -135,20 +160,18 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
         {
             try
             {
-                var userIdClaim = Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
-                                  ?? Context.User?.FindFirst("nameid")?.Value 
-                                  ?? Context.User?.FindFirst("user_id")?.Value;
+                var userId = GetCurrentUserId();
                 
-                if (!int.TryParse(userIdClaim, out int userId))
+                if (!userId.HasValue)
                 {
                     await Clients.Caller.SendAsync("Error", "Unauthorized");
                     return;
                 }
 
-                await _messageService.MarkAsReadAsync(conversationId, userId);
+                await _messageService.MarkAsReadAsync(conversationId, userId.Value);
 
                 // Thông báo cho người gửi rằng tin nhắn đã được đọc
-                await Clients.Caller.SendAsync("MessagesRead", new { conversationId, userId });
+                await Clients.Caller.SendAsync("MessagesRead", new { conversationId, userId = userId.Value });
 
                 Console.WriteLine($"[MessageHub] User {userId} marked conversation {conversationId} as read");
             }
@@ -164,22 +187,24 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
         {
             try
             {
-                var userIdClaim = Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
-                                  ?? Context.User?.FindFirst("nameid")?.Value 
-                                  ?? Context.User?.FindFirst("user_id")?.Value;
+                var senderId = GetCurrentUserId();
                 
-                if (!int.TryParse(userIdClaim, out int senderId))
+                if (!senderId.HasValue)
                 {
                     return;
                 }
 
-                if (_userConnections.TryGetValue(receiverId, out string? receiverConnectionId))
+                // Support multiple connections per user
+                if (_userConnections.TryGetValue(receiverId, out HashSet<string>? receiverConnections))
                 {
-                    await Clients.Client(receiverConnectionId).SendAsync("UserTyping", new 
-                    { 
-                        userId = senderId, 
-                        isTyping 
-                    });
+                    foreach (var connectionId in receiverConnections)
+                    {
+                        await Clients.Client(connectionId).SendAsync("UserTyping", new 
+                        { 
+                            userId = senderId.Value, 
+                            isTyping 
+                        });
+                    }
                 }
             }
             catch (Exception ex)
@@ -207,22 +232,20 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
         {
             try
             {
-                var userIdClaim = Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
-                                  ?? Context.User?.FindFirst("nameid")?.Value 
-                                  ?? Context.User?.FindFirst("user_id")?.Value;
+                var userId = GetCurrentUserId();
                 
-                if (!int.TryParse(userIdClaim, out int userId))
+                if (!userId.HasValue)
                 {
                     await Clients.Caller.SendAsync("Error", "Unauthorized");
                     return;
                 }
 
-                var success = await _messageService.DeleteMessageAsync(messageId, userId);
+                var success = await _messageService.DeleteMessageAsync(messageId, userId.Value);
 
                 if (success)
                 {
                     await Clients.Caller.SendAsync("MessageDeleted", messageId);
-                    Console.WriteLine($"[MessageHub] Message {messageId} deleted by user {userId}");
+                    Console.WriteLine($"[MessageHub] Message {messageId} deleted by user {userId.Value}");
                 }
                 else
                 {
@@ -241,19 +264,17 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
         {
             try
             {
-                var userIdClaim = Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
-                                  ?? Context.User?.FindFirst("nameid")?.Value 
-                                  ?? Context.User?.FindFirst("user_id")?.Value;
+                var userId = GetCurrentUserId();
                 
-                if (!int.TryParse(userIdClaim, out int userId))
+                if (!userId.HasValue)
                 {
                     await Clients.Caller.SendAsync("Error", "Unauthorized");
                     return;
                 }
 
-                Console.WriteLine($"[MessageHub] RecallMessage - messageId: {messageId}, userId: {userId}");
+                Console.WriteLine($"[MessageHub] RecallMessage - messageId: {messageId}, userId: {userId.Value}");
 
-                var recalledMessage = await _messageService.RecallMessageAsync(messageId, userId);
+                var recalledMessage = await _messageService.RecallMessageAsync(messageId, userId.Value);
 
                 if (recalledMessage == null)
                 {
@@ -270,6 +291,14 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
                 Console.WriteLine($"[MessageHub] Error recalling message: {ex.Message}");
                 await Clients.Caller.SendAsync("Error", "An error occurred");
             }
+        }
+
+        /// <summary>
+        /// Check xem user có đang online không
+        /// </summary>
+        public static bool IsUserOnline(int userId)
+        {
+            return _userConnections.ContainsKey(userId);
         }
     }
 }

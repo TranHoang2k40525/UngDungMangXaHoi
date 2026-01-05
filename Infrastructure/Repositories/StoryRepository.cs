@@ -30,7 +30,7 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
             return await _context.Stories
                 .Include(s => s.User)
                 .Include(s => s.Views)
-                .FirstOrDefaultAsync(s => s.story_id == id) ?? null!;
+                .FirstOrDefaultAsync(s => s.story_id == id);
         }
 
         public async Task<IEnumerable<Story>> GetUserStoriesAsync(int userId)
@@ -47,13 +47,36 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
         {
             var twentyFourHoursAgo = DateTime.UtcNow.AddHours(-24);
             
-            return await _context.Stories
+            Console.WriteLine($"[StoryRepo] GetFeedStoriesAsync for viewerId: {viewerId}");
+            
+            // Lấy danh sách bạn bè đã kết nối (status = 'accepted')
+            var friendIds = await _context.Follows
+                .Where(f => (f.follower_id == viewerId || f.following_id == viewerId) 
+                           && f.status == "accepted")
+                .Select(f => f.follower_id == viewerId ? f.following_id : f.follower_id)
+                .Distinct()
+                .ToListAsync();
+            
+            Console.WriteLine($"[StoryRepo] Found {friendIds.Count} friends: [{string.Join(", ", friendIds)}]");
+            
+            // Lấy stories công khai của bạn bè + stories của chính mình
+            var stories = await _context.Stories
                 .Include(s => s.User)
                 .Include(s => s.Views)
                 .Where(s => s.created_at > twentyFourHoursAgo 
-                           && s.expires_at > DateTime.UtcNow)
+                           && s.expires_at > DateTime.UtcNow
+                           && (s.user_id == viewerId // Stories của chính mình
+                               || (friendIds.Contains(s.user_id) && s.privacy == "public"))) // Stories công khai của bạn bè
                 .OrderByDescending(s => s.created_at)
                 .ToListAsync();
+            
+            Console.WriteLine($"[StoryRepo] Found {stories.Count} stories total");
+            foreach (var s in stories)
+            {
+                Console.WriteLine($"  - Story {s.story_id}: user_id={s.user_id}, privacy={s.privacy}");
+            }
+            
+            return stories;
         }
 
         public async Task AddStoryViewAsync(StoryView view)

@@ -53,8 +53,15 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
         public DbSet<BusinessPayment> BusinessPayments { get; set; }
         // Search
         public DbSet<SearchHistory> SearchHistories { get; set; } = null!;
-        // Reports
+                // Reports
         public DbSet<Report> Reports { get; set; } = null!;
+
+        // RBAC - Role-Based Access Control
+        public DbSet<Role> Roles { get; set; } = null!;
+        public DbSet<Permission> Permissions { get; set; } = null!;
+        public DbSet<AccountRole> AccountRoles { get; set; } = null!;
+        public DbSet<RolePermission> RolePermissions { get; set; } = null!;
+        public DbSet<AccountPermission> AccountPermissions { get; set; } = null!;
 
         // Admin Activity Logs
         public DbSet<AdminActivityLog> AdminActivityLogs { get; set; } = null!;
@@ -105,6 +112,13 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new AccountSanctionConfiguration());
             modelBuilder.ApplyConfiguration(new BusinessPaymentConfiguration());
             modelBuilder.ApplyConfiguration(new SearchHistoryConfiguration());
+            
+            // RBAC Configurations
+            modelBuilder.ApplyConfiguration(new RoleConfiguration());
+            modelBuilder.ApplyConfiguration(new PermissionConfiguration());
+            modelBuilder.ApplyConfiguration(new AccountRoleConfiguration());
+            modelBuilder.ApplyConfiguration(new RolePermissionConfiguration());
+            modelBuilder.ApplyConfiguration(new AccountPermissionConfiguration());
             modelBuilder.ApplyConfiguration(new ReportConfiguration());
 
         }

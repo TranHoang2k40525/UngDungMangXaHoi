@@ -10,7 +10,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Policy = "UserOnly")]
+    [Authorize] // All authenticated users
     public class SharesController : ControllerBase
     {
         private readonly ShareService _shareService;
@@ -130,7 +130,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
             }
             catch (UnauthorizedAccessException ex)
             {
-                return Forbid(ex.Message);
+                return StatusCode(403, new { error = ex.Message });
             }
             catch (Exception ex)
             {

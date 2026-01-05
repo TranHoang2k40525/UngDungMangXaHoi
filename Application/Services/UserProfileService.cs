@@ -20,6 +20,20 @@ namespace UngDungMangXaHoi.Application.Services
         private readonly IPostRepository _postRepository;
         private readonly IPasswordHasher _passwordHasher;
         private readonly IEmailService _emailService;
+        
+        // ✅ Helper method to convert relative path to full URL
+        private string? GetFullAvatarUrl(string? relativePath)
+        {
+            if (string.IsNullOrEmpty(relativePath)) return null;
+            
+            // If already full URL, return as-is
+            if (relativePath.StartsWith("http://") || relativePath.StartsWith("https://"))
+                return relativePath;
+            
+            // Convert relative path to full URL
+            var baseUrl = Environment.GetEnvironmentVariable("API_BASE_URL") ?? "http://localhost:5297";
+            return $"{baseUrl}{relativePath}";
+        }
 
         public UserProfileService(
             IUserRepository userRepository,
@@ -52,6 +66,13 @@ namespace UngDungMangXaHoi.Application.Services
             var followerCount = await _userRepository.GetFollowersCountAsync(user.user_id);
             var followingCount = await _userRepository.GetFollowingCountAsync(user.user_id);
 
+            // RBAC: Determine account type from roles
+            var isBusiness = account.AccountRoles.Any(ar => 
+                ar.is_active && ar.Role.role_name == "Business");
+            var isAdmin = account.AccountRoles.Any(ar => 
+                ar.is_active && ar.Role.role_name == "Admin");
+            var accountType = isAdmin ? "Admin" : (isBusiness ? "Business" : "User");
+
             return new UserProfileDto
             {
                 UserId = user.user_id,
@@ -62,7 +83,7 @@ namespace UngDungMangXaHoi.Application.Services
                 FullName = user.full_name,
                 Gender = user.gender.ToString(),
                 Bio = user.bio,
-                AvatarUrl = user.avatar_url?.Value,
+                AvatarUrl = GetFullAvatarUrl(user.avatar_url?.Value), // ✅ Convert to full URL
                 IsPrivate = user.is_private,
                 DateOfBirth = user.date_of_birth,
                 Address = user.address,
@@ -74,7 +95,7 @@ namespace UngDungMangXaHoi.Application.Services
                 PostCount = postCount,
                 FollowerCount = followerCount,
                 FollowingCount = followingCount,
-                AccountType = account.account_type.ToString()  // Thêm AccountType
+                AccountType = accountType
             };
         }
 
@@ -118,8 +139,28 @@ namespace UngDungMangXaHoi.Application.Services
 
             // Cập nhật các field được cung cấp
             if (request.FullName != null) user.full_name = request.FullName;
-            if (request.Gender != null && Enum.TryParse<Gender>(request.Gender, out var gender))
-                user.gender = gender;
+            if (request.Gender != null)
+            {
+                // Normalize gender string to handle Vietnamese characters
+                var normalizedGender = request.Gender.Trim();
+                
+                // Try direct enum parse first (case-insensitive)
+                if (Enum.TryParse<Gender>(normalizedGender, true, out var gender))
+                {
+                    user.gender = gender;
+                }
+                else
+                {
+                    // Fallback: map common variations
+                    var lowerGender = normalizedGender.ToLower();
+                    if (lowerGender.Contains("nam") || lowerGender == "male")
+                        user.gender = Gender.Nam;
+                    else if (lowerGender.Contains("nữ") || lowerGender.Contains("nu") || lowerGender == "female")
+                        user.gender = Gender.Nữ;
+                    else
+                        user.gender = Gender.Khác;
+                }
+            }
             if (request.Bio != null) user.bio = request.Bio;
             if (request.IsPrivate.HasValue) user.is_private = request.IsPrivate.Value;
             if (request.DateOfBirth.HasValue) user.date_of_birth = request.DateOfBirth.Value;
@@ -393,12 +434,17 @@ namespace UngDungMangXaHoi.Application.Services
                 await avatarFile.CopyToAsync(stream);
             }
 
-            // Lưu URL vào database (relative path)
-            var avatarUrl = $"/Assets/Images/{fileName}";
-            user.avatar_url = new ImageUrl(avatarUrl);
+            // Lưu URL vào database (relative path) - NHƯNG trả về full URL cho client
+            var relativePath = $"/Assets/Images/{fileName}";
+            user.avatar_url = new ImageUrl(relativePath);
             await _userRepository.UpdateAsync(user);
 
-            Console.WriteLine($"[AVATAR] Saved avatar: {avatarUrl} for user {user.username.Value}");
+            // ✅ FIX: Return full URL for mobile compatibility
+            // Get base URL from configuration or construct it
+            var baseUrl = Environment.GetEnvironmentVariable("API_BASE_URL") ?? "http://localhost:5297";
+            var avatarUrl = $"{baseUrl}{relativePath}";
+
+            Console.WriteLine($"[AVATAR] Saved avatar: {relativePath} (returned as: {avatarUrl}) for user {user.username.Value}");
 
             // Nếu user chọn đăng bài
             if (request.CreatePost)
@@ -415,11 +461,11 @@ namespace UngDungMangXaHoi.Application.Services
 
                 var createdPost = await _postRepository.AddAsync(post);
 
-                // Thêm media cho post
+                // Thêm media cho post (dùng relative path trong DB)
                 var postMedia = new PostMedia
                 {
                     post_id = createdPost.post_id,
-                    media_url = avatarUrl,
+                    media_url = relativePath, // Store relative path in DB
                     media_type = "Image",
                     media_order = 0,
                     created_at = DateTimeOffset.UtcNow

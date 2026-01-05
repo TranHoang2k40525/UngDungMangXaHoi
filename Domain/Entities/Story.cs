@@ -10,7 +10,7 @@ namespace UngDungMangXaHoi.Domain.Entities
         public int user_id { get; set; }
         public string media_url { get; set; } = string.Empty;
         public string media_type { get; set; } = string.Empty; // "image" or "video"
-        public string privacy { get; set; } = "public"; // "public", "friends", "private"
+        public string privacy { get; set; } = "public"; // "public", "private"
         public DateTime created_at { get; set; }
         public DateTime expires_at { get; set; }
         

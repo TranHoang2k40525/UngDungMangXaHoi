@@ -13,21 +13,28 @@ namespace UngDungMangXaHoi.Application.Services
     {
         private readonly IAccountRepository _accountRepository;
         private readonly IPasswordHasher _passwordHasher;
-        private readonly JwtTokenService _jwtService;
+        private readonly RbacJwtTokenService _rbacJwtService; // Use RBAC JWT Service
         private readonly IRefreshTokenRepository _refreshTokenRepository;
         private readonly ILoginHistoryRepository _loginHistoryRepository;
+        private readonly IAccountRoleRepository _accountRoleRepository;
+        private readonly IRoleRepository _roleRepository;
 
         public AuthService(
             IAccountRepository accountRepository,
             IPasswordHasher passwordHasher,
-            JwtTokenService jwtService,
+            RbacJwtTokenService rbacJwtService,
             IRefreshTokenRepository refreshTokenRepository,
-            ILoginHistoryRepository loginHistoryRepository)
+            ILoginHistoryRepository loginHistoryRepository,
+            IAccountRoleRepository accountRoleRepository,
+            IRoleRepository roleRepository)
         {
             _accountRepository = accountRepository;
             _passwordHasher = passwordHasher;
-            _jwtService = jwtService;
+            _rbacJwtService = rbacJwtService;
             _refreshTokenRepository = refreshTokenRepository;
+            _loginHistoryRepository = loginHistoryRepository;
+            _accountRoleRepository = accountRoleRepository;
+            _roleRepository = roleRepository;
             _loginHistoryRepository = loginHistoryRepository;
         }
 
@@ -46,8 +53,15 @@ namespace UngDungMangXaHoi.Application.Services
                 account = await _accountRepository.GetByPhoneAsync(emailOrPhone);
             }
 
-            if (account == null || account.account_type.ToString() != accountType)
+            if (account == null)
                 throw new UnauthorizedAccessException("Thông tin đăng nhập không chính xác");
+
+            // RBAC: Check if user has the required role
+            bool hasRequiredRole = accountType.ToLower() == "user" 
+                || await _accountRoleRepository.HasRoleAsync(account.account_id, accountType);
+            
+            if (!hasRequiredRole)
+                throw new UnauthorizedAccessException("Tài khoản không có quyền truy cập");
 
             if (!_passwordHasher.VerifyPassword(password, account.password_hash.Value))
                 throw new UnauthorizedAccessException("Mật khẩu không chính xác");
@@ -55,8 +69,9 @@ namespace UngDungMangXaHoi.Application.Services
             // Xóa refresh token cũ nếu có
             await _refreshTokenRepository.DeleteByAccountIdAsync(account.account_id);
 
-            var accessToken = _jwtService.GenerateAccessToken(account);
-            var refreshTokenValue = _jwtService.GenerateRefreshToken(account);
+            // Generate tokens using RBAC JWT Service
+            var accessToken = await _rbacJwtService.GenerateAccessTokenAsync(account);
+            var refreshTokenValue = await _rbacJwtService.GenerateRefreshTokenAsync(account);
 
             // Lưu refresh token vào database
             var refreshToken = new RefreshToken
@@ -100,13 +115,24 @@ namespace UngDungMangXaHoi.Application.Services
                 email = emailObj,
                 phone = new PhoneNumber(phone),
                 password_hash = new PasswordHash(passwordHash),
-                account_type = AccountType.User,
                 status = "active",
                 created_at = DateTimeOffset.UtcNow,
                 updated_at = DateTimeOffset.UtcNow
             };
 
             await _accountRepository.AddAsync(account);
+
+            // RBAC: Assign default "User" role
+            var userRole = await _roleRepository.GetByNameAsync("User");
+            if (userRole != null)
+            {
+                await _accountRoleRepository.AssignRoleAsync(
+                    account.account_id,
+                    userRole.role_id,
+                    expiresAt: null,
+                    assignedBy: "SYSTEM"
+                );
+            }
 
             var user = new User
             {
@@ -125,8 +151,8 @@ namespace UngDungMangXaHoi.Application.Services
         // Implement từ ITokenService
         public async Task<(string AccessToken, string RefreshToken)> GenerateTokensAsync(Account account)
         {
-            var accessToken = _jwtService.GenerateAccessToken(account);
-            var refreshTokenValue = _jwtService.GenerateRefreshToken(account);
+            var accessToken = await _rbacJwtService.GenerateAccessTokenAsync(account);
+            var refreshTokenValue = await _rbacJwtService.GenerateRefreshTokenAsync(account);
 
             // Lưu refresh token vào database để các lần gọi refresh tiếp theo hợp lệ
             var refreshToken = new RefreshToken
@@ -167,8 +193,8 @@ namespace UngDungMangXaHoi.Application.Services
             await _refreshTokenRepository.DeleteAsync(refreshToken.token_id);
 
             // Tạo token mới
-            var accessToken = _jwtService.GenerateAccessToken(account);
-            var newRefreshTokenValue = _jwtService.GenerateRefreshToken(account);
+            var accessToken = await _rbacJwtService.GenerateAccessTokenAsync(account);
+            var newRefreshTokenValue = await _rbacJwtService.GenerateRefreshTokenAsync(account);
 
             // Lưu refresh token mới
             var newRefreshToken = new RefreshToken
@@ -196,7 +222,7 @@ namespace UngDungMangXaHoi.Application.Services
 
         public ClaimsPrincipal? ValidateToken(string token)
         {
-            return _jwtService.ValidateToken(token);
+            return _rbacJwtService.ValidateToken(token);
         }
     }
 }

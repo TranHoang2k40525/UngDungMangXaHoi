@@ -29,6 +29,7 @@ import ReactionPicker, { getReactionEmoji } from "./ReactionPicker";
 import ReactionsListModal from "./ReactionsListModal";
 import SharePostModal from "./SharePostModal";
 import ReportModal from "../Components/ReportModal";
+import ImageViewer from "react-native-image-zoom-viewer";
 import {
     SafeAreaView,
     useSafeAreaInsets,
@@ -79,6 +80,110 @@ const VideoThumbnail = React.memo(({ videoUrl, style, onPress }) => {
 });
 
 const PostImagesCarousel = ({ images = [] }) => {
+  const [index, setIndex] = useState(0);
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+  const imageWidth = 400;
+  const openViewer = (idx) => {
+    setViewerIndex(idx);
+    setViewerVisible(true);
+  };
+  
+  // ✅ Debug logging
+  console.log('[PostImagesCarousel] Images:', images);
+  
+  return (
+    <View style={{ position: "relative" }}>
+      <FlatList
+        data={images}
+        keyExtractor={(it, i) => String(i)}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        style={{ width: imageWidth }}
+        renderItem={({ item, index: idx }) => {
+          // ✅ FIX: Handle both string URLs and object with url property
+          const imageUrl = typeof item === 'string' ? item : (item.url || item);
+          console.log('[PostImagesCarousel] Rendering image:', imageUrl);
+          
+          return (
+            <TouchableOpacity
+              activeOpacity={0.95}
+              onPress={() => openViewer(idx)}
+            >
+              <Image
+                source={{ uri: imageUrl }}
+                style={[styles.postImage, { width: imageWidth }]}
+                onError={(error) => {
+                  console.error('[PostImagesCarousel] Image load error:', {
+                    url: imageUrl,
+                    error: error.nativeEvent.error
+                  });
+                }}
+                onLoad={() => {
+                  console.log('[PostImagesCarousel] Image loaded:', imageUrl);
+                }}
+              />
+            </TouchableOpacity>
+          );
+        }}
+        onMomentumScrollEnd={(e) => {
+          const w = e.nativeEvent.layoutMeasurement.width || imageWidth;
+          const x = e.nativeEvent.contentOffset.x || 0;
+          setIndex(Math.max(0, Math.round(x / w)));
+        }}
+      />
+      <View style={styles.imageCounter}>
+        <Text style={styles.imageCounterText}>
+          {index + 1}/{images.length}
+        </Text>
+      </View>
+      <View style={styles.dotsContainer}>
+        {images.map((_, i) => (
+          <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
+        ))}
+      </View>
+      {/* ImageViewer modal */}
+      {viewerVisible && (
+        <Modal
+          visible={viewerVisible}
+          transparent
+          onRequestClose={() => setViewerVisible(false)}
+        >
+          <ImageViewer
+            imageUrls={images.map((item) => {
+              // ✅ FIX: Handle both string URLs and object with url property
+              const imageUrl = typeof item === 'string' ? item : (item.url || item);
+              return { url: imageUrl };
+            })}
+            index={viewerIndex}
+            enableSwipeDown
+            onSwipeDown={() => setViewerVisible(false)}
+            onCancel={() => setViewerVisible(false)}
+            saveToLocalByLongPress={false}
+            enablePreload={true}
+            renderIndicator={(currentIndex, allSize) => (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 40,
+                  right: 20,
+                  backgroundColor: "rgba(0,0,0,0.5)",
+                  borderRadius: 12,
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                  {currentIndex + 1}/{allSize}
+                </Text>
+              </View>
+            )}
+          />
+        </Modal>
+      )}
+    </View>
+  );
     const [index, setIndex] = useState(0);
     const [viewerVisible, setViewerVisible] = useState(false);
     const [viewerIndex, setViewerIndex] = useState(0);
@@ -181,6 +286,148 @@ export default function Home() {
     // Track posts that recently had reaction changes (to prevent refresh overwrite)
     const recentReactionChanges = useRef({});
 
+  const renderSingleImageViewer = () =>
+    singleViewerVisible && singleViewerUrl ? (
+      <Modal
+        visible={singleViewerVisible}
+        transparent
+        onRequestClose={() => setSingleViewerVisible(false)}
+      >
+        <ImageViewer
+          imageUrls={[{ url: singleViewerUrl }]}
+          index={0}
+          enableSwipeDown
+          onSwipeDown={() => setSingleViewerVisible(false)}
+          onCancel={() => setSingleViewerVisible(false)}
+          saveToLocalByLongPress={false}
+          enablePreload={true}
+          renderIndicator={(currentIndex, allSize) => (
+            <View
+              style={{
+                position: "absolute",
+                top: 40,
+                right: 20,
+                backgroundColor: "rgba(0,0,0,0.5)",
+                borderRadius: 12,
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                {currentIndex + 1}/{allSize}
+              </Text>
+            </View>
+          )}
+        />
+      </Modal>
+    ) : null;
+  const [activeCommentsPostId, setActiveCommentsPostId] = useState(null);
+  const [showComments, setShowComments] = useState(false);
+  const [showReactionsListPostId, setShowReactionsListPostId] = useState(null);
+  const [showReactionsList, setShowReactionsList] = useState(false);
+  const [posts, setPosts] = useState([]);
+  const [myStorySlot, setMyStorySlot] = useState({
+    id: "me",
+    name: "Tin của bạn",
+    avatar: null,
+    hasStory: false,
+    storyData: null,
+  });
+  const [friendStories, setFriendStories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState(null); // lưu dạng number khi có thể
+  const [refreshing, setRefreshing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMorePosts, setHasMorePosts] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const flatListRef = React.useRef(null);
+  const [optionsPostId, setOptionsPostId] = useState(null);
+  const [showOptions, setShowOptions] = useState(false);
+  const [showPrivacySheet, setShowPrivacySheet] = useState(false);
+  const [busy, setBusy] = useState(false);
+  // Modal for viewing tags list
+  const [showTagListPostId, setShowTagListPostId] = useState(null);
+  const [tagListForModal, setTagListForModal] = useState([]);
+  // Edit tags UI
+  const [showEditTagsPostId, setShowEditTagsPostId] = useState(null);
+  const [editTagsList, setEditTagsList] = useState([]);
+  const [availableTagUsers, setAvailableTagUsers] = useState([]);
+  const [availableTagUsersAll, setAvailableTagUsersAll] = useState([]);
+  const [tagChangeQueue, setTagChangeQueue] = useState({
+    toAdd: [],
+    toRemove: [],
+  });
+  const [showAddTagList, setShowAddTagList] = useState(false);
+  // Inline caption edit state
+  const [editingCaptionPostId, setEditingCaptionPostId] = useState(null);
+  const [captionDraft, setCaptionDraft] = useState("");
+  const [showReactionPicker, setShowReactionPicker] = useState(null);
+  const [reactionPickerPosition, setReactionPickerPosition] = useState({
+    top: 0,
+    left: 0,
+  });
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [sharePost, setSharePost] = useState(null);
+  const [singleViewerVisible, setSingleViewerVisible] = useState(false);
+  const [singleViewerUrl, setSingleViewerUrl] = useState(null);
+  const longPressTimer = useRef(null);
+  const navigation = useNavigation();
+  const route = useRoute();
+  const { user: ctxUser } = useUser();
+  // Normalize user/tag objects used in tag lists and chips so they always contain `id`, `username`, and `avatarUrl`.
+  const normalizeUser = (u) => {
+    if (!u) return { id: null, username: "", avatarUrl: null, fullName: "" };
+    const rawId = u?.id ?? u?.userId ?? u?.user_id ?? u?.UserId ?? u?.user_id;
+    const id = Number(rawId);
+    const username =
+      u?.username ?? u?.userName ?? u?.user_name ?? u?.name ?? "";
+    const rawAvatar = u?.avatarUrl ?? u?.avatar_url ?? u?.userAvatar ?? null;
+    const avatarUrl = rawAvatar
+      ? String(rawAvatar).startsWith("http")
+        ? rawAvatar
+        : `${API_BASE_URL}${rawAvatar}`
+      : null;
+    const fullName = u?.fullName ?? u?.full_name ?? u?.displayName ?? "";
+    return {
+      id: Number.isFinite(id) ? id : null,
+      username,
+      avatarUrl,
+      fullName,
+    };
+  };
+  // Stories storage key helper (per-user)
+  const storiesStorageKey = (userId) => {
+    if (userId == null) return "currentUserStories";
+    return `currentUserStories_${userId}`;
+  };
+  // Stories data for header: add slot + my story + friend stories
+  const storiesData = useMemo(
+    () => [
+      {
+        id: "add",
+        name: "Thêm vào chuyện của bạn",
+        avatar: null,
+        hasStory: false,
+        storyData: null,
+      },
+      myStorySlot,
+      ...friendStories,
+    ],
+    [myStorySlot, friendStories]
+  );
+  // Function to load user avatar and info
+  const loadUserAvatar = async () => {
+    try {
+      const userStr = await AsyncStorage.getItem("userInfo");
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        const rawAvatar = user?.avatarUrl ?? user?.avatar_url ?? null;
+        const avatarUri = rawAvatar
+          ? String(rawAvatar).startsWith("http")
+            ? rawAvatar
+            : `${API_BASE_URL}${rawAvatar}`
+          : null;
     const renderSingleImageViewer = () =>
         singleViewerVisible && singleViewerUrl ? (
             <Modal
@@ -481,6 +728,17 @@ export default function Home() {
         }
     };
 
+  // ✅ Load friend stories - API now returns grouped by user
+  const loadFeedStories = async () => {
+    try {
+      console.log("[Home] ===== Loading feed stories =====");
+      console.log("[Home] Current user ID:", currentUserId);
+
+      const res = await getFeedStories();
+      console.log("[Home] API Response:", JSON.stringify(res, null, 2));
+
+      const raw = res?.data ?? res ?? [];
+      const list = Array.isArray(raw) ? raw : [];
     // ✅ FIX: Load friend stories with proper deduplication
     const loadFeedStories = async () => {
         try {
@@ -489,6 +747,60 @@ export default function Home() {
             const raw = res?.data ?? res ?? [];
             const list = Array.isArray(raw) ? raw : [];
 
+      console.log(
+        "[Home] Raw feed stories (grouped by user) count:",
+        list.length
+      );
+      console.log("[Home] Raw data structure:", JSON.stringify(list, null, 2));
+
+      // Map from API format (UserStoriesGroupDto) to component format
+      // HIỂN THỊ TẤT CẢ BẠN BÈ (kể cả không có story)
+      const mapped = list
+        .filter((userGroup) => {
+          // Skip current user
+          const shouldSkip = Number(userGroup.userId) === Number(currentUserId);
+          console.log(
+            `[Home] User ${userGroup.userId} (${userGroup.userName}): Skip=${shouldSkip}`
+          );
+          return !shouldSkip;
+        })
+        .map((userGroup) => {
+          const stories = Array.isArray(userGroup.stories)
+            ? userGroup.stories
+            : [];
+
+          // Process avatar URL
+          let avatarUrl = userGroup.userAvatar || userGroup.avatarUrl;
+          if (avatarUrl && !avatarUrl.startsWith("http")) {
+            avatarUrl = `${API_BASE_URL}${avatarUrl}`;
+          }
+
+          const result = {
+            id: String(userGroup.userId),
+            name: userGroup.userName || userGroup.username || "user",
+            avatar: avatarUrl,
+            hasStory: stories.length > 0, // true nếu có story, false nếu chưa có
+            storyData:
+              stories.length > 0
+                ? stories.map((s) => ({
+                    id: s.id,
+                    mediaUrl: s.mediaUrl,
+                    mediaType: s.mediaType,
+                    userName: userGroup.userName,
+                    userAvatar: avatarUrl,
+                    createdAt: s.createdAt,
+                    userId: userGroup.userId,
+                    privacy: s.privacy || "public",
+                    viewCount: s.viewCount || 0,
+                  }))
+                : [], // Bạn bè chưa có story thì storyData = []
+          };
+
+          console.log(
+            `[Home] Mapped user: ${result.name}, hasStory: ${result.hasStory}, stories count: ${result.storyData.length}`
+          );
+          return result;
+        });
             console.log("[Home] Raw feed stories count:", list.length);
 
             // ✅ Deduplicate by userId BEFORE mapping
@@ -560,6 +872,14 @@ export default function Home() {
                 };
             });
 
+      console.log("[Home] Final mapped friends with stories:", mapped.length);
+      console.log("[Home] Mapped data:", JSON.stringify(mapped, null, 2));
+      setFriendStories(mapped);
+    } catch (e) {
+      console.warn("[HOME] loadFeedStories error:", e);
+      console.error("[HOME] Error stack:", e.stack);
+    }
+  };
             console.log(
                 "[Home] Final mapped friends with stories:",
                 mapped.length
@@ -832,6 +1152,72 @@ export default function Home() {
         };
     }, []);
 
+  const loadUnreadNotificationCount = async () => {
+    try {
+      const count = await NotificationAPI.getUnreadCount();
+      setUnreadNotificationCount(count);
+    } catch (error) {
+      console.error("[HOME] Load unread notification count error:", error);
+    }
+  };
+  // Reload story whenever currentUserId changes
+  useEffect(() => {
+    if (currentUserId != null && Number.isFinite(currentUserId)) {
+      console.log(
+        "[HOME] CurrentUserId changed, reloading story:",
+        currentUserId
+      );
+      // ✅ Load friend stories when currentUserId is available
+      loadFeedStories();
+      checkUserStory(currentUserId);
+    }
+  }, [currentUserId]);
+  // Log ownership mapping whenever posts or user changes
+  useEffect(() => {
+    const uid = getOwnerId();
+    console.log(
+      "[HOME] Current userId used for ownership:",
+      uid,
+      "Context:",
+      ctxUser?.user_id ?? ctxUser?.UserId ?? ctxUser?.id,
+      "State:",
+      currentUserId
+    );
+    posts.forEach((p) => {
+      const pid = p?.user?.id != null ? Number(p.user.id) : null;
+      const own = Number.isFinite(uid) && Number.isFinite(pid) && uid === pid;
+      console.log("[HOME] Post ownership check ->", {
+        postId: p.id,
+        postUserId: pid,
+        isOwner: own,
+      });
+    });
+  }, [posts, currentUserId, ctxUser]);
+  const handleCameraPress = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      console.log("Camera permission not granted");
+      return;
+    }
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 1,
+        allowsEditing: false,
+        exif: false,
+      });
+      if (result.canceled) return;
+      const uri =
+        result.assets && result.assets.length > 0
+          ? result.assets[0].uri
+          : result.uri;
+      if (uri) {
+        navigation.navigate("PhotoPreview", { photoUri: uri });
+      }
+    } catch (err) {
+      console.log("Camera error:", err);
+    }
+  };
     const loadUnreadNotificationCount = async () => {
         try {
             const count = await NotificationAPI.getUnreadCount();
@@ -1134,6 +1520,16 @@ export default function Home() {
         setShowShareModal(true);
     };
 
+  const handleShareSuccess = (postId) => {
+    // Cập nhật số lượt share trong UI (Optimistic UI)
+    setPostStates((prev) => ({
+      ...prev,
+      [postId]: {
+        ...prev[postId],
+        shares: (prev[postId]?.shares ?? 0) + 1,
+      },
+    }));
+  };
     const onRepost = (postId) => {
         setPostStates((prev) => {
             const cur = prev[postId] || {
@@ -1875,6 +2271,497 @@ export default function Home() {
                                         )}
                                     </View>
 
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                      marginTop: 2,
+                    }}
+                  >
+                    <Text style={styles.postLocation}>
+                      {new Date(p.createdAt).toLocaleString()}
+                    </Text>
+                    {!!p.privacy && (
+                      <View style={styles.privacyPill}>
+                        <Ionicons
+                          name={
+                            p.privacy === "private"
+                              ? "lock-closed"
+                              : p.privacy === "followers"
+                              ? "people"
+                              : "earth"
+                          }
+                          size={12}
+                          color="#374151"
+                        />
+                        <Text style={styles.privacyText}>{p.privacy}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </TouchableOpacity>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                {!isOwner(p) && !isFollowed(p?.user?.id) && (
+                  <TouchableOpacity
+                    style={styles.followBtn}
+                    onPress={() => handleFollow(p)}
+                  >
+                    <Text style={styles.followBtnText}>Theo dõi</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={() => openOptionsFor(p)}>
+                  <Text style={styles.moreIcon}>⋯</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View style={styles.postImageContainer}>
+              {p.media && p.media.length > 0 ? (
+                (() => {
+                  const images = (p.media || []).filter(
+                    (m) => (m.type || "").toLowerCase() === "image"
+                  );
+                  const videos = (p.media || []).filter(
+                    (m) => (m.type || "").toLowerCase() === "video"
+                  );
+                  if (images.length > 1) {
+                    return (
+                      <PostImagesCarousel key={`car-${p.id}`} images={images} />
+                    );
+                  }
+                  if (images.length === 1) {
+                    // ✅ Debug logging for image URL
+                    console.log('[HOME] Rendering single image:', {
+                      url: images[0].url,
+                      type: images[0].type,
+                      postId: p.id
+                    });
+                    
+                    return (
+                      <TouchableOpacity
+                        activeOpacity={0.95}
+                        onPress={() => {
+                          setSingleViewerUrl(images[0].url);
+                          setSingleViewerVisible(true);
+                        }}
+                      >
+                        <Image
+                          source={{ uri: images[0].url }}
+                          style={styles.postImage}
+                          onError={(error) => {
+                            console.error('[HOME] Image load error:', {
+                              url: images[0].url,
+                              error: error.nativeEvent.error,
+                              postId: p.id
+                            });
+                          }}
+                          onLoad={() => {
+                            console.log('[HOME] Image loaded successfully:', images[0].url);
+                          }}
+                        />
+                      </TouchableOpacity>
+                    );
+                  }
+                  if (videos.length > 0) {
+                    const video = videos[0];
+                    return (
+                      <VideoThumbnail
+                        videoUrl={video.url}
+                        style={styles.postImage}
+                        onPress={() => openVideoPlayerFor(p)}
+                      />
+                    );
+                  }
+                  return (
+                    <View
+                      style={[
+                        styles.postImage,
+                        {
+                          justifyContent: "center",
+                          alignItems: "center",
+                        },
+                      ]}
+                    >
+                      <Text style={{ color: "#fff" }}>Không có media</Text>
+                    </View>
+                  );
+                })()
+              ) : (
+                <View
+                  style={[
+                    styles.postImage,
+                    {
+                      justifyContent: "center",
+                      alignItems: "center",
+                    },
+                  ]}
+                >
+                  <Text style={{ color: "#fff" }}>Không có media</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.postActions}>
+              <View style={styles.postActionsLeft}>
+                <View
+                  ref={(ref) => {
+                    if (ref) likeButtonRefs.current[p.id] = ref;
+                  }}
+                  collapsable={false}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                  }}
+                >
+                  <TouchableOpacity
+                    onPress={() => onToggleLike(p.id)}
+                    onLongPress={() => onLongPressLike(p.id)}
+                    delayLongPress={500}
+                  >
+                    {postStates[p.id]?.reactionType ? (
+                      <Text style={{ fontSize: 28 }}>
+                        {getReactionEmoji(postStates[p.id].reactionType)}
+                      </Text>
+                    ) : (
+                      <Ionicons
+                        name="heart-outline"
+                        size={28}
+                        color="#262626"
+                      />
+                    )}
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                  }}
+                  onPress={() => onOpenComments(p.id)}
+                >
+                  <Ionicons
+                    name="chatbubble-outline"
+                    size={26}
+                    color="#262626"
+                  />
+                  <Text
+                    style={{
+                      marginLeft: 6,
+                      color: "#262626",
+                      fontWeight: "600",
+                    }}
+                  >
+                    {postStates[p.id]?.comments ?? 0}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => onShare(p)}>
+                  <Ionicons
+                    name="paper-plane-outline"
+                    size={26}
+                    color="#262626"
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View style={styles.postStats}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 4,
+                }}
+              >
+                {postStates[p.id]?.topReactions?.length > 0 && (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      marginRight: 6,
+                    }}
+                  >
+                    {postStates[p.id].topReactions.map((type, idx) => (
+                      <Text
+                        key={idx}
+                        style={{
+                          fontSize: 16,
+                          marginRight: -4,
+                        }}
+                      >
+                        {getReactionEmoji(type)}
+                      </Text>
+                    ))}
+                  </View>
+                )}
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowReactionsListPostId(p.id);
+                    setShowReactionsList(true);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.likeCount}>
+                    {(postStates[p.id]?.likes ?? 0).toLocaleString()} lượt thích
+                    • {(postStates[p.id]?.shares ?? 0).toLocaleString()} lượt
+                    chia sẻ
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {p.tags && p.tags.length > 0 && (
+                <View style={styles.taggedUsersContainer}>
+                  <Text style={styles.taggedLabel}>với </Text>
+                  {p.tags.map((tag, index) => {
+                    const uid = getOwnerId();
+                    const isCurrentUser = Number(tag.id) === Number(uid);
+                    return (
+                      <React.Fragment key={tag.id}>
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (isCurrentUser) {
+                              navigation.navigate("Profile");
+                            } else {
+                              navigation.navigate("UserProfilePublic", {
+                                userId: tag.id,
+                                username: tag.username,
+                                avatarUrl: tag.avatarUrl,
+                              });
+                            }
+                          }}
+                        >
+                          <Text style={styles.taggedUsername}>
+                            {isCurrentUser ? "bạn" : `@${tag.username}`}
+                          </Text>
+                        </TouchableOpacity>
+                        {index < p.tags.length - 1 && (
+                          <Text style={styles.taggedLabel}>, </Text>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </View>
+              )}
+              {!!p.caption && (
+                <Text style={styles.captionText}>
+                  {p.caption.split(/(@\w+)/g).map((part, index) => {
+                    if (part.startsWith("@")) {
+                      const username = part.substring(1);
+                      const uid = getOwnerId();
+                      // Check if mentioned user is current user
+                      const mentionedUser = p.mentions?.find(
+                        (m) => m.username === username
+                      );
+                      const isCurrentUser =
+                        mentionedUser &&
+                        Number(mentionedUser.id) === Number(uid);
+                      return (
+                        <Text
+                          key={index}
+                          style={styles.mentionText}
+                          onPress={() => {
+                            if (mentionedUser) {
+                              if (isCurrentUser) {
+                                navigation.navigate("Profile");
+                              } else {
+                                navigation.navigate("UserProfilePublic", {
+                                  userId: mentionedUser.id,
+                                  username: mentionedUser.username,
+                                  avatarUrl: mentionedUser.avatarUrl,
+                                });
+                              }
+                            }
+                          }}
+                        >
+                          {isCurrentUser ? "bạn" : part}
+                        </Text>
+                      );
+                    }
+                    return part;
+                  })}
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
+      />
+
+      <Modal
+        visible={editingCaptionPostId !== null}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={closeAllOverlays}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalContainer}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.modalOverlay}
+            onPress={closeAllOverlays}
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              style={styles.editCaptionSheet}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View style={styles.sheetHeader}>
+                <Text style={styles.sheetTitle}>Chỉnh sửa caption</Text>
+                <TouchableOpacity
+                  onPress={closeAllOverlays}
+                  style={styles.closeButton}
+                >
+                  <Text style={styles.closeButtonText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.editCaptionContent}>
+                <TextInput
+                  style={styles.captionTextInput}
+                  value={captionDraft}
+                  onChangeText={setCaptionDraft}
+                  multiline
+                  placeholder="Nhập caption..."
+                  placeholderTextColor="#999"
+                  autoFocus
+                  maxLength={2200}
+                />
+                <Text style={styles.charCounter}>
+                  {captionDraft.length}/2200
+                </Text>
+              </View>
+              <View style={styles.editCaptionActions}>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.cancelButton]}
+                  onPress={closeAllOverlays}
+                >
+                  <Text style={styles.cancelButtonText}>Hủy</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.saveButton]}
+                  onPress={submitCaptionEdit}
+                >
+                  <Text style={styles.saveButtonText}>Lưu</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <CommentsModal
+        visible={showComments}
+        onClose={() => setShowComments(false)}
+        postId={activeCommentsPostId}
+        navigation={navigation}
+        onCommentAdded={async (postId) => {
+          try {
+            const newCount = await getCommentCount(postId);
+            setPostStates((prev) => ({
+              ...prev,
+              [postId]: {
+                ...prev[postId],
+                comments: newCount,
+              },
+            }));
+          } catch (error) {
+            console.error("[Home] Update comment count error:", error);
+          }
+        }}
+      />
+      {/* Tag list modal - show list of tagged users when +N tapped */}
+      {showTagListPostId && (
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.overlay}
+          onPress={closeTagListModal}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.sheet}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={styles.sheetTitle}>Những người được gắn thẻ</Text>
+            {Array.isArray(tagListForModal) && tagListForModal.length > 0 ? (
+              tagListForModal.map((t) => (
+                <TouchableOpacity
+                  key={`taglist-${t.id}`}
+                  style={styles.tagListItem}
+                  onPress={() => {
+                    const uid = getOwnerId();
+                    const isCurrentUser = Number(t.id) === Number(uid);
+                    if (isCurrentUser) navigation.navigate("Profile");
+                    else
+                      navigation.navigate("UserProfilePublic", {
+                        userId: t.id,
+                        username: t.username,
+                        avatarUrl: t.avatarUrl,
+                      });
+                  }}
+                >
+                  {t.avatarUrl ? (
+                    <Image
+                      source={{ uri: t.avatarUrl }}
+                      style={styles.tagListAvatar}
+                    />
+                  ) : (
+                    <View
+                      style={[
+                        styles.tagListAvatar,
+                        {
+                          backgroundColor: "#e5e7eb",
+                          justifyContent: "center",
+                          alignItems: "center",
+                        },
+                      ]}
+                    >
+                      <Ionicons name="person" size={16} color="#9ca3af" />
+                    </View>
+                  )}
+                  <Text style={styles.tagListName}>{t.username || "user"}</Text>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <Text style={{ color: "#666", paddingVertical: 8 }}>
+                Không có người được gắn thẻ
+              </Text>
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      )}
+
+      {/* Edit tags modal (owner only) */}
+      {showEditTagsPostId && (
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.overlay}
+          onPress={closeEditTags}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.sheet}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Text style={styles.sheetTitle}>Chỉnh sửa gắn thẻ</Text>
+              <TouchableOpacity
+                style={styles.addButtonHeader}
+                onPress={() => setShowAddTagList((prev) => !prev)}
+              >
+                <Text style={styles.addButtonText}>
+                  {showAddTagList ? "×" : "+"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={{ color: "#666", marginBottom: 8 }}>
+              Nhấn ✕ trên chip để gỡ; nhấn + để thêm người chưa được gắn
+            </Text>
                                     <View
                                         style={{
                                             flexDirection: "row",
@@ -2573,6 +3460,283 @@ export default function Home() {
                             ))}
                         </View>
 
+            <View style={{ maxHeight: 260 }}>
+              <FlatList
+                data={
+                  (showAddTagList
+                    ? (availableTagUsersAll || []).filter(
+                        (u) =>
+                          !(editTagsList || []).find(
+                            (x) => Number(x.id) === Number(u.id)
+                          )
+                      )
+                    : availableTagUsersAll) || []
+                }
+                keyExtractor={(it) => String(it.id)}
+                renderItem={({ item }) => {
+                  const selected = !!(editTagsList || []).find(
+                    (x) => Number(x.id) === Number(item.id)
+                  );
+                  return (
+                    <TouchableOpacity
+                      style={styles.userItem}
+                      onPress={() => {
+                        // Add or toggle selection
+                        if (selected) {
+                          // Remove
+                          setEditTagsList((prev) =>
+                            (prev || []).filter(
+                              (x) => Number(x.id) !== Number(item.id)
+                            )
+                          );
+                          setTagChangeQueue((prev) => {
+                            const toAdd = new Set(prev.toAdd || []);
+                            const toRemove = new Set(prev.toRemove || []);
+                            if (toAdd.has(Number(item.id))) {
+                              toAdd.delete(Number(item.id));
+                            } else {
+                              toRemove.add(Number(item.id));
+                            }
+                            return {
+                              toAdd: Array.from(toAdd),
+                              toRemove: Array.from(toRemove),
+                            };
+                          });
+                        } else {
+                          // Add
+                          setEditTagsList((prev) => [
+                            ...(prev || []),
+                            normalizeUser(item),
+                          ]);
+                          setTagChangeQueue((prev) => {
+                            const toAdd = new Set(prev.toAdd || []);
+                            const toRemove = new Set(prev.toRemove || []);
+                            if (toRemove.has(Number(item.id))) {
+                              toRemove.delete(Number(item.id));
+                            } else {
+                              toAdd.add(Number(item.id));
+                            }
+                            return {
+                              toAdd: Array.from(toAdd),
+                              toRemove: Array.from(toRemove),
+                            };
+                          });
+                        }
+                      }}
+                    >
+                      {item.avatarUrl ? (
+                        <Image
+                          source={{ uri: item.avatarUrl }}
+                          style={styles.userAvatar}
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            styles.userAvatar,
+                            {
+                              backgroundColor: "#e5e7eb",
+                              justifyContent: "center",
+                              alignItems: "center",
+                            },
+                          ]}
+                        >
+                          <Ionicons name="person" size={16} color="#9ca3af" />
+                        </View>
+                      )}
+                      <View style={styles.userInfo}>
+                        <Text style={styles.userUsername}>
+                          @{item.username}
+                        </Text>
+                        <Text style={styles.userFullname}>
+                          {item.fullName || item.username}
+                        </Text>
+                      </View>
+                      {selected && (
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={22}
+                          color="#0095F6"
+                        />
+                      )}
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            </View>
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 12 }}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.cancelButton]}
+                onPress={closeEditTags}
+              >
+                <Text style={styles.cancelButtonText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.saveButton]}
+                onPress={() => submitEditTags(showEditTagsPostId)}
+              >
+                <Text style={styles.saveButtonText}>Lưu</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      )}
+      {/* Options overlay */}
+      {showOptions && (
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.overlay}
+          onPress={closeAllOverlays}
+        >
+          <TouchableOpacity
+            activeOpacity={0.95}
+            style={styles.sheet}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={styles.sheetTitle}>Tùy chọn</Text>
+            {(() => {
+              const post = posts.find((x) => x.id === optionsPostId);
+              if (post && isOwner(post)) {
+                return (
+                  <>
+                    <TouchableOpacity
+                      style={styles.sheetItem}
+                      onPress={() => {
+                        // Open edit tags modal for this post
+                        setShowOptions(false);
+                        openEditTags(post);
+                      }}
+                    >
+                      <Text style={styles.sheetItemText}>
+                        Chỉnh sửa gắn thẻ
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.sheetItem}
+                      onPress={() => setShowPrivacySheet(true)}
+                    >
+                      <Text style={styles.sheetItemText}>
+                        Chỉnh sửa quyền riêng tư
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.sheetItem}
+                      onPress={() => startEditCaption(post)}
+                    >
+                      <Text style={styles.sheetItemText}>
+                        Chỉnh sửa bài đăng
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.sheetItem, { borderTopWidth: 0 }]}
+                      onPress={confirmDelete}
+                    >
+                      <Text
+                        style={[styles.sheetItemText, { color: "#dc2626" }]}
+                      >
+                        Xóa bài đăng
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                );
+              }
+              return (
+                <>
+                  <TouchableOpacity
+                    style={styles.sheetItem}
+                    onPress={() => {
+                      /* TODO: report */ closeAllOverlays();
+                    }}
+                  >
+                    <Text style={styles.sheetItemText}>Báo cáo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.sheetItem, { borderTopWidth: 0 }]}
+                    onPress={() => {
+                      setPosts((prev) =>
+                        prev.filter((p) => p.id !== optionsPostId)
+                      );
+                      closeAllOverlays();
+                    }}
+                  >
+                    <Text style={styles.sheetItemText}>Ẩn bài viết</Text>
+                  </TouchableOpacity>
+                </>
+              );
+            })()}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      )}
+
+      {showOptions && showPrivacySheet && (
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.overlay}
+          onPress={closeAllOverlays}
+        >
+          <TouchableOpacity
+            activeOpacity={0.95}
+            style={styles.sheet}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={styles.sheetTitle}>Chọn quyền riêng tư</Text>
+            {[
+              { k: "public", label: "Public" },
+              { k: "followers", label: "Followers" },
+              { k: "private", label: "Private" },
+            ].map((opt) => (
+              <TouchableOpacity
+                key={opt.k}
+                style={styles.sheetItem}
+                onPress={() => pickPrivacy(opt.k)}
+              >
+                <Text style={styles.sheetItemText}>{opt.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      )}
+
+      {busy && (
+        <View style={styles.busyOverlay}>
+          <View style={styles.spinner} />
+        </View>
+      )}
+
+      {showReactionPicker && (
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.reactionOverlay}
+          onPress={() => setShowReactionPicker(null)}
+        >
+          <ReactionPicker
+            visible={showReactionPicker !== null}
+            position={reactionPickerPosition}
+            onSelectReaction={(reactionType) =>
+              handleReaction(showReactionPicker, reactionType)
+            }
+          />
+        </TouchableOpacity>
+      )}
+
+      <ReactionsListModal
+        visible={showReactionsList}
+        onClose={() => setShowReactionsList(false)}
+        postId={showReactionsListPostId}
+      />
+
+      {/* Share Post Modal */}
+      <SharePostModal
+        visible={showShareModal}
+        onClose={() => {
+          setShowShareModal(false);
+          setSharePost(null);
+        }}
+        post={sharePost}
+        onShareSuccess={handleShareSuccess}
+      />
+      {renderSingleImageViewer()}
+    </SafeAreaView>
+  );
                         <View style={{ maxHeight: 260 }}>
                             <FlatList
                                 data={

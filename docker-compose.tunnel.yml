@@ -1,0 +1,56 @@
+version: '3.8'
+
+# Cloudflare Tunnel Configuration
+# Exposes webapp and webadmins via HTTPS without opening ports
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.tunnel.yml up -d
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: ungdungmxh-cloudflared
+    
+    # Run tunnel with token from file
+    # Docker secrets mounts file to /run/secrets/cloudflare_tunnel_token
+    command: tunnel --no-autoupdate run --token-file /run/secrets/cloudflare_tunnel_token
+    
+    # Read token from secrets file
+    # Create this file: echo "YOUR_TUNNEL_TOKEN" > secrets/cloudflare_tunnel_token.txt
+    secrets:
+      - cloudflare_tunnel_token
+    
+    networks:
+      - app-network
+    
+    restart: unless-stopped
+    
+    # Start after webapp/webadmins are ready
+    depends_on:
+      - webapp
+      - webadmins
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "cloudflared"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# Secrets configuration
+secrets:
+  cloudflare_tunnel_token:
+    file: ./secrets/cloudflare_tunnel_token.txt
+
+# Use existing network from base compose
+networks:
+  app-network:
+    external: true

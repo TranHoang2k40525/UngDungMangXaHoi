@@ -16,36 +16,87 @@ namespace UngDungMangXaHoi.Infrastructure.ExternalServices
         // ✅ Upload ảnh
         public async Task<string> UploadImageAsync(Stream fileStream, string fileName)
         {
-            var uploadParams = new ImageUploadParams
+            try
             {
-                File = new FileDescription(fileName, fileStream),
-                Folder = "uploads"
-            };
+                // Reset stream position nếu cần
+                if (fileStream.CanSeek)
+                    fileStream.Position = 0;
 
-            var uploadResult = await _cloudinary.UploadAsync(uploadParams);
-            return uploadResult.SecureUrl?.ToString() ?? "";
+                var uploadParams = new ImageUploadParams
+                {
+                    File = new FileDescription(fileName, fileStream),
+                    Folder = "uploads"
+                };
+
+                var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+                
+                if (uploadResult.Error != null)
+                {
+                    Console.WriteLine($"[CloudinaryService] Upload Image Error: {uploadResult.Error.Message}");
+                    throw new Exception($"Cloudinary error: {uploadResult.Error.Message}");
+                }
+                
+                Console.WriteLine($"[CloudinaryService] Image uploaded successfully: {uploadResult.SecureUrl}");
+                return uploadResult.SecureUrl?.ToString() ?? "";
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CloudinaryService] UploadImageAsync Exception: {ex.Message}");
+                throw;
+            }
         }
 
         // ✅ Upload video
         public async Task<string> UploadVideoAsync(Stream fileStream, string fileName)
         {
-            var uploadParams = new VideoUploadParams
+            try
             {
-                File = new FileDescription(fileName, fileStream),
-                Folder = "videos"
-            };
+                // Reset stream position nếu cần
+                if (fileStream.CanSeek)
+                    fileStream.Position = 0;
 
-            var uploadResult = await _cloudinary.UploadAsync(uploadParams);
-            return uploadResult.SecureUrl?.ToString() ?? "";
+                var uploadParams = new VideoUploadParams
+                {
+                    File = new FileDescription(fileName, fileStream),
+                    Folder = "videos"
+                };
+
+                var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+                
+                if (uploadResult.Error != null)
+                {
+                    Console.WriteLine($"[CloudinaryService] Upload Video Error: {uploadResult.Error.Message}");
+                    throw new Exception($"Cloudinary error: {uploadResult.Error.Message}");
+                }
+                
+                Console.WriteLine($"[CloudinaryService] Video uploaded successfully: {uploadResult.SecureUrl}");
+                return uploadResult.SecureUrl?.ToString() ?? "";
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CloudinaryService] UploadVideoAsync Exception: {ex.Message}");
+                throw;
+            }
         }
 
         // 🆕 ✅ Upload media (tự nhận biết loại file)
         public async Task<string> UploadMediaAsync(Stream fileStream, string fileName, string mediaType)
         {
-            if (mediaType == "video")
-                return await UploadVideoAsync(fileStream, fileName);
-            else
-                return await UploadImageAsync(fileStream, fileName);
+            try
+            {
+                Console.WriteLine($"[CloudinaryService] Uploading {mediaType}: {fileName}, Stream length: {fileStream.Length}");
+                
+                if (mediaType == "video")
+                    return await UploadVideoAsync(fileStream, fileName);
+                else
+                    return await UploadImageAsync(fileStream, fileName);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CloudinaryService] ERROR: {ex.Message}");
+                Console.WriteLine($"[CloudinaryService] StackTrace: {ex.StackTrace}");
+                throw;
+            }
         }
 
         // 🆕 ✅ Xoá media theo publicId (Cloudinary trả về id khi upload)

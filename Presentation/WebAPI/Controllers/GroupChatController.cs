@@ -16,7 +16,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
     /// </summary>
     [ApiController]
     [Route("api/groupchat")]
-    [Authorize(Policy = "UserOnly")]
+    [Authorize] // All authenticated users
     public class GroupChatController : ControllerBase
     {
         private readonly GroupChatService _groupChatService;

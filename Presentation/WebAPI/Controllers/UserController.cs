@@ -15,7 +15,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
     /// </summary>
     [ApiController]
     [Route("api/users")]
-    [Authorize(Policy = "UserOnly")]
+    [Authorize] // All authenticated users can access
     public class UserController : ControllerBase
     {
     private readonly IUserRepository _userRepository;
@@ -57,6 +57,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             public int FollowersCount { get; set; }
             public int FollowingCount { get; set; }
             public bool IsFollowing { get; set; }
+            public bool IsFollowingMe { get; set; }
 
         }
 

@@ -17,8 +17,14 @@ export default function FollowList() {
   // Build full URL for avatar
   const getAvatarUri = (avatarUrl) => {
     if (!avatarUrl) return null;
-    if (avatarUrl.startsWith('http')) return avatarUrl;
-    return `${API_BASE_URL}${avatarUrl}`;
+    // ✅ FIX: Handle object avatarUrl
+    if (typeof avatarUrl === 'object') {
+      avatarUrl = avatarUrl.uri || avatarUrl.url || null;
+      if (!avatarUrl) return null;
+    }
+    const avatarStr = String(avatarUrl);
+    if (avatarStr.startsWith('http')) return avatarStr;
+    return `${API_BASE_URL}${avatarStr}`;
   };
 
   useEffect(() => {

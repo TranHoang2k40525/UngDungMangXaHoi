@@ -33,6 +33,14 @@ namespace UngDungMangXaHoi.Application.Services
             var followersCount = await _userRepository.GetFollowersCountAsync(targetUser.user_id);
             var followingCount = await _userRepository.GetFollowingCountAsync(targetUser.user_id);
             var isFollowing = await _userRepository.IsFollowingAsync(currentUser.user_id, targetUser.user_id);
+            var isFollowingMe = await _userRepository.IsFollowingAsync(targetUser.user_id, currentUser.user_id);
+
+            // RBAC: Determine account type from roles
+            var isBusiness = targetUser.Account.AccountRoles.Any(ar => 
+                ar.is_active && ar.Role.role_name == "Business");
+            var isAdmin = targetUser.Account.AccountRoles.Any(ar => 
+                ar.is_active && ar.Role.role_name == "Admin");
+            var accountType = isAdmin ? "Admin" : (isBusiness ? "Business" : "User");
 
             return new PublicProfileDto
             {
@@ -49,7 +57,8 @@ namespace UngDungMangXaHoi.Application.Services
                 FollowersCount = followersCount,
                 FollowingCount = followingCount,
                 IsFollowing = isFollowing,
-                AccountType = targetUser.Account.account_type.ToString()
+                IsFollowingMe = isFollowingMe,
+                AccountType = accountType
             };
         }
 
@@ -68,6 +77,14 @@ namespace UngDungMangXaHoi.Application.Services
             var followersCount = await _userRepository.GetFollowersCountAsync(targetUser.user_id);
             var followingCount = await _userRepository.GetFollowingCountAsync(targetUser.user_id);
             var isFollowing = await _userRepository.IsFollowingAsync(currentUser.user_id, targetUser.user_id);
+            var isFollowingMe = await _userRepository.IsFollowingAsync(targetUser.user_id, currentUser.user_id);
+
+            // RBAC: Determine account type from roles
+            var isBusiness = targetUser.Account.AccountRoles.Any(ar => 
+                ar.is_active && ar.Role.role_name == "Business");
+            var isAdmin = targetUser.Account.AccountRoles.Any(ar => 
+                ar.is_active && ar.Role.role_name == "Admin");
+            var accountType = isAdmin ? "Admin" : (isBusiness ? "Business" : "User");
 
             return new PublicProfileDto
             {
@@ -84,7 +101,8 @@ namespace UngDungMangXaHoi.Application.Services
                 FollowersCount = followersCount,
                 FollowingCount = followingCount,
                 IsFollowing = isFollowing,
-                AccountType = targetUser.Account.account_type.ToString()
+                IsFollowingMe = isFollowingMe,
+                AccountType = accountType
             };
         }
 

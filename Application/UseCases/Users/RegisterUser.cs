@@ -26,7 +26,6 @@ namespace UngDungMangXaHoi.Application.UseCases.Users
                 email = new Email(request.Email),
                 phone = new PhoneNumber(request.Phone),
                 password_hash = new PasswordHash(_passwordHasher.HashPassword(request.Password)),
-                account_type = AccountType.User,
                 status = "pending",
                 created_at = DateTimeOffset.UtcNow,
                 updated_at = DateTimeOffset.UtcNow
@@ -37,7 +36,7 @@ namespace UngDungMangXaHoi.Application.UseCases.Users
                 username = new UserName(request.Username),
                 full_name = request.FullName,
                 date_of_birth = request.DateOfBirth,
-                gender = request.Gender,
+                gender = Enum.Parse<Gender>(request.Gender), // Parse string to enum
                 Account = account
             };
 

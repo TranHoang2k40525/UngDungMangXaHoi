@@ -41,6 +41,26 @@ export default function ForgotPassword() {
     }
   };
 
+  // Verify OTP (step 2)
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      await authAPI.verifyForgotPasswordOtp({ Email: formData.email, Otp: formData.otp });
+      setSuccess('Xác thực OTP thành công. Vui lòng đặt mật khẩu mới.');
+      // move to reset step
+      setStep(3);
+      // clear OTP input for safety
+      setFormData((s) => ({ ...s, otp: '' }));
+    } catch (err) {
+      setError(err.message || 'Xác thực thất bại. Vui lòng kiểm tra lại mã OTP.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleResetPassword = async (e) => {
     e.preventDefault();
     
@@ -64,13 +84,8 @@ export default function ForgotPassword() {
         Otp: formData.otp,
         NewPassword: formData.newPassword,
       });
-      setSuccess('Đổi mật khẩu thành công! Bạn có thể đăng nhập với mật khẩu mới.');
-      setStep(3);
-      
-      // Auto redirect sau 3 giây
-      setTimeout(() => {
-        window.location.href = '/login';
-      }, 3000);
+      // Redirect immediately to login after successful reset
+      window.location.href = '/login';
     } catch (err) {
       setError(err.message || 'Đổi mật khẩu thất bại. Vui lòng kiểm tra lại mã OTP.');
     } finally {
@@ -117,9 +132,9 @@ export default function ForgotPassword() {
         )}
 
         {step === 2 && (
-          <form onSubmit={handleResetPassword} className="auth-form">
+          <form onSubmit={handleVerifyOtp} className="auth-form">
             <p className="auth-description">
-              Nhập mã OTP đã được gửi đến email <strong>{formData.email}</strong> và mật khẩu mới
+              Nhập mã OTP đã được gửi đến email <strong>{formData.email}</strong>
             </p>
 
             <div className="form-group">
@@ -136,6 +151,33 @@ export default function ForgotPassword() {
               />
             </div>
 
+            {error && <div className="error-message">{error}</div>}
+            {success && <div className="success-message">{success}</div>}
+
+            <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+              {loading ? <span className="loading"></span> : 'Xác thực OTP'}
+            </button>
+
+            <div className="auth-links">
+              <button 
+                type="button" 
+                onClick={handleSendOTP} 
+                className="link-button"
+                disabled={loading}
+              >
+                Gửi lại mã OTP
+              </button>
+              <Link to="/login">← Quay lại đăng nhập</Link>
+            </div>
+          </form>
+        )}
+
+        {step === 3 && (
+          <form onSubmit={handleResetPassword} className="auth-form">
+            <p className="auth-description">
+              Nhập mật khẩu mới cho email <strong>{formData.email}</strong>
+            </p>
+
             <div className="form-group">
               <div className="password-input">
                 <input
@@ -147,6 +189,7 @@ export default function ForgotPassword() {
                   className="input"
                   required
                   minLength={8}
+                  autoFocus
                 />
                 <button
                   type="button"
@@ -179,33 +222,12 @@ export default function ForgotPassword() {
             </button>
 
             <div className="auth-links">
-              <button 
-                type="button" 
-                onClick={handleSendOTP} 
-                className="link-button"
-                disabled={loading}
-              >
-                Gửi lại mã OTP
-              </button>
               <Link to="/login">← Quay lại đăng nhập</Link>
             </div>
           </form>
         )}
 
-        {step === 3 && (
-          <div className="auth-form">
-            <div className="success-icon">✓</div>
-            <div className="success-message large">
-              Đổi mật khẩu thành công!
-            </div>
-            <p className="auth-description">
-              Đang chuyển hướng về trang đăng nhập...
-            </p>
-            <Link to="/login" className="btn btn-primary btn-block">
-              Đăng nhập ngay
-            </Link>
-          </div>
-        )}
+        {/* no waiting step — redirect to login immediately after successful reset */}
       </div>
     </div>
   );

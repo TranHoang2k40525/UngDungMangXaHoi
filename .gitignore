@@ -55,12 +55,18 @@ configs/*.conf
 **/*ModelSnapshot*.cs
 **/*Designer.cs
 **/appsettings.Development.json
-**/appsettings.json
 
-## Documentation files (all .md files except README.md)
+
+## Documentation files: ignore markdown outside `DOCS/`, allow markdown inside `DOCS/`
+# Ignore all markdown files by default
 *.md
+# Re-include the `DOCS` directory and any markdown files under it
+!DOCS/
+!DOCS/*.md
+!DOCS/**/*.md
+# Allow root README.md to be tracked
 !README.md
 
-# If you want to keep other specific markdown files tracked, add more negated patterns.
+# If you want to keep other specific markdown files tracked, add more negated patterns here.
  
 

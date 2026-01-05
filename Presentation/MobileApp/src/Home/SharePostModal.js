@@ -16,7 +16,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { getFollowing, getFollowers, createShare } from "../API/Api";
 import MessageAPI from "../API/MessageAPI";
 
-export default function SharePostModal({ visible, onClose, post }) {
+export default function SharePostModal({
+  visible,
+  onClose,
+  post,
+  onShareSuccess,
+}) {
   const [loading, setLoading] = useState(false);
   const [friends, setFriends] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -41,31 +46,61 @@ export default function SharePostModal({ visible, onClose, post }) {
         getFollowers().catch(() => []),
       ]);
 
-      // Merge and deduplicate users
-      const raw = [
-        ...(Array.isArray(following) ? following : []),
-        ...(Array.isArray(followers) ? followers : []),
-      ];
+      // Chỉ lấy những người mà mình follow và họ cũng follow mình lại (mutual friends)
+      const followingIds = new Set();
+      const followingMap = new Map();
 
-      const friendsMap = new Map();
-      raw.forEach((u) => {
+      // Tạo map của những người mình đã follow
+      (Array.isArray(following) ? following : []).forEach((u) => {
         if (!u) return;
         const id = u.id ?? u.userId ?? u.user_id ?? null;
-        const username = u.username ?? u.userName ?? u.user_name ?? null;
-        const fullName = u.fullName ?? u.full_name ?? u.fullname ?? null;
-        const avatarUrl = u.avatarUrl ?? u.avatar_url ?? u.avatar ?? null;
-
         if (id != null) {
-          friendsMap.set(Number(id), {
-            id: Number(id),
-            username: username || String(id),
+          followingIds.add(Number(id));
+          followingMap.set(Number(id), u);
+        }
+      });
+
+      // Lọc những người follow mình và mình cũng đã follow họ
+      const mutualFriends = [];
+      (Array.isArray(followers) ? followers : []).forEach((u) => {
+        if (!u) return;
+        const id = u.id ?? u.userId ?? u.user_id ?? null;
+        const userId = Number(id);
+
+        // Chỉ thêm vào danh sách nếu người này có trong cả following và followers
+        if (id != null && followingIds.has(userId)) {
+          const userData = followingMap.get(userId) || u;
+          const username =
+            userData.username ??
+            userData.userName ??
+            userData.user_name ??
+            null;
+          const fullName =
+            userData.fullName ??
+            userData.full_name ??
+            userData.fullname ??
+            null;
+          const avatarUrl =
+            userData.avatarUrl ??
+            userData.avatar_url ??
+            userData.avatar ??
+            userData.AvatarUrl ??
+            null;
+
+          mutualFriends.push({
+            id: userId,
+            username: username || String(userId),
             fullName,
-            avatarUrl,
+            // Đảm bảo avatarUrl không rỗng và có giá trị hợp lệ
+            avatarUrl: avatarUrl && avatarUrl.trim() !== "" ? avatarUrl : null,
           });
         }
       });
 
-      setFriends(Array.from(friendsMap.values()));
+      console.log(
+        `[SharePostModal] Found ${mutualFriends.length} mutual friends`
+      );
+      setFriends(mutualFriends);
     } catch (error) {
       console.warn("Load friends error:", error);
       Alert.alert("Lỗi", "Không thể tải danh sách bạn bè");
@@ -131,6 +166,24 @@ export default function SharePostModal({ visible, onClose, post }) {
         null
       );
 
+      // Gọi API để lưu lượt chia sẻ vào database
+      try {
+        await createShare({
+          postId: post.id,
+          caption: "",
+          privacy: "public",
+        });
+        console.log("[SharePostModal] Share recorded in database");
+
+        // Cập nhật UI ngay lập tức (Optimistic UI)
+        if (onShareSuccess) {
+          onShareSuccess(post.id);
+        }
+      } catch (shareError) {
+        console.warn("[SharePostModal] Failed to record share:", shareError);
+        // Vẫn tiếp tục vì tin nhắn đã gửi thành công
+      }
+
       // Dừng animation và đánh dấu đã chia sẻ thành công
       spinAnimation.stop();
       spinValue.setValue(0);
@@ -185,9 +238,21 @@ export default function SharePostModal({ visible, onClose, post }) {
       >
         <Image
           source={{
-            uri: item.avatarUrl || "https://via.placeholder.com/50",
+            uri:
+              item.avatarUrl && item.avatarUrl.trim() !== ""
+                ? item.avatarUrl
+                : "https://ui-avatars.com/api/?name=" +
+                  encodeURIComponent(item.username || "User") +
+                  "&background=0095F6&color=fff&size=200",
           }}
           style={styles.friendAvatar}
+          onError={(e) => {
+            console.warn(
+              "[SharePostModal] Failed to load avatar for:",
+              item.username,
+              item.avatarUrl
+            );
+          }}
         />
         <View style={styles.friendInfo}>
           <Text style={styles.friendName}>

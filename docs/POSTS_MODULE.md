@@ -48,6 +48,40 @@ Module Posts quản lý toàn bộ quy trình đăng bài, xem feed và reels:
 │  - PostMediaRepository                     │
 │  - ReactionRepository                      │
 │  - CommentRepository                       │
+└────────────────────────────────────────────┘
+```
+
+### 📊 Sơ Đồ Luồng Chính
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API
+    participant Cloudinary
+    participant PhoBERT
+    participant DB
+
+    Note over User,DB: CREATE POST FLOW
+    User->>API: POST /api/posts (with media)
+    API->>PhoBERT: Check Caption
+    alt Toxic Content
+        API-->>User: 400 Rejected
+    else Safe Content
+        API->>Cloudinary: Upload Media
+        API->>DB: Save Post
+        API-->>User: 201 Created
+    end
+
+    Note over User,DB: GET FEED FLOW
+    User->>API: GET /api/posts/feed
+    API->>DB: Get User Posts
+    API->>DB: Get Business Posts
+    API->>API: Apply Prioritization
+    API->>API: Inject Business Posts
+    API-->>User: Feed Array
+```
+
+---
 │  - ShareRepository                         │
 │  - ContentModerationRepository             │
 └────────────────────────────────────────────┘
@@ -93,6 +127,33 @@ sequenceDiagram
     end
     
     PostsController-->>Client: 200 OK - Post created
+```
+
+### 🔁 Sơ đồ tuần tự (Mermaid)
+
+```mermaid
+sequenceDiagram
+  participant Mobile
+  participant WebAPI
+  participant PostsService
+  participant Cloudinary
+  participant PostRepo
+  participant DB
+  participant NotificationService
+
+  Mobile->>WebAPI: POST /api/posts (multipart/form-data + token)
+  WebAPI->>PostsService: CreatePost(dto, files)
+  PostsService->>Cloudinary: Upload files
+  Cloudinary-->>PostsService: media URLs
+  PostsService->>PostRepo: Save Post entity
+  PostRepo->>DB: INSERT post, media records
+  DB-->>PostRepo: inserted ids
+  PostRepo-->>PostsService: saved entity
+  PostsService->>NotificationService: NotifyFollowers(postId)
+  NotificationService->>NotificationHub: Push notification via SignalR
+  NotificationHub->>Followers: real-time notification
+  PostsService-->>WebAPI: 201 Created {postId}
+  WebAPI-->>Mobile: 201 {postId, preview}
 ```
 
 ### 📝 Chi tiết Create Post
