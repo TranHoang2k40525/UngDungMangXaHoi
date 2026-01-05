@@ -3,7 +3,9 @@ pipeline {
 
   parameters {
     string(name: 'DOCKER_NAMESPACE', defaultValue: 'minhvu0809', description: 'Docker Hub username')
+    string(name: 'PROD_HOST', defaultValue: 'host.docker.internal', description: 'Production server hostname (not used in current deployment)')
     string(name: 'PROD_DIR', defaultValue: '/home/minhvu/ungdungmxh', description: 'Production deployment directory (for reference only)')
+    string(name: 'WSL_DISTRO', defaultValue: 'Ubuntu', description: 'WSL2 distribution name (not used in current deployment)')
     booleanParam(name: 'USE_CLOUDFLARE_TUNNEL', defaultValue: true, description: 'Deploy with Cloudflare Tunnel')
   }
 
@@ -91,26 +93,41 @@ pipeline {
           echo "Deploying to WSL2:${PROD_DIR}"
           echo "Using Cloudflare Tunnel: ${USE_TUNNEL}"
           
-          // Execute deployment commands directly via Docker Compose V2
-          // Jenkins container uses Docker CLI with compose plugin
-          sh """
-            cd /tmp
-            git clone https://github.com/TranHoang2k40525/UngDungMangXaHoi.git deploy-temp || true
-            cd deploy-temp
-            git reset --hard
-            git pull origin main
-            
-            export WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE}
-            export WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE}
-            export WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE}
-            
-            docker compose ${COMPOSE_FILES} pull
-            docker compose ${COMPOSE_FILES} up -d --remove-orphans
-            docker compose ${COMPOSE_FILES} ps
-            
-            cd /tmp
-            rm -rf deploy-temp
-          """
+          // Use SSH key to clone private repository
+          withCredentials([sshUserPrivateKey(credentialsId: 'prod-ssh-key', keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER')]) {
+            sh """
+              # Setup SSH for git clone
+              mkdir -p ~/.ssh
+              chmod 700 ~/.ssh
+              cp \${SSH_KEY} ~/.ssh/id_rsa
+              chmod 600 ~/.ssh/id_rsa
+              ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+              
+              # Clone repository using SSH
+              cd /tmp
+              rm -rf deploy-temp
+              GIT_SSH_COMMAND='ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no' \
+                git clone git@github.com:TranHoang2k40525/UngDungMangXaHoi.git deploy-temp
+              
+              cd deploy-temp
+              git reset --hard
+              GIT_SSH_COMMAND='ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no' \
+                git pull origin main
+              
+              # Deploy with docker compose
+              export WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE}
+              export WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE}
+              export WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE}
+              
+              docker compose ${COMPOSE_FILES} pull
+              docker compose ${COMPOSE_FILES} up -d --remove-orphans
+              docker compose ${COMPOSE_FILES} ps
+              
+              # Cleanup
+              cd /tmp
+              rm -rf deploy-temp ~/.ssh/id_rsa
+            """
+          }
         }
       }
     }
