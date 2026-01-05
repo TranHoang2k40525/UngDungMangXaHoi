@@ -106,14 +106,8 @@ pipeline {
               chmod 600 ~/.ssh/id_rsa
               ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
               
-              # Clone repository using SSH
-              cd /tmp
-              rm -rf deploy-temp
-              GIT_SSH_COMMAND='ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no' \
-                git clone git@github.com:TranHoang2k40525/UngDungMangXaHoi.git deploy-temp
-              
-              # Move to deployment directory FIRST
-              cd deploy-temp
+              # Deploy directly to WSL2 path (Docker-accessible)
+              cd /home/minhvu/ungdungmxh
               git reset --hard
               GIT_SSH_COMMAND='ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no' \
                 git pull origin main
