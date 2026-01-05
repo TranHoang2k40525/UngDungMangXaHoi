@@ -119,6 +119,9 @@ pipeline {
               export WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE}
               export WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE}
               
+              # Create network if not exists
+              docker network create app-network 2>/dev/null || true
+              
               docker-compose ${COMPOSE_FILES} pull
               docker-compose ${COMPOSE_FILES} up -d --remove-orphans
               docker-compose ${COMPOSE_FILES} ps
