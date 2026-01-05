@@ -2709,7 +2709,7 @@ export default function GroupChatScreen() {
                       style={[styles.videoContainer, styles.messageImageOnly]}
                     >
                       <Image
-                        source={{ uri: msg.mediaUri }}
+                        source={{ uri: getMediaUri(msg.mediaUri || msg.fileUrl) }}
                         style={styles.messageImage}
                       />
                       <View style={styles.videoOverlay}>
@@ -2884,14 +2884,20 @@ export default function GroupChatScreen() {
                     );
                     avatarUri = user?.avatar || user?.avatarUrl;
                   }
-                  return avatarUri ? (
+                  // ✅ FIX: Ensure avatarUri is a string, not an object
+                  if (avatarUri && typeof avatarUri === 'object') {
+                    console.warn('[GroupChat] avatarUri is object, converting:', avatarUri);
+                    avatarUri = avatarUri.uri || avatarUri.url || null;
+                  }
+                  const avatarUriStr = avatarUri ? String(avatarUri) : null;
+                  return avatarUriStr ? (
                     <Image
                       source={{
                         uri:
-                          avatarUri.startsWith("file://") ||
-                          avatarUri.startsWith("http")
-                            ? avatarUri
-                            : `${API_BASE_URL}${avatarUri}`,
+                          avatarUriStr.startsWith("file://") ||
+                          avatarUriStr.startsWith("http")
+                            ? avatarUriStr
+                            : `${API_BASE_URL}${avatarUriStr}`,
                       }}
                       style={styles.messageAvatar}
                       onError={(e) =>
@@ -2942,7 +2948,7 @@ export default function GroupChatScreen() {
                       activeOpacity={0.9}
                     >
                       <Image
-                        source={{ uri: msg.mediaUri }}
+                        source={{ uri: getMediaUri(msg.mediaUri || msg.fileUrl) }}
                         style={[styles.messageImage, styles.messageImageOnly]}
                         resizeMode="cover"
                       />
@@ -2959,7 +2965,7 @@ export default function GroupChatScreen() {
                         style={[styles.videoContainer, styles.messageImageOnly]}
                       >
                         <Image
-                          source={{ uri: msg.mediaUri }}
+                          source={{ uri: getMediaUri(msg.mediaUri || msg.fileUrl) }}
                           style={styles.messageImage}
                         />
                         <View style={styles.videoOverlay}>

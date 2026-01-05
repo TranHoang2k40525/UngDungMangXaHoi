@@ -13,7 +13,7 @@ export default defineConfig({
     })
   ],
   server: {
-    port: 3000,
+    port: 3001,
     open: true,
     // Allow access from other machines on the same LAN
     // - `host: true` makes Vite listen on 0.0.0.0

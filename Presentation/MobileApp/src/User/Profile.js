@@ -49,8 +49,17 @@ const Profile = () => {
     return (p) => {
       const raw = p?.avatarUrl;
       if (!raw) return null;
-      if (raw.startsWith('http')) return raw;
-      return `${API_BASE_URL}${raw}`;
+      // ✅ FIX: Handle object avatarUrl
+      if (typeof raw === 'object') {
+        const extracted = raw.uri || raw.url || null;
+        if (!extracted) return null;
+        const str = String(extracted);
+        if (str.startsWith('http')) return str;
+        return `${API_BASE_URL}${str}`;
+      }
+      const rawStr = String(raw);
+      if (rawStr.startsWith('http')) return rawStr;
+      return `${API_BASE_URL}${rawStr}`;
     };
   }, []);
 

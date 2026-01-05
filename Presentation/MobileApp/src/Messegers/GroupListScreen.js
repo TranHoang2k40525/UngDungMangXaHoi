@@ -76,10 +76,16 @@ export default function GroupListScreen() {
 
   const getAvatarUri = (avatarUrl) => {
     if (!avatarUrl) return null;
-    if (avatarUrl.startsWith('file://') || avatarUrl.startsWith('http')) {
-      return avatarUrl;
+    // ✅ FIX: Handle object avatarUrl
+    if (typeof avatarUrl === 'object') {
+      avatarUrl = avatarUrl.uri || avatarUrl.url || null;
+      if (!avatarUrl) return null;
     }
-    return `${API_BASE_URL}${avatarUrl}`;
+    const avatarStr = String(avatarUrl);
+    if (avatarStr.startsWith('file://') || avatarStr.startsWith('http')) {
+      return avatarStr;
+    }
+    return `${API_BASE_URL}${avatarStr}`;
   };
 
   const renderGroupItem = ({ item }) => {

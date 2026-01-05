@@ -86,6 +86,10 @@ const PostImagesCarousel = ({ images = [] }) => {
     setViewerIndex(idx);
     setViewerVisible(true);
   };
+  
+  // ✅ Debug logging
+  console.log('[PostImagesCarousel] Images:', images);
+  
   return (
     <View style={{ position: "relative" }}>
       <FlatList
@@ -95,17 +99,32 @@ const PostImagesCarousel = ({ images = [] }) => {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         style={{ width: imageWidth }}
-        renderItem={({ item, index: idx }) => (
-          <TouchableOpacity
-            activeOpacity={0.95}
-            onPress={() => openViewer(idx)}
-          >
-            <Image
-              source={{ uri: item }}
-              style={[styles.postImage, { width: imageWidth }]}
-            />
-          </TouchableOpacity>
-        )}
+        renderItem={({ item, index: idx }) => {
+          // ✅ FIX: Handle both string URLs and object with url property
+          const imageUrl = typeof item === 'string' ? item : (item.url || item);
+          console.log('[PostImagesCarousel] Rendering image:', imageUrl);
+          
+          return (
+            <TouchableOpacity
+              activeOpacity={0.95}
+              onPress={() => openViewer(idx)}
+            >
+              <Image
+                source={{ uri: imageUrl }}
+                style={[styles.postImage, { width: imageWidth }]}
+                onError={(error) => {
+                  console.error('[PostImagesCarousel] Image load error:', {
+                    url: imageUrl,
+                    error: error.nativeEvent.error
+                  });
+                }}
+                onLoad={() => {
+                  console.log('[PostImagesCarousel] Image loaded:', imageUrl);
+                }}
+              />
+            </TouchableOpacity>
+          );
+        }}
         onMomentumScrollEnd={(e) => {
           const w = e.nativeEvent.layoutMeasurement.width || imageWidth;
           const x = e.nativeEvent.contentOffset.x || 0;
@@ -130,7 +149,11 @@ const PostImagesCarousel = ({ images = [] }) => {
           onRequestClose={() => setViewerVisible(false)}
         >
           <ImageViewer
-            imageUrls={images.map((url) => ({ url }))}
+            imageUrls={images.map((item) => {
+              // ✅ FIX: Handle both string URLs and object with url property
+              const imageUrl = typeof item === 'string' ? item : (item.url || item);
+              return { url: imageUrl };
+            })}
             index={viewerIndex}
             enableSwipeDown
             onSwipeDown={() => setViewerVisible(false)}
@@ -1750,6 +1773,13 @@ export default function Home() {
                     );
                   }
                   if (images.length === 1) {
+                    // ✅ Debug logging for image URL
+                    console.log('[HOME] Rendering single image:', {
+                      url: images[0].url,
+                      type: images[0].type,
+                      postId: p.id
+                    });
+                    
                     return (
                       <TouchableOpacity
                         activeOpacity={0.95}
@@ -1772,6 +1802,16 @@ export default function Home() {
                         <Image
                           source={{ uri: images[0].url }}
                           style={styles.postImage}
+                          onError={(error) => {
+                            console.error('[HOME] Image load error:', {
+                              url: images[0].url,
+                              error: error.nativeEvent.error,
+                              postId: p.id
+                            });
+                          }}
+                          onLoad={() => {
+                            console.log('[HOME] Image loaded successfully:', images[0].url);
+                          }}
                         />
                       </TouchableOpacity>
                     );

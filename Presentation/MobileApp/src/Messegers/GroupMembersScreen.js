@@ -218,50 +218,59 @@ export default function GroupMembersScreen() {
     });
   };
 
-  const renderMemberItem = (member, index) => (
-    <TouchableOpacity 
-      key={member.id || index}
-      style={styles.memberItem}
-      onPress={() => handleMemberPress(member)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.memberAvatar}>
-        {member.avatar || member.avatarUrl ? (
-          <Image 
-            source={{ uri: member.avatar || member.avatarUrl }} 
-            style={styles.avatarImage}
-          />
-        ) : (
-          <View style={styles.defaultMemberAvatar}>
-            <Text style={styles.avatarText}>
-              {(member.fullName || member.full_name || member.username)?.charAt(0)?.toUpperCase() || 'U'}
-            </Text>
+  const renderMemberItem = (member, index) => {
+    // ✅ FIX: Ensure avatar is a string, not an object
+    let avatarValue = member.avatar || member.avatarUrl;
+    if (avatarValue && typeof avatarValue === 'object') {
+      avatarValue = avatarValue.uri || avatarValue.url || null;
+    }
+    const avatarStr = avatarValue ? String(avatarValue) : null;
+
+    return (
+      <TouchableOpacity 
+        key={member.id || index}
+        style={styles.memberItem}
+        onPress={() => handleMemberPress(member)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.memberAvatar}>
+          {avatarStr ? (
+            <Image 
+              source={{ uri: avatarStr }} 
+              style={styles.avatarImage}
+            />
+          ) : (
+            <View style={styles.defaultMemberAvatar}>
+              <Text style={styles.avatarText}>
+                {(member.fullName || member.full_name || member.username)?.charAt(0)?.toUpperCase() || 'U'}
+              </Text>
+            </View>
+          )}
+          {member.role === 'admin' && (
+            <View style={styles.adminBadge}>
+              <Ionicons name="shield-checkmark" size={12} color="#fff" />
+            </View>
+          )}
+        </View>
+        
+        <View style={styles.memberInfo}>
+          <Text style={styles.memberName}>{member.fullName || member.full_name || member.username}</Text>
+          <Text style={styles.memberUsername}>@{member.username}</Text>
+        </View>
+        
+        {member.role === 'admin' && (
+          <View style={styles.adminLabel}>
+            <Text style={styles.adminLabelText}>Admin</Text>
           </View>
         )}
-        {member.role === 'admin' && (
-          <View style={styles.adminBadge}>
-            <Ionicons name="shield-checkmark" size={12} color="#fff" />
+        {groupCreatedBy && Number(member.userId) === Number(groupCreatedBy) && (
+          <View style={styles.creatorLabel}>
+            <Text style={styles.creatorLabelText}>Creator</Text>
           </View>
         )}
-      </View>
-      
-      <View style={styles.memberInfo}>
-        <Text style={styles.memberName}>{member.fullName || member.full_name || member.username}</Text>
-        <Text style={styles.memberUsername}>@{member.username}</Text>
-      </View>
-      
-        {member.role === 'admin' && (
-        <View style={styles.adminLabel}>
-          <Text style={styles.adminLabelText}>Admin</Text>
-        </View>
-      )}
-      {groupCreatedBy && Number(member.userId) === Number(groupCreatedBy) && (
-        <View style={styles.creatorLabel}>
-          <Text style={styles.creatorLabelText}>Creator</Text>
-        </View>
-      )}
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

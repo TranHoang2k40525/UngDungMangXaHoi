@@ -7,7 +7,7 @@ import MentionText from '../../Components/MentionText';
 import ReactionsListModal from './ReactionsListModal';
 import CommentsModal from './CommentsModal';
 import { MdArrowBack, MdMoreVert, MdEdit, MdDelete, MdClose, MdPublic, MdPeople, MdLock, MdLocationOn, MdArrowForward, MdArrowBackIos } from 'react-icons/md';
-import { IoWarning, IoSend, IoChatbubbleOutline, IoHeartOutline, IoHeart } from 'react-icons/io5';
+import { IoWarning, IoSend, IoChatbubbleOutline, IoHeartOutline, IoHeart, IoPersonCircle } from 'react-icons/io5';
 import './PostDetail.css';
 
 // Reaction Picker Component
@@ -74,11 +74,15 @@ const PostDetail = ({ posts: propsPosts, initialIndex: propsInitialIndex, userId
   const [reactionSummaries, setReactionSummaries] = useState({});
   const [loadingReactions, setLoadingReactions] = useState(false);
   const commentsContainerRef = useRef(null);
+  const commentInputRef = useRef(null);
   
   // Reaction picker state
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [reactionPickerPosition, setReactionPickerPosition] = useState({ top: 0, left: 0 });
   const likeButtonRef = useRef(null);
+  const [totalComments, setTotalComments] = useState(0);
+  const [quickCommentText, setQuickCommentText] = useState('');
+  const [commentSubmitCallback, setCommentSubmitCallback] = useState(null);
   
   const currentPost = posts[currentPostIndex] || null;
 
@@ -138,8 +142,10 @@ const PostDetail = ({ posts: propsPosts, initialIndex: propsInitialIndex, userId
       const summaries = {};
       for (const post of postsArray) {
         try {
-          const summary = await getReactionSummary(post.id);
-          summaries[post.id] = summary;
+          const result = await getReactionSummary(post.id);
+          // Handle both { data: {...} } and direct response
+          const summaryData = result?.data || result;
+          summaries[post.id] = summaryData;
         } catch (err) {
           console.error(`[PostDetail] Load reactions error for post ${post.id}:`, err);
           summaries[post.id] = null;
@@ -153,8 +159,10 @@ const PostDetail = ({ posts: propsPosts, initialIndex: propsInitialIndex, userId
 
   const loadReactionSummary = async (postId) => {
     try {
-      const summary = await getReactionSummary(postId);
-      setReactionSummaries(prev => ({ ...prev, [postId]: summary }));
+      const result = await getReactionSummary(postId);
+      // Handle both { data: {...} } and direct response
+      const summaryData = result?.data || result;
+      setReactionSummaries(prev => ({ ...prev, [postId]: summaryData }));
     } catch (err) {
       console.error('[PostDetail] Load reaction error:', err);
     }
@@ -172,7 +180,14 @@ const PostDetail = ({ posts: propsPosts, initialIndex: propsInitialIndex, userId
       ));
     } catch (err) {
       console.error('[PostDetail] Reaction error:', err);
-      alert('Không thể thả cảm xúc');
+      
+      // Check if it's a database foreign key error
+      if (err.response?.data?.message?.includes('FOREIGN KEY') || 
+          err.response?.data?.message?.includes('user_id')) {
+        alert('Lỗi: Tài khoản không tồn tại trong database. Vui lòng logout và login lại!');
+      } else {
+        alert('Không thể thả cảm xúc. Lỗi: ' + (err.response?.data?.message || err.message));
+      }
     }
   };
 
@@ -267,18 +282,30 @@ const PostDetail = ({ posts: propsPosts, initialIndex: propsInitialIndex, userId
     if (!currentPost) return 0;
     const summary = reactionSummaries[currentPost.id];
     if (!summary) return 0;
-    return Object.values(summary).reduce((sum, count) => sum + count, 0);
+    // Summary structure: { totalReactions, reactionCounts: [{reactionType, count}], userReaction }
+    return summary.totalReactions || summary.TotalReactions || 0;
   };
 
   const getTopReactions = () => {
     if (!currentPost) return [];
     const summary = reactionSummaries[currentPost.id];
     if (!summary) return [];
-    return Object.entries(summary)
-      .filter(([_, count]) => count > 0)
-      .sort((a, b) => b[1] - a[1])
+    const counts = summary.reactionCounts || summary.ReactionCounts || [];
+    return counts
+      .filter(r => r.count > 0)
+      .sort((a, b) => b.count - a.count)
       .slice(0, 3)
-      .map(([type, _]) => parseInt(type));
+      .map(r => r.reactionType || r.ReactionType);
+  };
+
+  const handleCommentButtonClick = () => {
+    commentInputRef.current?.focus();
+  };
+
+  const handleQuickCommentSend = () => {
+    if (quickCommentText.trim() && commentSubmitCallback) {
+      commentSubmitCallback();
+    }
   };
 
   if (loading) {
@@ -331,6 +358,20 @@ const PostDetail = ({ posts: propsPosts, initialIndex: propsInitialIndex, userId
     const result = Number.isFinite(currentId) && Number.isFinite(postOwnerId) && currentId === postOwnerId;
     console.log('[PostDetail] isOwner check:', { currentId, postOwnerId, result, currentPost });
     return result;
+  };
+
+  // Helper: Get username from post
+  const getPostUsername = (post) => {
+    if (!post) return 'user';
+    return post.user?.username || post.userName || post.username || post.UserName || 'user';
+  };
+
+  // Helper: Get avatar URL from post
+  const getPostAvatar = (post) => {
+    if (!post) return null;
+    const rawAvatar = post.user?.avatarUrl || post.user?.avatar_url || post.userAvatar || post.avatarUrl || post.avatar_url || null;
+    if (!rawAvatar) return null;
+    return String(rawAvatar).startsWith('http') ? rawAvatar : `${API_BASE_URL}${rawAvatar}`;
   };
   
   // Extract media from post.media array
@@ -453,103 +494,117 @@ const PostDetail = ({ posts: propsPosts, initialIndex: propsInitialIndex, userId
           </div>
         )}
       </div>
-
+        
       {/* Right Side - Post Info & Comments */}
       <div className="post-info-section">
-        {/* Header with User Info */}
-        <div className="post-header-info">
-          <div 
-            className="user-info-clickable"
-            onClick={() => {
-              if (isOwner()) {
-                navigate('/profile');
-              } else {
-                const postOwnerId = getPostOwnerId(currentPost);
-                navigate(`/user/${postOwnerId}`);
-              }
-            }}
-          >
-            {currentPost.userAvatar && (
-              <img src={currentPost.userAvatar} alt={currentPost.userName} className="user-avatar-small" />
-            )}
-            <div className="user-name-info">
-              <span className="username-bold">{currentPost.userName}</span>
-              {currentPost.location && (
-                <span className="location-text">{currentPost.location}</span>
-              )}
-            </div>
-          </div>
-          
-          {/* Nút 3 chấm - hiển thị cho tất cả users */}
-          <button className="more-options-btn" onClick={() => setShowOptions(!showOptions)}>
-            <MdMoreVert size={24} />
-          </button>
-        </div>
-
-        {/* Options Menu */}
-        {showOptions && (
-          <div className="options-dropdown">
-            {isOwner() ? (
-              <>
-                <button className="option-item" onClick={() => {
-                  setEditedCaption(currentPost.caption || '');
-                  setShowEditCaption(true);
-                  setShowOptions(false);
-                }}>
-                  <MdEdit size={18} /> Chỉnh sửa chú thích
-                </button>
-                <button className="option-item" onClick={() => {
-                  setShowPrivacySelector(true);
-                  setShowOptions(false);
-                }}>
-                  <MdLock size={18} /> Thay đổi quyền riêng tư
-                </button>
-                <button className="option-item danger" onClick={handleDeletePost} disabled={isDeleting}>
-                  <MdDelete size={18} /> Xóa bài đăng
-                </button>
-              </>
-            ) : (
-              <>
-                <button className="option-item" onClick={() => {
-                  alert('Chức năng báo cáo đang được phát triển');
-                  setShowOptions(false);
-                }}>
-                  <IoWarning size={18} /> Báo cáo bài viết
-                </button>
-                <button className="option-item" onClick={() => {
-                  alert('Đã ẩn bài viết');
-                  setShowOptions(false);
-                }}>
-                  <MdClose size={18} /> Ẩn bài viết
-                </button>
-              </>
-            )}
-            <button className="option-item" onClick={() => setShowOptions(false)}>
-              <MdClose size={18} /> Hủy
-            </button>
-          </div>
-        )}
-
-        {/* Caption & Comments Area */}
+        {/* Comments Area with Integrated Comments */}
         <div className="comments-area">
-          {/* Caption as first comment */}
-          {currentPost.caption && (
-            <div className="caption-comment">
-              {currentPost.userAvatar && (
-                <div className="comment-avatar">
-                  <img src={currentPost.userAvatar} alt={currentPost.userName} />
-                </div>
-              )}
-              <div className="comment-content">
-                <div className="comment-text">
-                  <span className="comment-username">{currentPost.userName}</span>
-                  {' '}
-                  <MentionText text={currentPost.caption} />
-                </div>
-                <div className="comment-time">{getRelativeTime(currentPost.createdAt)}</div>
+          {/* Post Owner Info Section (above comments) */}
+          <div className="post-owner-info-section">
+            <div className="owner-info-header">
+              <div 
+                className="owner-avatar-name"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isOwner()) {
+                    navigate('/profile');
+                  } else {
+                    const postOwnerId = getPostOwnerId(currentPost);
+                    navigate(`/user/${postOwnerId}`);
+                  }
+                }}
+                style={{ cursor: 'pointer' }}
+              >
+                {(() => {
+                  const avatarUrl = getPostAvatar(currentPost);
+                  const username = getPostUsername(currentPost);
+                  return (
+                    <>
+                      {avatarUrl ? (
+                        <img 
+                          src={avatarUrl} 
+                          alt={username} 
+                          className="owner-avatar-img" 
+                        />
+                      ) : (
+                        <div className="owner-avatar-img default-avatar">
+                          <IoPersonCircle size={32} color="#e5e7eb" />
+                        </div>
+                      )}
+                      <span className="owner-username">{username}</span>
+                    </>
+                  );
+                })()}
               </div>
+              
+              {/* 3-dot menu - always visible */}
+              <button 
+                className="owner-more-btn" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowOptions(!showOptions);
+                }}
+              >
+                <MdMoreVert size={20} />
+              </button>
             </div>
-          )}
+            
+            {/* Options Menu Dropdown */}
+            {showOptions && (
+              <div className="options-dropdown">
+                {isOwner() ? (
+                  // Owner options
+                  <>
+                    <button className="option-item" onClick={() => {
+                      setEditedCaption(currentPost.caption || '');
+                      setShowEditCaption(true);
+                      setShowOptions(false);
+                    }}>
+                      <MdEdit size={18} /> Chỉnh sửa chú thích
+                    </button>
+                    <button className="option-item" onClick={() => {
+                      setShowPrivacySelector(true);
+                      setShowOptions(false);
+                    }}>
+                      <MdLock size={18} /> Thay đổi quyền riêng tư
+                    </button>
+                    <button className="option-item danger" onClick={handleDeletePost} disabled={isDeleting}>
+                      <MdDelete size={18} /> Xóa bài đăng
+                    </button>
+                  </>
+                ) : (
+                  // Non-owner options
+                  <>
+                    <button className="option-item" onClick={() => {
+                      alert('Tính năng báo cáo đang được phát triển');
+                      setShowOptions(false);
+                    }}>
+                      <IoWarning size={18} /> Báo cáo bài viết
+                    </button>
+                    <button className="option-item" onClick={() => {
+                      alert('Tính năng ẩn bài viết đang được phát triển');
+                      setShowOptions(false);
+                    }}>
+                      <MdClose size={18} /> Ẩn bài viết
+                    </button>
+                  </>
+                )}
+                <button className="option-item" onClick={() => setShowOptions(false)}>
+                  <MdClose size={18} /> Hủy
+                </button>
+              </div>
+            )}
+            
+            <div className="owner-post-time">
+              {getRelativeTime(currentPost.createdAt)}
+            </div>
+            
+            {currentPost.caption && (
+              <div className="owner-post-caption">
+                <MentionText text={currentPost.caption} />
+              </div>
+            )}
+          </div>
 
           {/* Integrated Comments */}
           <div ref={commentsContainerRef} className="embedded-comments">
@@ -559,6 +614,11 @@ const PostDetail = ({ posts: propsPosts, initialIndex: propsInitialIndex, userId
               post={currentPost}
               onClose={() => {}}
               embedded={true}
+              inputRef={commentInputRef}
+              externalCommentText={quickCommentText}
+              onCommentTextChange={setQuickCommentText}
+              onCommentCountChange={setTotalComments}
+              onSubmitCallback={setCommentSubmitCallback}
             />
           </div>
         </div>
@@ -570,7 +630,10 @@ const PostDetail = ({ posts: propsPosts, initialIndex: propsInitialIndex, userId
             <button 
               ref={likeButtonRef}
               className={`action-btn ${currentPost.userReaction ? 'active' : ''}`}
-              onClick={handleQuickReaction}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleQuickReaction();
+              }}
               onMouseDown={(e) => {
                 e.preventDefault();
                 const timer = setTimeout(() => handleLongPressStart(e), 500);
@@ -599,30 +662,64 @@ const PostDetail = ({ posts: propsPosts, initialIndex: propsInitialIndex, userId
                 <IoHeartOutline className="icon" size={24} />
               )}
             </button>
-            <button className="action-btn" onClick={() => commentsContainerRef.current?.scrollIntoView({ behavior: 'smooth' })}>
+            <button className="action-btn" onClick={(e) => {
+              e.stopPropagation();
+              handleCommentButtonClick();
+            }}>
               <IoChatbubbleOutline className="icon" size={24} />
             </button>
-            <button className="action-btn" onClick={() => setShowShareModal(true)}>
-              <IoSend className="icon" size={24} />
-            </button>
+            {quickCommentText.trim() && (
+              <button className="action-btn send-btn" onClick={(e) => {
+                e.stopPropagation();
+                handleQuickCommentSend();
+              }}>
+                <IoSend className="icon" size={24} style={{ color: '#0095f6' }} />
+              </button>
+            )}
           </div>
 
-          {/* Reactions Summary */}
-          {getTotalReactions() > 0 && (
-            <div className="reactions-count" onClick={() => setShowReactionsModal(true)}>
-              <strong>{getTotalReactions().toLocaleString()}</strong> lượt thích
-            </div>
-          )}
+          {/* Reactions & Comments Summary */}
+          <div className="post-stats-row">
+            {getTotalReactions() > 0 && (
+              <div className="reactions-count" onClick={(e) => {
+                e.stopPropagation();
+                setShowReactionsModal(true);
+              }}>
+                <strong>{getTotalReactions().toLocaleString()}</strong> lượt thích
+              </div>
+            )}
+            {totalComments > 0 && (
+              <div className="comments-count">
+                <strong>{totalComments.toLocaleString()}</strong> bình luận
+              </div>
+            )}
+          </div>
 
-          {/* Time & Privacy */}
+          {/* Time Only (removed Privacy) */}
           <div className="post-metadata">
             <span className="time-text">{getRelativeTime(currentPost.createdAt)}</span>
-            {' · '}
-            <span className="privacy-text">
-              {currentPost.privacy === 'public' && 'Công khai'}
-              {currentPost.privacy === 'friends' && 'Bạn bè'}
-              {currentPost.privacy === 'private' && 'Riêng tư'}
-            </span>
+          </div>
+
+          {/* Comment Input */}
+          <div className="quick-comment-input-container">
+            <input
+              ref={commentInputRef}
+              type="text"
+              className="quick-comment-input"
+              placeholder="Thêm bình luận..."
+              value={quickCommentText}
+              onChange={(e) => setQuickCommentText(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' && quickCommentText.trim()) {
+                  handleQuickCommentSend();
+                }
+              }}
+            />
+            {quickCommentText.trim() && (
+              <button className="quick-send-btn" onClick={handleQuickCommentSend}>
+                Đăng
+              </button>
+            )}
           </div>
         </div>
       </div>

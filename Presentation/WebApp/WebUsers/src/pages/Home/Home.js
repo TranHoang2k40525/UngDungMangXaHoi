@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useUser } from '../../context/UserContext';
 import { useFollow } from '../../context/FollowContext';
-import CommentsModal from './CommentsModal';
+import PostDetail from './PostDetail';
 import { IoHeartOutline, IoHeart, IoChatbubbleOutline, IoRepeatOutline, IoSendOutline, IoBookmarkOutline, IoEllipsisHorizontal, IoLockClosed, IoPeople, IoEarth, IoPersonCircle } from 'react-icons/io5';
 import {
   getFeed,
@@ -63,7 +63,7 @@ const StoryItem = ({ id, name, avatar, hasStory, storyData, navigate }) => {
 };
 
 // Post Images Carousel Component
-const PostImagesCarousel = ({ images = [] }) => {
+const PostImagesCarousel = ({ images = [], onClick }) => {
   const [index, setIndex] = useState(0);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -72,8 +72,12 @@ const PostImagesCarousel = ({ images = [] }) => {
   const handleNext = () => setIndex(prev => Math.min(images.length - 1, prev + 1));
 
   const openViewer = (idx) => {
-    setViewerIndex(idx);
-    setViewerVisible(true);
+    if (onClick) {
+      onClick();
+    } else {
+      setViewerIndex(idx);
+      setViewerVisible(true);
+    }
   };
 
   return (
@@ -187,8 +191,8 @@ export default function Home() {
   const [postStates, setPostStates] = useState({});
   const [activeCommentsPostId, setActiveCommentsPostId] = useState(null);
   const [showComments, setShowComments] = useState(false);
-  const [commentsModalVisible, setCommentsModalVisible] = useState(false);
-  const [commentsPostId, setCommentsPostId] = useState(null);
+  const [selectedPostIndex, setSelectedPostIndex] = useState(null);
+  const [showPostModal, setShowPostModal] = useState(false);
   const [posts, setPosts] = useState([]);
   const [myStorySlot, setMyStorySlot] = useState({
     id: 'me',
@@ -549,8 +553,11 @@ export default function Home() {
   };
 
   const onOpenComments = (postId) => {
-    setCommentsModalVisible(true);
-    setCommentsPostId(postId);
+    const index = posts.findIndex(p => p.id === postId);
+    if (index !== -1) {
+      setSelectedPostIndex(index);
+      setShowPostModal(true);
+    }
   };
 
   const onShare = async (post) => {
@@ -991,8 +998,15 @@ export default function Home() {
                       });
                     
                     console.log('[Home] Post media - images:', images, 'videos:', videos);
+                    const handlePostClick = () => {
+                      const index = posts.findIndex(post => post.id === p.id);
+                      if (index !== -1) {
+                        setSelectedPostIndex(index);
+                        setShowPostModal(true);
+                      }
+                    };
                     if (images.length > 1) {
-                      return <PostImagesCarousel images={images} />;
+                      return <PostImagesCarousel images={images} onClick={handlePostClick} />;
                     }
                     if (images.length === 1) {
                       return (
@@ -1000,6 +1014,8 @@ export default function Home() {
                           src={images[0]} 
                           alt="Post" 
                           className="post-image"
+                          onClick={handlePostClick}
+                          style={{ cursor: 'pointer' }}
                           onError={(e) => {
                             console.warn('[Home] Failed to load image:', images[0]);
                             e.target.style.display = 'none';
@@ -1016,7 +1032,7 @@ export default function Home() {
                       );
                     }
                     if (videos.length > 0) {
-                      return <VideoThumbnail videoUrl={videos[0].url} onPress={() => openVideoPlayerFor(p)} />;
+                      return <VideoThumbnail videoUrl={videos[0].url} onPress={handlePostClick} />;
                     }
                     return null;
                   })() : null}
@@ -1365,30 +1381,14 @@ export default function Home() {
         </div>
       )}
 
-      {/* Comments Modal */}
-      {commentsModalVisible && (
-        <CommentsModal
-          visible={commentsModalVisible}
+      {/* Post Detail Modal */}
+      {showPostModal && selectedPostIndex !== null && (
+        <PostDetail 
+          posts={posts}
+          initialIndex={selectedPostIndex}
           onClose={() => {
-            setCommentsModalVisible(false);
-            setCommentsPostId(null);
-          }}
-          postId={commentsPostId}
-          post={posts.find(p => p.id === commentsPostId)}
-          onCommentAdded={() => {
-            // Refresh comment count for this post
-            if (commentsPostId) {
-              const post = posts.find(p => p.id === commentsPostId);
-              if (post) {
-                setPostStates(prev => ({
-                  ...prev,
-                  [commentsPostId]: {
-                    ...prev[commentsPostId],
-                    commentCount: (prev[commentsPostId]?.commentCount || 0) + 1
-                  }
-                }));
-              }
-            }
+            setShowPostModal(false);
+            setSelectedPostIndex(null);
           }}
         />
       )}
