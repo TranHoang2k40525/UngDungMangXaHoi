@@ -106,45 +106,47 @@ pipeline {
               chmod 600 ~/.ssh/id_rsa
               ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
               
-              # Use Jenkins WORKSPACE (mounted to host, Docker can access)
-              # This avoids the "bind source path does not exist" error
-              cd \${WORKSPACE}
+              # Deploy to WSL2 using wsl command
+              # Execute docker-compose commands inside WSL2 Ubuntu
               
-              # Already checked out by Jenkins, just ensure we're on latest
-              git reset --hard HEAD
+              # Create secrets file in WSL2 filesystem
+              wsl -d ${WSL_DISTRO} -- bash -c "
+                cd ${PROD_DIR}
+                
+                # Update repository
+                git reset --hard
+                git pull origin main
+                
+                # Create secrets directory with db_password
+                echo 'Creating db_password secret for deployment...'
+                mkdir -p secrets
+                echo '\${DB_PASSWORD}' > secrets/db_password.txt
+                chmod 600 secrets/db_password.txt
+                
+                # Verify secret file
+                if [ -f 'secrets/db_password.txt' ]; then
+                  echo '✓ db_password.txt created (size: \$(wc -c < secrets/db_password.txt) bytes)'
+                else
+                  echo '✗ ERROR: Failed to create db_password.txt'
+                  exit 1
+                fi
+                
+                # Set image variables
+                export WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE}
+                export WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE}
+                export WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE}
+                
+                # Create network if not exists
+                docker network create app-network 2>/dev/null || true
+                
+                # Deploy all services including SQL Server
+                # SQL Server will use existing volume 'sqlserver-prod-data' if available
+                docker-compose ${COMPOSE_FILES} pull sqlserver webapi webapp webadmins cloudflared
+                docker-compose ${COMPOSE_FILES} up -d --remove-orphans sqlserver webapi webapp webadmins cloudflared
+                docker-compose ${COMPOSE_FILES} ps
+              "
               
-              # Create secrets directory with db_password from Jenkins Credentials
-              # SQL Server container 'ungdungmxh-sqlserver-prod' uses volume 'sqlserver-prod-data'
-              # Applications connect via service name 'sqlserver' in Docker network
-              # Only deploying application containers: webapi, webapp, webadmins, cloudflared
-              echo "Creating db_password secret for deployment..."
-              mkdir -p secrets
-              echo "\${DB_PASSWORD}" > secrets/db_password.txt
-              chmod 600 secrets/db_password.txt
-              
-              # Verify secret file was created (without exposing password)
-              if [ -f "secrets/db_password.txt" ]; then
-                echo "✓ db_password.txt created (size: \$(wc -c < secrets/db_password.txt) bytes)"
-              else
-                echo "✗ ERROR: Failed to create db_password.txt"
-                exit 1
-              fi
-              
-              # Deploy with docker-compose (V1 syntax for compatibility)
-              export WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE}
-              export WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE}
-              export WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE}
-              
-              # Create network if not exists
-              docker network create app-network 2>/dev/null || true
-              
-              # Deploy all services including SQL Server
-              # SQL Server will use existing volume 'sqlserver-prod-data' if available
-              docker-compose ${COMPOSE_FILES} pull sqlserver webapi webapp webadmins cloudflared
-              docker-compose ${COMPOSE_FILES} up -d --remove-orphans sqlserver webapi webapp webadmins cloudflared
-              docker-compose ${COMPOSE_FILES} ps
-              
-              # Cleanup sensitive files only
+              # Cleanup sensitive files
               rm -f ~/.ssh/id_rsa
             """
           }
