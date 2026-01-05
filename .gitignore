@@ -55,7 +55,7 @@ configs/*.conf
 **/*ModelSnapshot*.cs
 **/*Designer.cs
 **/appsettings.Development.json
-**/appsettings.json
+
 
 ## Documentation files: ignore markdown outside `DOCS/`, allow markdown inside `DOCS/`
 # Ignore all markdown files by default

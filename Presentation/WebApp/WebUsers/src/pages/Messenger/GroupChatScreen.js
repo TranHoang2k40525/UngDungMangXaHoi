@@ -97,7 +97,7 @@ export default function GroupChatScreen() {
         await signalRService.joinGroup(conversationId);
 
         // Listen for new messages
-        signalRService.onReceiveMessage((...args) => {
+        signalRService.onChatMessage((...args) => {
           if (!mounted) return;
 
           let payload = null;
@@ -331,7 +331,7 @@ export default function GroupChatScreen() {
       }
 
       const response = await fetch(
-        `${API_BASE_URL}/api/GroupMessages/group/${conversationId}?page=${pageNum}&pageSize=50`,
+        `${API_BASE_URL}/api/groupmessage/${conversationId}?page=${pageNum}&pageSize=50`,
         {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
@@ -415,7 +415,7 @@ export default function GroupChatScreen() {
         }
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/GroupMessages`, {
+      const response = await fetch(`${API_BASE_URL}/api/groupmessage/send`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
