@@ -67,11 +67,20 @@ namespace UngDungMangXaHoi.Application.Services
             // Không cần check follow - bất kỳ ai cũng có thể nhắn tin cho nhau
             Console.WriteLine($"[MessageService] GetConversationDetail - User {userId} with User {otherUserId}");
 
+            // CRITICAL: Check if other user exists BEFORE creating conversation
+            var otherUser = await _userRepository.GetByIdAsync(otherUserId);
+            if (otherUser == null)
+            {
+                Console.WriteLine($"[MessageService] Other user {otherUserId} not found!");
+                return null;
+            }
+
             var conversation = await _conversationRepository.GetConversationBetweenUsersAsync(userId, otherUserId);
             
             if (conversation == null)
             {
-                // Tạo conversation mới nếu chưa có
+                // Tạo conversation mới nếu chưa có (sau khi đã verify user exists)
+                Console.WriteLine($"[MessageService] Creating new conversation between {userId} and {otherUserId}");
                 conversation = await _conversationRepository.CreateAsync(new Conversation
                 {
                     user1_id = userId,
@@ -87,10 +96,6 @@ namespace UngDungMangXaHoi.Application.Services
             var totalMessages = await _context.MessagesNew
                 .Where(m => m.conversation_id == conversation.conversation_id && !m.is_deleted)
                 .CountAsync();
-            var otherUser = await _userRepository.GetByIdAsync(otherUserId);
-
-            if (otherUser == null)
-                return null;
 
             // Đánh dấu đã đọc
             await _messageRepository.MarkAsReadAsync(conversation.conversation_id, userId);

@@ -567,10 +567,17 @@ export default function Messenger() {
                   style={styles.avatarBarItem}
                   activeOpacity={0.7}
                   onPress={() => {
+                    // Construct full avatar URL before navigation
+                    const fullAvatarUrl = user.avatar_url 
+                      ? (user.avatar_url.startsWith('http') 
+                          ? user.avatar_url 
+                          : `${API_BASE_URL}${user.avatar_url}`)
+                      : null;
+                    
                     console.log('[Messenger] Avatar bar click - navigating with:', {
                       userId: user.user_id,
                       userName: user.full_name,
-                      userAvatar: user.avatar_url,
+                      userAvatar: fullAvatarUrl,
                       username: user.username
                     });
                     
@@ -582,7 +589,7 @@ export default function Messenger() {
                     navigation.navigate('Doanchat', {
                       userId: user.user_id,
                       userName: user.full_name || user.username || 'User',
-                      userAvatar: user.avatar_url,
+                      userAvatar: fullAvatarUrl,
                       username: user.username
                     });
                   }}
@@ -639,10 +646,13 @@ export default function Messenger() {
                       groupName: conv.name 
                     });
                   } else {
-                    navigation.navigate('Doanchat', { 
+                    // Use getAvatarUri to construct full URL for 1:1 chat
+                    const fullAvatarUrl = getAvatarUri(conv.avatarUrl);
+                    
+                    navigation.navigate('Doanchat', {
                       userId: conv.otherUserId,
                       userName: conv.name,
-                      userAvatar: conv.avatarUrl,
+                      userAvatar: fullAvatarUrl,
                       username: conv.username
                     });
                   }

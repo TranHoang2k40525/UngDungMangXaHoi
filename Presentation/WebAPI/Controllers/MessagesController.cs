@@ -20,10 +20,12 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
 
         private int GetCurrentUserId()
         {
-            // JWT sử dụng "nameid" cho user ID, không phải "user_id"
-            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+            // CRITICAL: Use "user_id" claim first (the actual user_id in database)
+            // nameidentifier might be different (account_id or something else)
+            var userIdClaim = User.FindFirst("user_id")?.Value
+                              ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
                               ?? User.FindFirst("nameid")?.Value 
-                              ?? User.FindFirst("user_id")?.Value;
+                              ?? User.FindFirst("sub")?.Value;
             
             Console.WriteLine($"[MessagesController] GetCurrentUserId - found claim: {userIdClaim}");
             Console.WriteLine($"[MessagesController] All claims: {string.Join(", ", User.Claims.Select(c => $"{c.Type}={c.Value}"))}");
@@ -68,8 +70,30 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
         {
             try
             {
+                // Validate otherUserId
+                if (otherUserId <= 0)
+                {
+                    Console.WriteLine($"[MessagesController] Invalid otherUserId: {otherUserId}");
+                    return BadRequest(new ConversationDetailResponseDto
+                    {
+                        success = false,
+                        message = "Invalid user ID"
+                    });
+                }
+
                 var userId = GetCurrentUserId();
                 Console.WriteLine($"[MessagesController] GetConversationDetail - userId: {userId}, otherUserId: {otherUserId}, page: {page}, pageSize: {pageSize}");
+                
+                // Không cho phép nhắn tin với chính mình
+                if (userId == otherUserId)
+                {
+                    Console.WriteLine($"[MessagesController] Cannot message yourself");
+                    return BadRequest(new ConversationDetailResponseDto
+                    {
+                        success = false,
+                        message = "Cannot message yourself"
+                    });
+                }
                 
                 var conversation = await _messageService.GetConversationDetailAsync(userId, otherUserId, page, pageSize);
                 
@@ -80,11 +104,11 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
 
                 if (conversation == null)
                 {
-                    Console.WriteLine($"[MessagesController] Conversation not found or no mutual follow");
+                    Console.WriteLine($"[MessagesController] Other user not found");
                     return NotFound(new ConversationDetailResponseDto
                     {
                         success = false,
-                        message = "Conversation not found or you don't have permission to access it"
+                        message = "User not found"
                     });
                 }
 
@@ -96,13 +120,23 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
                     data = conversation
                 });
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                Console.WriteLine($"[MessagesController] Unauthorized: {ex.Message}");
+                return Unauthorized(new ConversationDetailResponseDto
+                {
+                    success = false,
+                    message = "Authentication required"
+                });
+            }
             catch (Exception ex)
             {
                 Console.WriteLine($"[MessagesController] Error: {ex.Message}");
-                return BadRequest(new ConversationDetailResponseDto
+                Console.WriteLine($"[MessagesController] StackTrace: {ex.StackTrace}");
+                return StatusCode(500, new ConversationDetailResponseDto
                 {
                     success = false,
-                    message = ex.Message
+                    message = $"Internal server error: {ex.Message}"
                 });
             }
         }

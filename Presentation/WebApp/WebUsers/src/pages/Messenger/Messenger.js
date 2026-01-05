@@ -44,13 +44,13 @@ export default function Messenger() {
     try {
       setLoading(true);
       
-      // Get 1:1 conversations (all conversations with last message)
-      const mutualResponse = await MessageAPI.getMutualFollowers();
-      console.log('[Messenger] Mutual followers response:', mutualResponse);
+      // Get ALL 1:1 conversations (including with strangers)
+      const conversationsResponse = await MessageAPI.getConversations();
+      console.log('[Messenger] Conversations response:', conversationsResponse);
       
       let oneToOneConversations = [];
-      if (mutualResponse.success && mutualResponse.data) {
-        oneToOneConversations = mutualResponse.data.map(conv => {
+      if (conversationsResponse.success && conversationsResponse.data) {
+        oneToOneConversations = conversationsResponse.data.map(conv => {
           let avatarUrl = conv.other_user_avatar_url;
           if (avatarUrl && !avatarUrl.startsWith('http')) {
             avatarUrl = `${API_BASE_URL}${avatarUrl}`;
@@ -607,10 +607,17 @@ export default function Messenger() {
                   key={user.user_id || `user-${index}`}
                   className="avatar-bar-item"
                   onClick={() => {
+                    // Construct full avatar URL before navigation
+                    const fullAvatarUrl = user.avatar_url 
+                      ? (user.avatar_url.startsWith('http') 
+                          ? user.avatar_url 
+                          : `${API_BASE_URL}${user.avatar_url}`)
+                      : null;
+                    
                     console.log('[Messenger] Avatar bar click - navigating with:', {
                       userId: user.user_id,
                       userName: user.full_name,
-                      userAvatar: user.avatar_url,
+                      userAvatar: fullAvatarUrl,
                       username: user.username
                     });
                     
@@ -623,7 +630,7 @@ export default function Messenger() {
                       state: {
                         userId: user.user_id,
                         userName: user.full_name || user.username || 'User',
-                        userAvatar: user.avatar_url,
+                        userAvatar: fullAvatarUrl,
                         username: user.username
                       }
                     });
@@ -679,11 +686,14 @@ export default function Messenger() {
                       }
                     });
                   } else {
+                    // Use getAvatarUri to construct full URL
+                    const fullAvatarUrl = getAvatarUri(conv.avatarUrl);
+                    
                     navigate('/messenger/chat/' + conv.otherUserId, {
                       state: {
                         userId: conv.otherUserId,
                         userName: conv.name,
-                        userAvatar: conv.avatarUrl,
+                        userAvatar: fullAvatarUrl,
                         username: conv.username
                       }
                     });
