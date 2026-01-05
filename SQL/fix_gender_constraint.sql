@@ -1,32 +1,37 @@
--- Fix gender CHECK constraint to properly handle Vietnamese characters
--- This script drops the old constraint and creates a new one with proper encoding
+-- FIX GENDER CHECK CONSTRAINT
+-- Problem: Gender column has strict CHECK constraint that blocks new users
 
--- Drop existing constraint
-IF EXISTS (SELECT * FROM sys.check_constraints WHERE name = 'CK__Users__gender__412EB0B6')
-BEGIN
-    ALTER TABLE [dbo].[Users] DROP CONSTRAINT [CK__Users__gender__412EB0B6];
-    PRINT 'Dropped old gender constraint on Users table';
-END
-
--- Add new constraint with proper Vietnamese characters
-ALTER TABLE [dbo].[Users] 
-    ADD CONSTRAINT [CK__Users__gender__412EB0B6] 
-    CHECK ([gender] IN (N'Nam', N'Nữ', N'Khác'));
+USE ungdungmangxahoiv_2;
 GO
 
-PRINT 'Added new gender constraint on Users table with proper encoding';
-
--- Do the same for Admins table if needed
-IF EXISTS (SELECT * FROM sys.check_constraints WHERE name = 'CK__Admins__gender__45F365D3')
-BEGIN
-    ALTER TABLE [dbo].[Admins] DROP CONSTRAINT [CK__Admins__gender__45F365D3];
-    PRINT 'Dropped old gender constraint on Admins table';
-END
-
-ALTER TABLE [dbo].[Admins] 
-    ADD CONSTRAINT [CK__Admins__gender__45F365D3] 
-    CHECK ([gender] IN (N'Nam', N'Nữ', N'Khác'));
+-- Step 1: Check current constraint
+SELECT 
+    OBJECT_NAME(parent_object_id) AS TableName,
+    name AS ConstraintName,
+    definition
+FROM sys.check_constraints
+WHERE name LIKE '%gender%';
 GO
 
-PRINT 'Added new gender constraint on Admins table with proper encoding';
-PRINT 'Gender constraint fix completed successfully!';
+-- Step 2: Drop old constraint
+ALTER TABLE Users
+DROP CONSTRAINT CK__Users__gender__412EB0B6;
+GO
+
+-- Step 3: Create new constraint that allows NULL or valid values
+ALTER TABLE Users
+ADD CONSTRAINT CK_Users_Gender 
+CHECK (gender IS NULL OR gender IN ('Male', 'Female', 'Other', 'Nam', 'Nữ', 'Khác'));
+GO
+
+-- Step 4: Verify
+SELECT 
+    OBJECT_NAME(parent_object_id) AS TableName,
+    name AS ConstraintName,
+    definition
+FROM sys.check_constraints
+WHERE name = 'CK_Users_Gender';
+GO
+
+PRINT 'Gender constraint fixed successfully!';
+PRINT 'Users can now be created with NULL gender or valid values.';
