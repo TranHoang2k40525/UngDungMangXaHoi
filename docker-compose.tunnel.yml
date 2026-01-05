@@ -9,11 +9,10 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: ungdungmxh-cloudflared
     
-    # Run tunnel with token from secrets
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
-    
-    environment:
-      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    # Run tunnel with token from secrets file mounted at /run/secrets/
+    # Command reads token file and passes to tunnel
+    command: >
+      sh -c "cloudflared tunnel --no-autoupdate run --token $$(cat /run/secrets/cloudflare_tunnel_token)"
     
     # Read token from secrets file
     # Create this file: echo "YOUR_TUNNEL_TOKEN" > secrets/cloudflare_tunnel_token.txt
