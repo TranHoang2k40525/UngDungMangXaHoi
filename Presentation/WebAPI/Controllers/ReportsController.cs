@@ -35,10 +35,11 @@ public class ReportsController : ControllerBase
     {
         try
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var reporterId))
+            // Get user_id from JWT claims (not account_id)
+            var userIdClaim = User.FindFirst("user_id")?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var reporterId) || reporterId == 0)
             {
-                return Unauthorized(new { success = false, message = "Unauthorized" });
+                return Unauthorized(new { success = false, message = "Unauthorized - User not found" });
             }
 
             // Validate request

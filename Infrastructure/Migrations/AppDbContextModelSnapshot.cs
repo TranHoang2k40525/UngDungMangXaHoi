@@ -346,8 +346,8 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                         .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("Details")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<int?>("EntityId")
                         .HasColumnType("int");
@@ -362,8 +362,8 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                         .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("IpAddress")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasMaxLength(45)
+                        .HasColumnType("nvarchar(45)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -371,13 +371,19 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                         .HasColumnType("nvarchar(20)");
 
                     b.Property<DateTime>("Timestamp")
-                        .HasColumnType("datetime2");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSDATETIMEOFFSET()");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Action");
+
                     b.HasIndex("AdminAccountId");
 
-                    b.ToTable("AdminActivityLogs");
+                    b.HasIndex("Timestamp");
+
+                    b.ToTable("AdminActivityLogs", (string)null);
                 });
 
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.Block", b =>
@@ -1013,18 +1019,30 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                 {
                     b.Property<int>("message_id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("message_id");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("message_id"));
 
+                    b.Property<int?>("ReplyToMessagemessage_id")
+                        .HasColumnType("int");
+
                     b.Property<string>("content")
-                        .HasColumnType("NVARCHAR(1000)");
+                        .HasColumnType("NVARCHAR(1000)")
+                        .HasColumnName("content");
 
                     b.Property<int>("conversation_id")
+                        .HasColumnType("int")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<int?>("conversation_id1")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("created_at")
-                        .HasColumnType("datetime2");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("GETDATE()");
 
                     b.Property<string>("file_url")
                         .HasMaxLength(255)
@@ -1032,15 +1050,21 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                         .HasColumnName("media_url");
 
                     b.Property<bool>("is_deleted")
-                        .HasColumnType("bit");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<bool>("is_pinned")
                         .HasColumnType("bit");
 
                     b.Property<string>("message_type")
                         .IsRequired()
+                        .ValueGeneratedOnAdd()
                         .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("text")
+                        .HasColumnName("message_type");
 
                     b.Property<DateTime?>("pinned_at")
                         .HasColumnType("datetime2");
@@ -1065,15 +1089,26 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
                         .HasColumnType("int")
                         .HasColumnName("sender_id");
 
+                    b.Property<int?>("user_id1")
+                        .HasColumnType("int");
+
                     b.HasKey("message_id");
 
+                    b.HasIndex("ReplyToMessagemessage_id");
+
                     b.HasIndex("conversation_id");
+
+                    b.HasIndex("conversation_id1");
+
+                    b.HasIndex("created_at");
 
                     b.HasIndex("reply_to_message_id");
 
                     b.HasIndex("user_id");
 
-                    b.ToTable("Messages");
+                    b.HasIndex("user_id1");
+
+                    b.ToTable("GroupMessages", (string)null);
                 });
 
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.GroupMessageReaction", b =>
@@ -2384,21 +2419,34 @@ namespace UngDungMangXaHoi.Infrastructure.Migrations
 
             modelBuilder.Entity("UngDungMangXaHoi.Domain.Entities.GroupMessage", b =>
                 {
-                    b.HasOne("UngDungMangXaHoi.Domain.Entities.GroupConversation", "Conversation")
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.GroupMessage", "ReplyToMessage")
+                        .WithMany("Replies")
+                        .HasForeignKey("ReplyToMessagemessage_id");
+
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.GroupConversation", null)
                         .WithMany()
                         .HasForeignKey("conversation_id")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("UngDungMangXaHoi.Domain.Entities.GroupMessage", "ReplyToMessage")
-                        .WithMany("Replies")
-                        .HasForeignKey("reply_to_message_id");
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.GroupConversation", "Conversation")
+                        .WithMany()
+                        .HasForeignKey("conversation_id1");
+
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.GroupMessage", null)
+                        .WithMany()
+                        .HasForeignKey("reply_to_message_id")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("UngDungMangXaHoi.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("user_id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("UngDungMangXaHoi.Domain.Entities.User", "User")
                         .WithMany()
-                        .HasForeignKey("user_id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("user_id1");
 
                     b.Navigation("Conversation");
 

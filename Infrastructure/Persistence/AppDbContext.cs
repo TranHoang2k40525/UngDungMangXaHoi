@@ -98,6 +98,7 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
 
             modelBuilder.ApplyConfiguration(new GroupConversationConfiguration());
             modelBuilder.ApplyConfiguration(new GroupConversationMemberConfiguration());
+            modelBuilder.ApplyConfiguration(new GroupMessageConfiguration());
             modelBuilder.ApplyConfiguration(new BlockConfiguration());
             modelBuilder.ApplyConfiguration(new GroupMessageRestrictionConfiguration());            
             // Configure composite keys for group message reactions and reads
@@ -120,6 +121,7 @@ namespace UngDungMangXaHoi.Infrastructure.Persistence
             modelBuilder.ApplyConfiguration(new RolePermissionConfiguration());
             modelBuilder.ApplyConfiguration(new AccountPermissionConfiguration());
             modelBuilder.ApplyConfiguration(new ReportConfiguration());
+            modelBuilder.ApplyConfiguration(new AdminActivityLogConfiguration());
 
         }
     }

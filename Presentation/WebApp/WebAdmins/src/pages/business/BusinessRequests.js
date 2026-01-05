@@ -94,20 +94,19 @@ export default function BusinessRequests() {
 
     return (
         <div className="business-requests-page">
-            {" "}
             <div className="page-header">
                 <h1>🏢 Doanh nghiệp</h1>
                 <p>
                     Quản lý và phê duyệt các yêu cầu xác thực tài khoản doanh
                     nghiệp
                 </p>
-            </div>{" "}
+            </div>
             <div className="stats-cards">
                 <div className="stat-card total">
                     <h3>📊 Tổng số doanh nghiệp</h3>
                     <div className="stat-value">{stats.total || 0}</div>
                 </div>
-            </div>{" "}
+            </div>
             <div className="card">
                 <div className="toolbar">
                     <input
@@ -125,7 +124,6 @@ export default function BusinessRequests() {
                     </div>
                 ) : (
                     <>
-                        {" "}
                         <table className="requests-table">
                             <thead>
                                 <tr>
@@ -155,7 +153,7 @@ export default function BusinessRequests() {
                                                 {request.email}
                                             </div>
                                         </td>
-                                        <td>{request.businessType}</td>{" "}
+                                        <td>{request.businessType}</td>
                                         <td>
                                             {new Date(
                                                 request.submittedAt
@@ -174,7 +172,7 @@ export default function BusinessRequests() {
                                     </tr>
                                 ))}
                             </tbody>
-                        </table>{" "}
+                        </table>
                         <div className="pagination">
                             <button
                                 onClick={() =>
@@ -198,7 +196,7 @@ export default function BusinessRequests() {
                         </div>
                     </>
                 )}
-            </div>{" "}
+            </div>
             {modalData && (
                 <RequestModal
                     data={modalData}
@@ -254,7 +252,7 @@ function RequestModal({ data, onClose }) {
                     <button onClick={onClose} className="close-btn">
                         ×
                     </button>
-                </div>{" "}
+                </div>
                 <div className="modal-body">
                     {/* Thông tin doanh nghiệp */}
                     <section className="modal-section">
@@ -446,7 +444,7 @@ function RequestModal({ data, onClose }) {
                                         </span>
                                     )}
                                 </span>
-                            </div>{" "}
+                            </div>
                         </div>
                     </section>
                 </div>
