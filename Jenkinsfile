@@ -114,7 +114,7 @@ pipeline {
               GIT_SSH_COMMAND='ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no' \
                 git pull origin main
               
-              # Deploy with docker-compose  
+              # Deploy with docker-compose (V1 syntax for compatibility)
               export WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE}
               export WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE}
               export WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE}

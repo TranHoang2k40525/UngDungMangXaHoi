@@ -35,11 +35,14 @@ services:
       # Timezone
       - TZ=Asia/Ho_Chi_Minh
     
-    # Install Docker CLI inside Jenkins container
+    # Install Docker CLI and docker-compose inside Jenkins container
     entrypoint: >
       sh -c "
       apt-get update &&
-      apt-get install -y docker.io &&
+      apt-get install -y docker.io curl &&
+      curl -L 'https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64' -o /usr/local/bin/docker-compose &&
+      chmod +x /usr/local/bin/docker-compose &&
+      ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose &&
       /usr/local/bin/jenkins.sh
       "
     
