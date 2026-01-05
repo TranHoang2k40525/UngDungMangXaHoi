@@ -114,14 +114,14 @@ pipeline {
               GIT_SSH_COMMAND='ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no' \
                 git pull origin main
               
-              # Deploy with docker compose
+              # Deploy with docker-compose  
               export WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE}
               export WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE}
               export WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE}
               
-              docker compose ${COMPOSE_FILES} pull
-              docker compose ${COMPOSE_FILES} up -d --remove-orphans
-              docker compose ${COMPOSE_FILES} ps
+              docker-compose ${COMPOSE_FILES} pull
+              docker-compose ${COMPOSE_FILES} up -d --remove-orphans
+              docker-compose ${COMPOSE_FILES} ps
               
               # Cleanup
               cd /tmp
