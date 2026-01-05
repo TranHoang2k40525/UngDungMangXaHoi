@@ -29,6 +29,12 @@ const apiCall = async (endpoint, options = {}) => {
     }
 
     if (!response.ok) {
+      // 🔴 LOG DETAILED ERROR INFO
+      console.error(`[API-CALL] ❌ ${response.status} Error for ${endpoint}`);
+      console.error('[API-CALL] Response body:', result);
+      console.error('[API-CALL] Validation errors:', result?.errors); // ← Expand errors object
+      console.error('[API-CALL] Request body:', options.body);
+      
       // Nếu 401 hoặc 403: thử refresh token 1 lần rồi gọi lại
       if ((response.status === 401 || response.status === 403) && !options._retry) {
         try {
@@ -142,6 +148,37 @@ export const login = async (credentials) => {
 export const getAuthHeaders = () => {
   const token = localStorage.getItem("accessToken");
   return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+// Helper để decode JWT token và lấy userId
+const getUserIdFromToken = () => {
+  try {
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      console.error('[API] No access token found');
+      return null;
+    }
+    
+    // Decode JWT token (base64)
+    const payload = token.split('.')[1];
+    const decoded = JSON.parse(atob(payload));
+    
+    console.log('[API] Decoded token claims:', decoded);
+    console.log('[API] user_id claim:', decoded.user_id);
+    console.log('[API] NameIdentifier claim:', decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier']);
+    
+    // Token có claim "user_id"
+    const userId = decoded.user_id ? parseInt(decoded.user_id) : null;
+    
+    if (!userId) {
+      console.error('[API] Token does not have valid user_id claim. Full token:', decoded);
+    }
+    
+    return userId;
+  } catch (error) {
+    console.error('[API] Error decoding token:', error);
+    return null;
+  }
 };
 
 // Refresh token
@@ -536,10 +573,19 @@ export const deletePost = async (postId) => {
 // ====== REACTIONS API ======
 export const addReaction = async (postId, reactionType) => {
   const headers = getAuthHeaders();
-  const body = { postId, reactionType };
+  
+  // Debug: Check token claims
+  const userId = getUserIdFromToken();
+  console.log('[API] ⚠️ Token userId:', userId);
+  console.log('[API] addReaction input - postId:', postId, 'reactionType (NUMBER):', reactionType);
+  
+  // Backend expects { postId, reactionType } with reactionType as NUMBER (1=Like, 2=Love, etc.)
+  const body = { 
+    postId: postId, 
+    reactionType: reactionType  // Send as number, NOT string!
+  };
 
-  console.log('[API] addReaction called - postId:', postId, 'reactionType:', reactionType);
-  console.log('[API] addReaction body:', body);
+  console.log('[API] addReaction body (camelCase + NUMBER):', body);
 
   const result = await apiCall("/api/reactions", {
     method: "POST",
@@ -551,6 +597,7 @@ export const addReaction = async (postId, reactionType) => {
     body: JSON.stringify(body),
   });
 
+  console.log('[API] ✅ addReaction success:', result);
   return result;
 };
 

@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { getUserPostsById, getUserProfile, followUser, unfollowUser, API_BASE_URL, blockUser, unblockUser, getBlockedUsers } from '../../api/Api';
 import { useFollow } from '../../context/FollowContext';
 import PostDetail from '../Home/PostDetail';
@@ -9,6 +9,7 @@ import './UserProfilePublic.css';
 export default function UserProfilePublic() {
   const { userId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { markAsFollowed, markAsUnfollowed, isFollowed: isFollowedGlobal } = useFollow();
   const [posts, setPosts] = useState([]);
   const [profile, setProfile] = useState(null);
@@ -20,6 +21,7 @@ export default function UserProfilePublic() {
   // Modal state for Instagram-style post view
   const [selectedPostIndex, setSelectedPostIndex] = useState(null);
   const [showPostModal, setShowPostModal] = useState(false);
+  const postRefs = useRef({});
 
   const formatNumber = (num) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1).replace('.0', '') + ' triệu';
@@ -79,6 +81,23 @@ export default function UserProfilePublic() {
       }
     })();
   }, [userId, isFollowedGlobal, markAsFollowed]);
+
+  // Scroll to specific post when returning from PostDetail
+  useEffect(() => {
+    const scrollToPostIdStr = sessionStorage.getItem('scrollToPostId');
+    if (scrollToPostIdStr && posts.length > 0) {
+      const scrollToPostId = parseInt(scrollToPostIdStr, 10);
+      const postRef = postRefs.current[scrollToPostId];
+      if (postRef) {
+        console.log('[UserProfilePublic] Scrolling to post:', scrollToPostId);
+        setTimeout(() => {
+          postRef.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Clear sessionStorage after scrolling
+          sessionStorage.removeItem('scrollToPostId');
+        }, 500);
+      }
+    }
+  }, [posts]);
 
   const handleFollow = async () => {
     try {
@@ -244,6 +263,7 @@ export default function UserProfilePublic() {
                 <button
                   key={post.id}
                   className="post-grid-item"
+                  ref={el => postRefs.current[post.id] = el}
                   onClick={() => onPressPost(post)}
                 >
                   {firstMedia?.url && (
@@ -354,6 +374,16 @@ export default function UserProfilePublic() {
           userId={userId}
           onClose={() => {
             setShowPostModal(false);
+            // Scroll to the post after modal closes
+            const postId = posts[selectedPostIndex]?.id;
+            if (postId && postRefs.current[postId]) {
+              setTimeout(() => {
+                postRefs.current[postId].scrollIntoView({ 
+                  behavior: 'smooth', 
+                  block: 'center' 
+                });
+              }, 100);
+            }
             setSelectedPostIndex(null);
           }}
         />

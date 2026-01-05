@@ -521,14 +521,37 @@
 /* Post Stats Row (Reactions + Comments Count) */
 .post-stats-row {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
+  padding: 8px 16px;
+  border-top: 1px solid #dbdbdb;
+  border-bottom: 1px solid #dbdbdb;
+}
+
+.stats-left {
+  display: flex;
+  align-items: center;
+}
+
+.stats-right {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+.reactions-count {
+  font-size: 14px;
+  color: #262626;
+  cursor: pointer;
+}
+
+.reactions-count:hover {
+  text-decoration: underline;
 }
 
 .comments-count {
   font-size: 14px;
-  color: #262626;
+  color: #8e8e8e;
 }
 
 /* Quick Comment Input */

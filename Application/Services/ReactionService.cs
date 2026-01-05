@@ -30,8 +30,16 @@ namespace UngDungMangXaHoi.Application.Services
             _realTimeNotificationService = realTimeNotificationService;
         }
 
-        public async Task<ReactionDto> AddOrUpdateReactionAsync(int userId, CreateReactionDto dto)
+        public async Task<ReactionDto> AddOrUpdateReactionAsync(int accountId, CreateReactionDto dto)
         {
+            // Get user from accountId (convert accountId -> userId)
+            var user = await _userRepository.GetByAccountIdAsync(accountId);
+            if (user == null)
+            {
+                throw new Exception("Người dùng không tồn tại");
+            }
+            int userId = user.user_id;
+
             // Kiểm tra post tồn tại
             var post = await _postRepository.GetByIdAsync(dto.PostId);
             if (post == null)
@@ -89,15 +97,20 @@ namespace UngDungMangXaHoi.Application.Services
             return MapToDto(reaction);
         }
 
-        public async Task<ReactionSummaryDto> GetReactionSummaryAsync(int postId, int? currentUserId = null)
+        public async Task<ReactionSummaryDto> GetReactionSummaryAsync(int postId, int? currentAccountId = null)
         {
             var reactionCounts = await _reactionRepository.GetReactionCountsByPostIdAsync(postId);
             
             ReactionType? userReaction = null;
-            if (currentUserId.HasValue)
+            if (currentAccountId.HasValue)
             {
-                var existing = await _reactionRepository.GetByPostAndUserAsync(postId, currentUserId.Value);
-                userReaction = existing?.reaction_type;
+                // Convert accountId to userId
+                var user = await _userRepository.GetByAccountIdAsync(currentAccountId.Value);
+                if (user != null)
+                {
+                    var existing = await _reactionRepository.GetByPostAndUserAsync(postId, user.user_id);
+                    userReaction = existing?.reaction_type;
+                }
             }
 
             return new ReactionSummaryDto

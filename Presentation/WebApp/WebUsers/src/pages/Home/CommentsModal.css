@@ -656,12 +656,33 @@
   flex-direction: column;
   height: 100%;
   background: white;
+  overflow: hidden;
 }
 
 .comments-list-embed {
   flex: 1;
   overflow-y: auto;
-  padding: 0 16px;
+  overflow-x: hidden;
+  padding: 12px 16px;
+  background: white;
+  min-height: 0;
+}
+
+.comments-list-embed::-webkit-scrollbar {
+  width: 6px;
+}
+
+.comments-list-embed::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.comments-list-embed::-webkit-scrollbar-thumb {
+  background: #dbdbdb;
+  border-radius: 3px;
+}
+
+.comments-list-embed::-webkit-scrollbar-thumb:hover {
+  background: #8e8e8e;
 }
 
 .loading-container-embed {
@@ -677,9 +698,10 @@
 }
 
 .input-container-embed {
-  border-top: 1px solid #efefef;
-  padding: 12px 16px;
+  border-top: 1px solid #dbdbdb;
+  padding: 16px;
   background: white;
+  flex-shrink: 0;
 }
 
 .replying-indicator-embed,
@@ -688,7 +710,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: #f0f0f0;
+  background: #f7f7f7;
   border-radius: 8px;
   margin-bottom: 8px;
   font-size: 13px;
@@ -705,41 +727,49 @@
   padding: 0;
   width: 24px;
   height: 24px;
+  line-height: 1;
 }
 
 .input-row-embed {
   display: flex;
   align-items: flex-end;
-  gap: 12px;
+  gap: 8px;
 }
 
 .comment-input-embed {
   flex: 1;
   border: 1px solid #dbdbdb;
-  border-radius: 20px;
+  border-radius: 22px;
   padding: 10px 16px;
   font-size: 14px;
-  font-family: inherit;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   resize: none;
   max-height: 80px;
   overflow-y: auto;
+  line-height: 20px;
+  transition: border-color 0.2s;
 }
 
 .comment-input-embed:focus {
   outline: none;
-  border-color: #8e8e8e;
+  border-color: #a8a8a8;
+}
+
+.comment-input-embed::placeholder {
+  color: #8e8e8e;
 }
 
 .send-button-embed {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0;
+  padding: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: transform 0.2s;
   flex-shrink: 0;
+  margin-bottom: 2px;
 }
 
 .send-button-embed:hover {

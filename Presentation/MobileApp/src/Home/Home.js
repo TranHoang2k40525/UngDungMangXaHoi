@@ -28,6 +28,7 @@ import CommentsModal from "./CommentsModal";
 import ReactionPicker, { getReactionEmoji } from "./ReactionPicker";
 import ReactionsListModal from "./ReactionsListModal";
 import SharePostModal from "./SharePostModal";
+import ImageViewer from "react-native-image-zoom-viewer";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -173,7 +174,7 @@ const PostImagesCarousel = ({ images = [] }) => {
                 }}
               >
                 <Text style={{ color: "#fff", fontWeight: "bold" }}>
-                  {currentIndex}/{allSize}
+                  {currentIndex + 1}/{allSize}
                 </Text>
               </View>
             )}
@@ -222,7 +223,7 @@ export default function Home() {
               }}
             >
               <Text style={{ color: "#fff", fontWeight: "bold" }}>
-                {currentIndex}/{allSize}
+                {currentIndex + 1}/{allSize}
               </Text>
             </View>
           )}
@@ -277,6 +278,8 @@ export default function Home() {
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [showShareModal, setShowShareModal] = useState(false);
   const [sharePost, setSharePost] = useState(null);
+  const [singleViewerVisible, setSingleViewerVisible] = useState(false);
+  const [singleViewerUrl, setSingleViewerUrl] = useState(null);
   const longPressTimer = useRef(null);
   const navigation = useNavigation();
   const route = useRoute();
@@ -1784,19 +1787,8 @@ export default function Home() {
                       <TouchableOpacity
                         activeOpacity={0.95}
                         onPress={() => {
-                          if (
-                            typeof setSingleViewerUrl === "function" &&
-                            typeof setSingleViewerVisible === "function"
-                          ) {
-                            setSingleViewerUrl(images[0].url);
-                            setSingleViewerVisible(true);
-                          } else if (
-                            window.setSingleViewerUrl &&
-                            window.setSingleViewerVisible
-                          ) {
-                            window.setSingleViewerUrl(images[0].url);
-                            window.setSingleViewerVisible(true);
-                          }
+                          setSingleViewerUrl(images[0].url);
+                          setSingleViewerVisible(true);
                         }}
                       >
                         <Image
@@ -2551,6 +2543,7 @@ export default function Home() {
         post={sharePost}
         onShareSuccess={handleShareSuccess}
       />
+      {renderSingleImageViewer()}
     </SafeAreaView>
   );
 }
