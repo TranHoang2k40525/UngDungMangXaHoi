@@ -36,8 +36,13 @@ export default function Register() {
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError('Mật khẩu phải có ít nhất 6 ký tự');
+    if (formData.password.length < 8) {
+      setError('Mật khẩu phải có ít nhất 8 ký tự');
+      return;
+    }
+
+    if (!formData.dateOfBirth) {
+      setError('Vui lòng chọn ngày sinh');
       return;
     }
 
@@ -45,13 +50,18 @@ export default function Register() {
     setError('');
 
     try {
+      // Convert gender string to enum value (0=Nam, 1=Nữ, 2=Khác)
+      let genderEnum = 0; // Default: Nam
+      if (formData.gender === 'Nữ') genderEnum = 1;
+      else if (formData.gender === 'Khác') genderEnum = 2;
+      
       await authAPI.registerAdmin({
         Email: formData.email,
         Password: formData.password,
         FullName: formData.fullName,
-        DateOfBirth: formData.dateOfBirth,
+        DateOfBirth: formData.dateOfBirth, // Send as YYYY-MM-DD string
         Phone: formData.phone || null,
-        Gender: formData.gender,
+        Gender: genderEnum,
       });
 
       setSuccess('Đăng ký thành công! Vui lòng kiểm tra email để nhận mã OTP.');
