@@ -91,8 +91,8 @@ pipeline {
           echo "Deploying to WSL2:${PROD_DIR}"
           echo "Using Cloudflare Tunnel: ${USE_TUNNEL}"
           
-          // Execute deployment commands directly in WSL2 via shared Docker socket
-          // Jenkins container can communicate with WSL2 Docker via mounted socket
+          // Execute deployment commands directly via Docker Compose V2
+          // Jenkins container uses Docker CLI with compose plugin
           sh """
             cd /tmp
             git clone https://github.com/TranHoang2k40525/UngDungMangXaHoi.git deploy-temp || true
@@ -104,9 +104,9 @@ pipeline {
             export WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE}
             export WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE}
             
-            docker-compose ${COMPOSE_FILES} pull
-            docker-compose ${COMPOSE_FILES} up -d --remove-orphans
-            docker-compose ${COMPOSE_FILES} ps
+            docker compose ${COMPOSE_FILES} pull
+            docker compose ${COMPOSE_FILES} up -d --remove-orphans
+            docker compose ${COMPOSE_FILES} ps
             
             cd /tmp
             rm -rf deploy-temp
