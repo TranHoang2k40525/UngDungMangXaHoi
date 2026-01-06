@@ -93,9 +93,13 @@ pipeline {
           echo "Deploying to WSL2:${PROD_DIR}"
           echo "Using Cloudflare Tunnel: ${USE_TUNNEL}"
           
-          // Use DB password from Jenkins Credentials
+          // Use secrets from Jenkins Credentials
           withCredentials([
-            string(credentialsId: 'db-password', variable: 'DB_PASSWORD')
+            string(credentialsId: 'db-password', variable: 'DB_PASSWORD'),
+            string(credentialsId: 'jwt-access-secret', variable: 'JWT_ACCESS_SECRET'),
+            string(credentialsId: 'jwt-refresh-secret', variable: 'JWT_REFRESH_SECRET'),
+            string(credentialsId: 'cloudinary-api-secret', variable: 'CLOUDINARY_API_SECRET'),
+            string(credentialsId: 'email-password', variable: 'EMAIL_PASSWORD')
           ]) {
             sh """
               echo "========================================"
@@ -106,7 +110,11 @@ pipeline {
               echo "=== Creating secrets ==="
               mkdir -p \${WORKSPACE}/secrets
               echo '${DB_PASSWORD}' > \${WORKSPACE}/secrets/db_password.txt
-              chmod 600 \${WORKSPACE}/secrets/db_password.txt
+              echo '${JWT_ACCESS_SECRET}' > \${WORKSPACE}/secrets/jwt_access_secret.txt
+              echo '${JWT_REFRESH_SECRET}' > \${WORKSPACE}/secrets/jwt_refresh_secret.txt
+              echo '${CLOUDINARY_API_SECRET}' > \${WORKSPACE}/secrets/cloudinary_api_secret.txt
+              echo '${EMAIL_PASSWORD}' > \${WORKSPACE}/secrets/email_password.txt
+              chmod 600 \${WORKSPACE}/secrets/*
               
               echo ""
               echo "=== Creating Docker network ==="
