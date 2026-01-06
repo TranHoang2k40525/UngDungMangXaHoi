@@ -102,12 +102,16 @@ pipeline {
               echo "   Deploying to Production"
               echo "========================================"
               
+              echo "=== Current workspace ==="
+              pwd
+              ls -la
+              
               echo "=== Creating secrets directory ==="
-              mkdir -p ${PROD_DIR}/secrets
+              mkdir -p secrets
               
               echo "=== Writing DB password ==="
-              echo "\${DB_PASSWORD}" > ${PROD_DIR}/secrets/db_password.txt
-              chmod 600 ${PROD_DIR}/secrets/db_password.txt
+              echo "\${DB_PASSWORD}" > secrets/db_password.txt
+              chmod 600 secrets/db_password.txt
               
               echo "=== Setting image variables ==="
               export WEBAPI_IMAGE="${FULL_WEBAPI_IMAGE}"
@@ -121,9 +125,6 @@ pipeline {
               
               echo "=== Creating Docker network ==="
               docker network create app-network 2>/dev/null || echo "  Network already exists"
-              
-              echo "=== Changing to project directory ==="
-              cd ${PROD_DIR}
               
               echo "=== Starting containers ==="
               docker-compose ${COMPOSE_FILES} up -d --remove-orphans sqlserver webapi webapp webadmins
