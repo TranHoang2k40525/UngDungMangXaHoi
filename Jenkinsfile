@@ -132,11 +132,48 @@ pipeline {
               echo "=== Creating Docker network ==="
               docker network create app-network 2>/dev/null || echo "  Network already exists"
               
+              echo "=== Stopping old containers ==="
+              docker-compose ${COMPOSE_FILES} down --remove-orphans || true
+              
               echo "=== Starting containers ==="
-              docker-compose ${COMPOSE_FILES} up -d --remove-orphans sqlserver webapi webapp webadmins
+              docker-compose ${COMPOSE_FILES} up -d sqlserver webapi webapp webadmins
+              
+              echo "=== Waiting for SQL Server to be ready (up to 5 minutes) ==="
+              RETRY_COUNT=0
+              MAX_RETRIES=60
+              
+              until docker exec ungdungmxh-sqlserver-prod /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "\${DB_PASSWORD}" -C -Q "SELECT 1" > /dev/null 2>&1 || [ \$RETRY_COUNT -eq \$MAX_RETRIES ]; do
+                RETRY_COUNT=\$((RETRY_COUNT+1))
+                echo "  Waiting for SQL Server... attempt \$RETRY_COUNT/\$MAX_RETRIES"
+                
+                if [ \$((RETRY_COUNT % 10)) -eq 0 ]; then
+                  echo "  Checking SQL Server logs:"
+                  docker logs ungdungmxh-sqlserver-prod --tail=20
+                fi
+                
+                sleep 5
+              done
+              
+              if [ \$RETRY_COUNT -eq \$MAX_RETRIES ]; then
+                echo "ERROR: SQL Server failed to start after \$MAX_RETRIES attempts"
+                echo "=== SQL Server logs ==="
+                docker logs ungdungmxh-sqlserver-prod
+                echo "=== Container inspect ==="
+                docker inspect ungdungmxh-sqlserver-prod
+                exit 1
+              fi
+              
+              echo "✓ SQL Server is ready!"
               
               echo "=== Container status ==="
               docker-compose ${COMPOSE_FILES} ps
+              
+              echo "=== Checking application logs ==="
+              echo "--- WebAPI logs ---"
+              docker logs ungdungmxh-webapi-prod --tail=30 || true
+              
+              echo "=== Verifying services ==="
+              docker ps --filter name=ungdungmxh --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
               
               echo "=== Deployment completed! ==="
             """
