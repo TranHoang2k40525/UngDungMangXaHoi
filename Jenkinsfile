@@ -101,18 +101,8 @@ pipeline {
               echo "========================================"
               echo "   Deploying to WSL2 Production"
               echo "========================================"
-              
-              # Step 1: Update code in WSL2
               echo ""
-              echo "=== Pulling latest code ==="
-              docker run --rm \
-                -v ${PROD_DIR}:${PROD_DIR} \
-                -w ${PROD_DIR} \
-                alpine/git:latest \
-                pull origin main || echo 'Git pull skipped'
               
-              # Step 2: Create secrets
-              echo ""
               echo "=== Creating secrets ==="
               docker run --rm \
                 -v ${PROD_DIR}:${PROD_DIR} \
@@ -120,19 +110,16 @@ pipeline {
                 alpine:latest \
                 sh -c "mkdir -p secrets && echo '${DB_PASSWORD}' > secrets/db_password.txt && chmod 600 secrets/db_password.txt"
               
-              # Step 3: Create Docker network
               echo ""
               echo "=== Creating Docker network ==="
-              docker network create app-network 2>/dev/null || echo "Network exists"
+              docker network create app-network 2>/dev/null || echo "Network already exists"
               
-              # Step 4: Pull new images
               echo ""
               echo "=== Pulling images ==="
               docker pull ${FULL_WEBAPI_IMAGE}
               docker pull ${FULL_WEBAPP_IMAGE}
               docker pull ${FULL_WEBADMINS_IMAGE}
               
-              # Step 5: Deploy with docker-compose
               echo ""
               echo "=== Deploying containers ==="
               docker run --rm \
@@ -143,10 +130,8 @@ pipeline {
                 -e WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE} \
                 -e WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE} \
                 docker/compose:alpine-1.29.2 \
-                -f docker-compose.yml -f docker-compose.prod.yml \
-                up -d --remove-orphans sqlserver webapi webapp webadmins
+                ${COMPOSE_FILES} up -d --remove-orphans sqlserver webapi webapp webadmins
               
-              # Step 6: Show container status
               echo ""
               echo "=== Container Status ==="
               docker run --rm \
@@ -154,13 +139,10 @@ pipeline {
                 -v ${PROD_DIR}:${PROD_DIR} \
                 -w ${PROD_DIR} \
                 docker/compose:alpine-1.29.2 \
-                -f docker-compose.yml -f docker-compose.prod.yml \
-                ps
+                ${COMPOSE_FILES} ps
               
               echo ""
-              echo "========================================"
-              echo "   Deployment Successful!"
-              echo "========================================"
+              echo "=== Deployment Completed! ==="
             """
           }
         }
