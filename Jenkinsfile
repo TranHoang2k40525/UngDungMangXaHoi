@@ -104,9 +104,9 @@ pipeline {
               echo ""
               
               echo "=== Creating secrets ==="
-              mkdir -p \${WORKSPACE}/banmoinhatnhat/UngDungMangXaHoi/secrets
-              echo '${DB_PASSWORD}' > \${WORKSPACE}/banmoinhatnhat/UngDungMangXaHoi/secrets/db_password.txt
-              chmod 600 \${WORKSPACE}/banmoinhatnhat/UngDungMangXaHoi/secrets/db_password.txt
+              mkdir -p \${WORKSPACE}/secrets
+              echo '${DB_PASSWORD}' > \${WORKSPACE}/secrets/db_password.txt
+              chmod 600 \${WORKSPACE}/secrets/db_password.txt
               
               echo ""
               echo "=== Creating Docker network ==="
@@ -120,7 +120,7 @@ pipeline {
               
               echo ""
               echo "=== Deploying containers ==="
-              cd \${WORKSPACE}/banmoinhatnhat/UngDungMangXaHoi
+              cd \${WORKSPACE}
               WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE} \
               WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE} \
               WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE} \
