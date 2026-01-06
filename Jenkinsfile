@@ -4,8 +4,10 @@ pipeline {
   parameters {
     string(name: 'DOCKER_NAMESPACE', defaultValue: 'minhvu0809', description: 'Docker Hub username')
     string(name: 'PROD_HOST', defaultValue: 'host.docker.internal', description: 'Production server hostname (not used in current deployment)')
-    string(name: 'PROD_DIR', defaultValue: '/home/minhvu/ungdungmxh', description: 'Production deployment directory (for reference only)')
-    string(name: 'WSL_DISTRO', defaultValue: 'Ubuntu', description: 'WSL2 distribution name (not used in current deployment)')
+    string(name: 'PROD_DIR', defaultValue: '/home/minhvu/ungdungmxh', description: 'Production deployment directory')
+    string(name: 'WSL_DISTRO', defaultValue: 'Ubuntu', description: 'WSL2 distribution name')
+    string(name: 'WSL_USER', defaultValue: 'minhvu', description: 'WSL2 username for SSH access')
+    string(name: 'WSL_HOST', defaultValue: 'localhost', description: 'WSL2 hostname for SSH access')
     booleanParam(name: 'USE_CLOUDFLARE_TUNNEL', defaultValue: true, description: 'Deploy with Cloudflare Tunnel')
   }
 
@@ -132,7 +134,6 @@ pipeline {
     stage('Deploy to production') {
       steps {
         script {
-          def PROD_DIR = params.PROD_DIR
           def USE_TUNNEL = params.USE_CLOUDFLARE_TUNNEL
           
           // Compose files to use
@@ -141,135 +142,123 @@ pipeline {
             COMPOSE_FILES = "${COMPOSE_FILES} -f docker-compose.tunnel.yml"
           }
           
-          echo "Deploying to WSL2:${PROD_DIR}"
+          echo "Deploying in WSL2"
           echo "Using Cloudflare Tunnel: ${USE_TUNNEL}"
           
-          // Use SSH key and DB password from Jenkins Credentials
+          // Use SSH key for git and DB password from Jenkins Credentials
           withCredentials([
             sshUserPrivateKey(credentialsId: 'prod-ssh-key', keyFileVariable: 'SSH_KEY'),
             string(credentialsId: 'db-password', variable: 'DB_PASSWORD')
           ]) {
             sh """
               echo "========================================"
-              echo "   Setting up SSH access to WSL2"
+              echo "   Deploying Docker Containers in WSL2"
               echo "========================================"
               
-              # Setup SSH key
+              # Setup SSH key for git operations
               mkdir -p ~/.ssh
               chmod 700 ~/.ssh
               cp "\${SSH_KEY}" ~/.ssh/id_rsa
               chmod 600 ~/.ssh/id_rsa
               
-              # Test SSH connection
-              echo "Testing SSH connection to ${WSL_USER}@${WSL_HOST}..."
-              ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-                ${WSL_USER}@${WSL_HOST} "echo 'SSH connection successful'"
+              # Add GitHub to known hosts
+              ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
+              
+              # Configure git to use SSH
+              git config --global core.sshCommand "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no"
+              
+              cd \${WORKSPACE}
               
               echo ""
-              echo "========================================"
-              echo "   Deploying to WSL2:${PROD_DIR}"
-              echo "========================================"
+              echo "=== Current directory ==="
+              pwd
               
-              # Execute deployment commands directly on WSL2 via SSH
-              ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-                ${WSL_USER}@${WSL_HOST} << 'REMOTE_COMMANDS'
-set -e
-
-cd ${PROD_DIR}
-
-echo ""
-echo "=== Current directory ==="
-pwd
-ls -la
-
-echo ""
-echo "=== Pulling latest code ==="
-git reset --hard
-git pull origin main
-
-echo ""
-echo "=== Creating secrets ==="
-mkdir -p secrets
-
-# Create DB password from Jenkins credential (passed via env)
-echo "\${DB_PASSWORD}" > secrets/db_password.txt
-
-# Create other required secret files with placeholder values
-echo 'jwt-access-secret-key-placeholder' > secrets/jwt_access_secret.txt
-echo 'jwt-refresh-secret-key-placeholder' > secrets/jwt_refresh_secret.txt
-echo 'cloudinary-api-secret-placeholder' > secrets/cloudinary_api_secret.txt
-echo 'email-password-placeholder' > secrets/email_password.txt
-
-# Set permissions
-chmod 600 secrets/*.txt
-
-echo "✓ Secrets created:"
-ls -lh secrets/
-
-echo ""
-echo "=== Setting environment variables ==="
-export WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE}
-export WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE}
-export WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE}
-
-echo "Images to deploy:"
-echo "  WebAPI: \${WEBAPI_IMAGE}"
-echo "  WebApp: \${WEBAPP_IMAGE}"
-echo "  WebAdmins: \${WEBADMINS_IMAGE}"
-
-echo ""
-echo "=== Creating Docker network ==="
-docker network create app-network 2>/dev/null || echo "Network app-network already exists"
-
-echo ""
-echo "=== Pulling latest images ==="
-docker pull \${WEBAPI_IMAGE}
-docker pull \${WEBAPP_IMAGE}
-docker pull \${WEBADMINS_IMAGE}
-
-echo ""
-echo "=== Stopping old containers ==="
-docker-compose ${COMPOSE_FILES} down || true
-
-echo ""
-echo "=== Starting new containers ==="
-docker-compose ${COMPOSE_FILES} up -d --remove-orphans
-
-echo ""
-echo "=== Waiting for containers to stabilize (15s) ==="
-sleep 15
-
-echo ""
-echo "=== Container status ==="
-docker-compose ${COMPOSE_FILES} ps
-
-echo ""
-echo "=== Running containers ==="
-docker ps --filter name=ungdungmxh
-
-echo ""
-echo "=== Checking container logs (last 20 lines) ==="
-echo "--- WebAPI logs ---"
-docker logs ungdungmxh-webapi --tail 20 2>&1 || echo "No WebAPI container logs"
-
-echo ""
-echo "--- WebApp logs ---"
-docker logs ungdungmxh-webapp --tail 20 2>&1 || echo "No WebApp container logs"
-
-echo ""
-echo "--- SQL Server logs ---"
-docker logs ungdungmxh-sqlserver --tail 20 2>&1 || echo "No SQL Server container logs"
-
-echo ""
-echo "=== Deployment completed successfully! ==="
-REMOTE_COMMANDS
-
+              echo ""
+              echo "=== Pulling latest code from GitHub ==="
+              git fetch origin main
+              git reset --hard origin/main
+              
+              echo ""
+              echo "=== Creating secrets ==="
+              mkdir -p secrets
+              
+              # Create DB password from Jenkins credential
+              echo '\${DB_PASSWORD}' > secrets/db_password.txt
+              
+              # Create other required secret files with placeholder values
+              echo 'jwt-access-secret-key-placeholder-change-in-production' > secrets/jwt_access_secret.txt
+              echo 'jwt-refresh-secret-key-placeholder-change-in-production' > secrets/jwt_refresh_secret.txt
+              echo 'cloudinary-api-secret-placeholder-change-in-production' > secrets/cloudinary_api_secret.txt
+              echo 'email-password-placeholder-change-in-production' > secrets/email_password.txt
+              
+              # Set permissions
+              chmod 600 secrets/*.txt
+              
+              echo "✓ Secrets created:"
+              ls -lh secrets/
+              
+              echo ""
+              echo "=== Setting environment variables ==="
+              export WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE}
+              export WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE}
+              export WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE}
+              
+              echo "Images to deploy:"
+              echo "  WebAPI: \${WEBAPI_IMAGE}"
+              echo "  WebApp: \${WEBAPP_IMAGE}"
+              echo "  WebAdmins: \${WEBADMINS_IMAGE}"
+              
+              echo ""
+              echo "=== Creating Docker network ==="
+              docker network create app-network 2>/dev/null || echo "Network app-network already exists"
+              
+              echo ""
+              echo "=== Pulling latest images ==="
+              docker pull \${WEBAPI_IMAGE}
+              docker pull \${WEBAPP_IMAGE}
+              docker pull \${WEBADMINS_IMAGE}
+              
+              echo ""
+              echo "=== Stopping old containers ==="
+              docker-compose ${COMPOSE_FILES} down || true
+              
+              echo ""
+              echo "=== Starting new containers ==="
+              WEBAPI_IMAGE=\${WEBAPI_IMAGE} \
+              WEBAPP_IMAGE=\${WEBAPP_IMAGE} \
+              WEBADMINS_IMAGE=\${WEBADMINS_IMAGE} \
+              docker-compose ${COMPOSE_FILES} up -d --remove-orphans
+              
+              echo ""
+              echo "=== Waiting for containers to stabilize (15s) ==="
+              sleep 15
+              
+              echo ""
+              echo "=== Container status ==="
+              docker-compose ${COMPOSE_FILES} ps
+              
+              echo ""
+              echo "=== Running containers ==="
+              docker ps --filter name=ungdungmxh
+              
+              echo ""
+              echo "=== Checking container logs (last 20 lines) ==="
+              echo "--- WebAPI logs ---"
+              docker logs ungdungmxh-webapi --tail 20 2>&1 || echo "WebAPI container not found"
+              
+              echo ""
+              echo "--- WebApp logs ---"
+              docker logs ungdungmxh-webapp --tail 20 2>&1 || echo "WebApp container not found"
+              
+              echo ""
+              echo "--- SQL Server logs ---"
+              docker logs ungdungmxh-sqlserver --tail 20 2>&1 || echo "SQL Server container not found"
+              
               # Cleanup SSH key
               rm -f ~/.ssh/id_rsa
               
               echo ""
-              echo "========================================"
-              echo "   Deployment Complete!"
+              echo "=== Deployment completed successfully! ==="
               echo "========================================"
             """
           }
