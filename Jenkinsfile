@@ -115,7 +115,12 @@ pipeline {
               echo 'cloudinary-api-secret-placeholder' > \${WORKSPACE}/secrets/cloudinary_api_secret.txt
               echo 'email-password-placeholder' > \${WORKSPACE}/secrets/email_password.txt
               
-              chmod 600 \${WORKSPACE}/secrets/*
+              # Set permissions only for the secret files we created
+              chmod 600 \${WORKSPACE}/secrets/db_password.txt
+              chmod 600 \${WORKSPACE}/secrets/jwt_access_secret.txt
+              chmod 600 \${WORKSPACE}/secrets/jwt_refresh_secret.txt
+              chmod 600 \${WORKSPACE}/secrets/cloudinary_api_secret.txt
+              chmod 600 \${WORKSPACE}/secrets/email_password.txt
               
               echo ""
               echo "=== Creating Docker network ==="
