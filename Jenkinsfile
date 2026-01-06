@@ -124,11 +124,11 @@ pipeline {
               WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE} \
               WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE} \
               WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE} \
-              docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans sqlserver webapi webapp webadmins
+              docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans sqlserver webapi webapp webadmins
               
               echo ""
               echo "=== Container Status ==="
-              docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
+              docker-compose -f docker-compose.yml -f docker-compose.prod.yml ps
               
               echo ""
               echo "=== Deployment Completed! ==="
