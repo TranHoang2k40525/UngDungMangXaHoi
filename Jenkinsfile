@@ -103,14 +103,12 @@ pipeline {
               echo "========================================"
               echo ""
               
-              echo "=== Creating secrets ==="
-              docker run --rm \
-                -v ${PROD_DIR}:${PROD_DIR} \
-                -w ${PROD_DIR} \
-                alpine:latest \
-                sh -c "mkdir -p secrets && echo '${DB_PASSWORD}' > secrets/db_password.txt && chmod 600 secrets/db_password.txt"
-              
-              echo ""
+      echo "=== Creating secrets ==="
+      docker run --rm \
+        -v \${WORKSPACE}:\${WORKSPACE} \
+        -w \${WORKSPACE} \
+        alpine:latest \
+        sh -c "mkdir -p secrets && echo '${DB_PASSWORD}' > secrets/db_password.txt && chmod 600 secrets/db_password.txt"              echo ""
               echo "=== Creating Docker network ==="
               docker network create app-network 2>/dev/null || echo "Network already exists"
               
@@ -121,31 +119,27 @@ pipeline {
               docker pull ${FULL_WEBADMINS_IMAGE}
               
               echo ""
-              echo "=== Deploying containers ==="
-              docker run --rm \
-                -v /var/run/docker.sock:/var/run/docker.sock \
-                -v ${PROD_DIR}:/workspace \
-                -w /workspace \
-                -e WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE} \
-                -e WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE} \
-                -e WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE} \
-                docker/compose:alpine-1.29.2 \
-                -f docker-compose.yml \
-                -f docker-compose.prod.yml \
-                up -d --remove-orphans sqlserver webapi webapp webadmins
-              
-              echo ""
-              echo "=== Container Status ==="
-              docker run --rm \
-                -v /var/run/docker.sock:/var/run/docker.sock \
-                -v ${PROD_DIR}:/workspace \
-                -w /workspace \
-                docker/compose:alpine-1.29.2 \
-                -f docker-compose.yml \
-                -f docker-compose.prod.yml \
-                ps
-              
-              echo ""
+      echo "=== Deploying containers ==="
+      docker run --rm \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -v \${WORKSPACE}:/workspace \
+        -w /workspace \
+        -e WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE} \
+        -e WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE} \
+        -e WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE} \
+        docker/compose:alpine-1.29.2 \
+        -f docker-compose.yml \
+        -f docker-compose.prod.yml \
+        up -d --remove-orphans sqlserver webapi webapp webadmins              echo ""
+      echo "=== Container Status ==="
+      docker run --rm \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -v \${WORKSPACE}:/workspace \
+        -w /workspace \
+        docker/compose:alpine-1.29.2 \
+        -f docker-compose.yml \
+        -f docker-compose.prod.yml \
+        ps              echo ""
               echo "=== Deployment Completed! ==="
             """
           }
