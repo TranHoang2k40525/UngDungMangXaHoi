@@ -108,7 +108,9 @@ pipeline {
         -v \${WORKSPACE}:\${WORKSPACE} \
         -w \${WORKSPACE} \
         alpine:latest \
-        sh -c "mkdir -p secrets && echo '${DB_PASSWORD}' > secrets/db_password.txt && chmod 600 secrets/db_password.txt"              echo ""
+        sh -c "mkdir -p secrets && echo '${DB_PASSWORD}' > secrets/db_password.txt && chmod 600 secrets/db_password.txt"
+              
+              echo ""
               echo "=== Creating Docker network ==="
               docker network create app-network 2>/dev/null || echo "Network already exists"
               
@@ -130,7 +132,9 @@ pipeline {
         docker/compose:alpine-1.29.2 \
         -f docker-compose.yml \
         -f docker-compose.prod.yml \
-        up -d --remove-orphans sqlserver webapi webapp webadmins              echo ""
+        up -d --remove-orphans sqlserver webapi webapp webadmins
+              
+              echo ""
       echo "=== Container Status ==="
       docker run --rm \
         -v /var/run/docker.sock:/var/run/docker.sock \
@@ -139,7 +143,9 @@ pipeline {
         docker/compose:alpine-1.29.2 \
         -f docker-compose.yml \
         -f docker-compose.prod.yml \
-        ps              echo ""
+        ps
+              
+              echo ""
               echo "=== Deployment Completed! ==="
             """
           }
