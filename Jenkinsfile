@@ -130,7 +130,9 @@ pipeline {
                 -e WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE} \
                 -e WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE} \
                 docker/compose:alpine-1.29.2 \
-                ${COMPOSE_FILES} up -d --remove-orphans sqlserver webapi webapp webadmins
+                -f ${PROD_DIR}/docker-compose.yml \
+                -f ${PROD_DIR}/docker-compose.prod.yml \
+                up -d --remove-orphans sqlserver webapi webapp webadmins
               
               echo ""
               echo "=== Container Status ==="
@@ -139,7 +141,9 @@ pipeline {
                 -v ${PROD_DIR}:${PROD_DIR} \
                 -w ${PROD_DIR} \
                 docker/compose:alpine-1.29.2 \
-                ${COMPOSE_FILES} ps
+                -f ${PROD_DIR}/docker-compose.yml \
+                -f ${PROD_DIR}/docker-compose.prod.yml \
+                ps
               
               echo ""
               echo "=== Deployment Completed! ==="
