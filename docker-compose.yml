@@ -60,8 +60,7 @@ services:
       # Mount source code for hot-reload (dotnet watch)
       - ./:/src:delegated
     depends_on:
-      sqlserver:
-        condition: service_healthy
+      - sqlserver
     networks:
       - app-network
     restart: unless-stopped

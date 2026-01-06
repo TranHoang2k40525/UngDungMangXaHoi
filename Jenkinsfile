@@ -142,7 +142,7 @@ pipeline {
               RETRY_COUNT=0
               MAX_RETRIES=60
               
-              until docker exec ungdungmxh-sqlserver-prod /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "\${DB_PASSWORD}" -C -Q "SELECT 1" > /dev/null 2>&1 || [ \$RETRY_COUNT -eq \$MAX_RETRIES ]; do
+              until docker exec ungdungmxh-sqlserver-prod sh -c 'PASSWORD=\$(cat /run/secrets/db_password) && /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "\$PASSWORD" -C -Q "SELECT 1"' > /dev/null 2>&1 || [ \$RETRY_COUNT -eq \$MAX_RETRIES ]; do
                 RETRY_COUNT=\$((RETRY_COUNT+1))
                 echo "  Waiting for SQL Server... attempt \$RETRY_COUNT/\$MAX_RETRIES"
                 
