@@ -39,6 +39,11 @@ import EditProfile from './pages/Profile/EditProfile';
 import FollowList from './pages/Profile/FollowList';
 import UserProfilePublic from './pages/Profile/UserProfilePublic';
 
+// Business pages
+import BusinessUpgradeTerms from './pages/Business/BusinessUpgradeTerms';
+import BusinessPaymentPackage from './pages/Business/BusinessPaymentPackage';
+import MoMoQRPayment from './pages/Business/MoMoQRPayment';
+
 import './styles/global.css';
 
 function ProtectedRoute({ children }) {
@@ -263,6 +268,32 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <UserProfilePublic />
+          </ProtectedRoute>
+        }
+      />
+      
+      {/* Business Routes */}
+      <Route
+        path="/business/upgrade-terms"
+        element={
+          <ProtectedRoute>
+            <BusinessUpgradeTerms />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/business/payment-package"
+        element={
+          <ProtectedRoute>
+            <BusinessPaymentPackage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/business/momo-payment"
+        element={
+          <ProtectedRoute>
+            <MoMoQRPayment />
           </ProtectedRoute>
         }
       />
