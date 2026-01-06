@@ -99,64 +99,57 @@ pipeline {
           ]) {
             sh """
               echo "========================================"
-              echo "   Deploying to WSL2 Production via Docker"
+              echo "   Deploying to WSL2 Production"
               echo "========================================"
               
-              # Deploy to WSL2 by executing commands in host's Docker (which runs in WSL2)
+              # Create secrets directory and file in WSL2
+              docker run --rm \
+                -v ${PROD_DIR}:${PROD_DIR} \
+                -w ${PROD_DIR} \
+                alpine:latest \
+                sh -c "mkdir -p secrets && echo '${DB_PASSWORD}' > secrets/db_password.txt && chmod 600 secrets/db_password.txt"
+              
+              echo ""
+              echo "=== Setting image variables ==="
+              export WEBAPI_IMAGE='${FULL_WEBAPI_IMAGE}'
+              export WEBAPP_IMAGE='${FULL_WEBAPP_IMAGE}'
+              export WEBADMINS_IMAGE='${FULL_WEBADMINS_IMAGE}'
+              
+              echo "Images to deploy:"
+              echo "  WebAPI: \${WEBAPI_IMAGE}"
+              echo "  WebApp: \${WEBAPP_IMAGE}"
+              echo "  WebAdmins: \${WEBADMINS_IMAGE}"
+              
+              echo ""
+              echo "=== Creating Docker network ==="
+              docker network create app-network 2>/dev/null || echo "Network already exists"
+              
+              echo ""
+              echo "=== Pulling images from registry ==="
+              docker pull \${WEBAPI_IMAGE}
+              docker pull \${WEBAPP_IMAGE}
+              docker pull \${WEBADMINS_IMAGE}
+              
+              echo ""
+              echo "=== Deploying containers via docker-compose ==="
               docker run --rm \
                 -v /var/run/docker.sock:/var/run/docker.sock \
-                docker:cli \
-                sh -c "
-                  # Create deployment script
-                  cat > /tmp/deploy.sh << 'DEPLOY_SCRIPT'
-#!/bin/bash
-set -e
-cd ${PROD_DIR}
-
-echo '=== Pulling latest code ==='
-git pull origin main || echo 'Warning: git pull failed, continuing...'
-
-echo '=== Creating secrets ==='
-mkdir -p secrets
-echo '${DB_PASSWORD}' > secrets/db_password.txt
-chmod 600 secrets/db_password.txt
-
-echo '=== Setting image variables ==='
-export WEBAPI_IMAGE='${FULL_WEBAPI_IMAGE}'
-export WEBAPP_IMAGE='${FULL_WEBAPP_IMAGE}'
-export WEBADMINS_IMAGE='${FULL_WEBADMINS_IMAGE}'
-
-echo 'Images to deploy:'
-echo \"  WebAPI: \\\${WEBAPI_IMAGE}\"
-echo \"  WebApp: \\\${WEBAPP_IMAGE}\"
-echo \"  WebAdmins: \\\${WEBADMINS_IMAGE}\"
-
-echo '=== Creating Docker network ==='
-docker network create app-network 2>/dev/null || echo 'Network already exists'
-
-echo '=== Pulling images ==='
-docker-compose ${COMPOSE_FILES} pull sqlserver webapi webapp webadmins
-
-echo '=== Starting containers ==='
-docker-compose ${COMPOSE_FILES} up -d --remove-orphans sqlserver webapi webapp webadmins
-
-echo ''
-echo '=== Container status ==='
-docker-compose ${COMPOSE_FILES} ps
-
-echo ''
-echo '=== Deployment completed! ==='
-DEPLOY_SCRIPT
-
-                  # Execute the deployment script in WSL2
-                  docker run --rm \
-                    -v /var/run/docker.sock:/var/run/docker.sock \
-                    -v ${PROD_DIR}:${PROD_DIR} \
-                    -v /tmp/deploy.sh:/deploy.sh:ro \
-                    -w ${PROD_DIR} \
-                    docker/compose:debian-1.29.2 \
-                    bash /deploy.sh
-                "
+                -v ${PROD_DIR}:${PROD_DIR} \
+                -w ${PROD_DIR} \
+                -e WEBAPI_IMAGE=\${WEBAPI_IMAGE} \
+                -e WEBAPP_IMAGE=\${WEBAPP_IMAGE} \
+                -e WEBADMINS_IMAGE=\${WEBADMINS_IMAGE} \
+                docker/compose:alpine-1.29.2 \
+                up -d --remove-orphans sqlserver webapi webapp webadmins
+              
+              echo ""
+              echo "=== Container status ==="
+              docker run --rm \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                -v ${PROD_DIR}:${PROD_DIR} \
+                -w ${PROD_DIR} \
+                docker/compose:alpine-1.29.2 \
+                ps
               
               echo ""
               echo "========================================"
