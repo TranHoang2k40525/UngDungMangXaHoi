@@ -476,6 +476,7 @@ export default function GroupChatScreen() {
                 (m) => m.id === tempId || m.tempId === tempId
               );
               if (idx >= 0) {
+                console.log('[SignalR] Replacing optimistic message:', tempId, '→', newMessage.id);
                 const copy = [...prev];
                 copy[idx] = { ...newMessage };
                 try {
@@ -494,12 +495,19 @@ export default function GroupChatScreen() {
               }
             }
 
-            // Prevent duplicate by id
-            if (
-              newMessage.id &&
-              prev.find((m) => String(m.id) === String(newMessage.id))
-            )
-              return prev;
+            // ✅ Prevent duplicate by checking both id and tempId
+            if (newMessage.id) {
+              const exists = prev.find((m) => 
+                String(m.id) === String(newMessage.id) || 
+                String(m.tempId) === String(newMessage.id)
+              );
+              if (exists) {
+                console.log('[SignalR] Message already exists, skipping:', newMessage.id);
+                return prev;
+              }
+            }
+            
+            console.log('[SignalR] Adding new message:', newMessage.id);
             const combined = [...prev, newMessage];
             combined.sort(
               (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
@@ -1070,14 +1078,19 @@ export default function GroupChatScreen() {
       }
 
       console.log("[GroupChat] API Response:", data);
+      
+      // ✅ FIX: Handle wrapped response {success, data: {messages, totalCount}}
+      const actualData = data?.data || data;
+      const messagesList = actualData?.messages || actualData?.Messages || [];
+      
       console.log(
         "[GroupChat] Loaded messages:",
-        data.messages?.length || 0,
+        messagesList.length,
         "total:",
-        data.totalCount
+        actualData?.totalCount || actualData?.TotalCount
       );
 
-      if (!data.messages || data.messages.length === 0) {
+      if (!messagesList || messagesList.length === 0) {
         console.log("[GroupChat] No messages returned from API");
         setMessages([]);
         setHasMore(false);
@@ -1086,7 +1099,7 @@ export default function GroupChatScreen() {
 
       // Map API response to component state
       // Handle both PascalCase and camelCase from backend
-      const mappedMessages = data.messages.map((msg) => ({
+      const mappedMessages = messagesList.map((msg) => ({
         id: msg.messageId || msg.MessageId, // DB ID (integer)
         userId: msg.userId || msg.UserId,
         userName: msg.userName || msg.UserName, // ✅ From API, not members array
@@ -1199,12 +1212,29 @@ export default function GroupChatScreen() {
         setMessages((prev) => {
           const combined = [...mappedMessages, ...prev];
           const seen = new Map();
+          
+          // ✅ Deduplicate: prefer real messages over temp/pending messages
           combined.forEach((m) => {
-            if (m && m.id != null) seen.set(String(m.id), m);
+            if (!m || m.id == null) return;
+            
+            const key = String(m.id);
+            const existing = seen.get(key);
+            
+            // If existing is temp/pending, replace with real message
+            if (existing && (existing.tempId || existing.pending) && !m.tempId && !m.pending) {
+              console.log('[GroupChat] Replacing temp message with real:', key);
+              seen.set(key, m);
+            } else if (!existing) {
+              seen.set(key, m);
+            }
+            // else keep existing real message
           });
+          
           const result = Array.from(seen.values()).sort(
             (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
           );
+          
+          console.log('[GroupChat] After deduplication:', result.length, 'messages');
           return result;
         });
       } else {
@@ -2636,9 +2666,12 @@ export default function GroupChatScreen() {
 
     const verticalTop = isFirstInChain ? 12 : 4;
 
+    // ✅ Generate unique key: prefer real id, fallback to tempId, ensure uniqueness
+    const messageKey = msg.tempId ? `temp-${msg.tempId}` : `msg-${msg.id || index}`;
+
     return (
       <View
-        key={msg.id}
+        key={messageKey}
         ref={(r) => {
           try {
             const keys = [msg.id, msg.messageId, msg.MessageId, msg.tempId];

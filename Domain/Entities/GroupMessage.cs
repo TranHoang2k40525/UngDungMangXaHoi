@@ -50,27 +50,10 @@ namespace UngDungMangXaHoi.Domain.Entities
     // user_id của người ghim
     public int? pinned_by { get; set; }
         
-        // JSON array chứa userId đã đọc tin nhắn
-        // Format: [{"user_id": 1, "read_at": "2025-01-01T10:00:00Z"}, ...]
-        [Column(TypeName = "NVARCHAR(MAX)")]
-        public string? read_by { get; set; }
-        
-        // JSON object chứa reactions
-        // Format: {"❤️": [1, 2], "😂": [3], ...} - key là emoji, value là array userId
-        [Column(TypeName = "NVARCHAR(MAX)")]
-        public string? reactions { get; set; }
-        
-        // Navigation properties
-    [ForeignKey("conversation_id")]
-    public GroupConversation? Conversation { get; set; }
-        
-        [ForeignKey("user_id")]
+        // Navigation properties - Không dùng [ForeignKey] attribute vì đã config trong Configuration
+        public GroupConversation? Conversation { get; set; }
         public User? User { get; set; }
-        
-    [ForeignKey("reply_to_message_id")]
-    public GroupMessage? ReplyToMessage { get; set; }
-        
-        // Inverse navigation for replies
+        public GroupMessage? ReplyToMessage { get; set; }
         public ICollection<GroupMessage> Replies { get; set; } = new List<GroupMessage>();
     }
 }

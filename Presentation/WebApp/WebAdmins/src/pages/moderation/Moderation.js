@@ -113,7 +113,7 @@ export default function Moderation() {
                         className="input"
                     >
                         <option value="approved">Đã duyệt</option>
-                        <option value="rejected">Đã từ chối</option>
+                        <option value="blocked">Đã từ chối</option>
                     </select>
                 </div>
 

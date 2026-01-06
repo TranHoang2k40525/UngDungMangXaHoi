@@ -219,8 +219,10 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
         {
             try
             {
-                // Get userId from JWT
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                // ✅ Get userId from JWT (use "user_id" claim first, fallback to NameIdentifier)
+                var userIdClaim = User.FindFirst("user_id")?.Value 
+                                  ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                                  ?? User.FindFirst("nameid")?.Value;
                 if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
                 {
                     return Unauthorized(new { message = "Invalid token" });
@@ -285,8 +287,10 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
         {
             try
             {
-                // Get userId from JWT
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                // ✅ Get userId from JWT (use "user_id" claim first, fallback to NameIdentifier)
+                var userIdClaim = User.FindFirst("user_id")?.Value 
+                                  ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                                  ?? User.FindFirst("nameid")?.Value;
                 if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
                 {
                     return Unauthorized(new { message = "Invalid token" });

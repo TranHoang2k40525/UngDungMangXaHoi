@@ -83,6 +83,15 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                         _context.CommentMentions.RemoveRange(comment.Mentions);
                     }
                     
+                    // ✅ Delete ContentModeration records that reference this comment
+                    var commentModerations = await _context.ContentModerations
+                        .Where(cm => cm.CommentId == comment.CommentId)
+                        .ToListAsync();
+                    if (commentModerations.Any())
+                    {
+                        _context.ContentModerations.RemoveRange(commentModerations);
+                    }
+                    
                     // Delete the comment itself
                     _context.Comments.Remove(comment);
                 }
@@ -94,16 +103,14 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
                 _context.PostMedia.RemoveRange(post.Media);
             }
 
-            // Step 3: Delete ContentModeration records related to this post (SetNull behavior)
+            // Step 3: Delete ContentModeration records related to this post
+            // ✅ Cannot set PostId to null because CHECK constraint requires at least one FK non-null
             var moderations = await _context.ContentModerations
                 .Where(cm => cm.PostId == postId)
                 .ToListAsync();
             if (moderations.Any())
             {
-                foreach (var mod in moderations)
-                {
-                    mod.PostId = null; // Set to null instead of deleting
-                }
+                _context.ContentModerations.RemoveRange(moderations);
             }
 
             // Step 4: Finally delete the post

@@ -167,7 +167,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                         // Lưu vi phạm vào database (không có PostId vì post chưa được tạo)
                         var violationLog = new ContentModeration
                         {
-                            ContentType = "Post_Blocked", // Đánh dấu đây là post bị chặn
+                            ContentType = "Post", // ContentType = Post, nhưng PostId = null vì bị chặn trước khi tạo
                             ContentID = 0, // Chưa có post ID vì bị chặn
                             AccountId = accountId,
                             PostId = null,

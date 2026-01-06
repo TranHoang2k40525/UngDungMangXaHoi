@@ -388,7 +388,7 @@ public class ReportsController : ControllerBase
 
             await _context.SaveChangesAsync();
 
-            // 🔥 LOG ADMIN ACTION
+            //LOG ADMIN ACTION
             await _activityLogService.LogActivityAsync(
                 adminAccountId: adminAccountId,
                 action: "Từ chối báo cáo",

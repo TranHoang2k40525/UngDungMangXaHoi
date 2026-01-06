@@ -117,21 +117,25 @@ export default function GroupChatScreen() {
           const parsedTs = rawTimestamp ? new Date(rawTimestamp) : null;
           const timestampValid = parsedTs && !isNaN(parsedTs.getTime());
 
+          const msgUserId = payload.userId || payload.UserId || payload.user_id;
+          
           const newMessage = {
-            id: payload.id || payload.messageId,
-            userId: payload.userId || payload.user_id,
-            userName: payload.userName || payload.user_name || payload.user,
-            userAvatar: payload.userAvatar || payload.user_avatar,
-            message: payload.content || payload.message,
+            id: payload.id || payload.messageId || payload.MessageId,
+            userId: msgUserId,
+            userName: payload.userName || payload.UserName || payload.user_name || payload.user,
+            userAvatar: payload.userAvatar || payload.UserAvatar || payload.user_avatar,
+            message: payload.content || payload.Content || payload.message,
             timestamp: timestampValid ? parsedTs.toISOString() : new Date().toISOString(),
             messageType: payload.messageType || payload.MessageType || 'text',
-            mediaUri: payload.fileUrl || payload.file_url,
-            fileUrl: payload.fileUrl || payload.file_url,
+            mediaUri: payload.fileUrl || payload.FileUrl || payload.file_url,
+            fileUrl: payload.fileUrl || payload.FileUrl || payload.file_url,
             replyTo: payload.replyTo || payload.ReplyTo,
             reactions: payload.reactions || payload.Reactions || {},
             readBy: payload.readBy || payload.ReadBy || [],
-            isMine: String(payload.userId || payload.user_id) === String(currentUserId),
+            isMine: String(msgUserId) === String(currentUserId),
           };
+          
+          console.log('[SignalR] Mapped message:', { msgUserId, currentUserId, isMine: newMessage.isMine });
 
           setMessages((prev) => {
             const tempId = payload.clientTempId || payload.clientTempID;
@@ -330,6 +334,15 @@ export default function GroupChatScreen() {
         setLoadingMore(true);
       }
 
+      // ✅ Get current user ID từ localStorage MỖI LẦN load (giống Mobile)
+      const userStr = localStorage.getItem('user') || localStorage.getItem('userInfo');
+      let loadUserId = currentUserId; // fallback to state
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        loadUserId = user.user_id || user.userId;
+        console.log('[GroupChat] loadMessages with userId:', loadUserId);
+      }
+
       const response = await fetch(
         `${API_BASE_URL}/api/groupmessage/${conversationId}?page=${pageNum}&pageSize=50`,
         {
@@ -341,22 +354,41 @@ export default function GroupChatScreen() {
 
       if (!response.ok) throw new Error('Failed to load messages');
 
-      const data = await response.json();
-      const newMessages = (data.messages || data || []).map((msg) => ({
-        id: msg.id || msg.messageId,
-        userId: msg.userId || msg.user_id,
-        userName: msg.userName || msg.user_name,
-        userAvatar: msg.userAvatar || msg.user_avatar,
-        message: msg.content || msg.message,
-        timestamp: msg.timestamp || msg.createdAt || msg.created_at,
-        messageType: msg.messageType || msg.MessageType || 'text',
-        mediaUri: msg.fileUrl || msg.file_url,
-        fileUrl: msg.fileUrl || msg.file_url,
-        replyTo: msg.replyTo || msg.ReplyTo,
-        reactions: msg.reactions || msg.Reactions || {},
-        readBy: msg.readBy || msg.ReadBy || [],
-        isMine: String(msg.userId || msg.user_id) === String(currentUserId),
-      }));
+      const result = await response.json();
+      // Handle wrapped response: {success: true, data: {messages, totalCount}}
+      const data = result.data || result;
+      const messagesList = data.messages || data.Messages || [];
+      
+      if (!Array.isArray(messagesList)) {
+        console.error('[GroupChat] Invalid messages data:', data);
+        throw new Error('Invalid messages format from server');
+      }
+      
+      const newMessages = messagesList.map((msg) => {
+        const msgUserId = msg.userId || msg.UserId || msg.user_id;
+        const isMine = String(msgUserId) === String(loadUserId);
+        
+        // Debug log first message
+        if (msg === messagesList[0]) {
+          console.log('[GroupChat] First message - msgUserId:', msgUserId, 'loadUserId:', loadUserId, 'isMine:', isMine);
+        }
+        
+        return {
+          id: msg.id || msg.messageId || msg.MessageId,
+          userId: msgUserId,
+          userName: msg.userName || msg.UserName || msg.user_name,
+          userAvatar: msg.userAvatar || msg.UserAvatar || msg.user_avatar,
+          message: msg.content || msg.Content || msg.message,
+          timestamp: msg.timestamp || msg.createdAt || msg.CreatedAt || msg.created_at,
+          messageType: msg.messageType || msg.MessageType || 'text',
+          mediaUri: msg.fileUrl || msg.FileUrl || msg.file_url,
+          fileUrl: msg.fileUrl || msg.FileUrl || msg.file_url,
+          replyTo: msg.replyTo || msg.ReplyTo,
+          reactions: msg.reactions || msg.Reactions || {},
+          readBy: msg.readBy || msg.ReadBy || [],
+          isMine: isMine,
+        };
+      });
 
       if (pageNum === 1) {
         setMessages(newMessages);
@@ -403,33 +435,48 @@ export default function GroupChatScreen() {
     setShowEmojiPicker(false);
 
     try {
-      const formData = new FormData();
-      formData.append('conversationId', conversationId);
-      formData.append('content', content);
-      formData.append('messageType', mediaType);
-      if (replyingTo) formData.append('replyTo', replyingTo.id);
-      if (mediaUri) {
-        // For web file uploads, mediaUri will be a File object
-        if (mediaUri instanceof File) {
-          formData.append('file', mediaUri);
-        }
+      // ✅ FIX: API expects JSON body with [FromBody], not FormData
+      // For file uploads, use the /upload endpoint first, then send with fileUrl
+      let fileUrl = mediaUri;
+      
+      // If mediaUri is a File object, need to upload it first
+      if (mediaUri instanceof File) {
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', mediaUri);
+        
+        const uploadResponse = await fetch(`${API_BASE_URL}/api/groupmessage/upload`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+          },
+          body: uploadFormData,
+        });
+        
+        if (!uploadResponse.ok) throw new Error('Failed to upload file');
+        
+        const uploadResult = await uploadResponse.json();
+        fileUrl = uploadResult.fileUrl || uploadResult.data?.fileUrl;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/groupmessage/send`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-        body: formData,
-      });
+      // ✅ GỬI QUA SIGNALR HUB thay vì API để broadcast real-time
+      // Backend uses PascalCase (System.Text.Json case-sensitive), phải match với Mobile
+      const messagePayload = {
+        ConversationId: parseInt(conversationId),
+        UserId: currentUserId, // sẽ bị override bởi server từ JWT token
+        Content: content || "", // Empty string nếu chỉ gửi file
+        MessageType: mediaType,
+        FileUrl: fileUrl && typeof fileUrl === 'string' ? fileUrl : null,
+        ReplyToMessageId: replyingTo?.id || null,
+        ClientTempId: tempId,
+      };
 
-      if (!response.ok) throw new Error('Failed to send message');
-
-      const result = await response.json();
-
-      setMessages((prev) =>
-        prev.map((m) => (m.id === tempId ? { ...result, isMine: true } : m))
-      );
+      console.log('[GroupChat] Sending via SignalR Hub (PascalCase):', messagePayload);
+      
+      // Send via SignalR Hub (Backend will save to DB and broadcast to all members)
+      await signalRService.sendMessage(conversationId, messagePayload);
+      
+      // SignalR ReceiveMessage listener will add the saved message to UI
+      console.log('[GroupChat] Message sent via Hub, waiting for ReceiveMessage callback');
     } catch (error) {
       console.error('Send message error:', error);
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -453,7 +500,7 @@ export default function GroupChatScreen() {
 
   const handleReaction = async (messageId, emoji) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/GroupMessages/${messageId}/react`, {
+      const response = await fetch(`${API_BASE_URL}/api/groupmessage/${messageId}/reaction`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -466,7 +513,7 @@ export default function GroupChatScreen() {
 
       const result = await response.json();
       setMessages((prev) =>
-        prev.map((m) => (m.id === messageId ? { ...m, reactions: result.reactions } : m))
+        prev.map((m) => (m.id === messageId ? { ...m, reactions: result.data?.reactions || result.reactions } : m))
       );
     } catch (error) {
       console.error('Add reaction error:', error);

@@ -27,13 +27,26 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
         }
 
         /// <summary>
+        /// Get current user's user_id from JWT token
+        /// CRITICAL: Use "user_id" claim first (actual user_id in database)
+        /// </summary>
+        private int? GetCurrentUserId()
+        {
+            var userIdClaim = Context.User?.FindFirst("user_id")?.Value
+                              ?? Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+                              ?? Context.User?.FindFirst("nameid")?.Value;
+            
+            return int.TryParse(userIdClaim, out int userId) ? userId : null;
+        }
+
+        /// <summary>
         /// Join vào một nhóm chat
         /// </summary>
         public async Task JoinGroup(string conversationId)
         {
             try
             {
-                var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var userId = GetCurrentUserId();
                 var connectionId = Context.ConnectionId;
 
                 await Groups.AddToGroupAsync(connectionId, conversationId);
@@ -48,15 +61,15 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
                     _groupConnections[conversationId].Add(connectionId);
                 }
 
-                if (!string.IsNullOrEmpty(userId))
+                if (userId.HasValue)
                 {
-                    _userConnections[connectionId] = userId;
+                    _userConnections[connectionId] = userId.Value.ToString();
                 }
 
                 _logger.LogInformation($"User {userId} joined group {conversationId}");
 
                 // Thông báo cho các thành viên khác
-                await Clients.OthersInGroup(conversationId).SendAsync("UserJoined", new
+                await Clients.OthersInGroup(conversationId).SendAsync("userjoined", new
                 {
                     userId,
                     connectionId,
@@ -77,7 +90,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
         {
             try
             {
-                var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var userId = GetCurrentUserId();
                 var connectionId = Context.ConnectionId;
 
                 await Groups.RemoveFromGroupAsync(connectionId, conversationId);
@@ -100,7 +113,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
                 _logger.LogInformation($"User {userId} left group {conversationId}");
 
                 // Thông báo cho các thành viên khác
-                await Clients.OthersInGroup(conversationId).SendAsync("UserLeft", new
+                await Clients.OthersInGroup(conversationId).SendAsync("userleft", new
                 {
                     userId,
                     timestamp = DateTime.UtcNow
@@ -121,8 +134,8 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
             try
             {
                 // Extract userId from JWT token
-                var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                var userId = GetCurrentUserId();
+                if (!userId.HasValue)
                 {
                     await Clients.Caller.SendAsync("Error", "Invalid authentication");
                     _logger.LogWarning($"Invalid userId for SendMessage in group {conversationId}");
@@ -146,7 +159,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
                 }
 
                 // Override userId from token (bảo mật - không tin client)
-                dto.UserId = userId;
+                dto.UserId = userId.Value;
                 dto.ConversationId = int.Parse(conversationId);
 
                 // ✅ LƯU VÀO DATABASE qua GroupMessageService
@@ -213,25 +226,25 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
         {
             try
             {
-                var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                var userId = GetCurrentUserId();
+                if (!userId.HasValue)
                 {
                     _logger.LogWarning($"Invalid userId for MarkMessageAsRead");
                     return;
                 }
 
                 // ✅ LƯU VÀO DATABASE
-                await _messageService.MarkAsReadAsync(messageId, userId);
+                await _messageService.MarkAsReadAsync(messageId, userId.Value);
 
                 // ✅ BROADCAST read receipt đến tất cả members
                 await Clients.Group(conversationId).SendAsync("MessageRead", new
                 {
                     messageId,
-                    userId,
+                    userId = userId.Value,
                     readAt = DateTime.UtcNow
                 });
 
-                _logger.LogInformation($"User {userId} marked message {messageId} as read");
+                _logger.LogInformation($"User {userId.Value} marked message {messageId} as read");
             }
             catch (Exception ex)
             {
@@ -247,8 +260,8 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
         {
             try
             {
-                var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                var userId = GetCurrentUserId();
+                if (!userId.HasValue)
                 {
                     _logger.LogWarning("Invalid userId for OpenGroup");
                     return;
@@ -257,18 +270,18 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
                 var convId = int.Parse(conversationId);
 
                 // Persist bulk read (best-effort)
-                await _messageService.OpenGroupAsync(convId, userId, lastReadMessageId);
+                await _messageService.OpenGroupAsync(convId, userId.Value, lastReadMessageId);
 
                 // Broadcast a small payload so clients can reset unread counters and update lastRead mapping
                 await Clients.Group(conversationId).SendAsync("MessageRead", new
                 {
                     conversationId = convId,
-                    userId = userId,
+                    userId = userId.Value,
                     lastReadMessageId = lastReadMessageId,
                     readAt = DateTime.UtcNow
                 });
 
-                _logger.LogInformation($"User {userId} opened group {conversationId}, marked up to {lastReadMessageId}");
+                _logger.LogInformation($"User {userId.Value} opened group {conversationId}, marked up to {lastReadMessageId}");
             }
             catch (Exception ex)
             {
@@ -283,27 +296,27 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
         {
             try
             {
-                var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                var userId = GetCurrentUserId();
+                if (!userId.HasValue)
                 {
                     _logger.LogWarning($"Invalid userId for ReactToMessage");
                     return;
                 }
 
                 // ✅ LƯU VÀO DATABASE
-                var dto = new AddReactionDto { MessageId = messageId, UserId = userId, Emoji = emoji };
+                var dto = new AddReactionDto { MessageId = messageId, UserId = userId.Value, Emoji = emoji };
                 var updatedMessage = await _messageService.AddReactionAsync(dto);
 
                 // ✅ BROADCAST reaction update đến tất cả members
                 await Clients.Group(conversationId).SendAsync("ReactionAdded", new
                 {
                     messageId,
-                    userId,
+                    userId = userId.Value,
                     emoji,
                     reactions = updatedMessage.Reactions // Full reactions dict
                 });
 
-                _logger.LogInformation($"User {userId} reacted {emoji} to message {messageId}");
+                _logger.LogInformation($"User {userId.Value} reacted {emoji} to message {messageId}");
             }
             catch (Exception ex)
             {
@@ -318,7 +331,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
         {
             try
             {
-                var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var userId = GetCurrentUserId();
 
                 _logger.LogInformation($"User {userId} updating avatar for group {conversationId}");
 
@@ -345,18 +358,18 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
         {
             try
             {
-                var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var userId = GetCurrentUserId();
 
                 _logger.LogInformation($"User {userId} updating name for group {conversationId}");
 
                 // Broadcast đến tất cả thành viên
                 // Try to persist the change server-side so hub fallback also persists
-                if (!string.IsNullOrEmpty(userId) && int.TryParse(userId, out int uid))
+                if (userId.HasValue)
                 {
                     try
                     {
                         var convId = int.Parse(conversationId);
-                        var (success, error) = await _groupChatService.UpdateGroupNameAsync(convId, newName, uid);
+                        var (success, error) = await _groupChatService.UpdateGroupNameAsync(convId, newName, userId.Value);
                         if (!success)
                         {
                             // Notify caller about failure
@@ -394,18 +407,18 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
         {
             try
             {
-                var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var userId = GetCurrentUserId();
 
                 _logger.LogInformation($"User {userId} pinning message {messageId} in group {conversationId}");
 
                 // Broadcast đến tất cả thành viên
                 // Try to persist pin in database via service
-                if (int.TryParse(userId, out int pinnedBy))
+                if (userId.HasValue)
                 {
                     try
                     {
                         var convId = int.Parse(conversationId);
-                        var (success, error, messageDto) = await _messageService.PinMessageAsync(convId, messageId, pinnedBy);
+                        var (success, error, messageDto) = await _messageService.PinMessageAsync(convId, messageId, userId.Value);
                         if (success)
                         {
                             await Clients.Group(conversationId).SendAsync("MessagePinned", new
@@ -413,7 +426,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
                                 conversationId,
                                 messageId,
                                 message = messageDto,
-                                pinnedBy = pinnedBy,
+                                pinnedBy = userId.Value,
                                 timestamp = DateTime.UtcNow
                             });
                         }
@@ -448,24 +461,24 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
         {
             try
             {
-                var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var userId = GetCurrentUserId();
 
                 _logger.LogInformation($"User {userId} unpinning message {messageId} in group {conversationId}");
 
                 // Broadcast đến tất cả thành viên
-                if (int.TryParse(userId, out int uid))
+                if (userId.HasValue)
                 {
                     try
                     {
                         var convId = int.Parse(conversationId);
-                        var (success, error) = await _messageService.UnpinMessageAsync(convId, messageId, uid);
+                        var (success, error) = await _messageService.UnpinMessageAsync(convId, messageId, userId.Value);
                         if (success)
                         {
                             await Clients.Group(conversationId).SendAsync("MessageUnpinned", new
                             {
                                 conversationId,
                                 messageId,
-                                unpinnedBy = uid,
+                                unpinnedBy = userId.Value,
                                 timestamp = DateTime.UtcNow
                             });
                         }
@@ -539,7 +552,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
         {
             try
             {
-                var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var userId = GetCurrentUserId();
 
                 await Clients.Group(conversationId).SendAsync("MessageDeleted", new
                 {
@@ -557,14 +570,14 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Hubs
 
         public override async Task OnConnectedAsync()
         {
-            var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userId = GetCurrentUserId();
             _logger.LogInformation($"Client connected: {Context.ConnectionId}, User: {userId}");
             await base.OnConnectedAsync();
         }
 
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
-            var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userId = GetCurrentUserId();
             var connectionId = Context.ConnectionId;
 
             _logger.LogInformation($"Client disconnected: {connectionId}, User: {userId}");

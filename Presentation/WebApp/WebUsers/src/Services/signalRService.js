@@ -206,6 +206,87 @@ class SignalRService {
     }
   }
 
+  // Group Chat event listeners
+  onMessageRead(callback) {
+    if (!this._handlers['MessageRead']) {
+      this._handlers['MessageRead'] = new Set();
+    }
+    this._handlers['MessageRead'].add(callback);
+
+    if (this.chatConnection?.state === SignalR.HubConnectionState.Connected) {
+      this.chatConnection.on('MessageRead', callback);
+    }
+  }
+
+  onReactionAdded(callback) {
+    if (!this._handlers['ReactionAdded']) {
+      this._handlers['ReactionAdded'] = new Set();
+    }
+    this._handlers['ReactionAdded'].add(callback);
+
+    if (this.chatConnection?.state === SignalR.HubConnectionState.Connected) {
+      this.chatConnection.on('ReactionAdded', callback);
+    }
+  }
+
+  onReactionRemoved(callback) {
+    if (!this._handlers['ReactionRemoved']) {
+      this._handlers['ReactionRemoved'] = new Set();
+    }
+    this._handlers['ReactionRemoved'].add(callback);
+
+    if (this.chatConnection?.state === SignalR.HubConnectionState.Connected) {
+      this.chatConnection.on('ReactionRemoved', callback);
+    }
+  }
+
+  onGroupAvatarUpdated(callback) {
+    if (!this._handlers['GroupAvatarUpdated']) {
+      this._handlers['GroupAvatarUpdated'] = new Set();
+    }
+    this._handlers['GroupAvatarUpdated'].add(callback);
+
+    if (this.chatConnection?.state === SignalR.HubConnectionState.Connected) {
+      this.chatConnection.on('GroupAvatarUpdated', callback);
+    }
+  }
+
+  onGroupNameUpdated(callback) {
+    if (!this._handlers['GroupNameUpdated']) {
+      this._handlers['GroupNameUpdated'] = new Set();
+    }
+    this._handlers['GroupNameUpdated'].add(callback);
+
+    if (this.chatConnection?.state === SignalR.HubConnectionState.Connected) {
+      this.chatConnection.on('GroupNameUpdated', callback);
+    }
+  }
+
+  onUserTyping(callback) {
+    if (!this._handlers['UserTyping']) {
+      this._handlers['UserTyping'] = new Set();
+    }
+    this._handlers['UserTyping'].add(callback);
+
+    if (this.chatConnection?.state === SignalR.HubConnectionState.Connected) {
+      this.chatConnection.on('UserTyping', callback);
+    }
+  }
+
+  async sendMessage(conversationId, messageData) {
+    try {
+      if (!this.chatConnection || this.chatConnection.state !== SignalR.HubConnectionState.Connected) {
+        throw new Error('Not connected to chat hub');
+      }
+      
+      await this.chatConnection.invoke('SendMessage', conversationId.toString(), messageData);
+      console.log('✅ Message sent via SignalR');
+    } catch (error) {
+      console.error('❌ Error sending message:', error);
+      throw error;
+    }
+  }
+
   // COMMENT CONNECTION
   async connectToComments() {
     if (this.commentConnection?.state === SignalR.HubConnectionState.Connected) {

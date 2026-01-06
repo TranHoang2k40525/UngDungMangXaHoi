@@ -187,7 +187,7 @@ export default function Profile() {
             <button className="menu-item" onClick={() => { setMenuOpen(false); navigate('/profile/edit'); }}>Xem/Chỉnh sửa thông tin</button>
             <button className="menu-item" onClick={() => { setMenuOpen(false); navigate('/change-password'); }}>Đổi mật khẩu</button>
             {profile?.accountType?.toLowerCase() !== 'business' && (
-              <button className="menu-item" onClick={() => { setMenuOpen(false); }}>Đăng ký tài khoản doanh nghiệp</button>
+              <button className="menu-item" onClick={() => { setMenuOpen(false); navigate('/business/upgrade-terms'); }}>Đăng ký tài khoản doanh nghiệp</button>
             )}
             <button className="menu-item" onClick={() => { setMenuOpen(false); setBlockedListVisible(true); }}>Danh sách chặn</button>
             <button className="menu-item danger" onClick={() => { setMenuOpen(false); logout(); }}>Đăng xuất</button>

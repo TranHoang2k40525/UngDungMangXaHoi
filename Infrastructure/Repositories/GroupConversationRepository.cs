@@ -135,6 +135,16 @@ namespace UngDungMangXaHoi.Infrastructure.Repositories
             var member = await GetMemberAsync(conversationId, userId);
             if (member != null)
             {
+                // ✅ FIX: Validate message exists before updating foreign key
+                var messageExists = await _context.Messages
+                    .AnyAsync(m => m.message_id == lastReadMessageId && m.conversation_id == conversationId);
+                
+                if (!messageExists)
+                {
+                    Console.WriteLine($"[GroupConversationRepo] Warning: Message {lastReadMessageId} not found in conversation {conversationId}, skipping last_read update");
+                    return;
+                }
+
                 member.last_read_message_id = lastReadMessageId;
                 member.last_read_at = DateTime.UtcNow;
                 _context.ConversationMembers.Update(member);
