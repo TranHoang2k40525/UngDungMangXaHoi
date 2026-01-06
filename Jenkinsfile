@@ -68,12 +68,63 @@ pipeline {
     stage('Push images to registry') {
       steps {
         withCredentials([usernamePassword(credentialsId: 'docker-registry-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-          sh 'echo "Logging into Docker registry ${REGISTRY}"'
-          sh 'echo $DOCKER_PASS | docker login ${REGISTRY} -u $DOCKER_USER --password-stdin'
-          sh 'docker push ${FULL_WEBAPI_IMAGE}'
-          sh 'docker push ${FULL_WEBAPP_IMAGE}'
-          sh 'docker push ${FULL_WEBADMINS_IMAGE}'
-          sh 'docker logout ${REGISTRY}'
+          sh '''
+            echo "========================================"
+            echo "   Pushing Images with Retry Logic"
+            echo "========================================"
+            
+            echo "Logging into Docker registry ${REGISTRY}"
+            echo $DOCKER_PASS | docker login ${REGISTRY} -u $DOCKER_USER --password-stdin
+            
+            # Function to push with retry and exponential backoff
+            push_with_retry() {
+              local image=$1
+              local max_attempts=3
+              local attempt=1
+              local wait_time=5
+              
+              echo ""
+              echo "=== Pushing $image ==="
+              
+              while [ $attempt -le $max_attempts ]; do
+                echo "Attempt $attempt of $max_attempts..."
+                
+                if timeout 300 docker push "$image"; then
+                  echo "✓ Successfully pushed $image"
+                  return 0
+                else
+                  echo "✗ Failed to push $image (attempt $attempt/$max_attempts)"
+                  
+                  if [ $attempt -lt $max_attempts ]; then
+                    echo "Waiting ${wait_time}s before retry..."
+                    sleep $wait_time
+                    # Exponential backoff
+                    wait_time=$((wait_time * 2))
+                    attempt=$((attempt + 1))
+                    
+                    # Re-login to Docker registry
+                    echo "Re-authenticating with Docker registry..."
+                    echo $DOCKER_PASS | docker login ${REGISTRY} -u $DOCKER_USER --password-stdin
+                  else
+                    echo "ERROR: Failed to push $image after $max_attempts attempts"
+                    return 1
+                  fi
+                fi
+              done
+            }
+            
+            # Push all images with retry logic
+            push_with_retry "${FULL_WEBAPI_IMAGE}" || exit 1
+            push_with_retry "${FULL_WEBAPP_IMAGE}" || exit 1
+            push_with_retry "${FULL_WEBADMINS_IMAGE}" || exit 1
+            
+            docker logout ${REGISTRY}
+            
+            echo ""
+            echo "========================================"
+            echo "   All Images Pushed Successfully"
+            echo "========================================"
+          '''
         }
       }
     }
