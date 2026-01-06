@@ -162,6 +162,8 @@ secrets:
     file: ./secrets/db_password.txt
   jwt_access_secret:
     file: ./secrets/jwt_access_secret.txt
+  cloudflare_tunnel_token:
+    file: ./secrets/cloudflare_tunnel_token.txt
 
 # Production network
 networks:

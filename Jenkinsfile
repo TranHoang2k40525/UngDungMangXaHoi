@@ -93,8 +93,7 @@ pipeline {
           echo "Deploying to WSL2:${PROD_DIR}"
           echo "Using Cloudflare Tunnel: ${USE_TUNNEL}"
           
-          // Use only db-password credential, generate temporary secrets for others
-          // TODO: Add these credentials in Jenkins: jwt-access-secret, jwt-refresh-secret, cloudinary-api-secret, email-password
+          // Production deployment needs db_password, jwt_access_secret, and cloudflare_tunnel_token
           withCredentials([
             string(credentialsId: 'db-password', variable: 'DB_PASSWORD'),
             string(credentialsId: 'cloudflare-tunnel-token', variable: 'CLOUDFLARE_TOKEN')
@@ -108,7 +107,7 @@ pipeline {
               mkdir -p secrets
               
               echo "=== Writing secret files ==="
-              # Real secrets from Jenkins
+              # Real secrets from Jenkins credentials
               cat > secrets/db_password.txt <<EOF
 \${DB_PASSWORD}
 EOF
@@ -116,26 +115,17 @@ EOF
 \${CLOUDFLARE_TOKEN}
 EOF
               
-              # Temporary secrets - REPLACE THESE by adding credentials to Jenkins
+              # Temporary JWT secret - Add jwt-access-secret credential to Jenkins to replace this
               cat > secrets/jwt_access_secret.txt <<EOF
 TEMP-JWT-ACCESS-SECRET-CHANGE-ME
 EOF
-              cat > secrets/jwt_refresh_secret.txt <<EOF
-TEMP-JWT-REFRESH-SECRET-CHANGE-ME
-EOF
-              cat > secrets/cloudinary_api_secret.txt <<EOF
-TEMP-CLOUDINARY-SECRET-CHANGE-ME
-EOF
-              cat > secrets/email_password.txt <<EOF
-TEMP-EMAIL-PASSWORD-CHANGE-ME
-EOF
               
-              chmod 600 secrets/*.txt
+              chmod 600 secrets/db_password.txt secrets/cloudflare_tunnel_token.txt secrets/jwt_access_secret.txt
               
               echo "=== Verifying secret files ==="
               ls -la secrets/
               
-              echo "WARNING: Using temporary secrets. Add real credentials to Jenkins!"
+              echo "WARNING: Using temporary JWT secret. Add jwt-access-secret credential to Jenkins!"
               
               echo "=== Setting image variables ==="
               export WEBAPI_IMAGE="${FULL_WEBAPI_IMAGE}"
