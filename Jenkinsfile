@@ -96,7 +96,8 @@ pipeline {
           // Use only db-password credential, generate temporary secrets for others
           // TODO: Add these credentials in Jenkins: jwt-access-secret, jwt-refresh-secret, cloudinary-api-secret, email-password
           withCredentials([
-            string(credentialsId: 'db-password', variable: 'DB_PASSWORD')
+            string(credentialsId: 'db-password', variable: 'DB_PASSWORD'),
+            string(credentialsId: 'cloudflare-tunnel-token', variable: 'CLOUDFLARE_TOKEN')
           ]) {
             sh """
               echo "========================================"
@@ -107,12 +108,13 @@ pipeline {
               mkdir -p secrets
               
               echo "=== Writing secret files ==="
-              # Real secret from Jenkins
+              # Real secrets from Jenkins
               echo "\${DB_PASSWORD}" > secrets/db_password.txt
+              echo "\${CLOUDFLARE_TOKEN}" > secrets/cloudflare_tunnel_token.txt
               
               # Temporary secrets - REPLACE THESE by adding credentials to Jenkins
-              echo "TEMP-JWT-ACCESS-SECRET-CHANGE-ME-\$(date +%s)" > secrets/jwt_access_secret.txt
-              echo "TEMP-JWT-REFRESH-SECRET-CHANGE-ME-\$(date +%s)" > secrets/jwt_refresh_secret.txt
+              echo "TEMP-JWT-ACCESS-SECRET-CHANGE-ME" > secrets/jwt_access_secret.txt
+              echo "TEMP-JWT-REFRESH-SECRET-CHANGE-ME" > secrets/jwt_refresh_secret.txt
               echo "TEMP-CLOUDINARY-SECRET-CHANGE-ME" > secrets/cloudinary_api_secret.txt
               echo "TEMP-EMAIL-PASSWORD-CHANGE-ME" > secrets/email_password.txt
               
