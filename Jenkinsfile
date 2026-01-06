@@ -99,102 +99,127 @@ pipeline {
             string(credentialsId: 'db-password', variable: 'DB_PASSWORD')
           ]) {
             sh """
-              # Setup SSH key for container
+              echo "========================================"
+              echo "   Setting up SSH access to WSL2"
+              echo "========================================"
+              
+              # Setup SSH key
               mkdir -p ~/.ssh
               chmod 700 ~/.ssh
               cp "\${SSH_KEY}" ~/.ssh/id_rsa
               chmod 600 ~/.ssh/id_rsa
               
-              # Create deployment script that will run inside container
-              cat > /tmp/deploy-wsl2.sh << 'DEPLOY_SCRIPT_EOF'
-#!/bin/bash
+              # Test SSH connection
+              echo "Testing SSH connection to ${WSL_USER}@${WSL_HOST}..."
+              ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+                ${WSL_USER}@${WSL_HOST} "echo 'SSH connection successful'"
+              
+              echo ""
+              echo "========================================"
+              echo "   Deploying to WSL2:${PROD_DIR}"
+              echo "========================================"
+              
+              # Execute deployment commands directly on WSL2 via SSH
+              ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+                ${WSL_USER}@${WSL_HOST} << 'REMOTE_COMMANDS'
 set -e
 
-echo "=== Starting deployment to WSL2 ==="
+cd ${PROD_DIR}
 
-# Setup SSH for git
-mkdir -p ~/.ssh
-chmod 700 ~/.ssh
-cp /tmp/ssh_key ~/.ssh/id_rsa
-chmod 600 ~/.ssh/id_rsa
-ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
+echo ""
+echo "=== Current directory ==="
+pwd
+ls -la
 
-# Configure git to use SSH
-git config --global core.sshCommand "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no"
-
-cd /workspace
-
-# Update repository
-echo "Pulling latest code from GitHub..."
+echo ""
+echo "=== Pulling latest code ==="
 git reset --hard
 git pull origin main
 
-# Create secrets directory with db_password
-echo "Creating database password secret..."
+echo ""
+echo "=== Creating secrets ==="
 mkdir -p secrets
+
+# Create DB password from Jenkins credential (passed via env)
 echo "\${DB_PASSWORD}" > secrets/db_password.txt
-chmod 600 secrets/db_password.txt
 
-# Verify secret file
-if [ -f secrets/db_password.txt ]; then
-  SIZE=\$(stat -c%s secrets/db_password.txt 2>/dev/null || stat -f%z secrets/db_password.txt 2>/dev/null || echo "unknown")
-  echo "✓ db_password.txt created (size: \${SIZE} bytes)"
-else
-  echo "✗ ERROR: Failed to create db_password.txt"
-  exit 1
-fi
+# Create other required secret files with placeholder values
+echo 'jwt-access-secret-key-placeholder' > secrets/jwt_access_secret.txt
+echo 'jwt-refresh-secret-key-placeholder' > secrets/jwt_refresh_secret.txt
+echo 'cloudinary-api-secret-placeholder' > secrets/cloudinary_api_secret.txt
+echo 'email-password-placeholder' > secrets/email_password.txt
 
-# Set image environment variables
-export WEBAPI_IMAGE="\${WEBAPI_IMG}"
-export WEBAPP_IMAGE="\${WEBAPP_IMG}"
-export WEBADMINS_IMAGE="\${WEBADMINS_IMG}"
+# Set permissions
+chmod 600 secrets/*.txt
+
+echo "✓ Secrets created:"
+ls -lh secrets/
+
+echo ""
+echo "=== Setting environment variables ==="
+export WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE}
+export WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE}
+export WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE}
 
 echo "Images to deploy:"
 echo "  WebAPI: \${WEBAPI_IMAGE}"
 echo "  WebApp: \${WEBAPP_IMAGE}"
 echo "  WebAdmins: \${WEBADMINS_IMAGE}"
 
-# Create Docker network if not exists
-echo "Ensuring Docker network exists..."
+echo ""
+echo "=== Creating Docker network ==="
 docker network create app-network 2>/dev/null || echo "Network app-network already exists"
 
-# Deploy all services
-echo "Pulling latest images..."
-docker-compose \${COMPOSE_FILES} pull sqlserver webapi webapp webadmins cloudflared
+echo ""
+echo "=== Pulling latest images ==="
+docker pull \${WEBAPI_IMAGE}
+docker pull \${WEBAPP_IMAGE}
+docker pull \${WEBADMINS_IMAGE}
 
-echo "Starting containers..."
-docker-compose \${COMPOSE_FILES} up -d --remove-orphans sqlserver webapi webapp webadmins cloudflared
+echo ""
+echo "=== Stopping old containers ==="
+docker-compose ${COMPOSE_FILES} down || true
 
-echo "Container status:"
-docker-compose \${COMPOSE_FILES} ps
+echo ""
+echo "=== Starting new containers ==="
+docker-compose ${COMPOSE_FILES} up -d --remove-orphans
 
+echo ""
+echo "=== Waiting for containers to stabilize (15s) ==="
+sleep 15
+
+echo ""
+echo "=== Container status ==="
+docker-compose ${COMPOSE_FILES} ps
+
+echo ""
+echo "=== Running containers ==="
+docker ps --filter name=ungdungmxh
+
+echo ""
+echo "=== Checking container logs (last 20 lines) ==="
+echo "--- WebAPI logs ---"
+docker logs ungdungmxh-webapi --tail 20 2>&1 || echo "No WebAPI container logs"
+
+echo ""
+echo "--- WebApp logs ---"
+docker logs ungdungmxh-webapp --tail 20 2>&1 || echo "No WebApp container logs"
+
+echo ""
+echo "--- SQL Server logs ---"
+docker logs ungdungmxh-sqlserver --tail 20 2>&1 || echo "No SQL Server container logs"
+
+echo ""
 echo "=== Deployment completed successfully! ==="
-DEPLOY_SCRIPT_EOF
+REMOTE_COMMANDS
 
-              chmod +x /tmp/deploy-wsl2.sh
+              # Cleanup SSH key
+              rm -f ~/.ssh/id_rsa
               
-              # Copy SSH key for container to use
-              cp ~/.ssh/id_rsa /tmp/ssh_key
-              chmod 644 /tmp/ssh_key
-              
-              # Run deployment via Docker container with WSL2 path mounted
-              # This works because Docker Desktop can access WSL2 via //wsl.localhost
-              docker run --rm \
-                -v /var/run/docker.sock:/var/run/docker.sock \
-                -v //wsl.localhost/${WSL_DISTRO}${PROD_DIR}:/workspace \
-                -v /tmp/deploy-wsl2.sh:/deploy.sh \
-                -v /tmp/ssh_key:/tmp/ssh_key \
-                -e "DB_PASSWORD=\${DB_PASSWORD}" \
-                -e "WEBAPI_IMG=${FULL_WEBAPI_IMAGE}" \
-                -e "WEBAPP_IMG=${FULL_WEBAPP_IMAGE}" \
-                -e "WEBADMINS_IMG=${FULL_WEBADMINS_IMAGE}" \
-                -e "COMPOSE_FILES=${COMPOSE_FILES}" \
-                -w /workspace \
-                docker/compose:debian-1.29.2 \
-                sh /deploy.sh
-              
-              # Cleanup sensitive files
-              rm -f /tmp/deploy-wsl2.sh /tmp/ssh_key ~/.ssh/id_rsa
+              echo ""
+              echo "========================================"
+              echo "   Deployment Complete!"
+              echo "========================================"
             """
           }
         }
