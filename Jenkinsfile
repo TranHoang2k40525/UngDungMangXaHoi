@@ -113,7 +113,7 @@ pipeline {
                 printf "%s" "'\${DB_PASSWORD}'" > secrets/db_password.txt
                 printf "%s" "'\${CLOUDFLARE_TOKEN}'" > secrets/cloudflare_tunnel_token.txt
                 printf "%s" "TEMP-JWT-ACCESS-SECRET-CHANGE-ME" > secrets/jwt_access_secret.txt
-                chmod 600 secrets/*.txt
+                chmod 644 secrets/*.txt
                 ls -la secrets/
               '
               
