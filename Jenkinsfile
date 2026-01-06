@@ -103,27 +103,19 @@ pipeline {
               echo "   Deploying to Production"
               echo "========================================"
               
-              echo "=== Creating secrets directory ==="
-              mkdir -p secrets
+              echo "=== Creating secrets using Docker volume ==="
+              # Use Docker to create files in a way that Docker daemon can access
+              # This solves the issue where Docker daemon can't access Jenkins workspace
               
-              echo "=== Writing secret files ==="
-              # Real secrets from Jenkins credentials
-              cat > secrets/db_password.txt <<EOF
-\${DB_PASSWORD}
-EOF
-              cat > secrets/cloudflare_tunnel_token.txt <<EOF
-\${CLOUDFLARE_TOKEN}
-EOF
-              
-              # Temporary JWT secret - Add jwt-access-secret credential to Jenkins to replace this
-              cat > secrets/jwt_access_secret.txt <<EOF
-TEMP-JWT-ACCESS-SECRET-CHANGE-ME
-EOF
-              
-              chmod 600 secrets/db_password.txt secrets/cloudflare_tunnel_token.txt secrets/jwt_access_secret.txt
-              
-              echo "=== Verifying secret files ==="
-              ls -la secrets/
+              # Create a temporary container with workspace volume
+              docker run --rm -v "\$(pwd):/workspace" -w /workspace alpine sh -c '
+                mkdir -p secrets
+                printf "%s" "'\${DB_PASSWORD}'" > secrets/db_password.txt
+                printf "%s" "'\${CLOUDFLARE_TOKEN}'" > secrets/cloudflare_tunnel_token.txt
+                printf "%s" "TEMP-JWT-ACCESS-SECRET-CHANGE-ME" > secrets/jwt_access_secret.txt
+                chmod 600 secrets/*.txt
+                ls -la secrets/
+              '
               
               echo "WARNING: Using temporary JWT secret. Add jwt-access-secret credential to Jenkins!"
               
