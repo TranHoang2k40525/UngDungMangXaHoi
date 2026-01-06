@@ -99,59 +99,39 @@ pipeline {
           ]) {
             sh """
               echo "========================================"
-              echo "   Deploying to Production via WSL2"
+              echo "   Deploying to Production"
               echo "========================================"
               
-              # Execute deployment directly in WSL2 environment
-              docker run --rm \
-                -v /var/run/docker.sock:/var/run/docker.sock \
-                -v //wsl.localhost/${WSL_DISTRO}${PROD_DIR}:/workspace \
-                -e "DB_PASSWORD=\${DB_PASSWORD}" \
-                -e "WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE}" \
-                -e "WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE}" \
-                -e "WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE}" \
-                -e "COMPOSE_FILES=${COMPOSE_FILES}" \
-                -w /workspace \
-                alpine:latest sh -c '
-                  set -e
-                  
-                  echo "=== Workspace Info ==="
-                  pwd
-                  ls -la
-                  
-                  echo "=== Installing dependencies ==="
-                  apk add --no-cache git docker-cli docker-compose
-                  
-                  echo "=== Pulling latest code ==="
-                  git config --global --add safe.directory /workspace
-                  git pull origin main || echo "Warning: git pull failed, continuing..."
-                  
-                  echo "=== Creating secrets ==="
-                  mkdir -p secrets
-                  echo "\${DB_PASSWORD}" > secrets/db_password.txt
-                  chmod 600 secrets/db_password.txt
-                  
-                  echo "=== Setting image variables ==="
-                  export WEBAPI_IMAGE="\${WEBAPI_IMAGE}"
-                  export WEBAPP_IMAGE="\${WEBAPP_IMAGE}"
-                  export WEBADMINS_IMAGE="\${WEBADMINS_IMAGE}"
-                  
-                  echo "=== Images to deploy ==="
-                  echo "WebAPI: \${WEBAPI_IMAGE}"
-                  echo "WebApp: \${WEBAPP_IMAGE}"
-                  echo "WebAdmins: \${WEBADMINS_IMAGE}"
-                  
-                  echo "=== Creating Docker network ==="
-                  docker network create app-network 2>/dev/null || echo "Network already exists"
-                  
-                  echo "=== Starting containers ==="
-                  docker-compose \${COMPOSE_FILES} up -d --remove-orphans sqlserver webapi webapp webadmins
-                  
-                  echo "=== Container status ==="
-                  docker-compose \${COMPOSE_FILES} ps
-                  
-                  echo "=== Deployment completed! ==="
-                '
+              echo "=== Creating secrets directory ==="
+              mkdir -p ${PROD_DIR}/secrets
+              
+              echo "=== Writing DB password ==="
+              echo "\${DB_PASSWORD}" > ${PROD_DIR}/secrets/db_password.txt
+              chmod 600 ${PROD_DIR}/secrets/db_password.txt
+              
+              echo "=== Setting image variables ==="
+              export WEBAPI_IMAGE="${FULL_WEBAPI_IMAGE}"
+              export WEBAPP_IMAGE="${FULL_WEBAPP_IMAGE}"
+              export WEBADMINS_IMAGE="${FULL_WEBADMINS_IMAGE}"
+              
+              echo "=== Images to deploy ==="
+              echo "  WebAPI: \${WEBAPI_IMAGE}"
+              echo "  WebApp: \${WEBAPP_IMAGE}"
+              echo "  WebAdmins: \${WEBADMINS_IMAGE}"
+              
+              echo "=== Creating Docker network ==="
+              docker network create app-network 2>/dev/null || echo "  Network already exists"
+              
+              echo "=== Changing to project directory ==="
+              cd ${PROD_DIR}
+              
+              echo "=== Starting containers ==="
+              docker-compose ${COMPOSE_FILES} up -d --remove-orphans sqlserver webapi webapp webadmins
+              
+              echo "=== Container status ==="
+              docker-compose ${COMPOSE_FILES} ps
+              
+              echo "=== Deployment completed! ==="
             """
           }
         }
