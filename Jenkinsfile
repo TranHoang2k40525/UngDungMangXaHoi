@@ -93,13 +93,10 @@ pipeline {
           echo "Deploying to WSL2:${PROD_DIR}"
           echo "Using Cloudflare Tunnel: ${USE_TUNNEL}"
           
-          // Use secrets from Jenkins Credentials
+          // Use only db-password credential, generate temporary secrets for others
+          // TODO: Add these credentials in Jenkins: jwt-access-secret, jwt-refresh-secret, cloudinary-api-secret, email-password
           withCredentials([
-            string(credentialsId: 'db-password', variable: 'DB_PASSWORD'),
-            string(credentialsId: 'jwt-access-secret', variable: 'JWT_ACCESS_SECRET'),
-            string(credentialsId: 'jwt-refresh-secret', variable: 'JWT_REFRESH_SECRET'),
-            string(credentialsId: 'cloudinary-api-secret', variable: 'CLOUDINARY_API_SECRET'),
-            string(credentialsId: 'email-password', variable: 'EMAIL_PASSWORD')
+            string(credentialsId: 'db-password', variable: 'DB_PASSWORD')
           ]) {
             sh """
               echo "========================================"
@@ -109,13 +106,19 @@ pipeline {
               echo "=== Creating secrets directory ==="
               mkdir -p secrets
               
-              echo "=== Writing all secret files ==="
+              echo "=== Writing secret files ==="
+              # Real secret from Jenkins
               echo "\${DB_PASSWORD}" > secrets/db_password.txt
-              echo "\${JWT_ACCESS_SECRET}" > secrets/jwt_access_secret.txt
-              echo "\${JWT_REFRESH_SECRET}" > secrets/jwt_refresh_secret.txt
-              echo "\${CLOUDINARY_API_SECRET}" > secrets/cloudinary_api_secret.txt
-              echo "\${EMAIL_PASSWORD}" > secrets/email_password.txt
+              
+              # Temporary secrets - REPLACE THESE by adding credentials to Jenkins
+              echo "TEMP-JWT-ACCESS-SECRET-CHANGE-ME-\$(date +%s)" > secrets/jwt_access_secret.txt
+              echo "TEMP-JWT-REFRESH-SECRET-CHANGE-ME-\$(date +%s)" > secrets/jwt_refresh_secret.txt
+              echo "TEMP-CLOUDINARY-SECRET-CHANGE-ME" > secrets/cloudinary_api_secret.txt
+              echo "TEMP-EMAIL-PASSWORD-CHANGE-ME" > secrets/email_password.txt
+              
               chmod 600 secrets/*.txt
+              
+              echo "WARNING: Using temporary secrets. Add real credentials to Jenkins!"
               
               echo "=== Setting image variables ==="
               export WEBAPI_IMAGE="${FULL_WEBAPI_IMAGE}"
