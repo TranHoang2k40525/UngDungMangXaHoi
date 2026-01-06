@@ -109,16 +109,31 @@ pipeline {
               
               echo "=== Writing secret files ==="
               # Real secrets from Jenkins
-              echo "\${DB_PASSWORD}" > secrets/db_password.txt
-              echo "\${CLOUDFLARE_TOKEN}" > secrets/cloudflare_tunnel_token.txt
+              cat > secrets/db_password.txt <<EOF
+\${DB_PASSWORD}
+EOF
+              cat > secrets/cloudflare_tunnel_token.txt <<EOF
+\${CLOUDFLARE_TOKEN}
+EOF
               
               # Temporary secrets - REPLACE THESE by adding credentials to Jenkins
-              echo "TEMP-JWT-ACCESS-SECRET-CHANGE-ME" > secrets/jwt_access_secret.txt
-              echo "TEMP-JWT-REFRESH-SECRET-CHANGE-ME" > secrets/jwt_refresh_secret.txt
-              echo "TEMP-CLOUDINARY-SECRET-CHANGE-ME" > secrets/cloudinary_api_secret.txt
-              echo "TEMP-EMAIL-PASSWORD-CHANGE-ME" > secrets/email_password.txt
+              cat > secrets/jwt_access_secret.txt <<EOF
+TEMP-JWT-ACCESS-SECRET-CHANGE-ME
+EOF
+              cat > secrets/jwt_refresh_secret.txt <<EOF
+TEMP-JWT-REFRESH-SECRET-CHANGE-ME
+EOF
+              cat > secrets/cloudinary_api_secret.txt <<EOF
+TEMP-CLOUDINARY-SECRET-CHANGE-ME
+EOF
+              cat > secrets/email_password.txt <<EOF
+TEMP-EMAIL-PASSWORD-CHANGE-ME
+EOF
               
               chmod 600 secrets/*.txt
+              
+              echo "=== Verifying secret files ==="
+              ls -la secrets/
               
               echo "WARNING: Using temporary secrets. Add real credentials to Jenkins!"
               
