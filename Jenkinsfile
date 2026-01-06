@@ -68,12 +68,76 @@ pipeline {
     stage('Push images to registry') {
       steps {
         withCredentials([usernamePassword(credentialsId: 'docker-registry-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-          sh 'echo "Logging into Docker registry ${REGISTRY}"'
-          sh 'echo $DOCKER_PASS | docker login ${REGISTRY} -u $DOCKER_USER --password-stdin'
-          sh 'docker push ${FULL_WEBAPI_IMAGE}'
-          sh 'docker push ${FULL_WEBAPP_IMAGE}'
-          sh 'docker push ${FULL_WEBADMINS_IMAGE}'
-          sh 'docker logout ${REGISTRY}'
+          sh '''
+            echo "========================================"
+            echo "   Network Diagnostics"
+            echo "========================================"
+            
+            # Test connectivity to Docker Hub
+            echo "Testing connectivity to registry.hub.docker.com..."
+            ping -c 3 registry.hub.docker.com || echo "Warning: Ping failed, but continuing..."
+            
+            echo ""
+            echo "Testing DNS resolution..."
+            nslookup registry-1.docker.io || echo "Warning: DNS lookup failed, but continuing..."
+            
+            echo ""
+            echo "========================================"
+            echo "   Docker Registry Login"
+            echo "========================================"
+            echo "Logging into Docker registry ${REGISTRY}"
+            echo $DOCKER_PASS | docker login ${REGISTRY} -u $DOCKER_USER --password-stdin
+            
+            echo ""
+            echo "========================================"
+            echo "   Pushing Images with Retry Logic"
+            echo "========================================"
+            
+            # Function to push with retry
+            push_with_retry() {
+              local image=$1
+              local max_attempts=5
+              local attempt=1
+              local wait_time=10
+              
+              echo ""
+              echo "=== Pushing $image ==="
+              
+              while [ $attempt -le $max_attempts ]; do
+                echo "Attempt $attempt of $max_attempts..."
+                
+                if docker push "$image"; then
+                  echo "✓ Successfully pushed $image"
+                  return 0
+                else
+                  echo "✗ Failed to push $image (attempt $attempt/$max_attempts)"
+                  
+                  if [ $attempt -lt $max_attempts ]; then
+                    echo "Waiting ${wait_time}s before retry..."
+                    sleep $wait_time
+                    # Exponential backoff
+                    wait_time=$((wait_time * 2))
+                    attempt=$((attempt + 1))
+                  else
+                    echo "ERROR: Failed to push $image after $max_attempts attempts"
+                    return 1
+                  fi
+                fi
+              done
+            }
+            
+            # Push all images with retry logic
+            push_with_retry "${FULL_WEBAPI_IMAGE}" || exit 1
+            push_with_retry "${FULL_WEBAPP_IMAGE}" || exit 1
+            push_with_retry "${FULL_WEBADMINS_IMAGE}" || exit 1
+            
+            echo ""
+            echo "========================================"
+            echo "   All Images Pushed Successfully"
+            echo "========================================"
+            
+            docker logout ${REGISTRY}
+          '''
         }
       }
     }
