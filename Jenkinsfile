@@ -97,58 +97,48 @@ pipeline {
           withCredentials([
             string(credentialsId: 'db-password', variable: 'DB_PASSWORD')
           ]) {
-            sh """
-              echo "========================================"
-              echo "   Deploying to Production"
-              echo "========================================"
+            bat """
+              @echo off
+              echo ========================================
+              echo    Deploying to WSL2 Production
+              echo ========================================
               
-              # Deploy via Docker socket to host
-              docker run --rm \
-                -v /var/run/docker.sock:/var/run/docker.sock \
-                -v ${PROD_DIR}:${PROD_DIR} \
-                -w ${PROD_DIR} \
-                -e "DB_PASSWORD=${DB_PASSWORD}" \
-                -e "WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE}" \
-                -e "WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE}" \
-                -e "WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE}" \
-                -e "COMPOSE_FILES=${COMPOSE_FILES}" \
-                docker/compose:debian-1.29.2 \
-                bash -c '
-                  set -e
-                  cd ${PROD_DIR}
-                  
-                  echo "=== Pulling latest code ==="
-                  git pull origin main || echo "Warning: git pull failed, continuing..."
-                  
-                  echo "=== Creating secrets ==="
-                  mkdir -p secrets
-                  echo "\${DB_PASSWORD}" > secrets/db_password.txt
-                  chmod 600 secrets/db_password.txt
-                  
-                  echo "=== Setting image variables ==="
-                  export WEBAPI_IMAGE="\${WEBAPI_IMAGE}"
-                  export WEBAPP_IMAGE="\${WEBAPP_IMAGE}"
-                  export WEBADMINS_IMAGE="\${WEBADMINS_IMAGE}"
-                  
-                  echo "Images to deploy:"
-                  echo "  WebAPI: \${WEBAPI_IMAGE}"
-                  echo "  WebApp: \${WEBAPP_IMAGE}"
-                  echo "  WebAdmins: \${WEBADMINS_IMAGE}"
-                  
-                  echo "=== Creating Docker network ==="
-                  docker network create app-network 2>/dev/null || echo "Network already exists"
-                  
-                  echo "=== Pulling images ==="
-                  docker-compose \${COMPOSE_FILES} pull sqlserver webapi webapp webadmins || echo "Pull completed with warnings"
-                  
-                  echo "=== Starting containers ==="
-                  docker-compose \${COMPOSE_FILES} up -d --remove-orphans sqlserver webapi webapp webadmins
-                  
-                  echo "=== Container status ==="
-                  docker-compose \${COMPOSE_FILES} ps
-                  
-                  echo "=== Deployment completed! ==="
-                '
+              wsl -d ${WSL_DISTRO} -- bash -c "
+                set -e
+                cd ${PROD_DIR}
+                
+                echo === Pulling latest code ===
+                git pull origin main || echo 'Warning: git pull failed, continuing...'
+                
+                echo === Creating secrets ===
+                mkdir -p secrets
+                echo '${DB_PASSWORD}' > secrets/db_password.txt
+                chmod 600 secrets/db_password.txt
+                
+                echo === Setting image variables ===
+                export WEBAPI_IMAGE='${FULL_WEBAPI_IMAGE}'
+                export WEBAPP_IMAGE='${FULL_WEBAPP_IMAGE}'
+                export WEBADMINS_IMAGE='${FULL_WEBADMINS_IMAGE}'
+                
+                echo Images to deploy:
+                echo   WebAPI: \$WEBAPI_IMAGE
+                echo   WebApp: \$WEBAPP_IMAGE
+                echo   WebAdmins: \$WEBADMINS_IMAGE
+                
+                echo === Creating Docker network ===
+                docker network create app-network 2>/dev/null || echo 'Network already exists'
+                
+                echo === Pulling images ===
+                docker-compose ${COMPOSE_FILES} pull sqlserver webapi webapp webadmins || echo 'Pull completed with warnings'
+                
+                echo === Starting containers ===
+                docker-compose ${COMPOSE_FILES} up -d --remove-orphans sqlserver webapi webapp webadmins
+                
+                echo === Container status ===
+                docker-compose ${COMPOSE_FILES} ps
+                
+                echo === Deployment completed! ===
+              "
             """
           }
         }
