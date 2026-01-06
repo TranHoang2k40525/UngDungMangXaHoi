@@ -102,7 +102,16 @@ pipeline {
               echo "   Deploying to WSL2 Production"
               echo "========================================"
               
-              # Create secrets directory and file in WSL2
+              echo ""
+              echo "=== Pulling latest code from GitHub ==="
+              docker run --rm \
+                -v ${PROD_DIR}:${PROD_DIR} \
+                -w ${PROD_DIR} \
+                alpine/git:latest \
+                pull origin main
+              
+              echo ""
+              echo "=== Creating secrets ==="
               docker run --rm \
                 -v ${PROD_DIR}:${PROD_DIR} \
                 -w ${PROD_DIR} \
