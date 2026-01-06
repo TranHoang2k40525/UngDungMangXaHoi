@@ -93,13 +93,9 @@ pipeline {
           echo "Deploying to WSL2:${PROD_DIR}"
           echo "Using Cloudflare Tunnel: ${USE_TUNNEL}"
           
-          // Use secrets from Jenkins Credentials
+          // Use DB password from Jenkins Credentials
           withCredentials([
-            string(credentialsId: 'db-password', variable: 'DB_PASSWORD'),
-            string(credentialsId: 'jwt-access-secret', variable: 'JWT_ACCESS_SECRET'),
-            string(credentialsId: 'jwt-refresh-secret', variable: 'JWT_REFRESH_SECRET'),
-            string(credentialsId: 'cloudinary-api-secret', variable: 'CLOUDINARY_API_SECRET'),
-            string(credentialsId: 'email-password', variable: 'EMAIL_PASSWORD')
+            string(credentialsId: 'db-password', variable: 'DB_PASSWORD')
           ]) {
             sh """
               echo "========================================"
@@ -109,11 +105,16 @@ pipeline {
               
               echo "=== Creating secrets ==="
               mkdir -p \${WORKSPACE}/secrets
+              
+              # Create DB password from Jenkins credential
               echo '${DB_PASSWORD}' > \${WORKSPACE}/secrets/db_password.txt
-              echo '${JWT_ACCESS_SECRET}' > \${WORKSPACE}/secrets/jwt_access_secret.txt
-              echo '${JWT_REFRESH_SECRET}' > \${WORKSPACE}/secrets/jwt_refresh_secret.txt
-              echo '${CLOUDINARY_API_SECRET}' > \${WORKSPACE}/secrets/cloudinary_api_secret.txt
-              echo '${EMAIL_PASSWORD}' > \${WORKSPACE}/secrets/email_password.txt
+              
+              # Create other required secret files with default values
+              echo 'jwt-access-secret-key-placeholder' > \${WORKSPACE}/secrets/jwt_access_secret.txt
+              echo 'jwt-refresh-secret-key-placeholder' > \${WORKSPACE}/secrets/jwt_refresh_secret.txt
+              echo 'cloudinary-api-secret-placeholder' > \${WORKSPACE}/secrets/cloudinary_api_secret.txt
+              echo 'email-password-placeholder' > \${WORKSPACE}/secrets/email_password.txt
+              
               chmod 600 \${WORKSPACE}/secrets/*
               
               echo ""
