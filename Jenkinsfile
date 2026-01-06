@@ -97,41 +97,44 @@ pipeline {
           withCredentials([
             string(credentialsId: 'db-password', variable: 'DB_PASSWORD')
           ]) {
-            bat """
-              echo ========================================
-              echo    Deploying to WSL2 Production
-              echo ========================================
-              echo.
+            sh """
+              echo "========================================"
+              echo "   Deploying to Docker Daemon (WSL2)"
+              echo "========================================"
+              echo ""
               
-              echo === Step 1: Sync files to WSL2 ===
-              wsl -d ${WSL_DISTRO} -- rm -rf ${PROD_DIR}
-              wsl -d ${WSL_DISTRO} -- mkdir -p ${PROD_DIR}
-              xcopy /E /I /Y "%WORKSPACE%\\banmoinhatnhat\\UngDungMangXaHoi" "\\\\wsl.localhost\\${WSL_DISTRO}\\home\\minhvu\\ungdungmxh"
+              echo "=== Creating secrets ==="
+              mkdir -p \${WORKSPACE}/banmoinhatnhat/UngDungMangXaHoi/secrets
+              echo '${DB_PASSWORD}' > \${WORKSPACE}/banmoinhatnhat/UngDungMangXaHoi/secrets/db_password.txt
+              chmod 600 \${WORKSPACE}/banmoinhatnhat/UngDungMangXaHoi/secrets/db_password.txt
               
-              echo.
-              echo === Step 2: Create secrets in WSL2 ===
-              wsl -d ${WSL_DISTRO} -- bash -c "cd ${PROD_DIR} && mkdir -p secrets && echo '${DB_PASSWORD}' > secrets/db_password.txt && chmod 600 secrets/db_password.txt"
+              echo ""
+              echo "=== Creating Docker network ==="
+              docker network create app-network 2>/dev/null || echo "Network already exists"
               
-              echo.
-              echo === Step 3: Create Docker network in WSL2 ===
-              wsl -d ${WSL_DISTRO} -- docker network create app-network 2>nul || echo Network already exists
+              echo ""
+              echo "=== Pulling images ==="
+              docker pull ${FULL_WEBAPI_IMAGE}
+              docker pull ${FULL_WEBAPP_IMAGE}
+              docker pull ${FULL_WEBADMINS_IMAGE}
               
-              echo.
-              echo === Step 4: Pull images in WSL2 ===
-              wsl -d ${WSL_DISTRO} -- docker pull ${FULL_WEBAPI_IMAGE}
-              wsl -d ${WSL_DISTRO} -- docker pull ${FULL_WEBAPP_IMAGE}
-              wsl -d ${WSL_DISTRO} -- docker pull ${FULL_WEBADMINS_IMAGE}
+              echo ""
+              echo "=== Deploying containers ==="
+              cd \${WORKSPACE}/banmoinhatnhat/UngDungMangXaHoi
+              WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE} \
+              WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE} \
+              WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE} \
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans sqlserver webapi webapp webadmins
               
-              echo.
-              echo === Step 5: Deploy containers in WSL2 ===
-              wsl -d ${WSL_DISTRO} -- bash -c "cd ${PROD_DIR} && WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE} WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE} WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE} docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans sqlserver webapi webapp webadmins"
+              echo ""
+              echo "=== Container Status ==="
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
               
-              echo.
-              echo === Step 6: Check container status ===
-              wsl -d ${WSL_DISTRO} -- bash -c "cd ${PROD_DIR} && docker compose -f docker-compose.yml -f docker-compose.prod.yml ps"
-              
-              echo.
-              echo === Deployment Completed! ===
+              echo ""
+              echo "=== Deployment Completed! ==="
+              echo "WebApp: http://localhost:3000"
+              echo "WebAdmins: http://localhost:3001"
+              echo "WebAPI: http://localhost:5000"
             """
           }
         }
