@@ -124,25 +124,25 @@ pipeline {
               echo "=== Deploying containers ==="
               docker run --rm \
                 -v /var/run/docker.sock:/var/run/docker.sock \
-                -v ${PROD_DIR}:${PROD_DIR} \
-                -w ${PROD_DIR} \
+                -v ${PROD_DIR}:/workspace \
+                -w /workspace \
                 -e WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE} \
                 -e WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE} \
                 -e WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE} \
                 docker/compose:alpine-1.29.2 \
-                -f ${PROD_DIR}/docker-compose.yml \
-                -f ${PROD_DIR}/docker-compose.prod.yml \
+                -f docker-compose.yml \
+                -f docker-compose.prod.yml \
                 up -d --remove-orphans sqlserver webapi webapp webadmins
               
               echo ""
               echo "=== Container Status ==="
               docker run --rm \
                 -v /var/run/docker.sock:/var/run/docker.sock \
-                -v ${PROD_DIR}:${PROD_DIR} \
-                -w ${PROD_DIR} \
+                -v ${PROD_DIR}:/workspace \
+                -w /workspace \
                 docker/compose:alpine-1.29.2 \
-                -f ${PROD_DIR}/docker-compose.yml \
-                -f ${PROD_DIR}/docker-compose.prod.yml \
+                -f docker-compose.yml \
+                -f docker-compose.prod.yml \
                 ps
               
               echo ""
