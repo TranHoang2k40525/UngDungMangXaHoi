@@ -54,7 +54,7 @@ export default function Editprofile() {
           setBio(me.bio || '');
           setWebsite(me.website || '');
           setHometown(me.hometown || '');
-          setJob(me.job || '');
+          setJob(me.job || ''); 
         }
       } catch (e) {
         console.warn('Load profile error', e);

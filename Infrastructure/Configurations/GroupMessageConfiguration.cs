@@ -50,19 +50,32 @@ public class GroupMessageConfiguration : IEntityTypeConfiguration<GroupMessage>
         builder.Property(m => m.reply_to_message_id)
             .HasColumnName("reply_to");
 
+        builder.Property(m => m.is_pinned)
+            .HasColumnName("is_pinned")
+            .HasDefaultValue(false);
+
+        builder.Property(m => m.pinned_at)
+            .HasColumnName("pinned_at");
+
+        builder.Property(m => m.pinned_by)
+            .HasColumnName("pinned_by");
+
+        builder.Property(m => m.updated_at)
+            .HasColumnName("updated_at");
+
         // Relationships
-        builder.HasOne<GroupConversation>()
+        builder.HasOne(m => m.Conversation)
             .WithMany()
             .HasForeignKey(m => m.conversation_id)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne<User>()
+        builder.HasOne(m => m.User)
             .WithMany()
             .HasForeignKey(m => m.user_id)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne<GroupMessage>()
-            .WithMany()
+        builder.HasOne(m => m.ReplyToMessage)
+            .WithMany(m => m.Replies)
             .HasForeignKey(m => m.reply_to_message_id)
             .OnDelete(DeleteBehavior.NoAction);
 

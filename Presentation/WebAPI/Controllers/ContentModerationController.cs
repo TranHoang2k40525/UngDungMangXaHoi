@@ -36,7 +36,8 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
                 // Filter by type
                 if (type.ToLower() == "post")
                 {
-                    query = query.Where(cm => cm.ContentType == "Post" && cm.PostId != null);
+                    // Include both posts with PostId (created) and without PostId (blocked before creation)
+                    query = query.Where(cm => cm.ContentType == "Post");
                     query = query.Include(cm => cm.Post);
                 }
                 else if (type.ToLower() == "comment")

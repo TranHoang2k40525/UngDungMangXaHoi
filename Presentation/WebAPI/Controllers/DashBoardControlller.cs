@@ -16,7 +16,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 {
     [Route("api/DashBoard")]
     [ApiController]
-    //[Authorize(Roles = "AdminOnly")]
+    [Authorize]
     public class DashBoardController : ControllerBase
     {
         
