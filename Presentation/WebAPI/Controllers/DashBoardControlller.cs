@@ -126,11 +126,11 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         }
         /// Lấy top từ khóa tìm kiếm nhiều nhất
         [HttpGet("keyword-top")]
-        public async Task<IActionResult> GetTopKeywords([FromQuery] int topN, [FromQuery] DateTime startDate, [FromQuery] DateTime endDate)
+        public async Task<IActionResult> GetTopKeywords([FromQuery] int topN = 10, [FromQuery] DateTime? startDate = null, [FromQuery] DateTime? endDate = null)
         {
             try
             {
-                _logger.LogInformation("Admin đang lấy top {TopN} keywords", topN);
+                _logger.LogInformation("Admin đang lấy top {TopN} keywords (tất cả thời gian nếu không chỉ định)", topN);
 
                 var result = await _dashBoardService.GetTopKeywordsAsync(topN, startDate, endDate);
                 return Ok(new
@@ -157,7 +157,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         public async Task<IActionResult> GetTopEngagedPosts([FromQuery] int topN = 10, [FromQuery] DateTime? startDate = null, [FromQuery] DateTime? endDate = null) {
             try
             {
-                _logger.LogInformation("Admin đang lấy top {TopN} engaged posts", topN);
+                _logger.LogInformation("Admin đang lấy top {TopN} engaged posts (tất cả thời gian nếu không chỉ định)", topN);
 
                 var posts = await _dashBoardService.GetTopEngagedPostsAsync(topN, startDate, endDate);
 

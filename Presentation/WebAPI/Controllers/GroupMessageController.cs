@@ -68,15 +68,22 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
         {
             try
             {
-                // Get userId from JWT token
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                // ✅ FIX: Get accountId from JWT, then convert to userId
+                var accountIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(accountIdClaim) || !int.TryParse(accountIdClaim, out int accountId))
                 {
                     return Unauthorized(new { message = "Invalid token" });
                 }
 
+                // Convert accountId to userId
+                var user = await _messageService.GetUserByAccountIdAsync(accountId);
+                if (user == null)
+                {
+                    return Unauthorized(new { message = "User not found" });
+                }
+
                 // Override userId từ token (bảo mật)
-                dto.UserId = userId;
+                dto.UserId = user.user_id;
 
                 var result = await _messageService.SendMessageAsync(dto);
                 
@@ -109,18 +116,25 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
         {
             try
             {
-                // Get userId from JWT
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                // ✅ FIX: Get accountId from JWT, then convert to userId
+                var accountIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(accountIdClaim) || !int.TryParse(accountIdClaim, out int accountId))
                 {
                     return Unauthorized(new { message = "Invalid token" });
+                }
+
+                // Convert accountId to userId
+                var user = await _messageService.GetUserByAccountIdAsync(accountId);
+                if (user == null)
+                {
+                    return Unauthorized(new { message = "User not found" });
                 }
 
                 // Validate
                 if (pageSize > 100) pageSize = 100; // Max 100 messages per page
                 if (page < 1) page = 1;
 
-                var result = await _messageService.GetMessagesAsync(conversationId, userId, page, pageSize);
+                var result = await _messageService.GetMessagesAsync(conversationId, user.user_id, page, pageSize);
                 
                 return Ok(new
                 {
@@ -147,15 +161,22 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
         {
             try
             {
-                // Get userId from JWT
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+                // ✅ FIX: Get accountId from JWT, then convert to userId
+                var accountIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(accountIdClaim) || !int.TryParse(accountIdClaim, out int accountId))
                 {
                     return Unauthorized(new { message = "Invalid token" });
                 }
 
+                // Convert accountId to userId
+                var user = await _messageService.GetUserByAccountIdAsync(accountId);
+                if (user == null)
+                {
+                    return Unauthorized(new { message = "User not found" });
+                }
+
                 // Mark as read and get conversationId for broadcasting
-                var convId = await _messageService.MarkAsReadAsync(messageId, userId);
+                var convId = await _messageService.MarkAsReadAsync(messageId, user.user_id);
                 if (convId == null)
                 {
                     return Ok(new { success = false, message = "Failed to mark as read" });
@@ -167,7 +188,7 @@ namespace UngDungMangXaHoi.Presentation.WebAPI.Controllers
                     await _hubContext.Clients.Group(convId.Value.ToString()).SendAsync("MessageRead", new
                     {
                         messageId,
-                        userId,
+                        userId = user.user_id,
                         readAt = DateTime.UtcNow
                     });
                 }

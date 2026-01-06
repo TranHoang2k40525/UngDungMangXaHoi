@@ -149,7 +149,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 return BadRequest(new { message = "Email này chưa được cấp quyền đăng ký Admin. Vui lòng liên hệ quản trị viên." });
             }
 
-            // ✅ Check if account has Admin role using RBAC
+            //Check if account has Admin role using RBAC
             var hasAdminRole = await _accountRoleRepository.HasRoleAsync(existingAccount.account_id, "Admin");
             if (!hasAdminRole)
             {
