@@ -4,10 +4,8 @@ pipeline {
   parameters {
     string(name: 'DOCKER_NAMESPACE', defaultValue: 'minhvu0809', description: 'Docker Hub username')
     string(name: 'PROD_HOST', defaultValue: 'host.docker.internal', description: 'Production server hostname (not used in current deployment)')
-    string(name: 'PROD_DIR', defaultValue: '/home/minhvu/ungdungmxh', description: 'Production deployment directory')
-    string(name: 'WSL_DISTRO', defaultValue: 'Ubuntu', description: 'WSL2 distribution name')
-    string(name: 'WSL_USER', defaultValue: 'minhvu', description: 'WSL2 username for SSH access')
-    string(name: 'WSL_HOST', defaultValue: 'localhost', description: 'WSL2 hostname for SSH access')
+    string(name: 'PROD_DIR', defaultValue: '/home/minhvu/ungdungmxh', description: 'Production deployment directory (for reference only)')
+    string(name: 'WSL_DISTRO', defaultValue: 'Ubuntu', description: 'WSL2 distribution name (not used in current deployment)')
     booleanParam(name: 'USE_CLOUDFLARE_TUNNEL', defaultValue: true, description: 'Deploy with Cloudflare Tunnel')
   }
 
@@ -70,63 +68,12 @@ pipeline {
     stage('Push images to registry') {
       steps {
         withCredentials([usernamePassword(credentialsId: 'docker-registry-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-          sh '''
-            echo "========================================"
-            echo "   Pushing Images with Retry Logic"
-            echo "========================================"
-            
-            echo "Logging into Docker registry ${REGISTRY}"
-            echo $DOCKER_PASS | docker login ${REGISTRY} -u $DOCKER_USER --password-stdin
-            
-            # Function to push with retry and exponential backoff
-            push_with_retry() {
-              local image=$1
-              local max_attempts=3
-              local attempt=1
-              local wait_time=5
-              
-              echo ""
-              echo "=== Pushing $image ==="
-              
-              while [ $attempt -le $max_attempts ]; do
-                echo "Attempt $attempt of $max_attempts..."
-                
-                if timeout 300 docker push "$image"; then
-                  echo "✓ Successfully pushed $image"
-                  return 0
-                else
-                  echo "✗ Failed to push $image (attempt $attempt/$max_attempts)"
-                  
-                  if [ $attempt -lt $max_attempts ]; then
-                    echo "Waiting ${wait_time}s before retry..."
-                    sleep $wait_time
-                    # Exponential backoff
-                    wait_time=$((wait_time * 2))
-                    attempt=$((attempt + 1))
-                    
-                    # Re-login to Docker registry
-                    echo "Re-authenticating with Docker registry..."
-                    echo $DOCKER_PASS | docker login ${REGISTRY} -u $DOCKER_USER --password-stdin
-                  else
-                    echo "ERROR: Failed to push $image after $max_attempts attempts"
-                    return 1
-                  fi
-                fi
-              done
-            }
-            
-            # Push all images with retry logic
-            push_with_retry "${FULL_WEBAPI_IMAGE}" || exit 1
-            push_with_retry "${FULL_WEBAPP_IMAGE}" || exit 1
-            push_with_retry "${FULL_WEBADMINS_IMAGE}" || exit 1
-            
-            docker logout ${REGISTRY}
-            
-            echo ""
-            echo "========================================"
-            echo "   All Images Pushed Successfully"
-            echo "========================================"
-          '''
+          sh 'echo "Logging into Docker registry ${REGISTRY}"'
+          sh 'echo $DOCKER_PASS | docker login ${REGISTRY} -u $DOCKER_USER --password-stdin'
+          sh 'docker push ${FULL_WEBAPI_IMAGE}'
+          sh 'docker push ${FULL_WEBAPP_IMAGE}'
+          sh 'docker push ${FULL_WEBADMINS_IMAGE}'
+          sh 'docker logout ${REGISTRY}'
         }
       }
     }
@@ -134,6 +81,7 @@ pipeline {
     stage('Deploy to production') {
       steps {
         script {
+          def PROD_DIR = params.PROD_DIR
           def USE_TUNNEL = params.USE_CLOUDFLARE_TUNNEL
           
           // Compose files to use
@@ -142,124 +90,111 @@ pipeline {
             COMPOSE_FILES = "${COMPOSE_FILES} -f docker-compose.tunnel.yml"
           }
           
-          echo "Deploying in WSL2"
+          echo "Deploying to WSL2:${PROD_DIR}"
           echo "Using Cloudflare Tunnel: ${USE_TUNNEL}"
           
-          // Use SSH key for git and DB password from Jenkins Credentials
+          // Use SSH key and DB password from Jenkins Credentials
           withCredentials([
             sshUserPrivateKey(credentialsId: 'prod-ssh-key', keyFileVariable: 'SSH_KEY'),
             string(credentialsId: 'db-password', variable: 'DB_PASSWORD')
           ]) {
             sh """
-              echo "========================================"
-              echo "   Deploying Docker Containers in WSL2"
-              echo "========================================"
-              
-              # Setup SSH key for git operations
+              # Setup SSH key for container
               mkdir -p ~/.ssh
               chmod 700 ~/.ssh
               cp "\${SSH_KEY}" ~/.ssh/id_rsa
               chmod 600 ~/.ssh/id_rsa
               
-              # Add GitHub to known hosts
-              ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
+              # Create deployment script that will run inside container
+              cat > /tmp/deploy-wsl2.sh << 'DEPLOY_SCRIPT_EOF'
+#!/bin/bash
+set -e
+
+echo "=== Starting deployment to WSL2 ==="
+
+# Setup SSH for git
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+cp /tmp/ssh_key ~/.ssh/id_rsa
+chmod 600 ~/.ssh/id_rsa
+ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true
+
+# Configure git to use SSH
+git config --global core.sshCommand "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no"
+
+cd /workspace
+
+# Update repository
+echo "Pulling latest code from GitHub..."
+git reset --hard
+git pull origin main
+
+# Create secrets directory with db_password
+echo "Creating database password secret..."
+mkdir -p secrets
+echo "\${DB_PASSWORD}" > secrets/db_password.txt
+chmod 600 secrets/db_password.txt
+
+# Verify secret file
+if [ -f secrets/db_password.txt ]; then
+  SIZE=\$(stat -c%s secrets/db_password.txt 2>/dev/null || stat -f%z secrets/db_password.txt 2>/dev/null || echo "unknown")
+  echo "✓ db_password.txt created (size: \${SIZE} bytes)"
+else
+  echo "✗ ERROR: Failed to create db_password.txt"
+  exit 1
+fi
+
+# Set image environment variables
+export WEBAPI_IMAGE="\${WEBAPI_IMG}"
+export WEBAPP_IMAGE="\${WEBAPP_IMG}"
+export WEBADMINS_IMAGE="\${WEBADMINS_IMG}"
+
+echo "Images to deploy:"
+echo "  WebAPI: \${WEBAPI_IMAGE}"
+echo "  WebApp: \${WEBAPP_IMAGE}"
+echo "  WebAdmins: \${WEBADMINS_IMAGE}"
+
+# Create Docker network if not exists
+echo "Ensuring Docker network exists..."
+docker network create app-network 2>/dev/null || echo "Network app-network already exists"
+
+# Deploy all services
+echo "Pulling latest images..."
+docker-compose \${COMPOSE_FILES} pull sqlserver webapi webapp webadmins cloudflared
+
+echo "Starting containers..."
+docker-compose \${COMPOSE_FILES} up -d --remove-orphans sqlserver webapi webapp webadmins cloudflared
+
+echo "Container status:"
+docker-compose \${COMPOSE_FILES} ps
+
+echo "=== Deployment completed successfully! ==="
+DEPLOY_SCRIPT_EOF
+
+              chmod +x /tmp/deploy-wsl2.sh
               
-              # Configure git to use SSH
-              git config --global core.sshCommand "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no"
+              # Copy SSH key for container to use
+              cp ~/.ssh/id_rsa /tmp/ssh_key
+              chmod 644 /tmp/ssh_key
               
-              cd \${WORKSPACE}
+              # Run deployment via Docker container with WSL2 path mounted
+              # This works because Docker Desktop can access WSL2 via //wsl.localhost
+              docker run --rm \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                -v //wsl.localhost/${WSL_DISTRO}${PROD_DIR}:/workspace \
+                -v /tmp/deploy-wsl2.sh:/deploy.sh \
+                -v /tmp/ssh_key:/tmp/ssh_key \
+                -e "DB_PASSWORD=\${DB_PASSWORD}" \
+                -e "WEBAPI_IMG=${FULL_WEBAPI_IMAGE}" \
+                -e "WEBAPP_IMG=${FULL_WEBAPP_IMAGE}" \
+                -e "WEBADMINS_IMG=${FULL_WEBADMINS_IMAGE}" \
+                -e "COMPOSE_FILES=${COMPOSE_FILES}" \
+                -w /workspace \
+                docker/compose:debian-1.29.2 \
+                sh /deploy.sh
               
-              echo ""
-              echo "=== Current directory ==="
-              pwd
-              
-              echo ""
-              echo "=== Pulling latest code from GitHub ==="
-              git fetch origin main
-              git reset --hard origin/main
-              
-              echo ""
-              echo "=== Creating secrets ==="
-              mkdir -p secrets
-              
-              # Create DB password from Jenkins credential
-              echo '\${DB_PASSWORD}' > secrets/db_password.txt
-              
-              # Create other required secret files with placeholder values
-              echo 'jwt-access-secret-key-placeholder-change-in-production' > secrets/jwt_access_secret.txt
-              echo 'jwt-refresh-secret-key-placeholder-change-in-production' > secrets/jwt_refresh_secret.txt
-              echo 'cloudinary-api-secret-placeholder-change-in-production' > secrets/cloudinary_api_secret.txt
-              echo 'email-password-placeholder-change-in-production' > secrets/email_password.txt
-              
-              # Set permissions
-              chmod 600 secrets/*.txt
-              
-              echo "✓ Secrets created:"
-              ls -lh secrets/
-              
-              echo ""
-              echo "=== Setting environment variables ==="
-              export WEBAPI_IMAGE=${FULL_WEBAPI_IMAGE}
-              export WEBAPP_IMAGE=${FULL_WEBAPP_IMAGE}
-              export WEBADMINS_IMAGE=${FULL_WEBADMINS_IMAGE}
-              
-              echo "Images to deploy:"
-              echo "  WebAPI: \${WEBAPI_IMAGE}"
-              echo "  WebApp: \${WEBAPP_IMAGE}"
-              echo "  WebAdmins: \${WEBADMINS_IMAGE}"
-              
-              echo ""
-              echo "=== Creating Docker network ==="
-              docker network create app-network 2>/dev/null || echo "Network app-network already exists"
-              
-              echo ""
-              echo "=== Pulling latest images ==="
-              docker pull \${WEBAPI_IMAGE}
-              docker pull \${WEBAPP_IMAGE}
-              docker pull \${WEBADMINS_IMAGE}
-              
-              echo ""
-              echo "=== Stopping old containers ==="
-              docker-compose ${COMPOSE_FILES} down || true
-              
-              echo ""
-              echo "=== Starting new containers ==="
-              WEBAPI_IMAGE=\${WEBAPI_IMAGE} \
-              WEBAPP_IMAGE=\${WEBAPP_IMAGE} \
-              WEBADMINS_IMAGE=\${WEBADMINS_IMAGE} \
-              docker-compose ${COMPOSE_FILES} up -d --remove-orphans
-              
-              echo ""
-              echo "=== Waiting for containers to stabilize (15s) ==="
-              sleep 15
-              
-              echo ""
-              echo "=== Container status ==="
-              docker-compose ${COMPOSE_FILES} ps
-              
-              echo ""
-              echo "=== Running containers ==="
-              docker ps --filter name=ungdungmxh
-              
-              echo ""
-              echo "=== Checking container logs (last 20 lines) ==="
-              echo "--- WebAPI logs ---"
-              docker logs ungdungmxh-webapi --tail 20 2>&1 || echo "WebAPI container not found"
-              
-              echo ""
-              echo "--- WebApp logs ---"
-              docker logs ungdungmxh-webapp --tail 20 2>&1 || echo "WebApp container not found"
-              
-              echo ""
-              echo "--- SQL Server logs ---"
-              docker logs ungdungmxh-sqlserver --tail 20 2>&1 || echo "SQL Server container not found"
-              
-              # Cleanup SSH key
-              rm -f ~/.ssh/id_rsa
-              
-              echo ""
-              echo "=== Deployment completed successfully! ==="
-              echo "========================================"
+              # Cleanup sensitive files
+              rm -f /tmp/deploy-wsl2.sh /tmp/ssh_key ~/.ssh/id_rsa
             """
           }
         }
