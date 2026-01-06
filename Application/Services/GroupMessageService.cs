@@ -36,6 +36,14 @@ namespace UngDungMangXaHoi.Application.Services
         }
 
         /// <summary>
+        /// Get user by account ID (helper for controller)
+        /// </summary>
+        public async Task<Domain.Entities.User?> GetUserByAccountIdAsync(int accountId)
+        {
+            return await _userRepo.GetByAccountIdAsync(accountId);
+        }
+
+        /// <summary>
         /// Gửi message trong GROUP CHAT
         /// Hỗ trợ: text, số, mixed content
         /// </summary>

@@ -117,7 +117,7 @@ namespace UngDungMangXaHoi.Infrastructure.Services
                 EnableSsl = true
             };
 
-            var subject = "⚠️ THÔNG BÁO XÓA TÀI KHOẢN";
+            var subject = "THÔNG BÁO XÓA TÀI KHOẢN";
             var body = GenerateAccountDeletionEmailBody(fullName, reason, violationCount);
 
             var mailMessage = new MailMessage
@@ -281,7 +281,7 @@ namespace UngDungMangXaHoi.Infrastructure.Services
             
             <div class='warning-box'>
                 <p><strong>📞 Liên hệ hỗ trợ:</strong></p>
-                <p>Nếu bạn cho rằng đây là một nhầm lẫn hoặc muốn khiếu nại, vui lòng liên hệ bộ phận hỗ trợ qua email support@ungdungmangxahoi.com</p>
+                <p>Nếu bạn cho rằng đây là một nhầm lẫn hoặc muốn khiếu nại, vui lòng liên hệ bộ phận hỗ trợ qua email hoangzai2k403@gmail.com</p>
             </div>
             
             <div class='footer'>

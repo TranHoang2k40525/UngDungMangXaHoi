@@ -5,7 +5,6 @@ import * as MediaLibrary from "expo-media-library";
 import { Platform } from "react-native";
 
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
-// Nếu test trên máy tính: dùng localhost
 // Nếu test trên điện thoại thật: dùng IP của máy tính (xem bằng ipconfig)
 export const API_BASE_URL = "http://192.168.1.101:5297"; // Backend đang chạy trên IP máy tính
 

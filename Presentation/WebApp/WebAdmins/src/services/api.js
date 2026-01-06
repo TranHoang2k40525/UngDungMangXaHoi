@@ -273,20 +273,16 @@ export const dashboardAPI = {
         );
     },
 
-    // ✅ API thật từ backend
-    async getTopKeywords(fromDate, toDate, topN = 10) {
-        const from = fromDate.toISOString().split("T")[0];
-        const to = toDate.toISOString().split("T")[0];
+    // ✅ API thật từ backend - Lấy dữ liệu mới nhất (không filter theo ngày)
+    async getTopKeywords(topN = 10) {
         return apiClient.get(
-            `/api/DashBoard/keyword-top?topN=${topN}&startDate=${from}&endDate=${to}`
+            `/api/DashBoard/keyword-top?topN=${topN}`
         );
     },
-    // ✅ API thật từ backend
-    async getTopPosts(fromDate, toDate, topN = 10) {
-        const from = fromDate.toISOString().split("T")[0];
-        const to = toDate.toISOString().split("T")[0];
+    // ✅ API thật từ backend - Lấy dữ liệu mới nhất (không filter theo ngày)
+    async getTopPosts(topN = 10) {
         return apiClient.get(
-            `/api/DashBoard/posts-top?topN=${topN}&startDate=${from}&endDate=${to}`
+            `/api/DashBoard/posts-top?topN=${topN}`
         );
     },
 

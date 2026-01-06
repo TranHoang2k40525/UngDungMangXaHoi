@@ -117,29 +117,21 @@ export default function Dashboard() {
     if (!loading) loadPostChartData();
   }, [postChartFilter]);
 
-  // Re-fetch top keywords when the keyword date filter changes
-  useEffect(() => {
-    if (!loading) loadTopKeywords?.();
-  }, [userChartFilter.fromDate, userChartFilter.toDate]);
-
-  // Re-fetch top posts when post date filter changes
-  useEffect(() => {
-    if (!loading) loadTopPosts?.();
-  }, [postChartFilter.fromDate, postChartFilter.toDate]);
+  // Top keywords và posts luôn lấy dữ liệu mới nhất (không phụ thuộc vào date filter)
 
   const loadInitialData = async () => {
     try {
       setLoading(true);
       
-      // Load stats cards và tables
+      // Load stats cards và tables (luôn lấy dữ liệu mới nhất - không filter theo ngày)
       const [
         activeUsersRes,
         keywordsRes,
         postsRes,
       ] = await Promise.all([
         dashboardAPI.getActiveUsers(),
-        dashboardAPI.getTopKeywords(new Date(userChartFilter.fromDate), new Date(userChartFilter.toDate)),
-        dashboardAPI.getTopPosts(new Date(userChartFilter.fromDate), new Date(userChartFilter.toDate)),
+        dashboardAPI.getTopKeywords(), // Không truyền date parameters
+        dashboardAPI.getTopPosts(), // Không truyền date parameters
       ]);
 
       const activeUsersData = activeUsersRes.data || activeUsersRes;
@@ -663,12 +655,10 @@ export default function Dashboard() {
   };
 
   // --- Helpers: load Top Keywords & Top Posts (used by initial load and refresh buttons)
-  async function loadTopKeywords(fromDateStr = userChartFilter.fromDate, toDateStr = userChartFilter.toDate, topN = 10) {
+  async function loadTopKeywords(topN = 10) {
     try {
       setTableLoading(prev => ({ ...prev, keywords: true }));
-      const fromDate = new Date(fromDateStr);
-      const toDate = new Date(toDateStr);
-      const res = await dashboardAPI.getTopKeywords(fromDate, toDate, topN);
+      const res = await dashboardAPI.getTopKeywords(topN);
       const payload = res?.data || res || {};
       const rawKeywords = Array.isArray(payload) ? payload : (payload?.data || payload?.keywords || payload?.Keywords || []);
       const normalizedKeywords = (Array.isArray(rawKeywords) ? rawKeywords : []).map(k => ({
@@ -686,12 +676,10 @@ export default function Dashboard() {
     }
   }
 
-  async function loadTopPosts(fromDateStr = postChartFilter.fromDate, toDateStr = postChartFilter.toDate, topN = 10) {
+  async function loadTopPosts(topN = 10) {
     try {
       setTableLoading(prev => ({ ...prev, posts: true }));
-      const fromDate = new Date(fromDateStr);
-      const toDate = new Date(toDateStr);
-      const res = await dashboardAPI.getTopPosts(fromDate, toDate, topN);
+      const res = await dashboardAPI.getTopPosts(topN);
       const payload = res?.data || res || {};
       // Fix: unwrap data.data because response is { success, data: { Posts: [...] } }
       const innerData = payload?.data || payload;

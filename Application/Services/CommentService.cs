@@ -175,11 +175,35 @@ public class CommentService
         if (user == null || comment.UserId != user.user_id)
             throw new UnauthorizedAccessException("You can only edit your own comments");
 
-        // KIỂM TRA TOXIC KHI SỬA COMMENT
+        // KIỂM TRA TOXIC KHI SỬA COMMENT VÀ LƯU KẾT QUẢ NGAY CẢ KHI CHẶN
         var moderationResult = await _moderationService.AnalyzeTextAsync(newContent);
         
+        // ✅ LƯU KẾT QUẢ MODERATION TRƯỚC KHI CHẶN
         if (moderationResult.RiskLevel == "high_risk")
         {
+            // Lưu vi phạm vào database
+            try
+            {
+                var violationLog = new ContentModeration
+                {
+                    ContentType = "Comment_Update_Blocked",
+                    ContentID = commentId,
+                    AccountId = currentAccountId,
+                    PostId = null,
+                    CommentId = commentId,
+                    AIConfidence = moderationResult.Confidence,
+                    ToxicLabel = moderationResult.Label,
+                    Status = "blocked",
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _moderationRepository.CreateAsync(violationLog);
+                Console.WriteLine($"[Moderation] Saved blocked comment update for comment {commentId}: {moderationResult.Label}");
+            }
+            catch (Exception saveEx)
+            {
+                Console.WriteLine($"[Moderation Error] Failed to save violation: {saveEx.Message}");
+            }
+
             throw new Exception($"Comment bị chặn do vi phạm: {moderationResult.Label}");
         }
 
@@ -192,8 +216,8 @@ public class CommentService
         
         var updatedComment = await _commentRepository.UpdateAsync(comment);
 
-        // LƯU KẾT QUẢ MODERATION
-        await SaveModerationResultAsync(moderationResult, "Comment", commentId, currentAccountId, null, commentId);
+        // ✅ LƯU KẾT QUẢ MODERATION CHO COMMENT HỢP LỆ
+        await SaveModerationResultAsync(moderationResult, "Comment_Update", commentId, currentAccountId, null, commentId);
 
         return MapToDto(updatedComment);
     }
