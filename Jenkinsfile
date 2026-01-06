@@ -93,29 +93,31 @@ pipeline {
           echo "Deploying to WSL2:${PROD_DIR}"
           echo "Using Cloudflare Tunnel: ${USE_TUNNEL}"
           
-          // Use secrets from Jenkins Credentials
+          // Production deployment needs db_password, jwt_access_secret, and cloudflare_tunnel_token
           withCredentials([
             string(credentialsId: 'db-password', variable: 'DB_PASSWORD'),
-            string(credentialsId: 'jwt-access-secret', variable: 'JWT_ACCESS_SECRET'),
-            string(credentialsId: 'jwt-refresh-secret', variable: 'JWT_REFRESH_SECRET'),
-            string(credentialsId: 'cloudinary-api-secret', variable: 'CLOUDINARY_API_SECRET'),
-            string(credentialsId: 'email-password', variable: 'EMAIL_PASSWORD')
+            string(credentialsId: 'cloudflare-tunnel-token', variable: 'CLOUDFLARE_TOKEN')
           ]) {
             sh """
               echo "========================================"
               echo "   Deploying to Production"
               echo "========================================"
               
-              echo "=== Creating secrets directory ==="
-              mkdir -p secrets
+              echo "=== Creating secrets using Docker volume ==="
+              # Use Docker to create files in a way that Docker daemon can access
+              # This solves the issue where Docker daemon can't access Jenkins workspace
               
-              echo "=== Writing all secret files ==="
-              echo "\${DB_PASSWORD}" > secrets/db_password.txt
-              echo "\${JWT_ACCESS_SECRET}" > secrets/jwt_access_secret.txt
-              echo "\${JWT_REFRESH_SECRET}" > secrets/jwt_refresh_secret.txt
-              echo "\${CLOUDINARY_API_SECRET}" > secrets/cloudinary_api_secret.txt
-              echo "\${EMAIL_PASSWORD}" > secrets/email_password.txt
-              chmod 600 secrets/*.txt
+              # Create a temporary container with workspace volume
+              docker run --rm -v "\$(pwd):/workspace" -w /workspace alpine sh -c '
+                mkdir -p secrets
+                printf "%s" "'\${DB_PASSWORD}'" > secrets/db_password.txt
+                printf "%s" "'\${CLOUDFLARE_TOKEN}'" > secrets/cloudflare_tunnel_token.txt
+                printf "%s" "TEMP-JWT-ACCESS-SECRET-CHANGE-ME" > secrets/jwt_access_secret.txt
+                chmod 644 secrets/*.txt
+                ls -la secrets/
+              '
+              
+              echo "WARNING: Using temporary JWT secret. Add jwt-access-secret credential to Jenkins!"
               
               echo "=== Setting image variables ==="
               export WEBAPI_IMAGE="${FULL_WEBAPI_IMAGE}"
@@ -130,11 +132,48 @@ pipeline {
               echo "=== Creating Docker network ==="
               docker network create app-network 2>/dev/null || echo "  Network already exists"
               
+              echo "=== Stopping old containers ==="
+              docker-compose ${COMPOSE_FILES} down --remove-orphans || true
+              
               echo "=== Starting containers ==="
-              docker-compose ${COMPOSE_FILES} up -d --remove-orphans sqlserver webapi webapp webadmins
+              docker-compose ${COMPOSE_FILES} up -d sqlserver webapi webapp webadmins
+              
+              echo "=== Waiting for SQL Server to be ready (up to 5 minutes) ==="
+              RETRY_COUNT=0
+              MAX_RETRIES=60
+              
+              until docker exec ungdungmxh-sqlserver-prod sh -c 'PASSWORD=\$(cat /run/secrets/db_password) && /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "\$PASSWORD" -C -Q "SELECT 1"' > /dev/null 2>&1 || [ \$RETRY_COUNT -eq \$MAX_RETRIES ]; do
+                RETRY_COUNT=\$((RETRY_COUNT+1))
+                echo "  Waiting for SQL Server... attempt \$RETRY_COUNT/\$MAX_RETRIES"
+                
+                if [ \$((RETRY_COUNT % 10)) -eq 0 ]; then
+                  echo "  Checking SQL Server logs:"
+                  docker logs ungdungmxh-sqlserver-prod --tail=20
+                fi
+                
+                sleep 5
+              done
+              
+              if [ \$RETRY_COUNT -eq \$MAX_RETRIES ]; then
+                echo "ERROR: SQL Server failed to start after \$MAX_RETRIES attempts"
+                echo "=== SQL Server logs ==="
+                docker logs ungdungmxh-sqlserver-prod
+                echo "=== Container inspect ==="
+                docker inspect ungdungmxh-sqlserver-prod
+                exit 1
+              fi
+              
+              echo "✓ SQL Server is ready!"
               
               echo "=== Container status ==="
               docker-compose ${COMPOSE_FILES} ps
+              
+              echo "=== Checking application logs ==="
+              echo "--- WebAPI logs ---"
+              docker logs ungdungmxh-webapi-prod --tail=30 || true
+              
+              echo "=== Verifying services ==="
+              docker ps --filter name=ungdungmxh --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
               
               echo "=== Deployment completed! ==="
             """

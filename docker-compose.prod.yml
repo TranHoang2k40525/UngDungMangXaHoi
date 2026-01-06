@@ -96,6 +96,10 @@ services:
     # Production restart policy
     restart: always
 
+    # No depends_on healthcheck - using manual retry logic in Jenkins
+    depends_on:
+      - sqlserver
+
     # Health check - use TCP check since /health endpoint may not exist
     healthcheck:
       test: ["CMD", "sh", "-c", "nc -z localhost 5297 || exit 1"]
@@ -162,6 +166,8 @@ secrets:
     file: ./secrets/db_password.txt
   jwt_access_secret:
     file: ./secrets/jwt_access_secret.txt
+  cloudflare_tunnel_token:
+    file: ./secrets/cloudflare_tunnel_token.txt
 
 # Production network
 networks:
