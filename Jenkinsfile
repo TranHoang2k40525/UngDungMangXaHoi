@@ -93,7 +93,8 @@ pipeline {
           echo "Deploying to WSL2:${PROD_DIR}"
           echo "Using Cloudflare Tunnel: ${USE_TUNNEL}"
           
-          // Production deployment needs db_password, jwt_access_secret, and cloudflare_tunnel_token
+          // Production deployment needs db_password and cloudflare_tunnel_token
+          // JWT secret is read from repo's secrets/jwt_access_secret.txt (already in workspace)
           withCredentials([
             string(credentialsId: 'db-password', variable: 'DB_PASSWORD'),
             string(credentialsId: 'cloudflare-tunnel-token', variable: 'CLOUDFLARE_TOKEN')
@@ -110,14 +111,23 @@ pipeline {
               # Create a temporary container with workspace volume
               docker run --rm -v "\$(pwd):/workspace" -w /workspace alpine sh -c '
                 mkdir -p secrets
+                
+                # Copy JWT secret from repo if exists, otherwise create default
+                if [ -f secrets/jwt_access_secret.txt ]; then
+                  echo "✓ Using JWT secret from repository"
+                  chmod 644 secrets/jwt_access_secret.txt
+                else
+                  echo "⚠ No JWT secret found in repo, using default"
+                  printf "%s" "DEFAULT-JWT-SECRET-PLEASE-CHANGE" > secrets/jwt_access_secret.txt
+                  chmod 644 secrets/jwt_access_secret.txt
+                fi
+                
+                # Create other secrets from Jenkins credentials
                 printf "%s" "'\${DB_PASSWORD}'" > secrets/db_password.txt
                 printf "%s" "'\${CLOUDFLARE_TOKEN}'" > secrets/cloudflare_tunnel_token.txt
-                printf "%s" "TEMP-JWT-ACCESS-SECRET-CHANGE-ME" > secrets/jwt_access_secret.txt
                 chmod 644 secrets/*.txt
                 ls -la secrets/
               '
-              
-              echo "WARNING: Using temporary JWT secret. Add jwt-access-secret credential to Jenkins!"
               
               echo "=== Setting image variables ==="
               export WEBAPI_IMAGE="${FULL_WEBAPI_IMAGE}"
