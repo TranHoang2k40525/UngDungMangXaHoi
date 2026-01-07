@@ -20,6 +20,11 @@ const getApiBaseUrl = () => {
         return import.meta.env.VITE_API_URL;
     }
 
+    // Production: Quick Tunnel URL detection (trycloudflare.com)
+    if (window.location.origin.includes('trycloudflare.com')) {
+        return window.location.origin;
+    }
+
     // Development: Tự động dùng hostname hiện tại
     const hostname = window.location.hostname;
     return `http://${hostname}:5297`;
@@ -35,6 +40,20 @@ const normalizeBase = (b) => {
 };
 
 const NORMALIZED_API_BASE = normalizeBase(API_BASE_URL);
+
+// Export API_BASE_URL for use in components (e.g., for Assets URLs)
+export { API_BASE_URL };
+
+// Helper function to get full asset URL
+export const getAssetUrl = (path) => {
+    if (!path) return '';
+    if (typeof path !== 'string') return '';
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    
+    // Remove leading slash if present
+    const cleanPath = path.replace(/^\/+/, '');
+    return `${API_BASE_URL}/${cleanPath}`;
+};
 
 // Tạo axios instance
 const apiClient = axios.create({
@@ -83,7 +102,7 @@ apiClient.interceptors.response.use(
                     originalRequest.headers.Authorization = `Bearer ${AccessToken}`;
                     return apiClient(originalRequest);
                 }
-            } catch (refreshError) {
+} catch (refreshError) {
                 // Refresh thất bại -> logout
                 localStorage.removeItem("accessToken");
                 localStorage.removeItem("refreshToken");
@@ -162,7 +181,7 @@ export const authAPI = {
             } catch (e) {
                 // If token parsing fails, clear tokens to force re-login
                 localStorage.removeItem("accessToken");
-                localStorage.removeItem("refreshToken");
+localStorage.removeItem("refreshToken");
                 throw new Error("Token không hợp lệ");
             }
         }
@@ -224,21 +243,26 @@ export const adminAPI = {
     async updateProfile(data) {
         return apiClient.put("/api/admin/update-profile", data);
     },
-
     async changePassword(data) {
         return apiClient.post("/api/admin/change-password", data);
+    },
+
+    async verifyChangePasswordOtp(data) {
+        return apiClient.post("/api/admin/verify-change-password-otp", data);
     },
 };
 
 // ============= DASHBOARD API =============
 export const dashboardAPI = {
     // ✅ API thật từ backend
-    async getNewUserStats(fromDate, toDate, sortOption = "Day") {
-        const from = fromDate.toISOString().split("T")[0];
-        const to = toDate.toISOString().split("T")[0];
-        return apiClient.get(
-            `/api/DashBoard/new-user-stats?fromDate=${from}&toDate=${to}&options=${sortOption}`
-        );
+    async getNewUserStats(fromDate = null, toDate = null, sortOption = "Day") {
+        let url = `/api/DashBoard/new-user-stats?options=${sortOption}`;
+        if (fromDate && toDate) {
+            const from = fromDate.toISOString().split("T")[0];
+            const to = toDate.toISOString().split("T")[0];
+            url += `&fromDate=${from}&toDate=${to}`;
+        }
+        return apiClient.get(url);
     },
 
     // ✅ API thật từ backend
@@ -247,43 +271,58 @@ export const dashboardAPI = {
     },
 
     // ✅ API thật từ backend
-    async getBusinessGrowth(fromDate, toDate, sortOption = "Day") {
-        const from = fromDate.toISOString().split("T")[0];
-        const to = toDate.toISOString().split("T")[0];
-        return apiClient.get(
-            `/api/DashBoard/business-growth-chart?startDate=${from}&endDate=${to}&group=${sortOption}`
-        );
+    async getBusinessGrowth(fromDate = null, toDate = null, sortOption = "Day") {
+        let url = `/api/DashBoard/business-growth-chart?group=${sortOption}`;
+        if (fromDate && toDate) {
+            const from = fromDate.toISOString().split("T")[0];
+            const to = toDate.toISOString().split("T")[0];
+            url += `&startDate=${from}&endDate=${to}`;
+        }
+        return apiClient.get(url);
     },
 
     // ✅ API thật từ backend
-    async getRevenue(fromDate, toDate, sortOption = "Day") {
-        const from = fromDate.toISOString().split("T")[0];
-        const to = toDate.toISOString().split("T")[0];
-        return apiClient.get(
-            `/api/DashBoard/revenue-chart?startDate=${from}&endDate=${to}&group=${sortOption}`
-        );
+    async getRevenue(fromDate = null, toDate = null, sortOption = "Day") {
+        let url = `/api/DashBoard/revenue-chart?group=${sortOption}`;
+        if (fromDate && toDate) {
+            const from = fromDate.toISOString().split("T")[0];
+            const to = toDate.toISOString().split("T")[0];
+            url += `&startDate=${from}&endDate=${to}`;
+        }
+        return apiClient.get(url);
     },
 
     // ✅ API thật từ backend
-    async getPostGrowth(fromDate, toDate, sortOption = "Day") {
-        const from = fromDate.toISOString().split("T")[0];
-        const to = toDate.toISOString().split("T")[0];
-        return apiClient.get(
-            `/api/DashBoard/post-growth-chart?startDate=${from}&endDate=${to}&group=${sortOption}`
-        );
+    async getPostGrowth(fromDate = null, toDate = null, sortOption = "Day") {
+        let url = `/api/DashBoard/post-growth-chart?group=${sortOption}`;
+        if (fromDate && toDate) {
+            const from = fromDate.toISOString().split("T")[0];
+            const to = toDate.toISOString().split("T")[0];
+            url += `&startDate=${from}&endDate=${to}`;
+        }
+        return apiClient.get(url);
     },
 
-    // ✅ API thật từ backend - Lấy dữ liệu mới nhất (không filter theo ngày)
-    async getTopKeywords(topN = 10) {
-        return apiClient.get(
-            `/api/DashBoard/keyword-top?topN=${topN}`
-        );
+    // ✅ API thật từ backend
+    async getTopKeywords(fromDate = null, toDate = null, topN = 10) {
+        // Nếu không truyền date, backend sẽ lấy tất cả dữ liệu
+        let url = `/api/DashBoard/keyword-top?topN=${topN}`;
+        if (fromDate && toDate) {
+            const from = fromDate.toISOString().split("T")[0];
+            const to = toDate.toISOString().split("T")[0];
+            url += `&startDate=${from}&endDate=${to}`;
+        }
+        return apiClient.get(url);
     },
-    // ✅ API thật từ backend - Lấy dữ liệu mới nhất (không filter theo ngày)
-    async getTopPosts(topN = 10) {
-        return apiClient.get(
-            `/api/DashBoard/posts-top?topN=${topN}`
-        );
+    // ✅ API thật từ backend
+    async getTopPosts(fromDate = null, toDate = null, topN = 10) {
+        let url = `/api/DashBoard/posts-top?topN=${topN}`;
+        if (fromDate && toDate) {
+            const from = fromDate.toISOString().split("T")[0];
+            const to = toDate.toISOString().split("T")[0];
+            url += `&startDate=${from}&endDate=${to}`;
+        }
+        return apiClient.get(url);
     },
 
     // Lấy chi tiết bài đăng (dùng khi Admin click xem chi tiết trong dashboard)
@@ -292,12 +331,14 @@ export const dashboardAPI = {
     },
 
     // ✅ API thật từ backend - Dashboard summary endpoint
-    async getDashboardSummary(fromDate, toDate, chartGroupBy = "Day") {
-        const from = fromDate.toISOString().split("T")[0];
-        const to = toDate.toISOString().split("T")[0];
-        return apiClient.get(
-            `/api/DashBoard/summary?startDate=${from}&endDate=${to}&chartGroupBy=${chartGroupBy}`
-        );
+    async getDashboardSummary(fromDate = null, toDate = null, chartGroupBy = "Day") {
+        let url = `/api/DashBoard/summary?chartGroupBy=${chartGroupBy}`;
+        if (fromDate && toDate) {
+            const from = fromDate.toISOString().split("T")[0];
+            const to = toDate.toISOString().split("T")[0];
+            url += `&startDate=${from}&endDate=${to}`;
+        }
+        return apiClient.get(url);
     },
 };
 
@@ -339,7 +380,6 @@ export const userAPI = {
         return apiClient.post(`/api/users/${userId}/unban`);
     },
 };
-
 // ============= CONTENT MODERATION API =============
 export const moderationAPI = {
     /**
@@ -446,7 +486,6 @@ export const aiModerationAPI = {
         );
     },
 };
-
 // ============= REACTIONS API =============
 export const reactionsAPI = {
     async getSummary(postId) {
@@ -558,7 +597,6 @@ export const businessAPI = {
         return apiClient.get("/api/BusinessVerification/stats");
     },
 };
-
 // ============= ADMIN ACTIVITY LOGS API =============
 export const activityLogsAPI = {
     /**
