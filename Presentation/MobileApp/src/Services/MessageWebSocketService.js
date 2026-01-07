@@ -20,7 +20,7 @@ class MessageWebSocketService {
                 return false;
             }
 
-            const baseURL = "http://10.254.222.105:5297"; // Backend IP từ Api.js
+            const baseURL = "http://10.10.2.51:5297"; // Backend IP từ Api.js
             // const baseURL = 'http://10.0.2.2:5297'; // Android emulator
             // const baseURL = 'http://localhost:5297'; // iOS simulator
 
@@ -91,6 +91,18 @@ class MessageWebSocketService {
 
     // Setup event handlers
     setupEventHandlers() {
+        // ✅ Remove existing handlers before adding new ones to prevent duplicates
+        this.connection.off("ReceiveMessage");
+        this.connection.off("MessageSent");
+        this.connection.off("MessagesRead");
+        this.connection.off("UserTyping");
+        this.connection.off("UserOnline");
+        this.connection.off("UserOffline");
+        this.connection.off("OnlineUsers");
+        this.connection.off("MessageDeleted");
+        this.connection.off("MessageRecalled");
+        this.connection.off("Error");
+        
         // Nhận tin nhắn mới
         this.connection.on("ReceiveMessage", (message) => {
             console.log("[MessageWebSocket] Received message:", message);
