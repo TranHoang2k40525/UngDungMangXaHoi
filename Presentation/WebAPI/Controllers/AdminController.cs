@@ -1,12 +1,16 @@
 using System;
+using System.IO;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using UngDungMangXaHoi.Domain.Interfaces;
 using UngDungMangXaHoi.Domain.ValueObjects;
 using UngDungMangXaHoi.Application.DTOs;
 using UngDungMangXaHoi.Presentation.WebAPI.Attributes;
+using UngDungMangXaHoi.Infrastructure.ExternalServices;
 
 namespace UngDungMangXaHoi.WebAPI.Controllers
 {
@@ -23,6 +27,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
         private readonly IRefreshTokenRepository _refreshTokenRepository;
         private readonly Application.Services.AuthService _authService;
         private readonly Application.Services.AdminService _adminService;
+        private readonly CloudinaryService _cloudinaryService;
 
         public AdminController(
             IAccountRepository accountRepository,
@@ -32,7 +37,8 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             IEmailService emailService,
             IRefreshTokenRepository refreshTokenRepository,
             Application.Services.AuthService authService,
-            Application.Services.AdminService adminService)
+            Application.Services.AdminService adminService,
+            CloudinaryService cloudinaryService)
         {
             _accountRepository = accountRepository;
             _adminRepository = adminRepository;
@@ -42,6 +48,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             _refreshTokenRepository = refreshTokenRepository;
             _authService = authService;
             _adminService = adminService;
+            _cloudinaryService = cloudinaryService;
         }
 
       
@@ -57,18 +64,79 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
             return Ok(profile);
         }
 
-        // Admin profile DTOs moved to Application.DTOs.AdminDto -> AdminUpdateProfileRequest
+        /// <summary>
+        /// Upload avatar cho admin
+        /// </summary>
+        [HttpPost("upload-avatar")]
+        public async Task<IActionResult> UploadAvatar([FromForm] IFormFile avatar)
+        {
+            try
+            {
+                var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+if (!int.TryParse(accountIdStr, out var accountId)) return Unauthorized("Invalid token");
 
-    
+                if (avatar == null || avatar.Length == 0)
+                    return BadRequest("Vui lòng chọn ảnh để upload");
+
+                // Kiểm tra định dạng file
+                var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+                var extension = Path.GetExtension(avatar.FileName).ToLowerInvariant();
+                if (!allowedExtensions.Contains(extension))
+                    return BadRequest("Chỉ chấp nhận file ảnh (jpg, jpeg, png, gif, webp)");
+
+                // Kiểm tra kích thước file (max 5MB)
+                if (avatar.Length > 5 * 1024 * 1024)
+                    return BadRequest("Kích thước ảnh không được vượt quá 5MB");
+
+                // Upload lên Cloudinary
+                string avatarUrl;
+                using (var stream = avatar.OpenReadStream())
+                {
+                    avatarUrl = await _cloudinaryService.UploadImageAsync(stream, $"admin_avatar_{accountId}");
+                }
+
+                // Cập nhật avatar URL vào database
+                var account = await _accountRepository.GetByIdAsync(accountId);
+                if (account == null || account.Admin == null)
+                    return NotFound("Admin not found");
+
+                account.Admin.avatar_url = avatarUrl;
+                account.updated_at = DateTimeOffset.UtcNow;
+                await _adminRepository.UpdateAsync(account.Admin);
+
+                return Ok(new { success = true, avatarUrl, message = "Upload ảnh thành công" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = $"Lỗi upload ảnh: {ex.Message}" });
+            }
+        }
+
+        // Admin profile DTOs moved to Application.DTOs.AdminDto -> AdminUpdateProfileRequest
         [HttpPut("update-profile")]
         public async Task<IActionResult> UpdateProfile([FromBody] AdminUpdateProfileRequest request)
         {
-            var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (!int.TryParse(accountIdStr, out var accountId)) return Unauthorized("Invalid token");
+            try
+            {
+                var accountIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!int.TryParse(accountIdStr, out var accountId)) 
+                    return Unauthorized("Invalid token");
 
-            var ok = await _adminService.UpdateProfileAsync(accountId, request);
-            if (!ok) return NotFound("Admin not found");
-            return Ok(new { success = true, message = "Cập nhật thông tin thành công" });
+                Console.WriteLine($"[UpdateProfile] AccountId: {accountId}");
+                Console.WriteLine($"[UpdateProfile] Request: {System.Text.Json.JsonSerializer.Serialize(request)}");
+
+                var ok = await _adminService.UpdateProfileAsync(accountId, request);
+                if (!ok) return NotFound("Admin not found");
+
+                Console.WriteLine($"[UpdateProfile] Success for AccountId: {accountId}");
+                return Ok(new { success = true, message = "Cập nhật thông tin thành công" });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[UpdateProfile] Error: {ex.Message}");
+Console.WriteLine($"[UpdateProfile] StackTrace: {ex.StackTrace}");
+                return StatusCode(500, new { success = false, message = $"Lỗi cập nhật: {ex.Message}" });
+            }
         }
 
         // Change password DTOs moved to Application.DTOs.AdminDto -> AdminChangePasswordRequest

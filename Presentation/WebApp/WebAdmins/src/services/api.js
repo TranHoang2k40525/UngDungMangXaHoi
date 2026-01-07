@@ -83,7 +83,7 @@ apiClient.interceptors.response.use(
                     originalRequest.headers.Authorization = `Bearer ${AccessToken}`;
                     return apiClient(originalRequest);
                 }
-            } catch (refreshError) {
+} catch (refreshError) {
                 // Refresh thất bại -> logout
                 localStorage.removeItem("accessToken");
                 localStorage.removeItem("refreshToken");
@@ -162,7 +162,7 @@ export const authAPI = {
             } catch (e) {
                 // If token parsing fails, clear tokens to force re-login
                 localStorage.removeItem("accessToken");
-                localStorage.removeItem("refreshToken");
+localStorage.removeItem("refreshToken");
                 throw new Error("Token không hợp lệ");
             }
         }
@@ -224,9 +224,12 @@ export const adminAPI = {
     async updateProfile(data) {
         return apiClient.put("/api/admin/update-profile", data);
     },
-
     async changePassword(data) {
         return apiClient.post("/api/admin/change-password", data);
+    },
+
+    async verifyChangePasswordOtp(data) {
+        return apiClient.post("/api/admin/verify-change-password-otp", data);
     },
 };
 
@@ -256,7 +259,7 @@ export const dashboardAPI = {
     },
 
     // ✅ API thật từ backend
-    async getRevenue(fromDate, toDate, sortOption = "Day") {
+async getRevenue(fromDate, toDate, sortOption = "Day") {
         const from = fromDate.toISOString().split("T")[0];
         const to = toDate.toISOString().split("T")[0];
         return apiClient.get(
@@ -273,16 +276,20 @@ export const dashboardAPI = {
         );
     },
 
-    // ✅ API thật từ backend - Lấy dữ liệu mới nhất (không filter theo ngày)
-    async getTopKeywords(topN = 10) {
+    // ✅ API thật từ backend
+    async getTopKeywords(fromDate, toDate, topN = 10) {
+        const from = fromDate.toISOString().split("T")[0];
+        const to = toDate.toISOString().split("T")[0];
         return apiClient.get(
-            `/api/DashBoard/keyword-top?topN=${topN}`
+            `/api/DashBoard/keyword-top?topN=${topN}&startDate=${from}&endDate=${to}`
         );
     },
-    // ✅ API thật từ backend - Lấy dữ liệu mới nhất (không filter theo ngày)
-    async getTopPosts(topN = 10) {
+    // ✅ API thật từ backend
+    async getTopPosts(fromDate, toDate, topN = 10) {
+        const from = fromDate.toISOString().split("T")[0];
+        const to = toDate.toISOString().split("T")[0];
         return apiClient.get(
-            `/api/DashBoard/posts-top?topN=${topN}`
+            `/api/DashBoard/posts-top?topN=${topN}&startDate=${from}&endDate=${to}`
         );
     },
 
@@ -339,7 +346,6 @@ export const userAPI = {
         return apiClient.post(`/api/users/${userId}/unban`);
     },
 };
-
 // ============= CONTENT MODERATION API =============
 export const moderationAPI = {
     /**
@@ -446,7 +452,6 @@ export const aiModerationAPI = {
         );
     },
 };
-
 // ============= REACTIONS API =============
 export const reactionsAPI = {
     async getSummary(postId) {
@@ -558,7 +563,6 @@ export const businessAPI = {
         return apiClient.get("/api/BusinessVerification/stats");
     },
 };
-
 // ============= ADMIN ACTIVITY LOGS API =============
 export const activityLogsAPI = {
     /**

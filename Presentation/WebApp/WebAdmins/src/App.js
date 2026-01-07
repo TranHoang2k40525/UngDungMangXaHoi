@@ -11,7 +11,6 @@ import Users from "./pages/users/Users.js";
 import Moderation from "./pages/moderation/Moderation.js";
 import AIModeration from "./pages/moderation/AIModeration.js";
 import Reports from "./pages/reports/Reports.js";
-import Analytics from "./pages/analytics/Analytics.js";
 import Settings from "./pages/settings/Settings.js";
 import BusinessRequests from "./pages/business/BusinessRequests.js";
 import AdminActionsLog from "./pages/logs/AdminActionsLog.js";
@@ -56,17 +55,16 @@ function App() {
                             <Route
                                 path="/business-requests"
                                 element={<BusinessRequests />}
-                            />
+                            />{" "}
                             <Route
                                 path="/admin-logs"
                                 element={<AdminActionsLog />}
                             />
-                            <Route path="/analytics" element={<Analytics />} />
                             <Route path="/settings" element={<Settings />} />
                         </Route>
 
                         {/* Redirect */}
-                        <Route
+<Route
                             path="/"
                             element={<Navigate to="/dashboard" replace />}
                         />

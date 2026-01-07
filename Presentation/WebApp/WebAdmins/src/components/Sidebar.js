@@ -32,7 +32,6 @@ export default function Sidebar() {
             <div className="sidebar-brand">
                 <h2>SNAP67CS Admin</h2>
             </div>
-
             <nav className="sidebar-nav">
                 <NavLink
                     to="/dashboard"
@@ -88,7 +87,7 @@ export default function Sidebar() {
                         <FiAlertTriangle aria-hidden="true" />
                     </span>{" "}
                     Báo cáo vi phạm
-                </NavLink>
+</NavLink>
                 <NavLink
                     to="/business-requests"
                     className={({ isActive }) =>
@@ -99,7 +98,7 @@ export default function Sidebar() {
                         <FiBriefcase aria-hidden="true" />
                     </span>{" "}
                     Xác thực Doanh nghiệp
-                </NavLink>
+                </NavLink>{" "}
                 <NavLink
                     to="/admin-logs"
                     className={({ isActive }) =>
@@ -112,17 +111,6 @@ export default function Sidebar() {
                     Nhật ký Admin
                 </NavLink>
                 <NavLink
-                    to="/analytics"
-                    className={({ isActive }) =>
-                        isActive ? "nav-item active" : "nav-item"
-                    }
-                >
-                    <span className="nav-icon">
-                        <FiTrendingUp aria-hidden="true" />
-                    </span>{" "}
-                    Thống kê & Phân tích
-                </NavLink>
-                <NavLink
                     to="/settings"
                     className={({ isActive }) =>
                         isActive ? "nav-item active" : "nav-item"
@@ -133,8 +121,7 @@ export default function Sidebar() {
                     </span>{" "}
                     Cài đặt
                 </NavLink>
-            </nav>
-
+            </nav>{" "}
             <div className="sidebar-footer">
                 <div className="sidebar-user">
                     <img
@@ -150,9 +137,6 @@ export default function Sidebar() {
                     <div className="sidebar-user-info">
                         <div className="sidebar-user-name">
                             {adminData.fullName || "Admin"}
-                        </div>
-                        <div className="sidebar-user-email">
-                            {adminData.email || "admin@example.com"}
                         </div>
                     </div>
                 </div>
