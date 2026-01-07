@@ -146,6 +146,13 @@ if (File.Exists(jwtAccessSecretPath))
 jwtAccessSecret ??= Environment.GetEnvironmentVariable("JWT_ACCESS_SECRET")
     ?? builder.Configuration["JwtSettings:AccessSecret"];
 
+// CRITICAL FIX: Set environment variable so RbacJwtTokenService uses the same secret
+if (!string.IsNullOrEmpty(jwtAccessSecret))
+{
+    Environment.SetEnvironmentVariable("JWT_ACCESS_SECRET", jwtAccessSecret);
+    Console.WriteLine("[JWT] Set JWT_ACCESS_SECRET environment variable for token generation");
+}
+
 var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER")
     ?? builder.Configuration["JwtSettings:Issuer"];
 
