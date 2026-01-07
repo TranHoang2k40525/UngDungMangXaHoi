@@ -98,6 +98,19 @@ pipeline {
             string(credentialsId: 'db-password', variable: 'DB_PASSWORD'),
             string(credentialsId: 'cloudflare-tunnel-token', variable: 'CLOUDFLARE_TOKEN')
           ]) {
+            // Try to get JWT secret from Jenkins credentials, fallback to auto-generated secure random
+            def jwtSecret = ''
+            try {
+              withCredentials([string(credentialsId: 'jwt-access-secret', variable: 'JWT_SECRET')]) {
+                jwtSecret = env.JWT_SECRET
+                echo "✓ Using JWT secret from Jenkins credentials"
+              }
+            } catch (Exception e) {
+              echo "⚠ JWT credential not found, generating secure random secret..."
+              jwtSecret = sh(script: 'openssl rand -base64 64 | tr -d "\\n"', returnStdout: true).trim()
+              echo "✓ Generated secure random JWT secret (64 bytes base64)"
+            }
+            
             sh """
               echo "========================================"
               echo "   Deploying to Production"
@@ -112,12 +125,10 @@ pipeline {
                 mkdir -p secrets
                 printf "%s" "'\${DB_PASSWORD}'" > secrets/db_password.txt
                 printf "%s" "'\${CLOUDFLARE_TOKEN}'" > secrets/cloudflare_tunnel_token.txt
-                printf "%s" "TEMP-JWT-ACCESS-SECRET-CHANGE-ME" > secrets/jwt_access_secret.txt
+                printf "%s" "${jwtSecret}" > secrets/jwt_access_secret.txt
                 chmod 644 secrets/*.txt
                 ls -la secrets/
               '
-              
-              echo "WARNING: Using temporary JWT secret. Add jwt-access-secret credential to Jenkins!"
               
               echo "=== Setting image variables ==="
               export WEBAPI_IMAGE="${FULL_WEBAPI_IMAGE}"
