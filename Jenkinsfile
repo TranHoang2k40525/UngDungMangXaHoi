@@ -93,24 +93,12 @@ pipeline {
           echo "Deploying to WSL2:${PROD_DIR}"
           echo "Using Cloudflare Tunnel: ${USE_TUNNEL}"
           
-          // Production deployment needs db_password, jwt_access_secret, and cloudflare_tunnel_token
+          // Production deployment needs db_password and cloudflare_tunnel_token
+          // JWT secret is read from repo's secrets/jwt_access_secret.txt (already in workspace)
           withCredentials([
             string(credentialsId: 'db-password', variable: 'DB_PASSWORD'),
             string(credentialsId: 'cloudflare-tunnel-token', variable: 'CLOUDFLARE_TOKEN')
           ]) {
-            // Try to get JWT secret from Jenkins credentials, fallback to auto-generated secure random
-            def jwtSecret = ''
-            try {
-              withCredentials([string(credentialsId: 'jwt-access-secret', variable: 'JWT_SECRET')]) {
-                jwtSecret = env.JWT_SECRET
-                echo "✓ Using JWT secret from Jenkins credentials"
-              }
-            } catch (Exception e) {
-              echo "⚠ JWT credential not found, generating secure random secret..."
-              jwtSecret = sh(script: 'openssl rand -base64 64 | tr -d "\\n"', returnStdout: true).trim()
-              echo "✓ Generated secure random JWT secret (64 bytes base64)"
-            }
-            
             sh """
               echo "========================================"
               echo "   Deploying to Production"
@@ -123,9 +111,20 @@ pipeline {
               # Create a temporary container with workspace volume
               docker run --rm -v "\$(pwd):/workspace" -w /workspace alpine sh -c '
                 mkdir -p secrets
+                
+                # Copy JWT secret from repo if exists, otherwise create default
+                if [ -f secrets/jwt_access_secret.txt ]; then
+                  echo "✓ Using JWT secret from repository"
+                  chmod 644 secrets/jwt_access_secret.txt
+                else
+                  echo "⚠ No JWT secret found in repo, using default"
+                  printf "%s" "DEFAULT-JWT-SECRET-PLEASE-CHANGE" > secrets/jwt_access_secret.txt
+                  chmod 644 secrets/jwt_access_secret.txt
+                fi
+                
+                # Create other secrets from Jenkins credentials
                 printf "%s" "'\${DB_PASSWORD}'" > secrets/db_password.txt
                 printf "%s" "'\${CLOUDFLARE_TOKEN}'" > secrets/cloudflare_tunnel_token.txt
-                printf "%s" "${jwtSecret}" > secrets/jwt_access_secret.txt
                 chmod 644 secrets/*.txt
                 ls -la secrets/
               '
