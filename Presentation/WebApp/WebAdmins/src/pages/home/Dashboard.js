@@ -11,7 +11,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Line, Bar } from 'react-chartjs-2';
-import { dashboardAPI } from '../../services/api.js';
+import { dashboardAPI, getAssetUrl } from '../../services/api.js';
 import PostModal from '../../components/PostModal.js';
 import { 
   FiBarChart2, FiUsers, FiCheckCircle, FiBriefcase, FiDollarSign, FiFileText,
@@ -35,9 +35,9 @@ function ensureAbsolute(u) {
   if (!u) return '';
   if (typeof u !== 'string') return '';
   if (u.startsWith('http://') || u.startsWith('https://')) return u;
-  if (u.startsWith('/')) return window.location.origin + u;
-  if (/^assets\//i.test(u)) return window.location.origin + '/' + u.replace(/^\/+/, '');
-  return window.location.origin + '/Assets/Images/' + u;
+  if (u.startsWith('/')) return getAssetUrl(u);
+  if (/^assets\//i.test(u)) return getAssetUrl(u.replace(/^\/+/, ''));
+  return getAssetUrl('Assets/Images/' + u);
 }
 
 export default function Dashboard() {
@@ -194,11 +194,11 @@ export default function Dashboard() {
           // already absolute
           if (u.startsWith('http://') || u.startsWith('https://')) return u;
           // absolute path on same host
-          if (u.startsWith('/')) return window.location.origin + u;
+          if (u.startsWith('/')) return getAssetUrl(u);
           // fallback: if starts with 'Assets' or 'assets' assume relative
-          if (/^assets\//i.test(u)) return window.location.origin + '/' + u.replace(/^\/+/, '');
+          if (/^assets\//i.test(u)) return getAssetUrl(u.replace(/^\/+/, ''));
           // fallback: treat as filename inside Assets/Images
-          return window.location.origin + '/Assets/Images/' + u;
+          return getAssetUrl('Assets/Images/' + u);
         };
 
         const mediaSource = media || p.MediaItems || p.mediaItems || p.MediaUrls || p.mediaUrls || p.Videos || p.Images || [];
@@ -839,9 +839,9 @@ export default function Dashboard() {
     if (!u) return '';
     if (typeof u !== 'string') return '';
     if (u.startsWith('http://') || u.startsWith('https://')) return u;
-    if (u.startsWith('/')) return window.location.origin + u;
-    if (/^assets\//i.test(u)) return window.location.origin + '/' + u.replace(/^\/+/, '');
-    return window.location.origin + '/Assets/Images/' + u;
+    if (u.startsWith('/')) return getAssetUrl(u);
+    if (/^assets\//i.test(u)) return getAssetUrl(u.replace(/^\/+/, ''));
+    return getAssetUrl('Assets/Images/' + u);
   };
 
   function normalizeTopPost(p) {

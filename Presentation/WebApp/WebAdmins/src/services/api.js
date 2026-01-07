@@ -41,6 +41,20 @@ const normalizeBase = (b) => {
 
 const NORMALIZED_API_BASE = normalizeBase(API_BASE_URL);
 
+// Export API_BASE_URL for use in components (e.g., for Assets URLs)
+export { API_BASE_URL };
+
+// Helper function to get full asset URL
+export const getAssetUrl = (path) => {
+    if (!path) return '';
+    if (typeof path !== 'string') return '';
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    
+    // Remove leading slash if present
+    const cleanPath = path.replace(/^\/+/, '');
+    return `${API_BASE_URL}/${cleanPath}`;
+};
+
 // Tạo axios instance
 const apiClient = axios.create({
     baseURL: NORMALIZED_API_BASE || undefined,
