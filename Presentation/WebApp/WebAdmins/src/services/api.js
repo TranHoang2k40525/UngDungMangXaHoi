@@ -20,6 +20,11 @@ const getApiBaseUrl = () => {
         return import.meta.env.VITE_API_URL;
     }
 
+    // Production: Quick Tunnel URL detection (trycloudflare.com)
+    if (window.location.origin.includes('trycloudflare.com')) {
+        return window.location.origin;
+    }
+
     // Development: Tự động dùng hostname hiện tại
     const hostname = window.location.hostname;
     return `http://${hostname}:5297`;
