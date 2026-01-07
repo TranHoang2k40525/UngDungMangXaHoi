@@ -273,21 +273,26 @@ async getRevenue(fromDate, toDate, sortOption = "Day") {
     },
 
     // ✅ API thật từ backend
-    async getPostGrowth(fromDate, toDate, sortOption = "Day") {
-        const from = fromDate.toISOString().split("T")[0];
-        const to = toDate.toISOString().split("T")[0];
-        return apiClient.get(
-            `/api/DashBoard/post-growth-chart?startDate=${from}&endDate=${to}&group=${sortOption}`
-        );
+    async getPostGrowth(fromDate = null, toDate = null, sortOption = "Day") {
+        let url = `/api/DashBoard/post-growth-chart?group=${sortOption}`;
+        if (fromDate && toDate) {
+            const from = fromDate.toISOString().split("T")[0];
+            const to = toDate.toISOString().split("T")[0];
+            url += `&startDate=${from}&endDate=${to}`;
+        }
+        return apiClient.get(url);
     },
 
     // ✅ API thật từ backend
-    async getTopKeywords(fromDate, toDate, topN = 10) {
-        const from = fromDate.toISOString().split("T")[0];
-        const to = toDate.toISOString().split("T")[0];
-        return apiClient.get(
-            `/api/DashBoard/keyword-top?topN=${topN}&startDate=${from}&endDate=${to}`
-        );
+    async getTopKeywords(fromDate = null, toDate = null, topN = 10) {
+        // Nếu không truyền date, backend sẽ lấy tất cả dữ liệu
+        let url = `/api/DashBoard/keyword-top?topN=${topN}`;
+        if (fromDate && toDate) {
+            const from = fromDate.toISOString().split("T")[0];
+            const to = toDate.toISOString().split("T")[0];
+            url += `&startDate=${from}&endDate=${to}`;
+        }
+        return apiClient.get(url);
     },
     // ✅ API thật từ backend
     async getTopPosts(fromDate, toDate, topN = 10) {
