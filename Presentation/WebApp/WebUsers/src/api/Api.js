@@ -1,5 +1,25 @@
-// Base URL - Thay đổi theo IP của máy backend
-export const API_BASE_URL = "http://localhost:5297"; // Backend đang chạy trên localhost
+// Base URL - configurable via env. In production (not localhost) default to same-origin
+// - Set `REACT_APP_API_BASE_URL` (CRA) or `VITE_API_BASE_URL` (Vite) to override.
+// - When empty string, API calls use same-origin relative paths (recommended for HTTPS sites).
+export const API_BASE_URL = (() => {
+  const envBase = (process.env.REACT_APP_API_BASE_URL || process.env.VITE_API_BASE_URL || null);
+  if (envBase) return envBase.replace(/\/$/, '');
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    // Local development on developer machine -> keep existing localhost backend
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://localhost:5297';
+    }
+
+    // In other environments (deployed/tunnel), use same-origin (relative) paths to avoid mixed-content
+    // Returning empty string makes calls like `${API_BASE_URL}${endpoint}` -> `/api/...`
+    return '';
+  }
+
+  // default fallback for non-browser environments
+  return 'http://localhost:5297';
+})();
 
 // Helper để gọi API
 const apiCall = async (endpoint, options = {}) => {
