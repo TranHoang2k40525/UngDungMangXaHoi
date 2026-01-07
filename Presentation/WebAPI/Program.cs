@@ -74,7 +74,7 @@ builder.Services.AddSwaggerGen(options =>
         {
             new OpenApiSecurityScheme
             {
-Reference = new OpenApiReference
+                Reference = new OpenApiReference
                 {
                     Type = ReferenceType.SecurityScheme,
                     Id = "Bearer"
@@ -146,11 +146,19 @@ if (File.Exists(jwtAccessSecretPath))
 jwtAccessSecret ??= Environment.GetEnvironmentVariable("JWT_ACCESS_SECRET")
     ?? builder.Configuration["JwtSettings:AccessSecret"];
 
+// CRITICAL FIX: Set environment variable so RbacJwtTokenService uses the same secret
+if (!string.IsNullOrEmpty(jwtAccessSecret))
+{
+    Environment.SetEnvironmentVariable("JWT_ACCESS_SECRET", jwtAccessSecret);
+    Console.WriteLine("[JWT] Set JWT_ACCESS_SECRET environment variable for token generation");
+}
+
 var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER")
     ?? builder.Configuration["JwtSettings:Issuer"];
 
 var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE")
     ?? builder.Configuration["JwtSettings:Audience"];
+
 if (string.IsNullOrEmpty(jwtAccessSecret))
 {
     throw new InvalidOperationException("JWT AccessSecret not found! Check appsettings.json, JWT_ACCESS_SECRET env var, or Docker secret.");
@@ -315,6 +323,7 @@ builder.Services.AddScoped<CloudinaryService>(provider =>
 // ✅ PhoBERT Moderation Service
 var mlApiUrl = builder.Configuration["MLService:ApiUrl"] ?? "http://127.0.0.1:8000";
 Console.WriteLine($"[ML SERVICE] Using API: {mlApiUrl}");
+
 builder.Services.AddHttpClient<IContentModerationService, PhoBertModerationService>()
     .ConfigureHttpClient(client => client.Timeout = TimeSpan.FromSeconds(30))
     .AddTypedClient<IContentModerationService>(client => new PhoBertModerationService(client, mlApiUrl));
@@ -358,9 +367,6 @@ var app = builder.Build();
 // ======================================
 // 🔹 Auto-migrate database on startup (Development only)
 // ======================================
-// ⚠️ DISABLED: Tắt auto-migration để tránh lỗi "object already exists"
-// Database đã có sẵn, không cần migrate tự động
-/*
 if (app.Environment.IsDevelopment())
 {
     using (var scope = app.Services.CreateScope())
@@ -378,7 +384,6 @@ if (app.Environment.IsDevelopment())
         }
     }
 }
-*/
 
 // ======================================
 // 🔹 Middleware Pipeline

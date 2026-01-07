@@ -60,53 +60,54 @@ namespace UngDungMangXaHoi.Application.Services
             };
 
             return profile;
-        }        public async Task<bool> UpdateProfileAsync(int accountId, AdminUpdateProfileRequest request)
+        }
+
+        public async Task<bool> UpdateProfileAsync(int accountId, AdminUpdateProfileRequest request)
         {
             var account = await _accountRepository.GetByIdAsync(accountId);
             if (account == null || account.Admin == null) return false;
 
             var admin = account.Admin;
 
-            // Cập nhật các trường bắt buộc
             if (!string.IsNullOrWhiteSpace(request.FullName))
                 admin.full_name = request.FullName;
-// Cập nhật các trường có thể null
-            admin.bio = request.Bio;
-            admin.address = request.Address;
-            admin.hometown = request.Hometown;
-            admin.job = request.Job;
-            admin.website = request.Website;
 
-            // Cập nhật avatar URL nếu có
+            if (!string.IsNullOrWhiteSpace(request.Bio))
+                admin.bio = request.Bio;
+
+            if (!string.IsNullOrWhiteSpace(request.Address))
+                admin.address = request.Address;
+
+            if (!string.IsNullOrWhiteSpace(request.Hometown))
+                admin.hometown = request.Hometown;
+
+            if (!string.IsNullOrWhiteSpace(request.Job))
+                admin.job = request.Job;
+
+            if (!string.IsNullOrWhiteSpace(request.Website))
+                admin.website = request.Website;
+
             if (!string.IsNullOrWhiteSpace(request.AvatarUrl))
                 admin.avatar_url = request.AvatarUrl;
 
-            // Cập nhật giới tính
             if (!string.IsNullOrWhiteSpace(request.Gender) && Enum.TryParse<Domain.Entities.Gender>(request.Gender, out var gender))
             {
                 admin.gender = gender;
             }
 
-            // Cập nhật ngày sinh
             if (!string.IsNullOrWhiteSpace(request.DateOfBirth) && DateTime.TryParse(request.DateOfBirth, out var dob))
             {
                 admin.date_of_birth = new DateTimeOffset(dob, TimeSpan.Zero);
             }
 
-            // Cập nhật private mode
             if (request.IsPrivate.HasValue)
             {
                 admin.is_private = request.IsPrivate.Value;
             }
 
-            // Cập nhật số điện thoại
             if (!string.IsNullOrWhiteSpace(request.Phone))
             {
                 account.phone = new PhoneNumber(request.Phone);
-            }
-            else
-            {
-                account.phone = null; // Cho phép xóa phone
             }
 
             account.updated_at = DateTimeOffset.UtcNow;
@@ -143,7 +144,8 @@ namespace UngDungMangXaHoi.Application.Services
 
             await _otpRepository.AddAsync(otpEntity);
             await _emailService.SendOtpEmailAsync(account.email?.Value ?? string.Empty, otp, "change_password_admin", fullName);
-return (true, "OTP đã được gửi đến email. Vui lòng xác thực trong vòng 1 phút.");
+
+            return (true, "OTP đã được gửi đến email. Vui lòng xác thực trong vòng 1 phút.");
         }
 
         public async Task<(bool success, string message)> VerifyChangePasswordOtpAsync(int accountId, AdminVerifyChangePasswordOtpRequest request)
