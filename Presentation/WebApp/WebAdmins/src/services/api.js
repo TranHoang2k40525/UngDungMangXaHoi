@@ -241,12 +241,14 @@ export const adminAPI = {
 // ============= DASHBOARD API =============
 export const dashboardAPI = {
     // ✅ API thật từ backend
-    async getNewUserStats(fromDate, toDate, sortOption = "Day") {
-        const from = fromDate.toISOString().split("T")[0];
-        const to = toDate.toISOString().split("T")[0];
-        return apiClient.get(
-            `/api/DashBoard/new-user-stats?fromDate=${from}&toDate=${to}&options=${sortOption}`
-        );
+    async getNewUserStats(fromDate = null, toDate = null, sortOption = "Day") {
+        let url = `/api/DashBoard/new-user-stats?options=${sortOption}`;
+        if (fromDate && toDate) {
+            const from = fromDate.toISOString().split("T")[0];
+            const to = toDate.toISOString().split("T")[0];
+            url += `&fromDate=${from}&toDate=${to}`;
+        }
+        return apiClient.get(url);
     },
 
     // ✅ API thật từ backend
@@ -255,21 +257,25 @@ export const dashboardAPI = {
     },
 
     // ✅ API thật từ backend
-    async getBusinessGrowth(fromDate, toDate, sortOption = "Day") {
-        const from = fromDate.toISOString().split("T")[0];
-        const to = toDate.toISOString().split("T")[0];
-        return apiClient.get(
-            `/api/DashBoard/business-growth-chart?startDate=${from}&endDate=${to}&group=${sortOption}`
-        );
+    async getBusinessGrowth(fromDate = null, toDate = null, sortOption = "Day") {
+        let url = `/api/DashBoard/business-growth-chart?group=${sortOption}`;
+        if (fromDate && toDate) {
+            const from = fromDate.toISOString().split("T")[0];
+            const to = toDate.toISOString().split("T")[0];
+            url += `&startDate=${from}&endDate=${to}`;
+        }
+        return apiClient.get(url);
     },
 
     // ✅ API thật từ backend
-async getRevenue(fromDate, toDate, sortOption = "Day") {
-        const from = fromDate.toISOString().split("T")[0];
-        const to = toDate.toISOString().split("T")[0];
-        return apiClient.get(
-            `/api/DashBoard/revenue-chart?startDate=${from}&endDate=${to}&group=${sortOption}`
-        );
+    async getRevenue(fromDate = null, toDate = null, sortOption = "Day") {
+        let url = `/api/DashBoard/revenue-chart?group=${sortOption}`;
+        if (fromDate && toDate) {
+            const from = fromDate.toISOString().split("T")[0];
+            const to = toDate.toISOString().split("T")[0];
+            url += `&startDate=${from}&endDate=${to}`;
+        }
+        return apiClient.get(url);
     },
 
     // ✅ API thật từ backend
@@ -295,12 +301,14 @@ async getRevenue(fromDate, toDate, sortOption = "Day") {
         return apiClient.get(url);
     },
     // ✅ API thật từ backend
-    async getTopPosts(fromDate, toDate, topN = 10) {
-        const from = fromDate.toISOString().split("T")[0];
-        const to = toDate.toISOString().split("T")[0];
-        return apiClient.get(
-            `/api/DashBoard/posts-top?topN=${topN}&startDate=${from}&endDate=${to}`
-        );
+    async getTopPosts(fromDate = null, toDate = null, topN = 10) {
+        let url = `/api/DashBoard/posts-top?topN=${topN}`;
+        if (fromDate && toDate) {
+            const from = fromDate.toISOString().split("T")[0];
+            const to = toDate.toISOString().split("T")[0];
+            url += `&startDate=${from}&endDate=${to}`;
+        }
+        return apiClient.get(url);
     },
 
     // Lấy chi tiết bài đăng (dùng khi Admin click xem chi tiết trong dashboard)
@@ -309,12 +317,14 @@ async getRevenue(fromDate, toDate, sortOption = "Day") {
     },
 
     // ✅ API thật từ backend - Dashboard summary endpoint
-    async getDashboardSummary(fromDate, toDate, chartGroupBy = "Day") {
-        const from = fromDate.toISOString().split("T")[0];
-        const to = toDate.toISOString().split("T")[0];
-        return apiClient.get(
-            `/api/DashBoard/summary?startDate=${from}&endDate=${to}&chartGroupBy=${chartGroupBy}`
-        );
+    async getDashboardSummary(fromDate = null, toDate = null, chartGroupBy = "Day") {
+        let url = `/api/DashBoard/summary?chartGroupBy=${chartGroupBy}`;
+        if (fromDate && toDate) {
+            const from = fromDate.toISOString().split("T")[0];
+            const to = toDate.toISOString().split("T")[0];
+            url += `&startDate=${from}&endDate=${to}`;
+        }
+        return apiClient.get(url);
     },
 };
 
