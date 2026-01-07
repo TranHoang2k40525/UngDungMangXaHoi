@@ -139,6 +139,12 @@ export default function Doanchat() {
           `[Doanchat] RESPONSE: Got ${response.data.messages.length} messages (expected: ${pageSize}), total: ${totalMessages}, pages: ${totalPages}`
         );
 
+        // Set last_seen từ API response (UTC time)
+        if (response.data.other_user_last_seen) {
+          setOtherUserLastSeen(response.data.other_user_last_seen);
+          console.log(`[Doanchat] Set otherUserLastSeen:`, response.data.other_user_last_seen);
+        }
+
         // Backend OrderByDescending → MỚI nhất trước
         // Reverse để CŨ nhất lên trên, MỚI nhất xuống dưới (chuẩn chat UI)
         const reversedMessages = [...response.data.messages].reverse();
@@ -200,28 +206,7 @@ export default function Doanchat() {
 
         // Backend OrderByDescending → reverse để cũ nhất trước
         const olderMessages = [...response.data.messages].reverse();
-        setMessages((prev) => {
-          const combined = [...olderMessages, ...prev];
-          const seen = new Map();
-          
-          // ✅ Deduplicate: prefer real messages over temp/pending
-          combined.forEach((m) => {
-            if (!m || m.message_id == null) return;
-            
-            const key = String(m.message_id);
-            const existing = seen.get(key);
-            
-            // Replace temp with real
-            if (existing && (existing.tempId || existing.pending) && !m.tempId && !m.pending) {
-              console.log('[Doanchat] Replacing temp with real:', key);
-              seen.set(key, m);
-            } else if (!existing) {
-              seen.set(key, m);
-            }
-          });
-          
-          return Array.from(seen.values());
-        });
+        setMessages((prev) => [...olderMessages, ...prev]);
         setCurrentPage(nextPage);
         setHasMoreMessages(nextPage < totalPages); // Còn page tiếp theo
       } else {
@@ -251,19 +236,7 @@ export default function Doanchat() {
 
       // Check if message is for this conversation
       if (newMessage.sender_id === userId) {
-        setMessages((prev) => {
-          // ✅ Prevent duplicate: check both message_id and tempId
-          const exists = prev.some(
-            (m) => m.message_id === newMessage.message_id || 
-                   m.tempId === newMessage.message_id
-          );
-          if (exists) {
-            console.log('[Doanchat] Message already exists, skipping:', newMessage.message_id);
-            return prev;
-          }
-          console.log('[Doanchat] Adding new message:', newMessage.message_id);
-          return [...prev, newMessage];
-        });
+        setMessages((prev) => [...prev, newMessage]);
         scrollToBottom();
 
         // Mark as read if conversation exists
@@ -277,31 +250,11 @@ export default function Doanchat() {
     const handleMessageSent = (newMessage) => {
       console.log("[Doanchat] Message sent confirmation:", newMessage);
       setMessages((prev) => {
-        // ✅ If server provided clientTempId, replace optimistic message
-        const tempId = newMessage.clientTempId || newMessage.tempId;
-        if (tempId) {
-          const idx = prev.findIndex(
-            (m) => m.message_id === tempId || m.tempId === tempId
-          );
-          if (idx >= 0) {
-            console.log('[Doanchat] Replacing optimistic message:', tempId, '→', newMessage.message_id);
-            const copy = [...prev];
-            copy[idx] = newMessage;
-            return copy;
-          }
-        }
-
         // Avoid duplicates - check if message already exists
-        const exists = prev.some(
-          (m) => m.message_id === newMessage.message_id || 
-                 m.tempId === newMessage.message_id
-        );
+        const exists = prev.some((m) => m.message_id === newMessage.message_id);
         if (exists) {
-          console.log('[Doanchat] Message already exists, skipping:', newMessage.message_id);
           return prev;
         }
-        
-        console.log('[Doanchat] Adding sent message:', newMessage.message_id);
         return [...prev, newMessage];
       });
       scrollToBottom();
@@ -330,7 +283,8 @@ export default function Doanchat() {
       console.log("[Doanchat] User offline:", offlineUserId);
       if (offlineUserId === userId) {
         setIsOtherUserOnline(false);
-        // Có thể load lastSeen từ API nếu cần
+        // Set last_seen to current UTC time
+        setOtherUserLastSeen(new Date().toISOString());
       }
     };
 
@@ -418,6 +372,7 @@ export default function Doanchat() {
   const formatOfflineTime = (lastSeen) => {
     if (!lastSeen) return "Offline";
 
+    // lastSeen từ backend là UTC, so sánh trực tiếp với UTC hiện tại
     const lastSeenDate = new Date(lastSeen);
     const now = new Date();
     const diffMs = now - lastSeenDate;
@@ -653,14 +608,11 @@ export default function Doanchat() {
           // Add message manually only if HTTP fallback succeeds
           setMessages((prev) => {
             const exists = prev.some(
-              (m) => m.message_id === response.data.message_id || 
-                     m.tempId === response.data.message_id
+              (m) => m.message_id === response.data.message_id
             );
             if (!exists) {
-              console.log('[Doanchat] Adding HTTP fallback message:', response.data.message_id);
               return [...prev, response.data];
             }
-            console.log('[Doanchat] HTTP message already exists, skipping');
             return prev;
           });
           scrollToBottom();
@@ -921,11 +873,6 @@ export default function Doanchat() {
                   const isOwnMessage = msg.sender_id === currentUserId;
                   const isHighlighted = highlightedMessageId === msg.message_id;
 
-                  // ✅ Generate unique key: prefer real message_id, fallback to tempId
-                  const messageKey = msg.tempId 
-                    ? `temp-${msg.tempId}` 
-                    : `msg-${msg.message_id || index}`;
-
                   // Debug logging
                   if (index === 0) {
                     console.log(
@@ -943,7 +890,7 @@ export default function Doanchat() {
 
                   return (
                     <View
-                      key={messageKey}
+                      key={msg.message_id || index}
                       style={[
                         styles.messageWrapper,
                         isOwnMessage

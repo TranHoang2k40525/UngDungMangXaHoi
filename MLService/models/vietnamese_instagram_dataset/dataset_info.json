@@ -1,0 +1,18 @@
+{
+  "total_samples": 32130,
+  "train_samples": 22491,
+  "val_samples": 4819,
+  "test_samples": 4820,
+  "label_distribution": {
+    "safe": 25180,
+    "hate": 3348,
+    "toxic": 2102,
+    "suicide": 500,
+    "nsfw": 500,
+    "violence": 500
+  },
+  "sources": {
+    "vihsd": 30602,
+    "manual_augmentation": 1528
+  }
+}

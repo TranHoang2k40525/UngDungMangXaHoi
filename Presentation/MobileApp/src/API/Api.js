@@ -6,7 +6,7 @@ import { Platform } from "react-native";
 
 // Base URL - Chỉ cần thay đổi ở đây khi đổi IP/port
 // Nếu test trên điện thoại thật: dùng IP của máy tính (xem bằng ipconfig)
-export const API_BASE_URL = "http://192.168.1.101:5297"; // Backend đang chạy trên IP máy tính
+export const API_BASE_URL = "http://10.254.222.105:5297"; // Backend đang chạy trên IP máy tính
 
 // Hàm helper để gọi API
 const apiCall = async (endpoint, options = {}) => {

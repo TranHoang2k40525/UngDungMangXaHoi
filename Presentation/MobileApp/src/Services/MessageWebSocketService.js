@@ -20,7 +20,7 @@ class MessageWebSocketService {
                 return false;
             }
 
-            const baseURL = "http://192.168.1.101:5297"; // Backend IP từ Api.js
+            const baseURL = "http://10.254.222.105:5297"; // Backend IP từ Api.js
             // const baseURL = 'http://10.0.2.2:5297'; // Android emulator
             // const baseURL = 'http://localhost:5297'; // iOS simulator
 

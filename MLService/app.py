@@ -39,7 +39,7 @@ CUMULATIVE_THRESHOLD = 0.80  # Tăng từ 0.60 → 0.80
 
 class TextRequest(BaseModel):
     """Request model cho API"""
-    text: str
+    text: str 
     
     class Config:
         json_schema_extra = {
@@ -115,7 +115,7 @@ def assess_risk(label: str, confidence: float, cumulative: float) -> str:
     if label == 'safe':
         return 'no_risk'
     
-    # ✅ CHỈ BÁO HIGH RISK KHI THỰC SỰ NGUY HIỂM CAO
+
     if label in ['suicide', 'violence'] and confidence > 0.85:
         return 'high_risk'
     elif label in ['nsfw', 'hate'] and confidence > 0.80:
@@ -125,11 +125,11 @@ def assess_risk(label: str, confidence: float, cumulative: float) -> str:
     elif cumulative > 0.85:  # Tổng điểm rất cao
         return 'high_risk'
     
-    # ✅ MEDIUM RISK: MỨC ĐỘ VỪA PHẢI
+  
     elif confidence > 0.70 or cumulative > 0.70:
         return 'medium_risk'
     
-    # ✅ LOW RISK: NGUY HIỂM THẤP
+
     else:
         return 'low_risk'
 

@@ -42,6 +42,7 @@ namespace UngDungMangXaHoi.Application.DTOs
         public string other_user_full_name { get; set; } = null!;
         public string? other_user_avatar_url { get; set; }
         public string? other_user_bio { get; set; }
+        public DateTime? other_user_last_seen { get; set; } // UTC time - frontend sẽ tự cộng 7 tiếng
         public List<MessageDto> messages { get; set; } = new();
         public int total_messages { get; set; }
         public int page { get; set; }

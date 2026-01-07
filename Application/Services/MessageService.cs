@@ -100,6 +100,11 @@ namespace UngDungMangXaHoi.Application.Services
             // Đánh dấu đã đọc
             await _messageRepository.MarkAsReadAsync(conversation.conversation_id, userId);
 
+            // Đảm bảo last_seen có DateTimeKind.Utc để serialize đúng với "Z" ở cuối
+            DateTime? lastSeenUtc = otherUser.last_seen.HasValue 
+                ? DateTime.SpecifyKind(otherUser.last_seen.Value, DateTimeKind.Utc)
+                : null;
+
             return new ConversationDetailDto
             {
                 conversation_id = conversation.conversation_id,
@@ -108,6 +113,7 @@ namespace UngDungMangXaHoi.Application.Services
                 other_user_full_name = otherUser.full_name,
                 other_user_avatar_url = otherUser.avatar_url?.Value,
                 other_user_bio = otherUser.bio,
+                other_user_last_seen = lastSeenUtc, // Trả về UTC với DateTimeKind.Utc
                 messages = messages.Select(MapToMessageDto).ToList(),
                 total_messages = totalMessages,
                 page = page,
@@ -220,10 +226,9 @@ namespace UngDungMangXaHoi.Application.Services
                 
                 if (user != null)
                 {
-                    // Convert last_seen từ UTC sang Vietnam time
-                    var vietnamTimeZone = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
-                    DateTime? lastSeenVietnam = user.last_seen.HasValue 
-                        ? TimeZoneInfo.ConvertTimeFromUtc(user.last_seen.Value, vietnamTimeZone) 
+                    // Đảm bảo last_seen có DateTimeKind.Utc để serialize đúng với "Z" ở cuối
+                    DateTime? lastSeenUtc = user.last_seen.HasValue 
+                        ? DateTime.SpecifyKind(user.last_seen.Value, DateTimeKind.Utc)
                         : null;
 
                     // Lấy tin nhắn gần nhất giữa 2 users
@@ -267,7 +272,7 @@ namespace UngDungMangXaHoi.Application.Services
                         other_user_full_name = user.full_name,
                         other_user_avatar_url = user.avatar_url?.Value,
                         other_user_bio = user.bio,
-                        other_user_last_seen = lastSeenVietnam, // Thêm last_seen
+                        other_user_last_seen = lastSeenUtc, // Trả về UTC với DateTimeKind.Utc
                         last_message = lastMessageDto,
                         unread_count = unreadCount,
                         created_at = DateTime.UtcNow,

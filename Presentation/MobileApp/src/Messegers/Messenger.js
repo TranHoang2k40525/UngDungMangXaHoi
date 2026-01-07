@@ -460,10 +460,12 @@ export default function Messenger() {
   const formatOfflineTime = (lastSeen) => {
     if (!lastSeen) return '';
     
+    // Backend trả về Vietnam time (+7h), trừ đi 7h để về UTC
     const lastSeenDate = new Date(lastSeen);
+    const lastSeenUtc = new Date(lastSeenDate.getTime() + (7 * 60 * 60 * 1000));
     const now = new Date();
     
-    const diffMs = now - lastSeenDate;
+    const diffMs = now - lastSeenUtc;
     const diffMins = Math.floor(diffMs / 60000);
     
     if (diffMins < 1) return 'now';
