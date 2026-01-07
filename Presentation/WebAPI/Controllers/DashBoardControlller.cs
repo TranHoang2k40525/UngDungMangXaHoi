@@ -164,18 +164,18 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 // Build absolute URLs for avatars and media so frontend can render thumbnails directly
                 try
                 {
-                    // Convert any stored filenames to root-relative asset paths to avoid returning http://localhost... links
+                    var baseUrl = $"{Request.Scheme}://{Request.Host.Value}";
                     if (posts?.Posts != null)
                     {
                         foreach (var p in posts.Posts)
                         {
-                            // Normalize avatar URL to root-relative
+                            // Normalize avatar URL
                             if (!string.IsNullOrEmpty(p.Author?.AvatarUrl) && !p.Author.AvatarUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                             {
-                                p.Author.AvatarUrl = p.Author.AvatarUrl.StartsWith("/") ? p.Author.AvatarUrl : $"/Assets/Images/{p.Author.AvatarUrl}";
+                                p.Author.AvatarUrl = $"{baseUrl}/Assets/Images/{p.Author.AvatarUrl}";
                             }
 
-                            // Normalize media URLs to root-relative
+                            // Normalize media URLs
                             if (p.Media != null)
                             {
                                 foreach (var m in p.Media)
@@ -183,7 +183,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                                     if (!string.IsNullOrEmpty(m.MediaUrl) && !m.MediaUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                                     {
                                         var folder = (m.MediaType ?? "").ToLower().StartsWith("video") ? "Videos" : "Images";
-                                        m.MediaUrl = m.MediaUrl.StartsWith("/") ? m.MediaUrl : $"/Assets/{folder}/{m.MediaUrl}";
+                                        m.MediaUrl = $"{baseUrl}/Assets/{folder}/{m.MediaUrl}";
                                     }
                                 }
                             }

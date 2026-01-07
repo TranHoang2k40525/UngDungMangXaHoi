@@ -21,22 +21,18 @@ namespace UngDungMangXaHoi.Application.Services
         private readonly IPasswordHasher _passwordHasher;
         private readonly IEmailService _emailService;
         
-        // Helper: return a safe asset URL for web clients.
-        // - If caller stored an absolute URL, return it unchanged.
-        // - Otherwise return a root-relative path (e.g. "/Assets/Images/xxx") to avoid mixed-content.
+        // ✅ Helper method to convert relative path to full URL
         private string? GetFullAvatarUrl(string? relativePath)
         {
             if (string.IsNullOrEmpty(relativePath)) return null;
-
+            
             // If already full URL, return as-is
-            if (relativePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || relativePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            if (relativePath.StartsWith("http://") || relativePath.StartsWith("https://"))
                 return relativePath;
-
-            // If already root-relative, return as-is
-            if (relativePath.StartsWith("/")) return relativePath;
-
-            // Otherwise normalize to root-relative path to avoid returning unsafe http://localhost links
-            return "/" + relativePath.TrimStart('/');
+            
+            // Convert relative path to full URL
+            var baseUrl = Environment.GetEnvironmentVariable("API_BASE_URL") ?? "http://localhost:5297";
+            return $"{baseUrl}{relativePath}";
         }
 
         public UserProfileService(
@@ -443,8 +439,11 @@ namespace UngDungMangXaHoi.Application.Services
             user.avatar_url = new ImageUrl(relativePath);
             await _userRepository.UpdateAsync(user);
 
-            // Return root-relative path to avoid mixed-content issues in web clients.
-            var avatarUrl = relativePath;
+            // ✅ FIX: Return full URL for mobile compatibility
+            // Get base URL from configuration or construct it
+            var baseUrl = Environment.GetEnvironmentVariable("API_BASE_URL") ?? "http://localhost:5297";
+            var avatarUrl = $"{baseUrl}{relativePath}";
+
             Console.WriteLine($"[AVATAR] Saved avatar: {relativePath} (returned as: {avatarUrl}) for user {user.username.Value}");
 
             // Nếu user chọn đăng bài
