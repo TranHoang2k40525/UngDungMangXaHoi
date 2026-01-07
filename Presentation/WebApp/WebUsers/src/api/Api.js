@@ -3,7 +3,24 @@
 // - When empty string, API calls use same-origin relative paths (recommended for HTTPS sites).
 export const API_BASE_URL = (() => {
   const envBase = (process.env.REACT_APP_API_BASE_URL || process.env.VITE_API_BASE_URL || null);
-  if (envBase) return envBase.replace(/\/$/, '');
+  if (envBase) {
+    // If build-time env points to an HTTP localhost but the page is served over HTTPS (tunnel),
+    // ignore the insecure localhost value to avoid mixed-content and use same-origin.
+    try {
+      if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+        const url = new URL(envBase, window.location.origin);
+        if (url.protocol === 'http:') {
+          // insecure base - ignore to avoid mixed-content
+        } else {
+          return envBase.replace(/\/$/, '');
+        }
+      } else {
+        return envBase.replace(/\/$/, '');
+      }
+    } catch (e) {
+      return envBase.replace(/\/$/, '');
+    }
+  }
 
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;

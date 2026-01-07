@@ -625,7 +625,22 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
         private async Task<object> MapPostToDtoAsync(Post p, int commentsCount = 0, int sharesCount = 0)
         {
-            string BaseUrl(string path) => $"{Request.Scheme}://{Request.Host}{path}";
+            // Resolve asset/url to a safe relative or pass-through absolute URL.
+            string ResolveAssetUrl(string raw)
+            {
+                if (string.IsNullOrEmpty(raw)) return raw;
+                // If already absolute, return as-is
+                if (raw.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || raw.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    return raw;
+                // If already a root-relative path, return as-is
+                if (raw.StartsWith("/"))
+                    return raw;
+                // If contains Assets/ prefix, ensure leading slash
+                if (raw.IndexOf("Assets/", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return "/" + raw.TrimStart('/');
+                // Otherwise treat as filename under Images by default
+                return $"/Assets/Images/{raw}";
+            }
 
             var media = p.Media
                 .OrderBy(m => m.media_order)
@@ -637,7 +652,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
 
                     if (type.Equals("video", StringComparison.OrdinalIgnoreCase))
                     {
-                        url = BaseUrl($"/Assets/Videos/{m.media_url}");
+                        url = ResolveAssetUrl($"/Assets/Videos/{m.media_url}");
                         try
                         {
                             var root = Directory.GetCurrentDirectory();
@@ -647,14 +662,14 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                             var compatPath = Path.Combine(videosDir, compatName);
                             if (System.IO.File.Exists(compatPath))
                             {
-                                altUrl = BaseUrl($"/Assets/Videos/{compatName}");
+                                altUrl = ResolveAssetUrl($"/Assets/Videos/{compatName}");
                             }
                         }
                         catch { }
                     }
                     else
                     {
-                        url = BaseUrl($"/Assets/Images/{m.media_url}");
+                        url = ResolveAssetUrl($"/Assets/Images/{m.media_url}");
                     }
 
                     return new { type, url, altUrl };
@@ -671,11 +686,11 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                     if (ids.Count > 0)
                     {
                         var users = await _userRepository.GetUsersByIdsAsync(ids);
-                        mentions.AddRange(users.Select(u => new
+                            mentions.AddRange(users.Select(u => new
                         {
                             id = u.user_id,
                             username = u.username.Value,
-                            avatarUrl = u.avatar_url?.Value != null ? BaseUrl(u.avatar_url.Value) : null
+                            avatarUrl = u.avatar_url?.Value != null ? ResolveAssetUrl(u.avatar_url.Value) : null
                         }));
                     }
                 }
@@ -694,7 +709,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                         {
                             id = u.user_id,
                             username = u.username.Value,
-                            avatarUrl = u.avatar_url?.Value != null ? BaseUrl(u.avatar_url.Value) : null
+                            avatarUrl = u.avatar_url?.Value != null ? ResolveAssetUrl(u.avatar_url.Value) : null
                         }));
                     }
                 }
@@ -720,7 +735,7 @@ namespace UngDungMangXaHoi.WebAPI.Controllers
                 {
                     id = p.User?.user_id,
                     username = p.User?.username.Value,
-                    avatarUrl = p.User?.avatar_url?.Value != null ? BaseUrl(p.User.avatar_url.Value) : null,
+                    avatarUrl = p.User?.avatar_url?.Value != null ? ResolveAssetUrl(p.User.avatar_url.Value) : null,
                     // ✅ Get account type from RBAC roles
                     accountType = p.User?.Account?.AccountRoles
                         .Where(ar => ar.is_active)
