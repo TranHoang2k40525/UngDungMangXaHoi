@@ -236,7 +236,16 @@ export default function Doanchat() {
 
       // Check if message is for this conversation
       if (newMessage.sender_id === userId) {
-        setMessages((prev) => [...prev, newMessage]);
+        setMessages((prev) => {
+          // ✅ Prevent duplicate by checking message_id
+          const exists = prev.some((m) => m.message_id === newMessage.message_id);
+          if (exists) {
+            console.log("[Doanchat] Message already exists, skipping:", newMessage.message_id);
+            return prev;
+          }
+          console.log("[Doanchat] Adding new received message:", newMessage.message_id);
+          return [...prev, newMessage];
+        });
         scrollToBottom();
 
         // Mark as read if conversation exists
@@ -250,11 +259,13 @@ export default function Doanchat() {
     const handleMessageSent = (newMessage) => {
       console.log("[Doanchat] Message sent confirmation:", newMessage);
       setMessages((prev) => {
-        // Avoid duplicates - check if message already exists
+        // ✅ Avoid duplicates - check if message already exists
         const exists = prev.some((m) => m.message_id === newMessage.message_id);
         if (exists) {
+          console.log("[Doanchat] Message already exists (sent confirmation), skipping:", newMessage.message_id);
           return prev;
         }
+        console.log("[Doanchat] Adding sent message confirmation:", newMessage.message_id);
         return [...prev, newMessage];
       });
       scrollToBottom();
