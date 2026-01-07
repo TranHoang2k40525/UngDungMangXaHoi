@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BASE_URL = "http://localhost:5297/api"; // Backend
+const BASE_URL = (window.location.origin.includes('trycloudflare.com') ? window.location.origin : "http://localhost:5297") + "/api";
 
 // Create axios instance
 const apiClient = axios.create({

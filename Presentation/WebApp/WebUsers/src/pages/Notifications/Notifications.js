@@ -51,7 +51,7 @@ const NotificationItem = ({ notification, onPress, onMarkAsRead, onDelete }) => 
     return notifDate.toLocaleDateString('vi-VN');
   };
 
-  const apiUrl = 'http://localhost:5297';
+  const apiUrl = window.location.origin.includes('trycloudflare.com') ? window.location.origin : 'http://localhost:5297';
   const avatarUrl = notification.senderAvatar
     ? `${apiUrl}${notification.senderAvatar}`
     : 'https://i.pravatar.cc/150?img=8';

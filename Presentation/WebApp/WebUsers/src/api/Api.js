@@ -1,5 +1,9 @@
-// Base URL - Thay đổi theo IP của máy backend
-export const API_BASE_URL = "http://localhost:5297"; // Backend đang chạy trên localhost
+// Base URL - Automatically use current origin (works with Quick Tunnel)
+// In production via Quick Tunnel: uses the tunnel URL
+// In local dev: uses localhost
+export const API_BASE_URL = window.location.origin.includes('trycloudflare.com') 
+  ? window.location.origin // Production via Quick Tunnel
+  : "http://localhost:5297"; // Local development
 
 // Helper để gọi API
 const apiCall = async (endpoint, options = {}) => {

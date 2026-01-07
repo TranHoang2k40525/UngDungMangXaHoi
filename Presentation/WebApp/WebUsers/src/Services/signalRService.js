@@ -1,6 +1,6 @@
 import * as SignalR from '@microsoft/signalr';
 
-const API_BASE_URL = "http://localhost:5297";
+const API_BASE_URL = window.location.origin.includes('trycloudflare.com') ? window.location.origin : "http://localhost:5297";
 
 class SignalRService {
   constructor() {
